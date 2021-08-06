@@ -9,55 +9,6 @@ from moncic.ci import LaunchBuild, Bootstrap
 log = logging.getLogger(__name__)
 
 
-# usage() {
-#
-#     cat <<EOF
-# Usage: $0 <command> [options]
-# where <command> is one of:
-#
-#  bootstrap_image <name> <OS name> <size> [<fs type>]
-#   bootstrap a minimal OS on a filesystem in a raw file image
-#    <name> name of the image file
-#    <OS name> name of the distro (centos7, centos8, fedora32, fedora34
-#     at the moment)
-#    <size> size of the image in MB (as understood by dd, e.g. "1K" gives
-#     1G image size)
-#    <fs type> filesystem type (default ext4)
-#
-#  bootstrap_dir <name> <OS name>
-#   bootstrap a minimal OS on a local directory
-#    <name> name of the directory
-#    <OS name> name of the distro (centos7, centos8, fedora32, fedora34
-#     at the moment)
-#
-#  prepare_image <base> <dest> [-r <size>] [-p]
-#   copy a minimal readonly image to a writable file for starting a
-#   container instance, optionally resizing it and embedding in a
-#   partitioned disk image
-#    <base> base raw image file (untouched)
-#    <dest> destination image file, if a lot of RAM is available can be
-#     on a tmpfs filesystem
-#    -r <size> to resize the destination image, with <size> as
-#     understood by fsadm/resize2fs, e.g. 640M, 5G (default no resize)
-#    -p embed destination image in a single-partition disk image
-#     (required by older systemd)
-#
-# EOF
-#     exit 1
-# }
-
-
-# case $command in
-#     bootstrap_image)
-#         bootstrap_image "$@"
-#         ;;
-#     bootstrap_dir)
-#         bootstrap_dir "$@"
-#         ;;
-#     *)
-#         usage
-# esac
-
 def main():
     parser = argparse.ArgumentParser(description="CI tool")
     subparsers = parser.add_subparsers(help="sub-command help", dest="command", required=True)
