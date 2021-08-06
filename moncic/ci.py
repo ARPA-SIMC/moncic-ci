@@ -6,6 +6,7 @@ import uuid
 import os
 from .cli import Command, Fail
 from .machine import Machine
+from .bootstrap import Distro
 
 log = logging.getLogger(__name__)
 
@@ -68,3 +69,23 @@ class LaunchBuild(Command):
                 f"cd {shlex.quote(dirname)};"
                 f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}",
             ])
+
+
+class Bootstrap(Command):
+    """
+    Bootstrap a minimal OS image in a btrfs snapshot
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        distro_list = ', '.join(repr(x) for x in Distro.list())
+        parser.add_argument("path",
+                            help="path to the btrfs subvolume to create")
+        parser.add_argument("os_name",
+                            help=f"name of the distro to install (one of {distro_list})")
+        return parser
+
+    def run(self):
+        distro = Distro.create(self.args.os_name)
+        distro.bootstrap_subvolume(self.args.path)
