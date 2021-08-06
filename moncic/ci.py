@@ -1,8 +1,13 @@
 from __future__ import annotations
 import subprocess
+import logging
 import shlex
+import uuid
 import os
 from .cli import Command, Fail
+from .machine import Machine
+
+log = logging.getLogger(__name__)
 
 
 def sh(*cmd):
@@ -38,39 +43,28 @@ class LaunchBuild(Command):
         return parser
 
     def run(self):
-        sh("git", "clone", self.args.repo, "--branch", self.args.branch)
-        dirname = os.path.basename(self.args.repo)
-        if dirname.endswith(".git"):
-            dirname = dirname[:-4]
+        name = str(uuid.uuid4())
+        with Machine(name, self.args.image) as machine:
+            log.info("Machine %s started", name)
 
-        if not os.path.isdir(dirname):
-            raise Fail(f"git clone of {self.args.repo!r} did not create {dirname!r}")
+            machine.run(["/usr/bin/git", "clone", self.args.repo, "--branch", self.args.branch])
 
-        # if [[ -n "$BUILDSCRIPT" ]]; then
-        #     [[ -e "$BUILDSCRIPT" ]] || { echo "build script $BUILDSCRIPT does not exist"; exit 1; }
-        #     buildscript=./.travis-build.sh
-        # else
-        #     buildscript=$(mktemp -p .)
-        #     cp $BUILDSCRIPT $buildscript
-        # fi
+            dirname = os.path.basename(self.args.repo)
+            if dirname.endswith(".git"):
+                dirname = dirname[:-4]
+            # if not os.path.isdir(dirname):
+            #     raise Fail(f"git clone of {self.args.repo!r} did not create {dirname!r}")
 
-        cmd = [
-           f'--bind-ro={os.path.abspath(dirname)}:/root/src',
-        ]
-        if not self.args.shell:
-            cmd += [
-               "sh", "-c",
-               f"cd /root/src/{shlex.quote(dirname)};"
-               f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}"
-            ]
+            # if [[ -n "$BUILDSCRIPT" ]]; then
+            #     [[ -e "$BUILDSCRIPT" ]] || { echo "build script $BUILDSCRIPT does not exist"; exit 1; }
+            #     buildscript=./.travis-build.sh
+            # else
+            #     buildscript=$(mktemp -p .)
+            #     cp $BUILDSCRIPT $buildscript
+            # fi
 
-        if os.path.isfile(self.args.image):
-            # filesystem image
-            cmd = ["systemd-nspawn", "-i", self.args.image, "--ephemeral"] + cmd
-            sh(*cmd)
-        elif os.path.isdir(self.args.image):
-            # local dir
-            cmd = ["systemd-nspawn", "-D", self.args.image, "--volatile=overlay"] + cmd
-        else:
-            raise Fail(f"image {self.args.image!r} does not exist")
-        # TODO: save the build result somehow
+            machine.run([
+                "/bin/sh", "-c",
+                f"cd {shlex.quote(dirname)};"
+                f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}",
+            ])
