@@ -1,74 +1,12 @@
 #!/usr/bin/python3
 
-from typing import Optional
-import subprocess
 import argparse
 import logging
-import shlex
 import sys
-import os
+from moncic.cli import run
+from moncic.ci import LaunchBuild
 
-
-def sh(*cmd):
-    try:
-        subprocess.run(cmd, check=True)
-    except subprocess.CalledProcessError as e:
-        raise Fail(f"Command '{' '.join(shlex.quote(c) for c in cmd)}' exited with status {e.returncode}")
-
-
-class Fail(RuntimeError):
-    """
-    Exception raised when the program should exit with an error but without a
-    backtrace
-    """
-    pass
-
-
-class Command:
-    # Command name (as used in command line)
-    # Defaults to the lowercased class name
-    NAME: Optional[str] = None
-
-    # Command description (as used in command line help)
-    # Defaults to the strip()ped class docstring.
-    DESC: Optional[str] = None
-
-    def __init__(self, args):
-        self.args = args
-        self.setup_logging()
-
-    def setup_logging(self):
-        # Setup logging
-        FORMAT = "%(asctime)-15s %(levelname)s %(name)s %(message)s"
-        log_handler = logging.StreamHandler(sys.stderr)
-        log_handler.setFormatter(logging.Formatter(FORMAT))
-        if self.args.debug:
-            log_handler.setLevel(logging.DEBUG)
-        elif self.args.verbose:
-            log_handler.setLevel(logging.INFO)
-        else:
-            log_handler.setLevel(logging.WARN)
-        root_logger = logging.getLogger()
-        root_logger.addHandler(log_handler)
-        root_logger.setLevel(logging.DEBUG)
-
-    @classmethod
-    def get_name(cls):
-        if cls.NAME is not None:
-            return cls.NAME
-        return cls.__name__.lower()
-
-    @classmethod
-    def make_subparser(cls, subparsers):
-        desc = cls.DESC
-        if desc is None:
-            desc = cls.__doc__.strip()
-
-        parser = subparsers.add_parser(cls.get_name(), help=desc)
-        parser.set_defaults(handler=cls)
-        parser.add_argument("-v", "--verbose", action="store_true", help="verbose output")
-        parser.add_argument("--debug", action="store_true", help="verbose output")
-        return parser
+log = logging.getLogger(__name__)
 
 
 # usage() {
@@ -306,70 +244,6 @@ class Command:
 # }
 #
 
-class LaunchBuild(Command):
-    """
-    clone a git repository and launch a container instance in the
-    requested OS chroot executing a build in the cloned source tree
-    according to .travis-build.sh script (or <buildscript> if set)
-    """
-    NAME = "launch_build"
-
-    @classmethod
-    def make_subparser(cls, subparsers):
-        parser = super().make_subparser(subparsers)
-        parser.add_argument("--shell", action="store_true",
-                            help="run a shell instead of the build script")
-        parser.add_argument("repo",
-                            help="git url of the repository to clone")
-        parser.add_argument("image",
-                            help="image file or base directory to use as chroot")
-        parser.add_argument("tag",
-                            help="tag to be passed to the build script")
-        parser.add_argument("branch",
-                            help="branch to be used")
-        parser.add_argument("buildscript", nargs="?", default=".travis-build.sh",
-                            help="build script that must accept <tag> as argument")
-        return parser
-
-    def run(self):
-        sh("git", "clone", self.args.repo, "--branch", self.args.branch)
-        dirname = os.path.basename(self.args.repo)
-        if dirname.endswith(".git"):
-            dirname = dirname[:-4]
-
-        if not os.path.isdir(dirname):
-            raise Fail(f"git clone of {self.args.repo!r} did not create {dirname!r}")
-
-        # if [[ -n "$BUILDSCRIPT" ]]; then
-        #     [[ -e "$BUILDSCRIPT" ]] || { echo "build script $BUILDSCRIPT does not exist"; exit 1; }
-        #     buildscript=./.travis-build.sh
-        # else
-        #     buildscript=$(mktemp -p .)
-        #     cp $BUILDSCRIPT $buildscript
-        # fi
-
-        cmd = [
-           f'--bind-ro={os.path.abspath(dirname)}:/root/src',
-        ]
-        if not self.args.shell:
-            cmd += [
-               "sh", "-c",
-               f"cd /root/src/{shlex.quote(dirname)};"
-               f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}"
-            ]
-
-        if os.path.isfile(self.args.image):
-            # filesystem image
-            cmd = ["systemd-nspawn", "-i", self.args.image, "--ephemeral"] + cmd
-            sh(*cmd)
-        elif os.path.isdir(self.args.image):
-            # local dir
-            cmd = ["systemd-nspawn", "-D", self.args.image, "--volatile=overlay"] + cmd
-        else:
-            raise Fail(f"image {self.args.image!r} does not exist")
-        # TODO: save the build result somehow
-
-
 # case $command in
 #     bootstrap_image)
 #         bootstrap_image "$@"
@@ -401,8 +275,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except Fail as e:
-        print(e, file=sys.stderr)
-        sys.exit(1)
+    run(main)
