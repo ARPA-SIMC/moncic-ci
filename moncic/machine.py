@@ -29,7 +29,7 @@ class Machine:
         ``ostree`` is the path to the btrfs subtree with the OS filesystem
         """
         self.machine_name = name
-        self.ostree = ostree
+        self.ostree = os.path.abspath(ostree)
         self.started = False
 
     def _run_nspawn(self, cmd: List[str]):
