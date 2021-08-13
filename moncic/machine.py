@@ -21,7 +21,7 @@ class Machine:
     """
     Manage a CI machine
     """
-    def __init__(self, name: str, ostree: str):
+    def __init__(self, name: str, ostree: str, ephemeral: True):
         """
         Manage a machine where to run CI scripts.
 
@@ -30,6 +30,7 @@ class Machine:
         """
         self.machine_name = name
         self.ostree = os.path.abspath(ostree)
+        self.ephemeral = ephemeral
         self.started = False
 
     def _run_nspawn(self, cmd: List[str]):
@@ -63,15 +64,18 @@ class Machine:
 
         log.info("Starting machine using image %s", self.ostree)
 
-        self._run_nspawn(
-            ("systemd-nspawn",
-                "--quiet",
-                "--ephemeral",
-                f"--directory={self.ostree}",
-                f"--machine={self.machine_name}",
-                "--boot",
-                "--notify-ready=yes")
-        )
+        cmd = [
+            "systemd-nspawn",
+            "--quiet",
+            f"--directory={self.ostree}",
+            f"--machine={self.machine_name}",
+            "--boot",
+            "--notify-ready=yes",
+        ]
+        if self.ephemeral:
+            cmd.append("--ephemeral")
+
+        self._run_nspawn(cmd)
         self.started = True
 
     def run(self, command: List[str]):
@@ -80,7 +84,7 @@ class Machine:
         """
         cmd = [
             "systemd-run", "--quiet", "--pipe", "--wait",
-            f"--machine={self.machine_name}",
+            f"--machine={self.machine_name}", "--",
         ]
         cmd += command
 

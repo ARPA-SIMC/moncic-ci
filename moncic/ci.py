@@ -92,6 +92,24 @@ class Bootstrap(Command):
         distro.bootstrap_subvolume(self.args.path)
 
 
+class Shell(Command):
+    """
+    Run a shell in the given container
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("path", help="path to the chroot")
+        parser.add_argument("-x", "--ephemeral", action="store_true",
+                            help="run the shell on an ephemeral machine")
+        return parser
+
+    def run(self):
+        with Machine(f"shell-{os.getpid()}", self.args.path, ephemeral=self.args.ephemeral) as machine:
+            machine.run(["/bin/bash", "-"])
+
+
 class Bootstrapper(Command):
     """
     Create or update the whole set of OS images for the CI
