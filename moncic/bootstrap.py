@@ -29,7 +29,7 @@ class Distro:
 
     @classmethod
     def register(cls, distro_cls: Type["Distro"]):
-        cls.distros[distro_cls.__name__] = distro_cls
+        cls.distros[distro_cls.__name__.lower()] = distro_cls
         return distro_cls
 
     @classmethod

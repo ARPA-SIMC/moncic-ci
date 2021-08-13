@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 from moncic.cli import run
-from moncic.ci import LaunchBuild, Bootstrap
+from moncic.ci import LaunchBuild, Bootstrap, Bootstrapper
 
 log = logging.getLogger(__name__)
 
@@ -15,6 +15,7 @@ def main():
 
     LaunchBuild.make_subparser(subparsers)
     Bootstrap.make_subparser(subparsers)
+    Bootstrapper.make_subparser(subparsers)
 
     args = parser.parse_args()
     handler = args.handler(args)
