@@ -150,12 +150,17 @@ class Bootstrapper(Command):
 
             if not os.path.exists(path):
                 log.info("Creo immagine %s...", info["name"])
-                # log_on_failure "$ci bootstrap_image ${imgpath}/${d} ${d} 10K" \
-                # && logger_info "... fatto" \
-                # || { logger_fatal "Errore nella creazione dell'immagine $d" ; exit 5 ; }
+                try:
+                    distro.bootstrap(path)
+                except Exception:
+                    log.critical("Errore nella creazione dell'immagine %s", info["name"], exc_info=True)
+                    return 5
+                log.info("...fatto")
             else:
                 log.info("Aggiorno immagine %s...", info["name"])
-                # log_on_failure "systemd-nspawn -i ${imgpath}/${d} --bind-ro=@procdir@/tools:/root/src sh -c 'cd /root/src; sh ./update_image.sh ${d}'" \
-                #     && logger_info "... fatto" \
-                #     || { logger_fatal "Errore nell'update dell'immagine $d" ; exit 6 ; }
-                ...
+                try:
+                    distro.update(path)
+                except Exception:
+                    log.critical("Errore nell'update dell'immagine %s", info["name"], exc_info=True)
+                    return 6
+                log.info("...fatto")

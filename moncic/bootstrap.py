@@ -5,6 +5,7 @@ import contextlib
 import tempfile
 import shutil
 import os
+from .machine import Machine
 
 
 class Distro:
@@ -26,6 +27,17 @@ class Distro:
             cmd = ["btrfs", "subvolume", "delete", path]
             subprocess.run(cmd, check=True)
             raise
+        self.update(path)
+
+    def update(self, destdir: str):
+        with Machine(f"maint-{self.__class__.__name__.lower()}", destdir, ephemeral=False) as machine:
+            self.run_update(machine)
+
+    def run_update(self, machine: Machine):
+        """
+        Run update or regular maintenance commands on the given machine
+        """
+        raise NotImplementedError(f"{self.__class__}.run_update not implemented")
 
     @classmethod
     def register(cls, distro_cls: Type["Distro"]):
@@ -81,6 +93,14 @@ class Centos7(Rpm):
     RELEASEVER = 7
     PACKAGES = ["bash", "vim-minimal", "yum", "rootfiles", "git", "dbus"]
 
+    def run_update(self, machine: Machine):
+        machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/yum.conf"])
+        for pkg in ["epel-release", "@buildsys-build", "yum-utils", "git", "rpmdevtools"]:
+            machine.run(["/usr/bin/yum", "install", "-y", pkg])
+        machine.run(["/usr/bin/yum", "install", "-q" "-y", "yum-plugin-copr"])
+        machine.run(["/usr/bin/yum", "copr", "enable", "-q" "-y", "simc/stable", "epel-7"])
+        machine.run(["/usr/bin/yum", "upgrade", "-q", "-y"])
+
 
 @Distro.register
 class Centos8(Rpm):
@@ -88,16 +108,40 @@ class Centos8(Rpm):
     RELEASEVER = 8
     PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "git", "dbus"]
 
+    def run_update(self, machine: Machine):
+        machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/dnf/dnf.conf"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "epel-release"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(config-manager)"])
+        machine.run(["/usr/bin/dnf", "config-manager", "--set-enabled", "powertools"])
+        machine.run(["/usr/bin/dnf", "groupinstall", "-q", "-y", "Development Tools"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(builddep)"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "git"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "rpmdevtools"])
+        machine.run(["/usr/bin/dnf", "copr", "enable", "-y", "simc/stable"])
+        machine.run(["/usr/bin/dnf", "upgrade", "-q", "-y"])
+
+
+class Fedora(Rpm):
+    def run_update(self, machine: Machine):
+        machine.run(["/usr/bin/rpmdb", "--rebuilddb"])
+        machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/dnf/dnf.conf"])
+        machine.run(["/usr/bin/dnf", "install", "-y", "--allowerasing", "@buildsys-build"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(builddep)"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "git"])
+        machine.run(["/usr/bin/dnf", "install", "-q", "-y", "rpmdevtools"])
+        machine.run(["/usr/bin/dnf", "copr", "enable", "-y", "simc/stable"])
+        machine.run(["/usr/bin/dnf", "upgrade", "-q", "-y"])
+
 
 @Distro.register
-class Fedora32(Rpm):
+class Fedora32(Fedora):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/32/Everything/$basearch/os/"
     RELEASEVER = 32
     PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "git", "dbus"]
 
 
 @Distro.register
-class Fedora34(Rpm):
+class Fedora34(Fedora):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/34/Everything/$basearch/os/"
     RELEASEVER = 34
     PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "git", "dbus"]
