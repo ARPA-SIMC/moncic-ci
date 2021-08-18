@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import subprocess
 import tempfile
 import logging
 import shlex
+import time
 import uuid
 import os
 
@@ -114,6 +115,68 @@ class Machine:
         self.terminate()
 
 
+class LegacyPoller:
+    def __init__(self, machine_name: str):
+        self.machine_name = machine_name
+        self.workdir = None
+
+    def __enter__(self):
+        self.workdir = tempfile.TemporaryDirectory()
+        self.workdir.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        return self.workdir.__exit__(exc_type, exc_value, exc_tb)
+
+    def has_moncic_file(self, name: str) -> bool:
+        """
+        Check if /root/moncic-{name} exists in the machine
+        """
+        local_file = os.path.join(self.workdir.name, name)
+        try:
+            os.remove(local_file)
+        except FileNotFoundError:
+            pass
+
+        cmd = ["machinectl", "copy-from", self.machine_name, f"/root/moncic-{name}", local_file]
+
+        res = subprocess.run(cmd, capture_output=True, check=False)
+        if res.returncode != 0:
+            if b"Failed to copy: No such file or directory" in res.stderr:
+                return False
+            else:
+                raise RuntimeError(
+                        f"Command {' '.join(shlex.quote(c) for c in cmd)} failed with code {res.returncode}."
+                        f" Stderr: {res.stderr!r}")
+
+        os.remove(local_file)
+        return True
+
+    def read_moncic_file(self, name: str, required=True) -> Optional[bytes]:
+        """
+        Return the contents of /root/moncic-{name} in the machine, or None if it does not exist
+        """
+        local_file = os.path.join(self.workdir.name, name)
+        try:
+            os.remove(local_file)
+        except FileNotFoundError:
+            pass
+
+        cmd = ["machinectl", "copy-from", self.machine_name, f"/root/moncic-{name}", local_file]
+
+        res = subprocess.run(cmd, capture_output=True, check=False)
+        if res.returncode != 0:
+            if not required and res.stderr == "Failed to copy: No such file or directory":
+                return None
+            else:
+                raise RuntimeError(
+                        f"Command {' '.join(shlex.quote(c) for c in cmd)} failed with code {res.returncode}."
+                        f" Stderr: {res.stderr!r}")
+
+        with open(local_file, "rb") as fd:
+            return fd.read()
+
+
 class LegacyMachine(Machine):
     """
     Version of Machine that runs an old OS that it is not compatibile with
@@ -126,6 +189,10 @@ class LegacyMachine(Machine):
         """
         script = [
             "#!/bin/sh",
+            'cleanup() {'
+            '   rm -f "$0"',
+            '}',
+            "trap cleanup EXIT",
             " ".join(shlex.quote(c) for c in command) + " > /root/moncic-stdout 2> /root/moncic-stderr",
             "echo $? > /root/moncic-retcode",
         ]
@@ -145,18 +212,23 @@ class LegacyMachine(Machine):
         log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
         res = subprocess.run(cmd, check=True)
 
-        result = {}
-        with tempfile.TemporaryDirectory() as workdir:
-            for item in ("stdout", "stderr", "retcode"):
-                local_file = os.path.join(workdir, item)
-                res = subprocess.run(["machinectl", "copy-from", self.machine_name, f"/root/moncic-{item}", local_file],
-                                     stdout=subprocess.PIPE, check=True)
-                with open(local_file, "rb") as fd:
-                    result[item] = fd.read()
-
-        retcode = int(result["retcode"])
+        result = self.poll_command_results()
+        retcode = result["returncode"]
 
         # TODO: collect stdout/stderr into RunFailed?
         # TODO: but still let it run on stdout/stderr for progress?
         if retcode != 0:
             raise RunFailed(f"Run script exited with code {res.returncode}")
+
+    def poll_command_results(self) -> Dict[str, Any]:
+        with LegacyPoller(self.machine_name) as poller:
+            while True:
+                if poller.has_moncic_file("script"):
+                    time.sleep(0.2)
+                    continue
+
+                return {
+                    "returncode": int(poller.read_moncic_file("retcode")),
+                    "stdout": poller.read_moncic_file("stdout"),
+                    "stderr": poller.read_moncic_file("stderr"),
+                }
