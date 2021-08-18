@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import List
+from typing import List, Optional
 import subprocess
 import logging
 import shlex
+import uuid
 import os
 
 log = logging.getLogger(__name__)
@@ -21,13 +22,15 @@ class Machine:
     """
     Manage a CI machine
     """
-    def __init__(self, name: str, ostree: str, ephemeral: bool = True):
+    def __init__(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True):
         """
         Manage a machine where to run CI scripts.
 
         ``name`` is the name of the machine instance, as available in ``machinectl``
         ``ostree`` is the path to the btrfs subtree with the OS filesystem
         """
+        if name is None:
+            name = str(uuid.uuid4())
         self.machine_name = name
         self.ostree = os.path.abspath(ostree)
         self.ephemeral = ephemeral

@@ -3,7 +3,6 @@ import subprocess
 import logging
 import shutil
 import shlex
-import uuid
 import os
 from .cli import Command, Fail
 from .machine import Machine
@@ -45,9 +44,8 @@ class LaunchBuild(Command):
         return parser
 
     def run(self):
-        name = str(uuid.uuid4())
-        with Machine(name, self.args.image) as machine:
-            log.info("Machine %s started", name)
+        with Machine(self.args.image) as machine:
+            log.info("Machine %s started", machine.machine_name)
 
             machine.run(["/usr/bin/git", "clone", self.args.repo, "--branch", self.args.branch])
 
@@ -106,7 +104,7 @@ class Shell(Command):
         return parser
 
     def run(self):
-        with Machine(f"shell-{os.getpid()}", self.args.path, ephemeral=self.args.ephemeral) as machine:
+        with Machine(self.args.path, f"shell-{os.getpid()}", ephemeral=self.args.ephemeral) as machine:
             machine.run(["/bin/bash", "-"])
 
 

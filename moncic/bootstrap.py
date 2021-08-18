@@ -30,7 +30,7 @@ class Distro:
         self.update(path)
 
     def update(self, destdir: str):
-        with Machine(f"maint-{self.__class__.__name__.lower()}", destdir, ephemeral=False) as machine:
+        with Machine(destdir, f"maint-{self.__class__.__name__.lower()}", ephemeral=False) as machine:
             self.run_update(machine)
 
     def run_update(self, machine: Machine):
