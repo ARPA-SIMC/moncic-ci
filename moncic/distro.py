@@ -5,7 +5,7 @@ import contextlib
 import tempfile
 import shutil
 import os
-from .machine import Machine
+from .machine import Machine, LegacyMachine
 from .osrelease import parse_osrelase
 
 
@@ -116,6 +116,12 @@ class Centos7(Rpm):
         machine.run(["/usr/bin/yum", "install", "-q" "-y", "yum-plugin-copr"])
         machine.run(["/usr/bin/yum", "copr", "enable", "-q" "-y", "simc/stable", "epel-7"])
         machine.run(["/usr/bin/yum", "upgrade", "-q", "-y"])
+
+    def machine(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True) -> Machine:
+        """
+        Create a Machine to run this distro
+        """
+        return LegacyMachine(ostree, name, ephemeral)
 
 
 @Distro.register

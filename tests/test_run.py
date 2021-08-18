@@ -7,12 +7,26 @@ from moncic.distro import Distro
 
 
 class RunTestCase:
-    def test_run_command(self):
+    def test_true(self):
         image = os.path.join("images", self.distro_name)
         distro = Distro.from_ostree(image)
         with privs.root():
             with distro.machine(image) as machine:
                 machine.run(["/usr/bin/true"])
+
+    def test_sleep(self):
+        image = os.path.join("images", self.distro_name)
+        distro = Distro.from_ostree(image)
+        with privs.root():
+            with distro.machine(image) as machine:
+                machine.run(["/usr/bin/sleep", "0.1"])
+
+    def test_stdout(self):
+        image = os.path.join("images", self.distro_name)
+        distro = Distro.from_ostree(image)
+        with privs.root():
+            with distro.machine(image) as machine:
+                machine.run(["/usr/bin/echo", "test"])
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.

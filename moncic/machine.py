@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List, Optional
 import subprocess
+import tempfile
 import logging
 import shlex
 import uuid
@@ -111,3 +112,51 @@ class Machine:
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.terminate()
+
+
+class LegacyMachine(Machine):
+    """
+    Version of Machine that runs an old OS that it is not compatibile with
+    ``systemd-run --wait`` (for example, Centos7)
+    """
+
+    def run(self, command: List[str]):
+        """
+        Run the given script inside the machine, using the given shell
+        """
+        script = [
+            "#!/bin/sh",
+            " ".join(shlex.quote(c) for c in command) + " > /root/moncic-stdout 2> /root/moncic-stderr",
+            "echo $? > /root/moncic-retcode",
+        ]
+
+        with tempfile.NamedTemporaryFile("wt") as tf:
+            for line in script:
+                print(line, file=tf)
+                tf.flush()
+
+            subprocess.run(["machinectl", "copy-to", self.machine_name, tf.name, "/root/moncic-script"], check=True)
+
+        cmd = [
+            "systemd-run", "--quiet",
+            f"--machine={self.machine_name}", "--", "/bin/sh", "/root/moncic-script"
+        ]
+
+        log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
+        res = subprocess.run(cmd, check=True)
+
+        result = {}
+        with tempfile.TemporaryDirectory() as workdir:
+            for item in ("stdout", "stderr", "retcode"):
+                local_file = os.path.join(workdir, item)
+                res = subprocess.run(["machinectl", "copy-from", self.machine_name, f"/root/moncic-{item}", local_file],
+                                     stdout=subprocess.PIPE, check=True)
+                with open(local_file, "rb") as fd:
+                    result[item] = fd.read()
+
+        retcode = int(result["retcode"])
+
+        # TODO: collect stdout/stderr into RunFailed?
+        # TODO: but still let it run on stdout/stderr for progress?
+        if retcode != 0:
+            raise RunFailed(f"Run script exited with code {res.returncode}")
