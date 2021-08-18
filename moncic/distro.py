@@ -46,6 +46,15 @@ class Distro:
         """
         raise NotImplementedError(f"{self.__class__}.run_update not implemented")
 
+    def run_shell(self, ostree: str, ephemeral=True):
+        """
+        Open a shell on the given ostree
+        """
+        cmd = ["systemd-nspawn", "-D", ostree]
+        if ephemeral:
+            cmd.append("--ephemeral")
+        subprocess.run(cmd, check=True)
+
     @classmethod
     def register(cls, distro_cls: Type["Distro"]) -> Type["Distro"]:
         cls.distros[distro_cls.__name__.lower()] = distro_cls

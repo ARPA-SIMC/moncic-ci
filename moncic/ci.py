@@ -105,8 +105,7 @@ class Shell(Command):
 
     def run(self):
         distro = Distro.from_ostree(self.args.path)
-        with distro.machine(self.args.path, f"shell-{os.getpid()}", ephemeral=self.args.ephemeral) as machine:
-            machine.run_shell()
+        distro.run_shell(self.args.path)
 
 
 class Bootstrapper(Command):
