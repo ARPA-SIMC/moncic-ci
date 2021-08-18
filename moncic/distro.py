@@ -1,11 +1,12 @@
 from __future__ import annotations
-from typing import Type, Optional
+from typing import Type, Optional, List
 import subprocess
 import contextlib
 import tempfile
 import shutil
 import os
 from .machine import Machine
+from .osrelease import parse_osrelase
 
 
 class Distro:
@@ -29,8 +30,14 @@ class Distro:
             raise
         self.update(path)
 
-    def update(self, destdir: str):
-        with Machine(destdir, f"maint-{self.__class__.__name__.lower()}", ephemeral=False) as machine:
+    def machine(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True) -> Machine:
+        """
+        Create a Machine to run this distro
+        """
+        return Machine(ostree, name, ephemeral)
+
+    def update(self, ostree: str):
+        with self.machine(ostree, f"maint-{self.__class__.__name__.lower()}", ephemeral=False) as machine:
             self.run_update(machine)
 
     def run_update(self, machine: Machine):
@@ -40,18 +47,27 @@ class Distro:
         raise NotImplementedError(f"{self.__class__}.run_update not implemented")
 
     @classmethod
-    def register(cls, distro_cls: Type["Distro"]):
+    def register(cls, distro_cls: Type["Distro"]) -> Type["Distro"]:
         cls.distros[distro_cls.__name__.lower()] = distro_cls
         return distro_cls
 
     @classmethod
-    def list(cls):
-        return cls.distros.keys()
+    def list(cls) -> List[str]:
+        return list(cls.distros.keys())
 
     @classmethod
-    def create(cls, name: str):
+    def create(cls, name: str) -> "Distro":
         distro_cls = cls.distros[name]
         return distro_cls()
+
+    @classmethod
+    def from_ostree(cls, ostree: str) -> "Distro":
+        """
+        Instantiate a Distro from an existing filesystem tree
+        """
+        info = parse_osrelase(os.path.join(ostree, "etc", "os-release"))
+        name = info["ID"] + info["VERSION_ID"]
+        return cls.create(name)
 
 
 class Rpm(Distro):

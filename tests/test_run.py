@@ -3,14 +3,15 @@ import unittest
 import sys
 import os
 from moncic.unittest import privs, TEST_CHROOTS
-from moncic.machine import Machine
+from moncic.distro import Distro
 
 
 class RunTestCase:
     def test_run_command(self):
         image = os.path.join("images", self.distro_name)
+        distro = Distro.from_ostree(image)
         with privs.root():
-            with Machine(image) as machine:
+            with distro.machine(image) as machine:
                 machine.run(["/usr/bin/true"])
 
 
