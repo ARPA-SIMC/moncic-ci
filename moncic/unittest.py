@@ -3,6 +3,8 @@ import contextlib
 import logging
 import os
 
+TEST_CHROOTS = ["centos7", "centos8", "fedora32", "fedora34"]
+
 log = logging.getLogger(__name__)
 
 

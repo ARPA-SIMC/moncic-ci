@@ -21,7 +21,7 @@ class Machine:
     """
     Manage a CI machine
     """
-    def __init__(self, name: str, ostree: str, ephemeral: True):
+    def __init__(self, name: str, ostree: str, ephemeral: bool = True):
         """
         Manage a machine where to run CI scripts.
 
