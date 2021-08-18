@@ -101,6 +101,9 @@ class Machine:
         if res.returncode != 0:
             raise RunFailed(f"Run script exited with code {res.returncode}")
 
+    def run_shell(self):
+        self.run(["/bin/bash", "-"])
+
     def terminate(self):
         res = subprocess.run(["machinectl", "terminate", self.machine_name])
         if res.returncode != 0:
@@ -219,6 +222,9 @@ class LegacyMachine(Machine):
         # TODO: but still let it run on stdout/stderr for progress?
         if retcode != 0:
             raise RunFailed(f"Run script exited with code {res.returncode}")
+
+    def run_shell(self):
+        raise NotImplementedError(f"running a shell on {self.ostree} is not yet implemented")
 
     def poll_command_results(self) -> Dict[str, Any]:
         with LegacyPoller(self.machine_name) as poller:
