@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type
+from typing import Type, Optional
 import subprocess
 import contextlib
 import tempfile

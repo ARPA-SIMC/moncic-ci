@@ -6,7 +6,7 @@ import shlex
 import os
 from .cli import Command, Fail
 from .machine import Machine
-from .bootstrap import Distro
+from .distro import Distro
 
 log = logging.getLogger(__name__)
 
