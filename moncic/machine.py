@@ -7,17 +7,11 @@ import shlex
 import time
 import uuid
 import os
+from .runner import RunFailed, AsyncioRunner
 
 log = logging.getLogger(__name__)
 
 # Based on https://github.com/Truelite/nspawn-runner
-
-
-class RunFailed(Exception):
-    """
-    Exception raised when a task failed to run on the machine
-    """
-    pass
 
 
 class Machine:
@@ -88,25 +82,28 @@ class Machine:
         Run the given script inside the machine, using the given shell
         """
         cmd = [
-            "systemd-run", "--quiet", "--pipe", "--wait",
+            "/usr/bin/systemd-run", "--quiet", "--pipe", "--wait",
             "--setenv=HOME=/root",
             f"--machine={self.machine_name}", "--",
         ]
         cmd += command
 
-        log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
-        res = subprocess.run(cmd, capture_output=True)
+        runner = AsyncioRunner(cmd)
+        return runner.run()
 
-        # TODO: collect stdout/stderr into RunFailed?
-        # TODO: but still let it run on stdout/stderr for progress?
-        if res.returncode != 0:
-            raise RunFailed(f"Run script exited with code {res.returncode}")
+        # log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
+        # res = subprocess.run(cmd, capture_output=True)
 
-        return {
-            "stdout": res.stdout,
-            "stderr": res.stderr,
-            "returncode": res.returncode,
-        }
+        # # TODO: collect stdout/stderr into RunFailed?
+        # # TODO: but still let it run on stdout/stderr for progress?
+        # if res.returncode != 0:
+        #     raise RunFailed(f"Run script exited with code {res.returncode}")
+
+        # return {
+        #     "stdout": res.stdout,
+        #     "stderr": res.stderr,
+        #     "returncode": res.returncode,
+        # }
 
     def run_shell(self):
         self.run(["/bin/bash", "-"])
