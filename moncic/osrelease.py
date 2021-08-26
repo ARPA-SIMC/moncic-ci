@@ -22,4 +22,7 @@ def parse_osrelase(fname: str) -> Dict[str, str]:
     """
     with open(fname, "rt") as fd:
         lexer = shlex.shlex(fd, fname, posix=True)
+        # Python 3.9 needs this, python 3.7 did not need it, release note don't
+        # seem to mention a relevant change
+        lexer.wordchars += "-"
         return dict(iter_assigns(lexer))
