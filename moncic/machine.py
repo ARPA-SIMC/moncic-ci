@@ -89,6 +89,7 @@ class Machine:
         """
         cmd = [
             "systemd-run", "--quiet", "--pipe", "--wait",
+            "--setenv=HOME=/root",
             f"--machine={self.machine_name}", "--",
         ]
         cmd += command
@@ -214,7 +215,7 @@ class LegacyMachine(Machine):
             subprocess.run(["machinectl", "copy-to", self.machine_name, tf.name, "/root/moncic-script"], check=True)
 
         cmd = [
-            "systemd-run", "--quiet",
+            "systemd-run", "--quiet", "--setenv=HOME=/root",
             f"--machine={self.machine_name}", "--", "/bin/sh", "/root/moncic-script"
         ]
 
