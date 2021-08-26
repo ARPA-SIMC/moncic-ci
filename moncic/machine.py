@@ -83,7 +83,7 @@ class Machine:
         self._run_nspawn(cmd)
         self.started = True
 
-    def run(self, command: List[str]):
+    def run(self, command: List[str]) -> Dict[str, Any]:
         """
         Run the given script inside the machine, using the given shell
         """
@@ -94,12 +94,18 @@ class Machine:
         cmd += command
 
         log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
-        res = subprocess.run(cmd)
+        res = subprocess.run(cmd, capture_output=True)
 
         # TODO: collect stdout/stderr into RunFailed?
         # TODO: but still let it run on stdout/stderr for progress?
         if res.returncode != 0:
             raise RunFailed(f"Run script exited with code {res.returncode}")
+
+        return {
+            "stdout": res.stdout,
+            "stderr": res.stderr,
+            "returncode": res.returncode,
+        }
 
     def run_shell(self):
         self.run(["/bin/bash", "-"])
@@ -186,7 +192,7 @@ class LegacyMachine(Machine):
     ``systemd-run --wait`` (for example, Centos7)
     """
 
-    def run(self, command: List[str]):
+    def run(self, command: List[str]) -> Dict[str, Any]:
         """
         Run the given script inside the machine, using the given shell
         """
@@ -222,6 +228,8 @@ class LegacyMachine(Machine):
         # TODO: but still let it run on stdout/stderr for progress?
         if retcode != 0:
             raise RunFailed(f"Run script exited with code {res.returncode}")
+
+        return result
 
     def run_shell(self):
         raise NotImplementedError(f"running a shell on {self.ostree} is not yet implemented")

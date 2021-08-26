@@ -26,7 +26,18 @@ class RunTestCase:
         distro = Distro.from_ostree(image)
         with privs.root():
             with distro.machine(image) as machine:
-                machine.run(["/usr/bin/echo", "test"])
+                res = machine.run(["/usr/bin/echo", "test"])
+                self.assertEqual(res["stdout"], b"test\n")
+                self.assertEqual(res["stderr"], b"")
+
+    def test_env(self):
+        image = os.path.join("images", self.distro_name)
+        distro = Distro.from_ostree(image)
+        with privs.root():
+            with distro.machine(image) as machine:
+                res = machine.run(["/bin/sh", "-c", "echo $HOME"])
+                self.assertEqual(res["stdout"], b"/root\n")
+                self.assertEqual(res["stderr"], b"")
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
