@@ -4,10 +4,9 @@ import subprocess
 import tempfile
 import logging
 import shlex
-import time
 import uuid
 import os
-from .runner import RunFailed, AsyncioRunner
+from .runner import AsyncioRunner, LegacyRunner
 
 log = logging.getLogger(__name__)
 
@@ -31,6 +30,7 @@ class Machine:
         self.ostree = os.path.abspath(ostree)
         self.ephemeral = ephemeral
         self.started = False
+        self.workdir = tempfile.TemporaryDirectory()
 
     def _run_nspawn(self, cmd: List[str]):
         """
@@ -70,6 +70,7 @@ class Machine:
             f"--machine={self.machine_name}",
             "--boot",
             "--notify-ready=yes",
+            f"--bind={self.workdir.name}:/root/transfer",
         ]
         if self.ephemeral:
             cmd.append("--ephemeral")
@@ -115,73 +116,13 @@ class Machine:
         self.started = False
 
     def __enter__(self):
+        self.workdir.__enter__()
         self.start()
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.terminate()
-
-
-class LegacyPoller:
-    def __init__(self, machine_name: str):
-        self.machine_name = machine_name
-        self.workdir = None
-
-    def __enter__(self):
-        self.workdir = tempfile.TemporaryDirectory()
-        self.workdir.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
         return self.workdir.__exit__(exc_type, exc_value, exc_tb)
-
-    def has_moncic_file(self, name: str) -> bool:
-        """
-        Check if /root/moncic-{name} exists in the machine
-        """
-        local_file = os.path.join(self.workdir.name, name)
-        try:
-            os.remove(local_file)
-        except FileNotFoundError:
-            pass
-
-        cmd = ["machinectl", "copy-from", self.machine_name, f"/root/moncic-{name}", local_file]
-
-        res = subprocess.run(cmd, capture_output=True, check=False)
-        if res.returncode != 0:
-            if b"Failed to copy: No such file or directory" in res.stderr:
-                return False
-            else:
-                raise RuntimeError(
-                        f"Command {' '.join(shlex.quote(c) for c in cmd)} failed with code {res.returncode}."
-                        f" Stderr: {res.stderr!r}")
-
-        os.remove(local_file)
-        return True
-
-    def read_moncic_file(self, name: str, required=True) -> Optional[bytes]:
-        """
-        Return the contents of /root/moncic-{name} in the machine, or None if it does not exist
-        """
-        local_file = os.path.join(self.workdir.name, name)
-        try:
-            os.remove(local_file)
-        except FileNotFoundError:
-            pass
-
-        cmd = ["machinectl", "copy-from", self.machine_name, f"/root/moncic-{name}", local_file]
-
-        res = subprocess.run(cmd, capture_output=True, check=False)
-        if res.returncode != 0:
-            if not required and res.stderr == "Failed to copy: No such file or directory":
-                return None
-            else:
-                raise RuntimeError(
-                        f"Command {' '.join(shlex.quote(c) for c in cmd)} failed with code {res.returncode}."
-                        f" Stderr: {res.stderr!r}")
-
-        with open(local_file, "rb") as fd:
-            return fd.read()
 
 
 class LegacyMachine(Machine):
@@ -194,53 +135,8 @@ class LegacyMachine(Machine):
         """
         Run the given script inside the machine, using the given shell
         """
-        script = [
-            "#!/bin/sh",
-            'cleanup() {'
-            '   rm -f "$0"',
-            '}',
-            "trap cleanup EXIT",
-            " ".join(shlex.quote(c) for c in command) + " > /root/moncic-stdout 2> /root/moncic-stderr",
-            "echo $? > /root/moncic-retcode",
-        ]
-
-        with tempfile.NamedTemporaryFile("wt") as tf:
-            for line in script:
-                print(line, file=tf)
-                tf.flush()
-
-            subprocess.run(["machinectl", "copy-to", self.machine_name, tf.name, "/root/moncic-script"], check=True)
-
-        cmd = [
-            "systemd-run", "--quiet", "--setenv=HOME=/root",
-            f"--machine={self.machine_name}", "--", "/bin/sh", "/root/moncic-script"
-        ]
-
-        log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
-        res = subprocess.run(cmd, check=True)
-
-        result = self.poll_command_results()
-        retcode = result["returncode"]
-
-        # TODO: collect stdout/stderr into RunFailed?
-        # TODO: but still let it run on stdout/stderr for progress?
-        if retcode != 0:
-            raise RunFailed(f"Run script exited with code {res.returncode}")
-
-        return result
+        runner = LegacyRunner(self.machine_name, self.workdir.name, command)
+        return runner.run()
 
     def run_shell(self):
         raise NotImplementedError(f"running a shell on {self.ostree} is not yet implemented")
-
-    def poll_command_results(self) -> Dict[str, Any]:
-        with LegacyPoller(self.machine_name) as poller:
-            while True:
-                if poller.has_moncic_file("script"):
-                    time.sleep(0.2)
-                    continue
-
-                return {
-                    "returncode": int(poller.read_moncic_file("retcode")),
-                    "stdout": poller.read_moncic_file("stdout"),
-                    "stderr": poller.read_moncic_file("stderr"),
-                }
