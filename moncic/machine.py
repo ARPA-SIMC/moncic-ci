@@ -55,7 +55,13 @@ class Machine:
         systemd_run_cmd.extend(cmd)
 
         log.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
-        subprocess.run(systemd_run_cmd)
+        res = subprocess.run(systemd_run_cmd, capture_output=True)
+        if res.returncode != 0:
+            log.error("Failed to run %s (exit code %d): %r",
+                      " ".join(shlex.quote(c) for c in systemd_run_cmd),
+                      res.returncode,
+                      res.stderr)
+            raise RuntimeError("Failed to start container")
 
     def start(self):
         if self.started:
