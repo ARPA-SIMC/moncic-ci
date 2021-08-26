@@ -5,7 +5,6 @@ import shutil
 import shlex
 import os
 from .cli import Command, Fail
-from .machine import Machine
 from .distro import Distro
 
 log = logging.getLogger(__name__)
@@ -44,7 +43,8 @@ class LaunchBuild(Command):
         return parser
 
     def run(self):
-        with Machine(self.args.image) as machine:
+        distro = Distro.from_ostree(self.args.image)
+        with distro.machine(self.args.image) as machine:
             log.info("Machine %s started", machine.machine_name)
 
             machine.run(["/usr/bin/git", "clone", self.args.repo, "--branch", self.args.branch])
