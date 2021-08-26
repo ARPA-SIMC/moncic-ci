@@ -1,9 +1,9 @@
 from __future__ import annotations
 from typing import List, Dict, Any
+import contextlib
 import logging
 import asyncio
 import shlex
-import time
 import os
 
 log = logging.getLogger(__name__)
@@ -126,69 +126,53 @@ class LegacyRunner:
             "returncode": returncode,
         }
 
-    async def read_stdout(self):
-        stdout = []
+    @contextlib.asynccontextmanager
+    async def open_fifo(self, fname: str):
         loop = asyncio.get_running_loop()
         try:
             # From https://gist.github.com/oconnor663/08c081904264043e55bf
-            os_fd = os.open(self.fifo_stdout, os.O_RDONLY | os.O_NONBLOCK)
+            os_fd = os.open(fname, os.O_RDONLY | os.O_NONBLOCK)
             fd = os.fdopen(os_fd)
             reader = asyncio.StreamReader()
             read_protocol = asyncio.StreamReaderProtocol(reader)
             read_transport, _ = await loop.connect_read_pipe(
                 lambda: read_protocol, fd)
 
+            yield reader
+        finally:
+            fd.close()
+
+    async def read_stdout(self):
+        stdout = []
+        async with self.open_fifo(self.fifo_stdout) as reader:
             while True:
                 line = await reader.readline()
                 if not line:
                     break
                 stdout.append(line)
                 log.info("stdout: %s", line.decode(errors="replace").rstrip())
-        finally:
-            fd.close()
-
         return b"".join(stdout)
 
     async def read_stderr(self):
         stderr = []
-        loop = asyncio.get_running_loop()
-        try:
-            os_fd = os.open(self.fifo_stderr, os.O_RDONLY | os.O_NONBLOCK)
-            fd = os.fdopen(os_fd)
-            reader = asyncio.StreamReader()
-            read_protocol = asyncio.StreamReaderProtocol(reader)
-            read_transport, _ = await loop.connect_read_pipe(
-                lambda: read_protocol, fd)
-
+        async with self.open_fifo(self.fifo_stderr) as reader:
             while True:
                 line = await reader.readline()
                 if not line:
                     break
                 stderr.append(line)
                 log.info("stderr: %s", line.decode(errors="replace").rstrip())
-        finally:
-            fd.close()
 
         return b"".join(stderr)
 
     async def read_result(self):
         result = []
-        loop = asyncio.get_running_loop()
-        try:
-            os_fd = os.open(self.fifo_result, os.O_RDONLY | os.O_NONBLOCK)
-            fd = os.fdopen(os_fd)
-            reader = asyncio.StreamReader()
-            read_protocol = asyncio.StreamReaderProtocol(reader)
-            read_transport, _ = await loop.connect_read_pipe(
-                lambda: read_protocol, fd)
-
+        async with self.open_fifo(self.fifo_result) as reader:
             while True:
                 line = await reader.readline()
                 if not line:
                     break
                 result.append(line)
                 log.info("result: %s", line.decode(errors="replace").rstrip())
-        finally:
-            fd.close()
 
         return int(b"".join(result))
