@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import List, Dict, Any
-import subprocess
 import logging
 import asyncio
 import shlex
@@ -73,22 +72,21 @@ class LegacyRunner:
         self.cmd = cmd
         self.fifo_stdout = os.path.join(self.workdir, "stdout")
         self.fifo_stderr = os.path.join(self.workdir, "stderr")
+        self.fifo_result = os.path.join(self.workdir, "result")
         self.run_script = os.path.join(self.workdir, "script")
-        self.retcode_file = os.path.join(self.workdir, "retcode")
 
     def run(self):
-        # os.mkfifo(self.fifo_stdout)
-        # os.mkfifo(self.fifo_stderr)
+        log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
+        os.mkfifo(self.fifo_stdout)
+        os.mkfifo(self.fifo_stderr)
+        os.mkfifo(self.fifo_result)
 
         try:
             script = [
                 "#!/bin/sh",
-                'cleanup() {'
-                '   rm -f "$0"',
-                '}',
-                "trap cleanup EXIT",
-                " ".join(shlex.quote(c) for c in self.cmd) + " > /root/transfer/stdout 2> /root/transfer/stderr",
-                "echo $? > /root/transfer/retcode",
+                (" ".join(shlex.quote(c) for c in self.cmd) +
+                 " > /root/transfer/stdout 2> /root/transfer/stderr"),
+                "echo $? > /root/transfer/result",
             ]
 
             with open(self.run_script, "wt") as fd:
@@ -100,31 +98,97 @@ class LegacyRunner:
                 f"--machine={self.machine_name}", "--", "/bin/sh", "/root/transfer/script"
             ]
 
-            log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
-            res = subprocess.run(cmd, check=True)
-
-            result = self.poll_command_results()
-            retcode = result["returncode"]
-
-            # TODO: collect stdout/stderr into RunFailed?
-            # TODO: but still let it run on stdout/stderr for progress?
-            if retcode != 0:
-                raise RunFailed(f"Run script exited with code {res.returncode}")
-
-            return result
+            return asyncio.run(self._run(cmd))
         finally:
-            pass
-            # os.unlink(self.fifo_stdout)
-            # os.unlink(self.fifo_stderr)
+            os.unlink(self.fifo_stdout)
+            os.unlink(self.fifo_stderr)
+            os.unlink(self.fifo_result)
 
-    def poll_command_results(self) -> Dict[str, Any]:
-        while True:
-            if os.path.exists(self.run_script):
-                time.sleep(0.2)
-                continue
+    async def _run(self, cmd: List[str]):
+        proc = await asyncio.create_subprocess_exec(cmd[0], *cmd[1:])
 
-            return {
-                "returncode": int(open(self.retcode_file).read()),
-                "stdout": open(self.fifo_stdout, "rb").read(),
-                "stderr": open(self.fifo_stderr, "rb").read(),
-            }
+        stdout, stderr, returncode, proc_returncode = await asyncio.gather(
+            self.read_stdout(),
+            self.read_stderr(),
+            self.read_result(),
+            proc.wait(),
+        )
+
+        if returncode != 0:
+            raise RunFailed(f"Run script exited with code {returncode}")
+
+        if proc.returncode != 0:
+            raise RunFailed(f"Executor command exited with code {proc.returncode}")
+
+        return {
+            "stdout": stdout,
+            "stderr": stderr,
+            "returncode": returncode,
+        }
+
+    async def read_stdout(self):
+        stdout = []
+        loop = asyncio.get_running_loop()
+        try:
+            # From https://gist.github.com/oconnor663/08c081904264043e55bf
+            os_fd = os.open(self.fifo_stdout, os.O_RDONLY | os.O_NONBLOCK)
+            fd = os.fdopen(os_fd)
+            reader = asyncio.StreamReader()
+            read_protocol = asyncio.StreamReaderProtocol(reader)
+            read_transport, _ = await loop.connect_read_pipe(
+                lambda: read_protocol, fd)
+
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
+                stdout.append(line)
+                log.info("stdout: %s", line.decode(errors="replace").rstrip())
+        finally:
+            fd.close()
+
+        return b"".join(stdout)
+
+    async def read_stderr(self):
+        stderr = []
+        loop = asyncio.get_running_loop()
+        try:
+            os_fd = os.open(self.fifo_stderr, os.O_RDONLY | os.O_NONBLOCK)
+            fd = os.fdopen(os_fd)
+            reader = asyncio.StreamReader()
+            read_protocol = asyncio.StreamReaderProtocol(reader)
+            read_transport, _ = await loop.connect_read_pipe(
+                lambda: read_protocol, fd)
+
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
+                stderr.append(line)
+                log.info("stderr: %s", line.decode(errors="replace").rstrip())
+        finally:
+            fd.close()
+
+        return b"".join(stderr)
+
+    async def read_result(self):
+        result = []
+        loop = asyncio.get_running_loop()
+        try:
+            os_fd = os.open(self.fifo_result, os.O_RDONLY | os.O_NONBLOCK)
+            fd = os.fdopen(os_fd)
+            reader = asyncio.StreamReader()
+            read_protocol = asyncio.StreamReaderProtocol(reader)
+            read_transport, _ = await loop.connect_read_pipe(
+                lambda: read_protocol, fd)
+
+            while True:
+                line = await reader.readline()
+                if not line:
+                    break
+                result.append(line)
+                log.info("result: %s", line.decode(errors="replace").rstrip())
+        finally:
+            fd.close()
+
+        return int(b"".join(result))
