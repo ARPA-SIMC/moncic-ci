@@ -116,7 +116,7 @@ class Rpm(Distro):
 class Centos7(Rpm):
     BASEURL = "http://mirror.centos.org/centos/7/os/$basearch"
     RELEASEVER = 7
-    PACKAGES = ["bash", "vim-minimal", "yum", "rootfiles", "git", "dbus"]
+    PACKAGES = ["bash", "vim-minimal", "yum", "rootfiles", "dbus"]
 
     def run_update(self, machine: Machine):
         machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/yum.conf"])
@@ -137,7 +137,7 @@ class Centos7(Rpm):
 class Centos8(Rpm):
     BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
     RELEASEVER = 8
-    PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "git", "dbus"]
+    PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "dbus"]
 
     def run_update(self, machine: Machine):
         machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/dnf/dnf.conf"])
