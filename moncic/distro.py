@@ -87,7 +87,7 @@ class Distro:
                 if name.startswith("."):
                     raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
 
-                cmd.append(f"--bind-ro={escape_bind_ro(repo_path)}:/root/{escape_bind_ro(name)}")
+                cmd.append(f"--bind={escape_bind_ro(repo_path)}:/root/{escape_bind_ro(name)}")
                 cmd.append(f"--chdir=/root/{name}")
 
             subprocess.run(cmd, check=True)
