@@ -101,11 +101,13 @@ class Shell(Command):
         parser.add_argument("path", help="path to the chroot")
         parser.add_argument("-x", "--ephemeral", action="store_true",
                             help="run the shell on an ephemeral machine")
+        parser.add_argument("--checkout", "--co",
+                            help="checkout the given repository (local or remote) in the chroot")
         return parser
 
     def run(self):
         distro = Distro.from_ostree(self.args.path)
-        distro.run_shell(self.args.path)
+        distro.run_shell(self.args.path, checkout=self.args.checkout)
 
 
 class Bootstrapper(Command):

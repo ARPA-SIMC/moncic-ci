@@ -46,14 +46,51 @@ class Distro:
         """
         raise NotImplementedError(f"{self.__class__}.run_update not implemented")
 
-    def run_shell(self, ostree: str, ephemeral=True):
+    @contextlib.contextmanager
+    def checkout(self, repo: Optional[str] = None):
+        if repo is None:
+            yield None
+        else:
+            with tempfile.TemporaryDirectory() as workdir:
+                # Git checkout in a temporary directory
+                subprocess.run(
+                        ["git", "clone", repo],
+                        cwd=workdir, check=True)
+                # Look for the directory that git created
+                names = os.listdir(workdir)
+                if len(names) != 1:
+                    raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+                yield os.path.join(workdir, names[0])
+
+    def run_shell(self, ostree: str, ephemeral: bool = True, checkout: Optional[str] = None):
         """
         Open a shell on the given ostree
         """
-        cmd = ["systemd-nspawn", "-D", ostree]
-        if ephemeral:
-            cmd.append("--ephemeral")
-        subprocess.run(cmd, check=True)
+        def escape_bind_ro(s: str):
+            r"""
+            Escape a path for use in systemd-nspawn --bind-ro.
+
+            Man systemd-nspawn says:
+
+              Backslash escapes are interpreted, so "\:" may be used to embed
+              colons in either path.
+            """
+            return s.replace(":", r"\:")
+
+        with self.checkout(checkout) as repo_path:
+            cmd = ["systemd-nspawn", "-D", ostree]
+            if ephemeral:
+                cmd.append("--ephemeral")
+
+            if repo_path is not None:
+                name = os.path.basename(repo_path)
+                if name.startswith("."):
+                    raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
+
+                cmd.append(f"--bind-ro={escape_bind_ro(repo_path)}:/root/{escape_bind_ro(name)}")
+                cmd.append(f"--chdir=/root/{name}")
+
+            subprocess.run(cmd, check=True)
 
     @classmethod
     def register(cls, distro_cls: Type["Distro"]) -> Type["Distro"]:
