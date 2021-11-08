@@ -54,7 +54,7 @@ class Distro:
             with tempfile.TemporaryDirectory() as workdir:
                 # Git checkout in a temporary directory
                 subprocess.run(
-                        ["git", "clone", repo],
+                        ["git", "clone", os.path.abspath(repo)],
                         cwd=workdir, check=True)
                 # Look for the directory that git created
                 names = os.listdir(workdir)
