@@ -62,7 +62,14 @@ class Distro:
                     raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
                 yield os.path.join(workdir, names[0])
 
-    def run_shell(self, ostree: str, ephemeral: bool = True, checkout: Optional[str] = None):
+    def run_shell(
+            self,
+            ostree: str,
+            ephemeral: bool = True,
+            checkout: Optional[str] = None,
+            workdir: Optional[str] = None,
+            bind: List[str] = None,
+            bind_ro: List[str] = None):
         """
         Open a shell on the given ostree
         """
@@ -82,12 +89,26 @@ class Distro:
             if ephemeral:
                 cmd.append("--ephemeral")
 
+            if bind:
+                for pathspec in bind:
+                    cmd.append("--bind=" + pathspec)
+            if bind_ro:
+                for pathspec in bind_ro:
+                    cmd.append("--bind-ro=" + pathspec)
+
             if repo_path is not None:
                 name = os.path.basename(repo_path)
                 if name.startswith("."):
                     raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
 
                 cmd.append(f"--bind={escape_bind_ro(repo_path)}:/root/{escape_bind_ro(name)}")
+                cmd.append(f"--chdir=/root/{name}")
+            elif workdir is not None:
+                workdir = os.path.abspath(workdir)
+                name = os.path.basename(workdir)
+                if name.startswith("."):
+                    raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
+                cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
                 cmd.append(f"--chdir=/root/{name}")
 
             subprocess.run(cmd, check=True)

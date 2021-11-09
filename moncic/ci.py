@@ -101,13 +101,27 @@ class Shell(Command):
         parser.add_argument("path", help="path to the chroot")
         parser.add_argument("-x", "--ephemeral", action="store_true",
                             help="run the shell on an ephemeral machine")
-        parser.add_argument("--checkout", "--co",
+        git_workdir = parser.add_mutually_exclusive_group(required=False)
+        git_workdir.add_argument(
+                            "--workdir",
+                            help="bind mount (writable) the given directory in /root")
+        git_workdir.add_argument(
+                            "--checkout", "--co",
                             help="checkout the given repository (local or remote) in the chroot")
+        parser.add_argument("--bind", action="append",
+                            help="option passed to systemd-nspawn as is (see man systemd-nspawn)"
+                                 " can be given multiple times")
+        parser.add_argument("--bind-ro", action="append",
+                            help="option passed to systemd-nspawn as is (see man systemd-nspawn)"
+                                 " can be given multiple times")
         return parser
 
     def run(self):
         distro = Distro.from_ostree(self.args.path)
-        distro.run_shell(self.args.path, checkout=self.args.checkout)
+        distro.run_shell(
+                self.args.path, checkout=self.args.checkout,
+                workdir=self.args.workdir,
+                bind=self.args.bind, bind_ro=self.args.bind_ro)
 
 
 class Bootstrapper(Command):
