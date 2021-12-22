@@ -6,7 +6,7 @@ import logging
 import shlex
 import uuid
 import os
-from .runner import AsyncioRunner, LegacyRunner
+from .runner import SystemdRunRunner, LegacyRunner
 
 log = logging.getLogger(__name__)
 
@@ -88,14 +88,7 @@ class Machine:
         """
         Run the given script inside the machine, using the given shell
         """
-        cmd = [
-            "/usr/bin/systemd-run", "--quiet", "--pipe", "--wait",
-            "--setenv=HOME=/root",
-            f"--machine={self.machine_name}", "--",
-        ]
-        cmd += command
-
-        runner = AsyncioRunner(cmd)
+        runner = SystemdRunRunner(self.machine_name, command)
         return runner.run()
 
         # log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
@@ -141,8 +134,5 @@ class LegacyMachine(Machine):
         """
         Run the given script inside the machine, using the given shell
         """
-        runner = LegacyRunner(self.machine_name, self.workdir.name, command)
+        runner = LegacyRunner(self.machine_name, command)
         return runner.run()
-
-    def run_shell(self):
-        raise NotImplementedError(f"running a shell on {self.ostree} is not yet implemented")
