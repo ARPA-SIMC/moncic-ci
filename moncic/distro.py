@@ -180,8 +180,8 @@ class Centos7(Rpm):
         machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/yum.conf"])
         for pkg in ["epel-release", "@buildsys-build", "yum-utils", "git", "rpmdevtools"]:
             machine.run(["/usr/bin/yum", "install", "-y", pkg])
-        machine.run(["/usr/bin/yum", "install", "-q" "-y", "yum-plugin-copr"])
-        machine.run(["/usr/bin/yum", "copr", "enable", "-q" "-y", "simc/stable", "epel-7"])
+        machine.run(["/usr/bin/yum", "install", "-q", "-y", "yum-plugin-copr"])
+        machine.run(["/usr/bin/yum", "copr", "enable", "-q", "-y", "simc/stable", "epel-7"])
         machine.run(["/usr/bin/yum", "upgrade", "-q", "-y"])
 
     def machine(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True) -> Machine:
