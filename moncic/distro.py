@@ -193,7 +193,10 @@ class Centos7(Rpm):
 
 @Distro.register
 class Centos8(Rpm):
-    BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
+    #BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
+    # Usiamo Rocky Linux per i build mantenendo il codename centos8 per continuità
+    # vedi: https://github.com/ARPA-SIMC/moncic-ci/issues/5
+    BASEURL = "http://dl.rockylinux.org/pub/rocky/8/BaseOS/$basearch/os/"
     RELEASEVER = 8
     PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "dbus"]
 
