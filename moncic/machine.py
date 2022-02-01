@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Callable
 import subprocess
 import tempfile
 import logging
@@ -7,6 +7,7 @@ import shlex
 import uuid
 import os
 from .runner import SystemdRunRunner, LegacyRunner
+from . import setns
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +31,8 @@ class Machine:
         self.ostree = os.path.abspath(ostree)
         self.ephemeral = ephemeral
         self.started = False
+        # PID of the leader process in the running machine
+        self.leader_pid = None
         self.workdir = tempfile.TemporaryDirectory()
 
     def _run_nspawn(self, cmd: List[str]):
@@ -84,9 +87,14 @@ class Machine:
         self._run_nspawn(cmd)
         self.started = True
 
+        res = subprocess.run(
+                ["machinectl", "show", "--property=Leader", "--value", self.machine_name],
+                capture_output=True, text=True, check=True)
+        self.leader_pid = int(res.stdout)
+
     def run(self, command: List[str]) -> Dict[str, Any]:
         """
-        Run the given script inside the machine, using the given shell
+        Run the given command inside the machine
         """
         runner = SystemdRunRunner(self.machine_name, command)
         return runner.run()
@@ -107,6 +115,22 @@ class Machine:
 
     def run_shell(self):
         self.run(["/bin/bash", "-"])
+
+    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
+        """
+        Run the given callable in a separate process inside the running
+        machine. Returns the process exit status.
+        """
+        pid = os.fork()
+        if pid == 0:
+            setns.nsenter(self.leader_pid)
+            res = func()
+            if res is None:
+                res = 0
+            os._exit(res)
+        else:
+            res = os.waitid(os.P_PID, pid, os.WEXITED)
+            return res.si_status
 
     def terminate(self):
         res = subprocess.run(["machinectl", "terminate", self.machine_name])

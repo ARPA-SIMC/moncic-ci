@@ -2,6 +2,7 @@ from __future__ import annotations
 import unittest
 import sys
 import os
+import secrets
 from moncic.unittest import privs, TEST_CHROOTS
 from moncic.distro import Distro
 
@@ -37,6 +38,23 @@ class RunTestCase:
             with distro.machine(image) as machine:
                 res = machine.run(["/bin/sh", "-c", "echo $HOME"])
                 self.assertEqual(res["stdout"], b"/root\n")
+                self.assertEqual(res["stderr"], b"")
+
+    def test_callable(self):
+        token = secrets.token_bytes(8)
+        image = os.path.join("images", self.distro_name)
+        distro = Distro.from_ostree(image)
+        with privs.root():
+            with distro.machine(image) as machine:
+
+                def test_function():
+                    with open("/tmp/token", "wb") as out:
+                        out.write(token)
+
+                self.assertEqual(machine.run_callable(test_function), 0)
+
+                res = machine.run(["/usr/bin/cat", "/tmp/token"])
+                self.assertEqual(res["stdout"], token)
                 self.assertEqual(res["stderr"], b"")
 
 
