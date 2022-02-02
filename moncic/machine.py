@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any, Callable, Tuple
 import subprocess
 import tempfile
 from importlib import reload
@@ -68,7 +68,7 @@ class MockMachine(Machine):
     """
     def __init__(self):
         super().__init__()
-        self.run_log = []
+        self.run_log: List[Tuple[str, str]] = []
 
     def start(self):
         if self.started:
@@ -80,7 +80,7 @@ class MockMachine(Machine):
         self.started = False
 
     def run(self, command: List[str]) -> Dict[str, Any]:
-        self.run_log.append(command)
+        self.run_log.append(("command", " ".join(shlex.quote(c) for c in command)))
         return {
             "stdout": b'',
             "stderr": b'',
@@ -88,7 +88,7 @@ class MockMachine(Machine):
         }
 
     def run_callable(self, func: Callable[[], Optional[int]]) -> int:
-        self.run_log.append(func)
+        self.run_log.append(("callable", func.__name__))
         return 0
 
 
