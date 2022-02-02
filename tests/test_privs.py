@@ -28,10 +28,14 @@ class TestPrivs(unittest.TestCase):
         self.assertEqual(sgid, privs.user_gid)
 
     def test_default(self):
+        privs.needs_sudo()
+
         self.assertTrue(privs.dropped)
         self.assertUnprivileged()
 
     def test_root(self):
+        privs.needs_sudo()
+
         self.assertTrue(privs.dropped)
         self.assertUnprivileged()
         with privs.root():

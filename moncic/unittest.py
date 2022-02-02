@@ -2,6 +2,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+from unittest import SkipTest
 
 TEST_CHROOTS = ["centos7", "centos8", "fedora32", "fedora34"]
 
@@ -16,13 +17,20 @@ class ProcessPrivs:
         self.orig_uid, self.orig_euid, self.orig_suid = os.getresuid()
         self.orig_gid, self.orig_egid, self.orig_sgid = os.getresgid()
 
-        if "SUDO_UID" not in os.environ:
-            raise RuntimeError("Tests need to be run under sudo")
+        self.have_sudo = "SUDO_UID" in os.environ
 
-        self.user_uid = int(os.environ["SUDO_UID"])
-        self.user_gid = int(os.environ["SUDO_GID"])
+        if self.have_sudo:
+            self.user_uid = int(os.environ["SUDO_UID"])
+            self.user_gid = int(os.environ["SUDO_GID"])
+        else:
+            self.user_uid = self.orig_uid
+            self.user_gid = self.orig_gid
 
-        self.dropped = False
+        self.dropped = not self.have_sudo
+
+    def needs_sudo(self):
+        if not self.have_sudo:
+            raise SkipTest("Tests need to be run under sudo")
 
     def drop(self):
         """
@@ -40,6 +48,7 @@ class ProcessPrivs:
         """
         if not self.dropped:
             return
+        self.needs_sudo()
         os.setresuid(self.orig_suid, self.orig_suid, self.user_uid)
         os.setresgid(self.orig_sgid, self.orig_sgid, self.user_gid)
         self.dropped = False

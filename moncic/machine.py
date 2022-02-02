@@ -31,8 +31,8 @@ class Machine:
         self.ostree = os.path.abspath(ostree)
         self.ephemeral = ephemeral
         self.started = False
-        # PID of the leader process in the running machine
-        self.leader_pid = None
+        # machinectl properties of the running machine
+        self.properties = None
         self.workdir = tempfile.TemporaryDirectory()
 
     def _run_nspawn(self, cmd: List[str]):
@@ -87,10 +87,14 @@ class Machine:
         self._run_nspawn(cmd)
         self.started = True
 
+        # Read machine properties
         res = subprocess.run(
-                ["machinectl", "show", "--property=Leader", "--value", self.machine_name],
+                ["machinectl", "show", self.machine_name],
                 capture_output=True, text=True, check=True)
-        self.leader_pid = int(res.stdout)
+        self.properties = {}
+        for line in res.stdout.splitlines():
+            key, value = line.split('=', 1)
+            self.properties[key] = value
 
     def run(self, command: List[str]) -> Dict[str, Any]:
         """
@@ -123,7 +127,7 @@ class Machine:
         """
         pid = os.fork()
         if pid == 0:
-            setns.nsenter(self.leader_pid)
+            setns.nsenter(int(self.properties["Leader"]))
             res = func()
             if res is None:
                 res = 0
