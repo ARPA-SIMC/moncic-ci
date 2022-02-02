@@ -35,7 +35,11 @@ class Distro:
         """
         self.run(["btrfs", "-q", "subvolume", "create", path])
         try:
-            self.bootstrap(path)
+            if os.path.exists(path + ".tar.gz"):
+                # Shortcut in case we have a chroot in a tarball
+                self.run(["tar", "-C", path, "-zxf", path + ".tar.gz"])
+            else:
+                self.bootstrap(path)
         except Exception:
             self.run(["btrfs", "-q", "subvolume", "delete", path])
             raise
