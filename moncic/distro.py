@@ -47,6 +47,9 @@ class Distro:
         return self.machine_class(ostree, name, ephemeral)
 
     def update(self, ostree: str):
+        """
+        Run periodic maintenance on the given container
+        """
         with self.machine(ostree, f"maint-{self.__class__.__name__.lower()}", ephemeral=False) as machine:
             self.run_update(machine)
 
