@@ -5,7 +5,7 @@ import contextlib
 import tempfile
 import shutil
 import os
-from .machine import Machine, LegacyMachine
+from .machine import Machine, NspawnMachine, LegacyNspawnMachine
 from .osrelease import parse_osrelase
 
 
@@ -34,7 +34,7 @@ class Distro:
         """
         Create a Machine to run this distro
         """
-        return Machine(ostree, name, ephemeral)
+        return NspawnMachine(ostree, name, ephemeral)
 
     def update(self, ostree: str):
         with self.machine(ostree, f"maint-{self.__class__.__name__.lower()}", ephemeral=False) as machine:
@@ -180,23 +180,20 @@ class Centos7(Rpm):
         machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/yum.conf"])
         for pkg in ["epel-release", "@buildsys-build", "yum-utils", "git", "rpmdevtools"]:
             machine.run(["/usr/bin/yum", "install", "-y", pkg])
-        machine.run(["/usr/bin/yum", "install", "-q", "-y", "yum-plugin-copr"])
-        machine.run(["/usr/bin/yum", "copr", "enable", "-q", "-y", "simc/stable", "epel-7"])
+        machine.run(["/usr/bin/yum", "install", "-q" "-y", "yum-plugin-copr"])
+        machine.run(["/usr/bin/yum", "copr", "enable", "-q" "-y", "simc/stable", "epel-7"])
         machine.run(["/usr/bin/yum", "upgrade", "-q", "-y"])
 
     def machine(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True) -> Machine:
         """
         Create a Machine to run this distro
         """
-        return LegacyMachine(ostree, name, ephemeral)
+        return LegacyNspawnMachine(ostree, name, ephemeral)
 
 
 @Distro.register
 class Centos8(Rpm):
-    #BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
-    # Usiamo Rocky Linux per i build mantenendo il codename centos8 per continuità
-    # vedi: https://github.com/ARPA-SIMC/moncic-ci/issues/5
-    BASEURL = "http://dl.rockylinux.org/pub/rocky/8/BaseOS/$basearch/os/"
+    BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
     RELEASEVER = 8
     PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "dbus"]
 

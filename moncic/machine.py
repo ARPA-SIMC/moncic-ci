@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import List, Optional, Dict, Any, Callable
 import subprocess
 import tempfile
+from importlib import reload
 import logging
 import shlex
 import uuid
@@ -16,6 +17,83 @@ log = logging.getLogger(__name__)
 
 class Machine:
     """
+    Start, stop, and drive a running CI container
+    """
+    def __init__(self):
+        self.started = False
+
+    def start(self) -> None:
+        raise NotImplementedError(f"{self.__class__}.start() not implemented")
+
+    def run(self, command: List[str]) -> Dict[str, Any]:
+        """
+        Run the given command inside the machine.
+
+        Returns a dict with:
+        {
+            "stdout": bytes,
+            "stderr": bytes,
+            "returncode": int,
+        }
+
+        stdout and stderr are logged in real time as the process is running.
+        """
+        raise NotImplementedError(f"{self.__class__}.run(...) not implemented")
+
+    def run_shell(self):
+        self.run(["/bin/bash", "-"])
+
+    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
+        """
+        Run the given callable in a separate process inside the running
+        machine. Returns the process exit status.
+        """
+        raise NotImplementedError(f"{self.__class__}.run_callable(...) not implemented")
+
+    def terminate(self) -> None:
+        raise NotImplementedError(f"{self.__class__}.terminate(...) not implemented")
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        self.terminate()
+        return self.workdir.__exit__(exc_type, exc_value, exc_tb)
+
+
+class MockMachine(Machine):
+    """
+    Mock machine that just logs what is run and does nothing, useful for tests
+    """
+    def __init__(self):
+        super().__init__()
+        self.run_log = []
+
+    def start(self):
+        if self.started:
+            return
+        self.run_log = []
+        self.started = True
+
+    def terminate(self):
+        self.started = False
+
+    def run(self, command: List[str]) -> Dict[str, Any]:
+        self.run_log.append(command)
+        return {
+            "stdout": b'',
+            "stderr": b'',
+            "returncode": 0,
+        }
+
+    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
+        self.run_log.append(func)
+        return 0
+
+
+class NspawnMachine(Machine):
+    """
     Manage a CI machine
     """
     def __init__(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True):
@@ -25,12 +103,12 @@ class Machine:
         ``name`` is the name of the machine instance, as available in ``machinectl``
         ``ostree`` is the path to the btrfs subtree with the OS filesystem
         """
+        super().__init__()
         if name is None:
             name = str(uuid.uuid4())
         self.machine_name = name
         self.ostree = os.path.abspath(ostree)
         self.ephemeral = ephemeral
-        self.started = False
         # machinectl properties of the running machine
         self.properties = None
         self.workdir = tempfile.TemporaryDirectory()
@@ -97,36 +175,14 @@ class Machine:
             self.properties[key] = value
 
     def run(self, command: List[str]) -> Dict[str, Any]:
-        """
-        Run the given command inside the machine
-        """
         runner = SystemdRunRunner(self.machine_name, command)
         return runner.run()
 
-        # log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
-        # res = subprocess.run(cmd, capture_output=True)
-
-        # # TODO: collect stdout/stderr into RunFailed?
-        # # TODO: but still let it run on stdout/stderr for progress?
-        # if res.returncode != 0:
-        #     raise RunFailed(f"Run script exited with code {res.returncode}")
-
-        # return {
-        #     "stdout": res.stdout,
-        #     "stderr": res.stderr,
-        #     "returncode": res.returncode,
-        # }
-
-    def run_shell(self):
-        self.run(["/bin/bash", "-"])
-
     def run_callable(self, func: Callable[[], Optional[int]]) -> int:
-        """
-        Run the given callable in a separate process inside the running
-        machine. Returns the process exit status.
-        """
         pid = os.fork()
         if pid == 0:
+            logging.shutdown()
+            reload(logging)
             setns.nsenter(int(self.properties["Leader"]))
             res = func()
             if res is None:
@@ -144,23 +200,15 @@ class Machine:
 
     def __enter__(self):
         self.workdir.__enter__()
-        self.start()
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        self.terminate()
-        return self.workdir.__exit__(exc_type, exc_value, exc_tb)
+        return super().__enter__()
 
 
-class LegacyMachine(Machine):
+class LegacyNspawnMachine(NspawnMachine):
     """
     Version of Machine that runs an old OS that it is not compatibile with
     ``systemd-run --wait`` (for example, Centos7)
     """
 
     def run(self, command: List[str]) -> Dict[str, Any]:
-        """
-        Run the given script inside the machine, using the given shell
-        """
         runner = LegacyRunner(self.machine_name, command)
         return runner.run()
