@@ -1,9 +1,9 @@
 from __future__ import annotations
 import subprocess
 import logging
-import shutil
 import shlex
 import os
+import re
 from .cli import Command, Fail
 from .distro import Distro
 
@@ -70,26 +70,6 @@ class LaunchBuild(Command):
             ])
 
 
-class Bootstrap(Command):
-    """
-    Bootstrap a minimal OS image in a btrfs snapshot
-    """
-
-    @classmethod
-    def make_subparser(cls, subparsers):
-        parser = super().make_subparser(subparsers)
-        distro_list = ', '.join(repr(x) for x in Distro.list())
-        parser.add_argument("path",
-                            help="path to the btrfs subvolume to create")
-        parser.add_argument("os_name",
-                            help=f"name of the distro to install (one of {distro_list})")
-        return parser
-
-    def run(self):
-        distro = Distro.create(self.args.os_name)
-        distro.bootstrap_subvolume(self.args.path)
-
-
 class Shell(Command):
     """
     Run a shell in the given container
@@ -124,57 +104,64 @@ class Shell(Command):
                 bind=self.args.bind, bind_ro=self.args.bind_ro)
 
 
-class Bootstrapper(Command):
+class Bootstrap(Command):
     """
     Create or update the whole set of OS images for the CI
     """
-    # TODO: configure these
-    PROCDIR = "."
-    IMGPATH = "images"
-
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("conf", nargs="?", default=os.path.join(cls.PROCDIR, "distros.conf"),
-                            help="path to the configuration file. Defaut: %(default)s")
+        parser.add_argument("-I", "--imagedir", action="store", default="./images",
+                            help="path to the directory that contains container images")
+        parser.add_argument("--recreate", action="store_true",
+                            help="delete the images and recreate them from scratch")
+        parser.add_argument("distros", nargs="+",
+                            help="distributions to bootstrap")
         return parser
 
+    def remove_nested_subvolumes(self, path):
+        """
+        Run btrfs remove on all subvolumes nested inside the given path
+        """
+        # Fetch IDs of subvolumes to delete
+        #
+        # Use IDs rather than paths to avoid potential issues with exotic path
+        # names
+        re_btrfslist = re.compile(r"^ID (\d+) gen \d+ top level \d+ path (.+)$")
+        res = subprocess.run(["btrfs", "subvolume", "list", "-o", path], check=True, text=True, capture_output=True)
+        to_delete = []
+        for line in res.stdout.splitlines():
+            if mo := re_btrfslist.match(line):
+                to_delete.append((mo.group(1), mo.group(2)))
+            else:
+                raise RuntimeError(f"Unparsable line in btrfs output: {line!r}")
+
+        # Delete in reverse order
+        for subvolid, subvolpath in to_delete[::-1]:
+            log.info("removing btrfs subvolume %r", subvolpath)
+            subprocess.run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, path], check=True)
+
     def run(self):
-        distros = []
-        with open(self.args.conf, "rt") as fd:
-            for line in fd:
-                name, build_opzionale = line.split()
-                distros.append({
-                    "name": name,
-                    "build_opzionale": build_opzionale == "true",
-                })
+        for name in self.args.distros:
+            path = os.path.join(self.args.imagedir, name)
+            if self.args.recreate and os.path.exists(path):
+                self.remove_nested_subvolumes(path)
+                log.info("removing btrfs subvolume %r", path)
+                subprocess.run(["btrfs", "-q", "subvolume", "delete", path], check=True)
 
-        for info in distros:
-            distro = Distro.create(info["name"])
-            path = os.path.join(self.IMGPATH, info["name"])
-            # distro.bootstrap_subvolume(self.args.path)
-
-            # TODO: what is SIMCOP_MANUAL_EXEC?
-            # TODO: # se esecuzione manuale, cancello immagini esistenti, se no mi fido di quelle che esistono
-            # TODO: if $SIMCOP_MANUAL_EXEC; then
-            # TODO:     rm -f ${imgpath}/${d}
-            # TODO: fi
-            if False:
-                shutil.rmtree(path)
+            distro = Distro.create(name)
 
             if not os.path.exists(path):
-                log.info("Creo immagine %s...", info["name"])
+                log.info("%s: bootstrapping subvolume", name)
                 try:
-                    distro.bootstrap(path)
+                    distro.bootstrap_subvolume(path)
                 except Exception:
-                    log.critical("Errore nella creazione dell'immagine %s", info["name"], exc_info=True)
+                    log.critical("%s: cannot create image", name, exc_info=True)
                     return 5
-                log.info("...fatto")
-            else:
-                log.info("Aggiorno immagine %s...", info["name"])
-                try:
-                    distro.update(path)
-                except Exception:
-                    log.critical("Errore nell'update dell'immagine %s", info["name"], exc_info=True)
-                    return 6
-                log.info("...fatto")
+
+            log.info("%s: updating subvolume", name)
+            try:
+                distro.update(path)
+            except Exception:
+                log.critical("%s: cannot update image", name, exc_info=True)
+                return 6

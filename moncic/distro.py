@@ -1,12 +1,17 @@
 from __future__ import annotations
 from typing import Type, Optional, List
-import subprocess
 import contextlib
-import tempfile
-import shutil
+import logging
 import os
+import shlex
+import shutil
+import subprocess
+import tempfile
+
 from .machine import Machine, NspawnMachine, LegacyNspawnMachine
 from .osrelease import parse_osrelase
+
+log = logging.getLogger(__name__)
 
 
 class Distro:
@@ -16,20 +21,25 @@ class Distro:
     distros = {}
     machine_class = NspawnMachine
 
+    def run(self, cmd: List[str], check=True, **kw) -> subprocess.CompletedProcess:
+        """
+        Wrapper around subprocess.run which logs what is run
+        """
+        log.info("%s: running %s", self.__class__.__name__, " ".join(shlex.quote(c) for c in cmd))
+        return subprocess.run(cmd, check=check, **kw)
+
     def bootstrap_subvolume(self, path: str):
         """
         Create a btrfs subvolume at the given path and bootstrap a distribution
         tree inside it
         """
-        cmd = ["btrfs", "subvolume", "create", path]
-        subprocess.run(cmd, check=True)
+        self.run(["btrfs", "-q", "subvolume", "create", path])
         try:
             self.bootstrap(path)
         except Exception:
-            cmd = ["btrfs", "subvolume", "delete", path]
-            subprocess.run(cmd, check=True)
+            self.run(["btrfs", "-q", "subvolume", "delete", path])
             raise
-        self.update(path)
+        self.bootstrap(path)
 
     def machine(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True) -> Machine:
         """
@@ -54,9 +64,7 @@ class Distro:
         else:
             with tempfile.TemporaryDirectory() as workdir:
                 # Git checkout in a temporary directory
-                subprocess.run(
-                        ["git", "clone", os.path.abspath(repo)],
-                        cwd=workdir, check=True)
+                self.run(["git", "clone", os.path.abspath(repo)], cwd=workdir)
                 # Look for the directory that git created
                 names = os.listdir(workdir)
                 if len(names) != 1:
@@ -112,7 +120,7 @@ class Distro:
                 cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
                 cmd.append(f"--chdir=/root/{name}")
 
-            subprocess.run(cmd, check=True)
+            self.run(cmd)
 
     @classmethod
     def register(cls, distro_cls: Type["Distro"]) -> Type["Distro"]:
@@ -168,7 +176,7 @@ class Rpm(Distro):
                 f"--installroot={os.path.abspath(destdir)}", f"--releasever={self.RELEASEVER}",
                 "install"
             ] + self.PACKAGES
-            subprocess.run(cmd, check=True)
+            self.run(cmd)
 
 
 @Distro.register
