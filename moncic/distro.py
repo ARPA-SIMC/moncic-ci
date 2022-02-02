@@ -39,7 +39,6 @@ class Distro:
         except Exception:
             self.run(["btrfs", "-q", "subvolume", "delete", path])
             raise
-        self.bootstrap(path)
 
     def machine(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True) -> Machine:
         """
