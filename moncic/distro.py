@@ -14,6 +14,7 @@ class Distro:
     Common base class for bootstrapping distributions
     """
     distros = {}
+    machine_class = NspawnMachine
 
     def bootstrap_subvolume(self, path: str):
         """
@@ -34,7 +35,7 @@ class Distro:
         """
         Create a Machine to run this distro
         """
-        return NspawnMachine(ostree, name, ephemeral)
+        return self.machine_class(ostree, name, ephemeral)
 
     def update(self, ostree: str):
         with self.machine(ostree, f"maint-{self.__class__.__name__.lower()}", ephemeral=False) as machine:
@@ -175,6 +176,7 @@ class Centos7(Rpm):
     BASEURL = "http://mirror.centos.org/centos/7/os/$basearch"
     RELEASEVER = 7
     PACKAGES = ["bash", "vim-minimal", "yum", "rootfiles", "dbus"]
+    machine_class = LegacyNspawnMachine
 
     def run_update(self, machine: Machine):
         machine.run(["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/yum.conf"])
@@ -183,12 +185,6 @@ class Centos7(Rpm):
         machine.run(["/usr/bin/yum", "install", "-q" "-y", "yum-plugin-copr"])
         machine.run(["/usr/bin/yum", "copr", "enable", "-q" "-y", "simc/stable", "epel-7"])
         machine.run(["/usr/bin/yum", "upgrade", "-q", "-y"])
-
-    def machine(self, ostree: str, name: Optional[str] = None, ephemeral: bool = True) -> Machine:
-        """
-        Create a Machine to run this distro
-        """
-        return LegacyNspawnMachine(ostree, name, ephemeral)
 
 
 @Distro.register
