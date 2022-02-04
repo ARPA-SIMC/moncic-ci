@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import List, Optional, Dict, Any, Callable, Tuple
-import subprocess
-import tempfile
+import contextlib
 from importlib import reload
 import logging
-import shlex
-import uuid
 import os
+import shlex
+import subprocess
+import tempfile
+import uuid
+from typing import List, Optional, Dict, Any, Callable
+
 from .runner import SystemdRunRunner, LegacyRunner
 from . import setns
 
@@ -15,11 +17,12 @@ log = logging.getLogger(__name__)
 # Based on https://github.com/Truelite/nspawn-runner
 
 
-class Machine:
+class Machine(contextlib.ExitStack):
     """
     Start, stop, and drive a running CI container
     """
     def __init__(self):
+        super().__init__()
         self.started = False
 
     def start(self) -> None:
@@ -55,41 +58,11 @@ class Machine:
 
     def __enter__(self):
         self.start()
-        return self
+        return super().__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.terminate()
-        return self.workdir.__exit__(exc_type, exc_value, exc_tb)
-
-
-class MockMachine(Machine):
-    """
-    Mock machine that just logs what is run and does nothing, useful for tests
-    """
-    def __init__(self):
-        super().__init__()
-        self.run_log: List[Tuple[str, str]] = []
-
-    def start(self):
-        if self.started:
-            return
-        self.run_log = []
-        self.started = True
-
-    def terminate(self):
-        self.started = False
-
-    def run(self, command: List[str]) -> Dict[str, Any]:
-        self.run_log.append(("command", " ".join(shlex.quote(c) for c in command)))
-        return {
-            "stdout": b'',
-            "stderr": b'',
-            "returncode": 0,
-        }
-
-    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
-        self.run_log.append(("callable", func.__name__))
-        return 0
+        return super().__exit__(exc_type, exc_value, exc_tb)
 
 
 class NspawnMachine(Machine):
@@ -111,7 +84,7 @@ class NspawnMachine(Machine):
         self.ephemeral = ephemeral
         # machinectl properties of the running machine
         self.properties = None
-        self.workdir = tempfile.TemporaryDirectory()
+        self.workdir = self.enter_context(tempfile.TemporaryDirectory())
 
     def _run_nspawn(self, cmd: List[str]):
         """
@@ -157,7 +130,7 @@ class NspawnMachine(Machine):
             f"--machine={self.machine_name}",
             "--boot",
             "--notify-ready=yes",
-            f"--bind={self.workdir.name}:/root/transfer",
+            f"--bind={self.workdir}:/root/transfer",
         ]
         if self.ephemeral:
             cmd.append("--ephemeral")
@@ -197,10 +170,6 @@ class NspawnMachine(Machine):
         if res.returncode != 0:
             raise RuntimeError(f"Terminating machine {self.machine_name} failed with code {res.returncode}")
         self.started = False
-
-    def __enter__(self):
-        self.workdir.__enter__()
-        return super().__enter__()
 
 
 class LegacyNspawnMachine(NspawnMachine):
