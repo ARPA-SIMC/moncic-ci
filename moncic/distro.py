@@ -3,12 +3,12 @@ from typing import Type, Optional, List
 import contextlib
 import logging
 import os
-import shlex
 import shutil
 import subprocess
 import tempfile
 
 from .machine import Machine, NspawnMachine, LegacyNspawnMachine
+from .runner import LocalRunner
 from .osrelease import parse_osrelase
 
 log = logging.getLogger(__name__)
@@ -21,12 +21,12 @@ class Distro:
     distros = {}
     machine_class = NspawnMachine
 
-    def run(self, cmd: List[str], check=True, **kw) -> subprocess.CompletedProcess:
+    def run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
         """
         Wrapper around subprocess.run which logs what is run
         """
-        log.info("%s: running %s", self.__class__.__name__, " ".join(shlex.quote(c) for c in cmd))
-        return subprocess.run(cmd, check=check, **kw)
+        runner = LocalRunner(cmd, **kw)
+        return runner.run()
 
     def bootstrap_subvolume(self, path: str):
         """
@@ -50,14 +50,20 @@ class Distro:
         """
         return self.machine_class(ostree, name, ephemeral)
 
-    def update(self, ostree: str):
+    def bootstrap(self, destdir: str) -> None:
+        """
+        Boostrap a fresh system inside the given directory
+        """
+        raise NotImplementedError(f"{self.__class__}.bootstrap not implemented")
+
+    def update(self, ostree: str) -> None:
         """
         Run periodic maintenance on the given container
         """
         with self.machine(ostree, f"maint-{self.__class__.__name__.lower()}", ephemeral=False) as machine:
             self.run_update(machine)
 
-    def run_update(self, machine: Machine):
+    def run_update(self, machine: Machine) -> None:
         """
         Run update or regular maintenance commands on the given machine
         """
@@ -177,7 +183,7 @@ class Rpm(Distro):
     def bootstrap(self, destdir: str):
         with self.chroot_config() as chroot_initial:
             cmd = [
-                self.installer, "-q", "-c", chroot_initial, "-y", "--disablerepo=*",
+                self.installer, "-c", chroot_initial, "-y", "--disablerepo=*",
                 "--enablerepo=chroot-base", "--disableplugin=*",
                 f"--installroot={os.path.abspath(destdir)}", f"--releasever={self.RELEASEVER}",
                 "install"

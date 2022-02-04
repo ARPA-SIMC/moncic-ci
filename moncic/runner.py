@@ -17,8 +17,7 @@ class RunFailed(Exception):
 
 
 class AsyncioRunner:
-    def __init__(self, machine_name: str, cmd: List[str]):
-        self.machine_name = machine_name
+    def __init__(self, cmd: List[str]):
         self.cmd = cmd
         self.stdout: List[bytes] = []
         self.stderr: List[bytes] = []
@@ -68,7 +67,34 @@ class AsyncioRunner:
             log.info("stderr: %s", line.decode(errors="replace").rstrip())
 
 
-class SystemdRunRunner(AsyncioRunner):
+class LocalRunner(AsyncioRunner):
+    """
+    Run a command locally, logging its output
+    """
+    def __init__(self, cmd: List[str], **kwargs):
+        super().__init__(cmd)
+        self.kwargs = kwargs
+
+    async def start_process(self):
+        log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
+
+        return await asyncio.create_subprocess_exec(
+                self.cmd[0], *self.cmd[1:],
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                **self.kwargs)
+
+
+class MachineRunner(AsyncioRunner):
+    """
+    Base class for running commands in running containers
+    """
+    def __init__(self, machine_name: str, cmd: List[str]):
+        super().__init__(cmd)
+        self.machine_name = machine_name
+
+
+class SystemdRunRunner(MachineRunner):
     async def start_process(self):
         cmd = [
             "/usr/bin/systemd-run", "--quiet", "--pipe", "--wait",
@@ -85,7 +111,7 @@ class SystemdRunRunner(AsyncioRunner):
                 stderr=asyncio.subprocess.PIPE)
 
 
-class LegacyRunner(AsyncioRunner):
+class LegacyRunner(MachineRunner):
     async def start_process(self):
         # See https://lists.debian.org/debian-devel/2021/12/msg00148.html
         # Thank you Marco d'Itri for the nsenter tip
