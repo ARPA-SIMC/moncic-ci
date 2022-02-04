@@ -79,8 +79,11 @@ class Shell(Command):
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
         parser.add_argument("path", help="path to the chroot")
-        parser.add_argument("-x", "--ephemeral", action="store_true",
-                            help="run the shell on an ephemeral machine")
+
+        # TODO: it should be ephemeral by default, use --persistent instead or --maintenance
+        # parser.add_argument("-x", "--ephemeral", action="store_true",
+        #                     help="run the shell on an ephemeral machine")
+
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
                             "--workdir",
@@ -88,6 +91,7 @@ class Shell(Command):
         git_workdir.add_argument(
                             "--checkout", "--co",
                             help="checkout the given repository (local or remote) in the chroot")
+
         parser.add_argument("--bind", action="append",
                             help="option passed to systemd-nspawn as is (see man systemd-nspawn)"
                                  " can be given multiple times")
@@ -98,6 +102,7 @@ class Shell(Command):
 
     def run(self):
         distro = Distro.from_ostree(self.args.path)
+        # FIXME: ephemeral is not passed, so it's true by default
         distro.run_shell(
                 self.args.path, checkout=self.args.checkout,
                 workdir=self.args.workdir,
