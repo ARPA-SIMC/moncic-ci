@@ -10,6 +10,7 @@ from typing import Optional
 
 from .cli import Command, Fail
 from .distro import Distro
+from .system import System
 
 log = logging.getLogger(__name__)
 
@@ -167,25 +168,24 @@ class Bootstrap(Command):
 
     def run(self):
         for name in self.args.distros:
-            path = os.path.join(self.args.imagedir, name)
-            if self.args.recreate and os.path.exists(path):
-                self.remove_nested_subvolumes(path)
-                log.info("removing btrfs subvolume %r", path)
-                subprocess.run(["btrfs", "-q", "subvolume", "delete", path], check=True)
-
             distro = Distro.create(name)
+            system = System(name, os.path.abspath(os.path.join(self.args.imagedir, name)), distro)
+            with system.create_bootstrapper() as bootstrapper:
+                if self.args.recreate and os.path.exists(system.root):
+                    bootstrapper.remove()
 
-            if not os.path.exists(path):
-                log.info("%s: bootstrapping subvolume", name)
+                if not os.path.exists(system.root):
+                    log.info("%s: bootstrapping subvolume", name)
+                    try:
+                        bootstrapper.bootstrap()
+                    except Exception:
+                        log.critical("%s: cannot create image", name, exc_info=True)
+                        return 5
+
+            with system.create_maintenance_run() as run:
+                log.info("%s: updating subvolume", name)
                 try:
-                    distro.bootstrap_subvolume(path)
+                    run.update()
                 except Exception:
-                    log.critical("%s: cannot create image", name, exc_info=True)
-                    return 5
-
-            log.info("%s: updating subvolume", name)
-            try:
-                distro.update(path)
-            except Exception:
-                log.critical("%s: cannot update image", name, exc_info=True)
-                return 6
+                    log.critical("%s: cannot update image", name, exc_info=True)
+                    return 6

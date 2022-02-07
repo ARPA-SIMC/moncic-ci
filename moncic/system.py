@@ -46,7 +46,8 @@ class System:
         """
         Create a boostrapper object for this system
         """
-        raise NotImplementedError(f"{self.__class__}.create_bootstrapper() not implemented")
+        from .bootstrap import Bootstrapper
+        return Bootstrapper(self)
 
 #     def run_shell(
 #             self,

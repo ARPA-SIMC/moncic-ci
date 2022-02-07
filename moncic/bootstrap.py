@@ -37,3 +37,7 @@ class Bootstrapper(contextlib.ExitStack):
                 self.run(["tar", "-C", self.system.root, "-zxf", self.system.root + ".tar.gz"])
             else:
                 self.system.distro.bootstrap(self)
+
+    def remove(self):
+        subvolume = Subvolume(self)
+        subvolume.remove()
