@@ -5,55 +5,56 @@ import os
 import secrets
 from moncic.unittest import privs, TEST_CHROOTS
 from moncic.distro import Distro
+from moncic.system import System
 
 
 class RunTestCase:
-    def test_true(self):
+    def get_system(self) -> System:
         image = os.path.join("images", self.distro_name)
         distro = Distro.from_path(image)
+        return System(self.distro_name, os.path.abspath(image), distro)
+
+    def test_true(self):
+        system = self.get_system()
         with privs.root():
-            with distro.machine(image) as machine:
-                machine.run(["/usr/bin/true"])
+            with system.create_ephemeral_run() as run:
+                run.run(["/usr/bin/true"])
 
     def test_sleep(self):
-        image = os.path.join("images", self.distro_name)
-        distro = Distro.from_path(image)
+        system = self.get_system()
         with privs.root():
-            with distro.machine(image) as machine:
-                machine.run(["/usr/bin/sleep", "0.1"])
+            with system.create_ephemeral_run() as run:
+                run.run(["/usr/bin/sleep", "0.1"])
 
     def test_stdout(self):
-        image = os.path.join("images", self.distro_name)
-        distro = Distro.from_path(image)
+        system = self.get_system()
         with privs.root():
-            with distro.machine(image) as machine:
-                res = machine.run(["/usr/bin/echo", "test"])
+            with system.create_ephemeral_run() as run:
+                res = run.run(["/usr/bin/echo", "test"])
                 self.assertEqual(res["stdout"], b"test\n")
                 self.assertEqual(res["stderr"], b"")
 
     def test_env(self):
-        image = os.path.join("images", self.distro_name)
-        distro = Distro.from_path(image)
+        system = self.get_system()
         with privs.root():
-            with distro.machine(image) as machine:
-                res = machine.run(["/bin/sh", "-c", "echo $HOME"])
+            with system.create_ephemeral_run() as run:
+                res = run.run(["/bin/sh", "-c", "echo $HOME"])
                 self.assertEqual(res["stdout"], b"/root\n")
                 self.assertEqual(res["stderr"], b"")
 
     def test_callable(self):
         token = secrets.token_bytes(8)
-        image = os.path.join("images", self.distro_name)
-        distro = Distro.from_path(image)
+        system = self.get_system()
         with privs.root():
-            with distro.machine(image) as machine:
+            with system.create_ephemeral_run() as run:
 
                 def test_function():
                     with open("/tmp/token", "wb") as out:
                         out.write(token)
 
-                self.assertEqual(machine.run_callable(test_function), 0)
+                self.assertEqual(run.run_callable(test_function), 0)
 
-                res = machine.run(["/usr/bin/cat", "/tmp/token"])
+                res = run.run(["/usr/bin/cat", "/tmp/token"])
                 self.assertEqual(res["stdout"], token)
                 self.assertEqual(res["stderr"], b"")
 

@@ -65,6 +65,10 @@ class RunningSystem(contextlib.ExitStack):
         """
         raise NotImplementedError(f"{self.__class__}.terminate() not implemented")
 
+    def __enter__(self):
+        self.start()
+        return super().__enter__()
+
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.terminate()
         return super().__exit__(exc_type, exc_value, exc_tb)
@@ -115,7 +119,7 @@ class NspawnRunningSystem(RunningSystem):
         return [
             "systemd-nspawn",
             "--quiet",
-            f"--directory={self.system.path}",
+            f"--directory={self.system.root}",
             f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
@@ -135,7 +139,7 @@ class NspawnRunningSystem(RunningSystem):
 
         # Read machine properties
         res = subprocess.run(
-                ["machinectl", "show", self.machine_name],
+                ["machinectl", "show", self.instance_name],
                 capture_output=True, text=True, check=True)
         self.properties = {}
         for line in res.stdout.splitlines():
@@ -164,9 +168,9 @@ class NspawnRunningSystem(RunningSystem):
         if not self.started:
             return
 
-        res = subprocess.run(["machinectl", "terminate", self.machine_name])
+        res = subprocess.run(["machinectl", "terminate", self.instance_name])
         if res.returncode != 0:
-            raise RuntimeError(f"Terminating machine {self.machine_name} failed with code {res.returncode}")
+            raise RuntimeError(f"Terminating machine {self.instance_name} failed with code {res.returncode}")
         self.started = False
 
 
