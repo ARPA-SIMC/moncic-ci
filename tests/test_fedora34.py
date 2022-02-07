@@ -1,6 +1,5 @@
 from __future__ import annotations
 import re
-import tempfile
 import unittest
 
 from moncic.distro import Distro
@@ -11,22 +10,24 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
     def test_bootstrap(self):
         distro = Distro.create("fedora34")
 
-        with self.mock_run(distro) as log:
-            with tempfile.TemporaryDirectory() as workdir:
-                distro.bootstrap_subvolume(workdir)
+        with self.mock_system(distro) as system:
+            bootstrapper = system.create_bootstrapper()
+            bootstrapper.bootstrap()
+        log = system.run_log
 
-        log.assertPopFirst(f'btrfs -q subvolume create {workdir}')
+        log.assertPopFirst(f'btrfs -q subvolume create {system.root}')
         log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-            rf' --installroot={workdir} --releasever=34 install bash vim-minimal dnf rootfiles git dbus'))
+            rf' --installroot={system.root} --releasever=34 install bash vim-minimal dnf rootfiles git dbus'))
         log.assertLogEmpty()
 
     def test_upgrade(self):
         distro = Distro.create("fedora34")
 
-        with self.mock_run(distro) as log:
-            with tempfile.TemporaryDirectory() as workdir:
-                distro.update(workdir)
+        with self.mock_system(distro) as system:
+            runner = system.create_maintenance_run()
+            runner.update()
+        log = system.run_log
 
         log.assertPopFirst('/usr/bin/rpmdb --rebuilddb')
         log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf")

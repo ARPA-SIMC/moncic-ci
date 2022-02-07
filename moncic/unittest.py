@@ -4,10 +4,13 @@ import logging
 import os
 import re
 import shlex
+import tempfile
 from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
-from moncic.machine import Machine
+from moncic.system import System
+from moncic.run import RunningSystem, UpdateMixin
+from moncic.bootstrap import Bootstrapper
 
 if TYPE_CHECKING:
     from moncic.distro import Distro
@@ -119,24 +122,19 @@ class MockRunLog:
         self.testcase.assertEqual(self.log, [])
 
 
-class MockMachine(Machine):
-    """
-    Mock machine that just logs what is run and does nothing, useful for tests
-    """
-    def __init__(self, run_log):
-        super().__init__()
-        self.run_log = run_log
-
+class MockRunningSystem(UpdateMixin, RunningSystem):
     def start(self):
         if self.started:
             return
         self.started = True
 
     def terminate(self):
+        if not self.started:
+            return
         self.started = False
 
     def run(self, command: List[str]) -> Dict[str, Any]:
-        self.run_log.append(command, {})
+        self.system.run_log.append(command, {})
         return {
             "stdout": b'',
             "stderr": b'',
@@ -144,13 +142,41 @@ class MockMachine(Machine):
         }
 
     def run_callable(self, func: Callable[[], Optional[int]]) -> int:
-        self.run_log.append_callable(func)
+        self.system.run_log.append_callable(func)
         return 0
+
+
+class MockBootstrapper(Bootstrapper):
+    def run(self, cmd: List[str], **kw) -> Dict[str, Any]:
+        self.system.run_log.append(cmd, {})
+        return {
+            "stdout": b'',
+            "stderr": b'',
+            "returncode": 0,
+        }
+
+
+class MockSystem(System):
+    """
+    Mock machine that just logs what is run and does nothing, useful for tests
+    """
+    def __init__(self, *args, run_log, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.run_log = run_log
+
+    def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
+        return MockRunningSystem(self)
+
+    def create_maintenance_run(self, instance_name: Optional[str] = None) -> RunningSystem:
+        return MockRunningSystem(self)
+
+    def create_bootstrapper(self) -> Bootstrapper:
+        return MockBootstrapper(self)
 
 
 class DistroTestMixin:
     @contextlib.contextmanager
-    def mock_run(self, distro: Distro):
+    def mock_system(self, distro: Distro):
         log = MockRunLog(self)
 
         def logging_run(cmd, **kwargs):
@@ -161,15 +187,6 @@ class DistroTestMixin:
                 "returncode": 0,
             }
 
-        def mock_machine(*args, **kw):
-            return MockMachine(log)
-
-        try:
-            orig = distro.run
-            orig_cls = distro.machine_class
-            distro.run = logging_run
-            distro.machine_class = mock_machine
-            yield log
-        finally:
-            distro.run = orig
-            distro.machine_class = orig_cls
+        with tempfile.TemporaryDirectory() as workdir:
+            system = MockSystem("test", os.path.join(workdir, "test"), distro, run_log=log)
+            yield system

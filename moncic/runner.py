@@ -1,3 +1,7 @@
+"""
+Infrastructure for running commands (in local or running systems) and logging
+their output
+"""
 from __future__ import annotations
 import asyncio
 import logging
@@ -111,7 +115,7 @@ class SystemdRunRunner(MachineRunner):
                 stderr=asyncio.subprocess.PIPE)
 
 
-class LegacyRunner(MachineRunner):
+class LegacyRunRunner(MachineRunner):
     async def start_process(self):
         # See https://lists.debian.org/debian-devel/2021/12/msg00148.html
         # Thank you Marco d'Itri for the nsenter tip

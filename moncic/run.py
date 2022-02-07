@@ -1,36 +1,39 @@
 from __future__ import annotations
 import contextlib
-from importlib import reload
+import importlib
 import logging
 import os
 import shlex
 import subprocess
 import tempfile
+from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
 import uuid
-from typing import List, Optional, Dict, Any, Callable
 
-from .runner import SystemdRunRunner, LegacyRunner
 from . import setns
+if TYPE_CHECKING:
+    from .system import System
 
 log = logging.getLogger(__name__)
 
-# Based on https://github.com/Truelite/nspawn-runner
 
-
-class Machine(contextlib.ExitStack):
+class RunningSystem(contextlib.ExitStack):
     """
-    Start, stop, and drive a running CI container
+    An instance of a System in execution as a container
     """
-    def __init__(self):
+    def __init__(self, system: System, instance_name: Optional[str] = None):
         super().__init__()
-        self.started = False
+        self.system = system
 
-    def start(self) -> None:
-        raise NotImplementedError(f"{self.__class__}.start() not implemented")
+        if instance_name is None:
+            self.instance_name = str(uuid.uuid4())
+        else:
+            self.instance_name = instance_name
+
+        self.started = False
 
     def run(self, command: List[str]) -> Dict[str, Any]:
         """
-        Run the given command inside the machine.
+        Run the given command inside the running system.
 
         Returns a dict with:
         {
@@ -41,46 +44,38 @@ class Machine(contextlib.ExitStack):
 
         stdout and stderr are logged in real time as the process is running.
         """
-        raise NotImplementedError(f"{self.__class__}.run(...) not implemented")
-
-    def run_shell(self):
-        self.run(["/bin/bash", "-"])
+        raise NotImplementedError(f"{self.__class__}.run() not implemented")
 
     def run_callable(self, func: Callable[[], Optional[int]]) -> int:
         """
         Run the given callable in a separate process inside the running
-        machine. Returns the process exit status.
+        system. Returns the process exit status.
         """
-        raise NotImplementedError(f"{self.__class__}.run_callable(...) not implemented")
+        raise NotImplementedError(f"{self.__class__}.run_callable() not implemented")
+
+    def start(self):
+        """
+        Start the running system
+        """
+        raise NotImplementedError(f"{self.__class__}.start() not implemented")
 
     def terminate(self) -> None:
-        raise NotImplementedError(f"{self.__class__}.terminate(...) not implemented")
-
-    def __enter__(self):
-        self.start()
-        return super().__enter__()
+        """
+        Shut down the running system
+        """
+        raise NotImplementedError(f"{self.__class__}.terminate() not implemented")
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         self.terminate()
         return super().__exit__(exc_type, exc_value, exc_tb)
 
 
-class NspawnMachine(Machine):
+class NspawnRunningSystem(RunningSystem):
     """
-    Manage a CI machine
+    Running system implemented using systemd nspawn
     """
-    def __init__(self, ostree: str, name: Optional[str] = None):
-        """
-        Manage a machine where to run CI scripts.
-
-        ``name`` is the name of the machine instance, as available in ``machinectl``
-        ``ostree`` is the path to the btrfs subtree with the OS filesystem
-        """
-        super().__init__()
-        if name is None:
-            name = str(uuid.uuid4())
-        self.machine_name = name
-        self.ostree = os.path.abspath(ostree)
+    def __init__(self, system: System, instance_name: Optional[str] = None):
+        super().__init__(system, instance_name)
         # machinectl properties of the running machine
         self.properties = None
         self.workdir = self.enter_context(tempfile.TemporaryDirectory())
@@ -116,23 +111,24 @@ class NspawnMachine(Machine):
                       res.stderr)
             raise RuntimeError("Failed to start container")
 
-    def start(self, ephemeral: bool = True):
-        if self.started:
-            return
-
-        log.info("Starting machine using image %s", self.ostree)
-
-        cmd = [
+    def get_start_command(self):
+        return [
             "systemd-nspawn",
             "--quiet",
-            f"--directory={self.ostree}",
-            f"--machine={self.machine_name}",
+            f"--directory={self.system.path}",
+            f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
             f"--bind={self.workdir}:/root/transfer",
         ]
-        if ephemeral:
-            cmd.append("--ephemeral")
+
+    def start(self):
+        if self.started:
+            return
+
+        log.info("Starting system %s as %s using image %s", self.system.name, self.instance_name, self.system.root)
+
+        cmd = self.get_start_command()
 
         self._run_nspawn(cmd)
         self.started = True
@@ -147,14 +143,14 @@ class NspawnMachine(Machine):
             self.properties[key] = value
 
     def run(self, command: List[str]) -> Dict[str, Any]:
-        runner = SystemdRunRunner(self.machine_name, command)
+        runner = self.system.distro.runner_class(self.instance_name, command)
         return runner.run()
 
     def run_callable(self, func: Callable[[], Optional[int]]) -> int:
         pid = os.fork()
         if pid == 0:
             logging.shutdown()
-            reload(logging)
+            importlib.reload(logging)
             setns.nsenter(int(self.properties["Leader"]))
             res = func()
             if res is None:
@@ -165,18 +161,30 @@ class NspawnMachine(Machine):
             return res.si_status
 
     def terminate(self):
+        if not self.started:
+            return
+
         res = subprocess.run(["machinectl", "terminate", self.machine_name])
         if res.returncode != 0:
             raise RuntimeError(f"Terminating machine {self.machine_name} failed with code {res.returncode}")
         self.started = False
 
 
-class LegacyNspawnMachine(NspawnMachine):
-    """
-    Version of Machine that runs an old OS that it is not compatibile with
-    ``systemd-run --wait`` (for example, Centos7)
-    """
+class UpdateMixin:
+    def update(self):
+        """
+        Run periodic maintenance on the system
+        """
+        for cmd in self.system.distro.get_update_script():
+            self.run(cmd)
 
-    def run(self, command: List[str]) -> Dict[str, Any]:
-        runner = LegacyRunner(self.machine_name, command)
-        return runner.run()
+
+class EphemeralNspawnRunningSystem(NspawnRunningSystem):
+    def get_start_command(self):
+        cmd = super().get_start_command()
+        cmd.append("--ephemeral")
+        return cmd
+
+
+class MaintenanceNspawnRunningSystem(UpdateMixin, NspawnRunningSystem):
+    pass

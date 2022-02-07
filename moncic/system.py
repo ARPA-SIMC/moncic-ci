@@ -1,205 +1,100 @@
 from __future__ import annotations
-import contextlib
-import importlib
 import logging
-import os
-import shlex
-import subprocess
-from typing import List, Optional, Dict, Any, Callable
-import uuid
+from typing import Optional, TYPE_CHECKING
 
-from .runner import SystemdRunRunner, LocalRunner
-from . import setns
+if TYPE_CHECKING:
+    from .distro import Distro
+    from .bootstrap import Bootstrapper
+    from .run import RunningSystem
 
 log = logging.getLogger(__name__)
 
 
 class System:
-    def __init__(self, name: str, root: str):
+    """
+    A system configured in the CI.
+
+    System objects hold the system configuration and contain factory methods to
+    instantiate objects used to work with, and maintain, the system
+    """
+
+    def __init__(self, name: str, root: str, distro: Distro):
         # Name identifying this system
         self.name = name
         # Root path of the ostree of this system
         self.root = root
+        # Distribution this system is based on
+        self.distro = distro
 
-    def start(self, ephemeral: bool = True, instance_name: Optional[str] = None) -> RunningSystem:
+    def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         """
         Boot this system in a container
         """
-        raise NotImplementedError(f"{self.__class__}.start() not implemented")
+        # Import here to avoid an import loop
+        from .run import EphemeralNspawnRunningSystem
+        return EphemeralNspawnRunningSystem(self)
 
-    def bootstrap(self):
+    def create_maintenance_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         """
-        Download or generate the ostree for this system
+        Boot this system in a container
         """
-        with Bootstrapper(self) as bootstrapper:
-            # TODO: use distro or yaml config to know what to do
-            ...
+        # Import here to avoid an import loop
+        from .run import MaintenanceNspawnRunningSystem
+        return MaintenanceNspawnRunningSystem(self)
 
-    def update(self, ostree: str) -> None:
+    def create_bootstrapper(self) -> Bootstrapper:
         """
-        Run periodic maintenance on the system
+        Create a boostrapper object for this system
         """
-        with self.start(instance_name=f"maint-{self.name}", ephemeral=False) as instance:
-            # TODO: use distro or yaml config to know what to do
-            # TODO: self.run_update(instance)
-            ...
+        raise NotImplementedError(f"{self.__class__}.create_bootstrapper() not implemented")
 
-
-class Bootstrapper(contextlib.ExitStack):
-    """
-    Infrastructure used to bootstrap a System
-    """
-    def __init__(self, system: System):
-        super().__init__()
-        self.system = system
-
-    def run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
-        """
-        Wrapper around subprocess.run which logs what is run
-        """
-        kw.setdefault("cwd", self.system.root)
-        runner = LocalRunner(cmd, **kw)
-        return runner.run()
-
-
-class RunningSystem(contextlib.ExitStack):
-    """
-    An instance of a System in execution as a container
-    """
-    def __init__(self, system: System, instance_name: Optional[str] = None):
-        super().__init__()
-        self.system = system
-
-        if instance_name is None:
-            self.instance_name = str(uuid.uuid4())
-        else:
-            self.instance_name = instance_name
-
-    def run(self, command: List[str]) -> Dict[str, Any]:
-        """
-        Run the given command inside the running system.
-
-        Returns a dict with:
-        {
-            "stdout": bytes,
-            "stderr": bytes,
-            "returncode": int,
-        }
-
-        stdout and stderr are logged in real time as the process is running.
-        """
-        raise NotImplementedError(f"{self.__class__}.run() not implemented")
-
-    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
-        """
-        Run the given callable in a separate process inside the running
-        system. Returns the process exit status.
-        """
-        raise NotImplementedError(f"{self.__class__}.run_callable() not implemented")
-
-    def terminate(self) -> None:
-        """
-        Shut down the running system
-        """
-        raise NotImplementedError(f"{self.__class__}.terminate() not implemented")
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        self.terminate()
-        return super().__exit__(exc_type, exc_value, exc_tb)
-
-
-class NspawnRunningSystem(RunningSystem):
-    """
-    Running system implemented using systemd nspawn
-    """
-    runner_class = SystemdRunRunner
-
-    def __init__(self, system: System, instance_name: Optional[str] = None):
-        super().__init__(system, instance_name)
-        # machinectl properties of the running machine
-        self.properties = None
-
-    def _run_nspawn(self, cmd: List[str]):
-        """
-        Run the given systemd-nspawn command line, contained into its own unit
-        using systemd-run
-        """
-        unit_config = [
-            'KillMode=mixed',
-            'Type=notify',
-            'RestartForceExitStatus=133',
-            'SuccessExitStatus=133',
-            'Slice=machine.slice',
-            'Delegate=yes',
-            'TasksMax=16384',
-            'WatchdogSec=3min',
-        ]
-
-        systemd_run_cmd = ["systemd-run"]
-        for c in unit_config:
-            systemd_run_cmd.append(f"--property={c}")
-
-        systemd_run_cmd.extend(cmd)
-
-        log.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
-        res = subprocess.run(systemd_run_cmd, capture_output=True)
-        if res.returncode != 0:
-            log.error("Failed to run %s (exit code %d): %r",
-                      " ".join(shlex.quote(c) for c in systemd_run_cmd),
-                      res.returncode,
-                      res.stderr)
-            raise RuntimeError("Failed to start container")
-
-    def start(self, ephemeral: bool = True):
-        if self.started:
-            return
-
-        log.info("Starting system %s as %s using image %s", self.system.name, self.instance_name, self.system.root)
-
-        cmd = [
-            "systemd-nspawn",
-            "--quiet",
-            f"--directory={self.ostree}",
-            f"--machine={self.machine_name}",
-            "--boot",
-            "--notify-ready=yes",
-            f"--bind={self.workdir}:/root/transfer",
-        ]
-        if ephemeral:
-            cmd.append("--ephemeral")
-
-        self._run_nspawn(cmd)
-        self.started = True
-
-        # Read machine properties
-        res = subprocess.run(
-                ["machinectl", "show", self.machine_name],
-                capture_output=True, text=True, check=True)
-        self.properties = {}
-        for line in res.stdout.splitlines():
-            key, value = line.split('=', 1)
-            self.properties[key] = value
-
-    def run(self, command: List[str]) -> Dict[str, Any]:
-        runner = self.runner_class(self.instance_name, command)
-        return runner.run()
-
-    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
-        pid = os.fork()
-        if pid == 0:
-            logging.shutdown()
-            importlib.reload(logging)
-            setns.nsenter(int(self.properties["Leader"]))
-            res = func()
-            if res is None:
-                res = 0
-            os._exit(res)
-        else:
-            res = os.waitid(os.P_PID, pid, os.WEXITED)
-            return res.si_status
-
-    def terminate(self):
-        res = subprocess.run(["machinectl", "terminate", self.machine_name])
-        if res.returncode != 0:
-            raise RuntimeError(f"Terminating machine {self.machine_name} failed with code {res.returncode}")
-        self.started = False
+#     def run_shell(
+#             self,
+#             ostree: str,
+#             ephemeral: bool = True,
+#             checkout: Optional[str] = None,
+#             workdir: Optional[str] = None,
+#             bind: List[str] = None,
+#             bind_ro: List[str] = None):
+#         """
+#         Open a shell on the given ostree
+#         """
+#         def escape_bind_ro(s: str):
+#             r"""
+#             Escape a path for use in systemd-nspawn --bind-ro.
+#
+#             Man systemd-nspawn says:
+#
+#               Backslash escapes are interpreted, so "\:" may be used to embed
+#               colons in either path.
+#             """
+#             return s.replace(":", r"\:")
+#
+#         with self.checkout(checkout) as repo_path:
+#             cmd = ["systemd-nspawn", "-D", ostree]
+#             if ephemeral:
+#                 cmd.append("--ephemeral")
+#
+#             if bind:
+#                 for pathspec in bind:
+#                     cmd.append("--bind=" + pathspec)
+#             if bind_ro:
+#                 for pathspec in bind_ro:
+#                     cmd.append("--bind-ro=" + pathspec)
+#
+#             if repo_path is not None:
+#                 name = os.path.basename(repo_path)
+#                 if name.startswith("."):
+#                     raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
+#
+#                 cmd.append(f"--bind={escape_bind_ro(repo_path)}:/root/{escape_bind_ro(name)}")
+#                 cmd.append(f"--chdir=/root/{name}")
+#             elif workdir is not None:
+#                 workdir = os.path.abspath(workdir)
+#                 name = os.path.basename(workdir)
+#                 if name.startswith("."):
+#                     raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
+#                 cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
+#                 cmd.append(f"--chdir=/root/{name}")
+#
+#             self.run(cmd)

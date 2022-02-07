@@ -1,9 +1,13 @@
 from __future__ import annotations
-import subprocess
+import contextlib
 import logging
-import shlex
 import os
 import re
+import shlex
+import subprocess
+import tempfile
+from typing import Optional
+
 from .cli import Command, Fail
 from .distro import Distro
 
@@ -15,6 +19,21 @@ def sh(*cmd):
         subprocess.run(cmd, check=True)
     except subprocess.CalledProcessError as e:
         raise Fail(f"Command '{' '.join(shlex.quote(c) for c in cmd)}' exited with status {e.returncode}")
+
+
+@contextlib.contextmanager
+def checkout(self, repo: Optional[str] = None):
+    if repo is None:
+        yield None
+    else:
+        with tempfile.TemporaryDirectory() as workdir:
+            # Git checkout in a temporary directory
+            self.run(["git", "clone", os.path.abspath(repo)], cwd=workdir)
+            # Look for the directory that git created
+            names = os.listdir(workdir)
+            if len(names) != 1:
+                raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+            yield os.path.join(workdir, names[0])
 
 
 class LaunchBuild(Command):

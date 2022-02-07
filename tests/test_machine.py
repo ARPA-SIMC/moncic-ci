@@ -10,21 +10,21 @@ from moncic.distro import Distro
 class RunTestCase:
     def test_true(self):
         image = os.path.join("images", self.distro_name)
-        distro = Distro.from_ostree(image)
+        distro = Distro.from_path(image)
         with privs.root():
             with distro.machine(image) as machine:
                 machine.run(["/usr/bin/true"])
 
     def test_sleep(self):
         image = os.path.join("images", self.distro_name)
-        distro = Distro.from_ostree(image)
+        distro = Distro.from_path(image)
         with privs.root():
             with distro.machine(image) as machine:
                 machine.run(["/usr/bin/sleep", "0.1"])
 
     def test_stdout(self):
         image = os.path.join("images", self.distro_name)
-        distro = Distro.from_ostree(image)
+        distro = Distro.from_path(image)
         with privs.root():
             with distro.machine(image) as machine:
                 res = machine.run(["/usr/bin/echo", "test"])
@@ -33,7 +33,7 @@ class RunTestCase:
 
     def test_env(self):
         image = os.path.join("images", self.distro_name)
-        distro = Distro.from_ostree(image)
+        distro = Distro.from_path(image)
         with privs.root():
             with distro.machine(image) as machine:
                 res = machine.run(["/bin/sh", "-c", "echo $HOME"])
@@ -43,7 +43,7 @@ class RunTestCase:
     def test_callable(self):
         token = secrets.token_bytes(8)
         image = os.path.join("images", self.distro_name)
-        distro = Distro.from_ostree(image)
+        distro = Distro.from_path(image)
         with privs.root():
             with distro.machine(image) as machine:
 
