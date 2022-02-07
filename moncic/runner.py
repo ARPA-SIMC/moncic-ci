@@ -46,7 +46,7 @@ class AsyncioRunner:
         )
 
         if proc.returncode != 0:
-            raise RunFailed(f"Run script exited with code {proc.returncode}")
+            raise RunFailed(f"Command exited with code {proc.returncode}")
 
         return {
             "stdout": b"".join(self.stdout),

@@ -63,11 +63,12 @@ class LaunchBuild(Command):
         return parser
 
     def run(self):
-        distro = Distro.from_ostree(self.args.image)
-        with distro.machine(self.args.image) as machine:
-            log.info("Machine %s started", machine.machine_name)
+        distro = Distro.from_path(self.args.image)
+        system = System(os.path.basename(self.args.image), os.path.abspath(self.args.image), distro)
+        with system.create_ephemeral_run() as run:
+            log.info("Machine %s started", run.instance_name)
 
-            machine.run(["/usr/bin/git", "clone", self.args.repo, "--branch", self.args.branch])
+            run.run(["/usr/bin/git", "clone", self.args.repo, "--branch", self.args.branch])
 
             dirname = os.path.basename(self.args.repo)
             if dirname.endswith(".git"):
@@ -83,7 +84,7 @@ class LaunchBuild(Command):
             #     cp $BUILDSCRIPT $buildscript
             # fi
 
-            machine.run([
+            run.run([
                 "/bin/sh", "-c",
                 f"cd {shlex.quote(dirname)};"
                 f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}",
