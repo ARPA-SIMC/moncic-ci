@@ -18,6 +18,7 @@ class Distro:
     """
     Common base class for bootstrapping distributions
     """
+    # Registry of known distributions
     distros = {}
     machine_class = NspawnMachine
 
