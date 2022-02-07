@@ -164,6 +164,50 @@ class NspawnRunningSystem(RunningSystem):
             res = os.waitid(os.P_PID, pid, os.WEXITED)
             return res.si_status
 
+    def get_shell_start_command(self):
+        cmd = ["systemd-nspawn", "-D", self.system.root]
+        return cmd
+
+    def shell(
+            self,
+            ostree: str,
+            workdir: Optional[str] = None,
+            bind: List[str] = None,
+            bind_ro: List[str] = None):
+        """
+        Open a shell on the given ostree
+        """
+        def escape_bind_ro(s: str):
+            r"""
+            Escape a path for use in systemd-nspawn --bind-ro.
+
+            Man systemd-nspawn says:
+
+              Backslash escapes are interpreted, so "\:" may be used to embed
+              colons in either path.
+            """
+            return s.replace(":", r"\:")
+
+        cmd = self.get_shell_start_command()
+
+        if bind:
+            for pathspec in bind:
+                cmd.append("--bind=" + pathspec)
+        if bind_ro:
+            for pathspec in bind_ro:
+                cmd.append("--bind-ro=" + pathspec)
+
+        if workdir is not None:
+            workdir = os.path.abspath(workdir)
+            name = os.path.basename(workdir)
+            if name.startswith("."):
+                raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
+            cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
+            cmd.append(f"--chdir=/root/{name}")
+
+        log.info("Running %s", ' '.join(shlex.quote(c) for c in cmd))
+        subprocess.run(cmd)
+
     def terminate(self):
         if not self.started:
             return
@@ -186,6 +230,11 @@ class UpdateMixin:
 class EphemeralNspawnRunningSystem(NspawnRunningSystem):
     def get_start_command(self):
         cmd = super().get_start_command()
+        cmd.append("--ephemeral")
+        return cmd
+
+    def get_shell_start_command(self):
+        cmd = super().get_shell_start_command()
         cmd.append("--ephemeral")
         return cmd
 

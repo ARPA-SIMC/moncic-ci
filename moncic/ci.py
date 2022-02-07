@@ -101,9 +101,8 @@ class Shell(Command):
         parser = super().make_subparser(subparsers)
         parser.add_argument("path", help="path to the chroot")
 
-        # TODO: it should be ephemeral by default, use --persistent instead or --maintenance
-        # parser.add_argument("-x", "--ephemeral", action="store_true",
-        #                     help="run the shell on an ephemeral machine")
+        parser.add_argument("--maintenance", action="store_true",
+                            help="do not run ephemerally: changes will be preserved")
 
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
@@ -122,11 +121,19 @@ class Shell(Command):
         return parser
 
     def run(self):
-        distro = Distro.from_ostree(self.args.path)
-        # FIXME: ephemeral is not passed, so it's true by default
-        distro.run_shell(
-                self.args.path, checkout=self.args.checkout,
-                workdir=self.args.workdir,
+        distro = Distro.from_path(self.args.path)
+        system = System(os.path.basename(self.args.path), os.path.abspath(self.args.path), distro)
+        if self.args.maintenance:
+            run = system.create_maintenance_run()
+        else:
+            run = system.create_ephemeral_run()
+
+        with checkout(self.args.checkout) as workdir:
+            if workdir is None:
+                workdir = self.args.workdir
+
+            run.shell(
+                self.args.path, workdir=self.args.workdir,
                 bind=self.args.bind, bind_ro=self.args.bind_ro)
 
 
