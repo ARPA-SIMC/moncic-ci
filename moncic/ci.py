@@ -7,9 +7,11 @@ import shlex
 import subprocess
 import tempfile
 from typing import Optional
+import urllib.parse
 
 from .cli import Command, Fail
 from .system import System
+from .runner import LocalRunner
 
 log = logging.getLogger(__name__)
 
@@ -22,13 +24,22 @@ def sh(*cmd):
 
 
 @contextlib.contextmanager
-def checkout(self, repo: Optional[str] = None):
+def checkout(repo: Optional[str] = None, branch: Optional[str] = None):
     if repo is None:
         yield None
     else:
+        # If repo points to a local path, use its absolute path
+        parsed = urllib.parse(repo)
+        if parsed.scheme in ('', 'file'):
+            repo = os.path.abspath(parsed.path)
+
         with tempfile.TemporaryDirectory() as workdir:
             # Git checkout in a temporary directory
-            self.run(["git", "clone", os.path.abspath(repo)], cwd=workdir)
+            cmd = ["git", "clone", repo]
+            if branch is not None:
+                cmd += ["--branch", branch]
+            runner = LocalRunner(cmd, cwd=workdir)
+            runner.run()
             # Look for the directory that git created
             names = os.listdir(workdir)
             if len(names) != 1:
@@ -47,44 +58,37 @@ class CI(Command):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("repo",
-                            help="git url of the repository to clone")
-        parser.add_argument("image",
-                            help="image file or base directory to use as chroot")
-        parser.add_argument("tag",
-                            help="tag to be passed to the build script")
-        parser.add_argument("branch",
-                            help="branch to be used")
-        parser.add_argument("buildscript", nargs="?", default=".travis-build.sh",
-                            help="build script that must accept <tag> as argument")
+        parser.add_argument("-I", "--imagedir", action="store", default="./images",
+                            help="path to the directory that contains container images. Default: ./images")
+        parser.add_argument("--branch", action="store",
+                            help="branch to be used. Default: let 'git clone' choose")
+        parser.add_argument("-s", "--system", action="store",
+                            help="name or path of the system used to build")
+        parser.add_argument("-b", "--build-style", action="store", default="travis",
+                            help="name of the procedure used to run the CI. Default: 'travis'")
+        parser.add_argument("repo", nargs="?", default=".",
+                            help="path or url of the repository to build. Default: the current directory")
         return parser
 
     def run(self):
         system = System(os.path.basename(self.args.image), os.path.abspath(self.args.image))
-        with system.create_ephemeral_run() as run:
-            log.info("Machine %s started", run.instance_name)
+        with checkout(self.args.checkout, branch=self.args.branch) as srcdir:
+            with system.create_ephemeral_run() as run:
+                log.info("Machine %s started", run.instance_name)
 
-            run.run(["/usr/bin/git", "clone", self.args.repo, "--branch", self.args.branch])
+                # if [[ -n "$BUILDSCRIPT" ]]; then
+                #     [[ -e "$BUILDSCRIPT" ]] || { echo "build script $BUILDSCRIPT does not exist"; exit 1; }
+                #     buildscript=./.travis-build.sh
+                # else
+                #     buildscript=$(mktemp -p .)
+                #     cp $BUILDSCRIPT $buildscript
+                # fi
 
-            dirname = os.path.basename(self.args.repo)
-            if dirname.endswith(".git"):
-                dirname = dirname[:-4]
-            # if not os.path.isdir(dirname):
-            #     raise Fail(f"git clone of {self.args.repo!r} did not create {dirname!r}")
-
-            # if [[ -n "$BUILDSCRIPT" ]]; then
-            #     [[ -e "$BUILDSCRIPT" ]] || { echo "build script $BUILDSCRIPT does not exist"; exit 1; }
-            #     buildscript=./.travis-build.sh
-            # else
-            #     buildscript=$(mktemp -p .)
-            #     cp $BUILDSCRIPT $buildscript
-            # fi
-
-            run.run([
-                "/bin/sh", "-c",
-                f"cd {shlex.quote(dirname)};"
-                f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}",
-            ])
+                run.run([
+                    "/bin/sh", "-c",
+                    f"cd {shlex.quote(dirname)};"
+                    f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}",
+                ])
 
 
 class Shell(Command):
@@ -123,13 +127,14 @@ class Shell(Command):
         else:
             run = system.create_ephemeral_run()
 
-        with checkout(self.args.checkout) as workdir:
-            if workdir is None:
-                workdir = self.args.workdir
+        if self.args.bind:
+            run.bind = self.args.bind
+        if self.args.bind_ro:
+            run.bind_ro = self.args.bind_ro
 
-            run.shell(
-                self.args.path, workdir=self.args.workdir,
-                bind=self.args.bind, bind_ro=self.args.bind_ro)
+        with checkout(self.args.checkout) as workdir:
+            run.workdir = workdir if workdir is not None else self.args.workdir
+            run.shell(self.args.path)
 
 
 class Bootstrap(Command):

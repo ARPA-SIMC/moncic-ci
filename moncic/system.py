@@ -2,8 +2,8 @@ from __future__ import annotations
 import logging
 from typing import Optional, TYPE_CHECKING
 
+from .distro import Distro
 if TYPE_CHECKING:
-    from .distro import Distro
     from .bootstrap import Bootstrapper
     from .run import RunningSystem
 

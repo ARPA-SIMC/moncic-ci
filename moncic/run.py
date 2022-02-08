@@ -5,7 +5,6 @@ import logging
 import os
 import shlex
 import subprocess
-import tempfile
 from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
 import uuid
 
@@ -14,6 +13,18 @@ if TYPE_CHECKING:
     from .system import System
 
 log = logging.getLogger(__name__)
+
+
+def escape_bind_ro(s: str):
+    r"""
+    Escape a path for use in systemd-nspawn --bind-ro.
+
+    Man systemd-nspawn says:
+
+      Backslash escapes are interpreted, so "\:" may be used to embed
+      colons in either path.
+    """
+    return s.replace(":", r"\:")
 
 
 class RunningSystem(contextlib.ExitStack):
@@ -82,7 +93,13 @@ class NspawnRunningSystem(RunningSystem):
         super().__init__(system, instance_name)
         # machinectl properties of the running machine
         self.properties = None
-        self.workdir = self.enter_context(tempfile.TemporaryDirectory())
+        # systemd-nspawn --bind pathspecs to bind read-write
+        self.bind: List[str] = []
+        # systemd-nspawn --bind_ro pathspecs to bind read-only
+        self.bind_ro: List[str] = []
+        # Bind mount this directory in the running system and use it as default
+        # working directory
+        self.workdir: Optional[str] = None
 
     def _run_nspawn(self, cmd: List[str]):
         """
@@ -116,15 +133,44 @@ class NspawnRunningSystem(RunningSystem):
             raise RuntimeError("Failed to start container")
 
     def get_start_command(self):
-        return [
+        cmd = [
             "systemd-nspawn",
             "--quiet",
             f"--directory={self.system.root}",
             f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
-            f"--bind={self.workdir}:/root/transfer",
         ]
+        if self.workdir is not None:
+            self.workdir = os.path.abspath(self.workdir)
+            name = os.path.basename(self.workdir)
+            if name.startswith("."):
+                raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
+            cmd.append(f"--bind={escape_bind_ro(self.workdir)}:/root/{escape_bind_ro(name)}")
+        if self.bind:
+            for pathspec in self.bind:
+                cmd.append("--bind=" + pathspec)
+        if self.bind_ro:
+            for pathspec in self.bind_ro:
+                cmd.append("--bind-ro=" + pathspec)
+        return cmd
+
+    def get_shell_start_command(self):
+        cmd = ["systemd-nspawn", "-D", self.system.root]
+        if self.workdir is not None:
+            self.workdir = os.path.abspath(self.workdir)
+            name = os.path.basename(self.workdir)
+            if name.startswith("."):
+                raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
+            cmd.append(f"--bind={escape_bind_ro(self.workdir)}:/root/{escape_bind_ro(name)}")
+            cmd.append(f"--chdir=/root/{name}")
+        if self.bind:
+            for pathspec in self.bind:
+                cmd.append("--bind=" + pathspec)
+        if self.bind_ro:
+            for pathspec in self.bind_ro:
+                cmd.append("--bind-ro=" + pathspec)
+        return cmd
 
     def start(self):
         if self.started:
@@ -147,15 +193,27 @@ class NspawnRunningSystem(RunningSystem):
             self.properties[key] = value
 
     def run(self, command: List[str]) -> Dict[str, Any]:
-        runner = self.system.distro.runner_class(self.instance_name, command)
+        kwargs = {}
+        if self.workdir is not None:
+            name = os.path.basename(self.workdir)
+            kwargs["cwd"] = f"/root/{name}"
+        runner = self.system.distro.runner_class(self.instance_name, command, **kwargs)
         return runner.run()
 
     def run_callable(self, func: Callable[[], Optional[int]]) -> int:
+        if self.workdir is not None:
+            name = os.path.basename(self.workdir)
+            cwd = f"/root/{name}"
+        else:
+            cwd = None
+
         pid = os.fork()
         if pid == 0:
             logging.shutdown()
             importlib.reload(logging)
             setns.nsenter(int(self.properties["Leader"]))
+            if cwd is not None:
+                os.chdir(cwd)
             res = func()
             if res is None:
                 res = 0
@@ -164,47 +222,11 @@ class NspawnRunningSystem(RunningSystem):
             res = os.waitid(os.P_PID, pid, os.WEXITED)
             return res.si_status
 
-    def get_shell_start_command(self):
-        cmd = ["systemd-nspawn", "-D", self.system.root]
-        return cmd
-
-    def shell(
-            self,
-            ostree: str,
-            workdir: Optional[str] = None,
-            bind: List[str] = None,
-            bind_ro: List[str] = None):
+    def shell(self, ostree: str):
         """
         Open a shell on the given ostree
         """
-        def escape_bind_ro(s: str):
-            r"""
-            Escape a path for use in systemd-nspawn --bind-ro.
-
-            Man systemd-nspawn says:
-
-              Backslash escapes are interpreted, so "\:" may be used to embed
-              colons in either path.
-            """
-            return s.replace(":", r"\:")
-
         cmd = self.get_shell_start_command()
-
-        if bind:
-            for pathspec in bind:
-                cmd.append("--bind=" + pathspec)
-        if bind_ro:
-            for pathspec in bind_ro:
-                cmd.append("--bind-ro=" + pathspec)
-
-        if workdir is not None:
-            workdir = os.path.abspath(workdir)
-            name = os.path.basename(workdir)
-            if name.startswith("."):
-                raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
-            cmd.append(f"--chdir=/root/{name}")
-
         log.info("Running %s", ' '.join(shlex.quote(c) for c in cmd))
         subprocess.run(cmd)
 

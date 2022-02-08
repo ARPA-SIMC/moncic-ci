@@ -93,9 +93,10 @@ class MachineRunner(AsyncioRunner):
     """
     Base class for running commands in running containers
     """
-    def __init__(self, machine_name: str, cmd: List[str]):
+    def __init__(self, machine_name: str, cmd: List[str], **kwargs):
         super().__init__(cmd)
         self.machine_name = machine_name
+        self.kwargs = kwargs
 
 
 class SystemdRunRunner(MachineRunner):
@@ -112,7 +113,8 @@ class SystemdRunRunner(MachineRunner):
         return await asyncio.create_subprocess_exec(
                 cmd[0], *cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE)
+                stderr=asyncio.subprocess.PIPE,
+                **self.kwargs)
 
 
 class LegacyRunRunner(MachineRunner):
@@ -136,4 +138,5 @@ class LegacyRunRunner(MachineRunner):
         return await asyncio.create_subprocess_exec(
                 cmd[0], *cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE)
+                stderr=asyncio.subprocess.PIPE,
+                **self.kwargs)
