@@ -80,7 +80,10 @@ class CI(Command):
         with checkout(self.args.repo, branch=self.args.branch) as srcdir:
             run = system.create_ephemeral_run()
             run.workdir = srcdir
-            builder = Builder.detect(run)
+            if self.args.build_style:
+                builder = Builder.create(self.args.build_style, run)
+            else:
+                builder = Builder.detect(run)
             with run:
                 res = run.run_callable(builder.build)
             return res["returncode"]
