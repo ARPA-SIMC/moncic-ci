@@ -43,7 +43,7 @@ class LaunchBuild(Command):
     requested OS chroot executing a build in the cloned source tree
     according to .travis-build.sh script (or <buildscript> if set)
     """
-    NAME = "launch_build"
+    NAME = "ci"
 
     @classmethod
     def make_subparser(cls, subparsers):
