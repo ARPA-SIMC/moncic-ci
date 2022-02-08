@@ -35,7 +35,10 @@ class Distro:
 
     @classmethod
     def register(cls, distro_cls: Type["Distro"]) -> Type["Distro"]:
-        cls.distros[distro_cls.__name__.lower()] = distro_cls
+        name = getattr(distro_cls, "NAME", None)
+        if name is None:
+            name = distro_cls.__name__.lower()
+        cls.distros[name] = distro_cls
         return distro_cls
 
     @classmethod
