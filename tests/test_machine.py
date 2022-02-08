@@ -4,15 +4,12 @@ import sys
 import os
 import secrets
 from moncic.unittest import privs, TEST_CHROOTS
-from moncic.distro import Distro
 from moncic.system import System
 
 
 class RunTestCase:
     def get_system(self) -> System:
-        image = os.path.join("images", self.distro_name)
-        distro = Distro.from_path(image)
-        return System(self.distro_name, os.path.abspath(image), distro)
+        return System(os.path.join("images", self.distro_name), name=self.distro_name)
 
     def test_true(self):
         system = self.get_system()

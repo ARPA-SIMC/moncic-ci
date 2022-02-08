@@ -188,5 +188,5 @@ class DistroTestMixin:
             }
 
         with tempfile.TemporaryDirectory() as workdir:
-            system = MockSystem("test", os.path.join(workdir, "test"), distro, run_log=log)
+            system = MockSystem(os.path.join(workdir, "test"), name="test", distro=distro, run_log=log)
             yield system

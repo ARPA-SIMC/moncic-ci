@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+import os
 from typing import Optional, TYPE_CHECKING
 
 from .distro import Distro
@@ -18,15 +19,18 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, name: str, root: str, distro: Optional[Distro] = None):
+    def __init__(self, root: str, name: Optional[str] = None, distro: Optional[Distro] = None):
         """
         If distro is missing, it will be autodetected from the ostree present
         at root
         """
         # Name identifying this system
-        self.name = name
+        if name is None:
+            self.name = os.path.basename(root)
+        else:
+            self.name = name
         # Root path of the ostree of this system
-        self.root = root
+        self.root = os.path.abspath(root)
         # Distribution this system is based on
         if distro is None:
             self.distro = Distro.from_path(root)

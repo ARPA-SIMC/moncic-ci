@@ -71,7 +71,11 @@ class CI(Command):
         return parser
 
     def run(self):
-        system = System(os.path.basename(self.args.image), os.path.abspath(self.args.image))
+        root = self.args.system
+        if not os.path.isdir(root):
+            root = os.path.join(self.args.imagedir, root)
+
+        system = System(root)
         with checkout(self.args.checkout, branch=self.args.branch) as srcdir:
             with system.create_ephemeral_run() as run:
                 log.info("Machine %s started", run.instance_name)
@@ -121,7 +125,7 @@ class Shell(Command):
         return parser
 
     def run(self):
-        system = System(os.path.basename(self.args.path), os.path.abspath(self.args.path))
+        system = System(self.args.path)
         if self.args.maintenance:
             run = system.create_maintenance_run()
         else:
@@ -176,7 +180,7 @@ class Bootstrap(Command):
 
     def run(self):
         for name in self.args.distros:
-            system = System(name, os.path.abspath(os.path.join(self.args.imagedir, name)))
+            system = System(os.path.join(self.args.imagedir, name), name=name)
             with system.create_bootstrapper() as bootstrapper:
                 if self.args.recreate and os.path.exists(system.root):
                     bootstrapper.remove()
