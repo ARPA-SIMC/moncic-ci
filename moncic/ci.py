@@ -48,8 +48,6 @@ class CI(Command):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--shell", action="store_true",
-                            help="run a shell instead of the build script")
         parser.add_argument("repo",
                             help="git url of the repository to clone")
         parser.add_argument("image",
