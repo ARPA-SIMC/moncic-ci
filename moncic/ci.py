@@ -37,7 +37,7 @@ def checkout(self, repo: Optional[str] = None):
             yield os.path.join(workdir, names[0])
 
 
-class LaunchBuild(Command):
+class CI(Command):
     """
     clone a git repository and launch a container instance in the
     requested OS chroot executing a build in the cloned source tree
