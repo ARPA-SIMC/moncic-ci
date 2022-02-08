@@ -49,7 +49,11 @@ class RunTestCase:
                     with open("/tmp/token", "wb") as out:
                         out.write(token)
 
-                self.assertEqual(run.run_callable(test_function), 0)
+                self.assertEqual(run.run_callable(test_function), {
+                    'stdout': b'',
+                    'stderr': b'',
+                    'returncode': 0,
+                })
 
                 res = run.run(["/usr/bin/cat", "/tmp/token"])
                 self.assertEqual(res["stdout"], token)

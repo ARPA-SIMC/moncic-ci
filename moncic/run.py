@@ -1,6 +1,5 @@
 from __future__ import annotations
 import contextlib
-import importlib
 import logging
 import os
 import shlex
@@ -8,7 +7,7 @@ import subprocess
 from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
 import uuid
 
-from . import setns
+from .runner import SetnsCallableRunner
 if TYPE_CHECKING:
     from .system import System
 
@@ -57,7 +56,7 @@ class RunningSystem(contextlib.ExitStack):
         """
         raise NotImplementedError(f"{self.__class__}.run() not implemented")
 
-    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
+    def run_callable(self, func: Callable[[], Optional[int]]) -> Dict[str, Any]:
         """
         Run the given callable in a separate process inside the running
         system. Returns the process exit status.
@@ -200,27 +199,15 @@ class NspawnRunningSystem(RunningSystem):
         runner = self.system.distro.runner_class(self.instance_name, command, **kwargs)
         return runner.run()
 
-    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
+    def run_callable(self, func: Callable[[], Optional[int]]) -> Dict[str, Any]:
         if self.workdir is not None:
             name = os.path.basename(self.workdir)
             cwd = f"/root/{name}"
         else:
             cwd = None
 
-        pid = os.fork()
-        if pid == 0:
-            logging.shutdown()
-            importlib.reload(logging)
-            setns.nsenter(int(self.properties["Leader"]))
-            if cwd is not None:
-                os.chdir(cwd)
-            res = func()
-            if res is None:
-                res = 0
-            os._exit(res)
-        else:
-            res = os.waitid(os.P_PID, pid, os.WEXITED)
-            return res.si_status
+        runner = SetnsCallableRunner(int(self.properties["Leader"]), func, cwd=cwd)
+        return runner.run()
 
     def shell(self, ostree: str):
         """

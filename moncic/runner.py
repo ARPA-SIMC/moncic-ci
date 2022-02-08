@@ -4,11 +4,15 @@ their output
 """
 from __future__ import annotations
 import asyncio
+import importlib
 import logging
 import os
 import shlex
 import subprocess
-from typing import List, Dict, Any
+import traceback
+from typing import List, Dict, Any, Optional, Callable
+
+from . import setns
 
 log = logging.getLogger(__name__)
 
@@ -140,3 +144,33 @@ class LegacyRunRunner(MachineRunner):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 **self.kwargs)
+
+
+class SetnsCallableRunner:
+    def __init__(self, leader_pid: int, func: Callable[[], Optional[int]], cwd: Optional[str] = None):
+        self.leader_pid = leader_pid
+        self.func = func
+        self.cwd = cwd
+
+    def run(self) -> int:
+        # TODO: catch stdout + stderr
+        pid = os.fork()
+        if pid == 0:
+            try:
+                logging.shutdown()
+                importlib.reload(logging)
+                setns.nsenter(self.leader_pid)
+                if self.cwd is not None:
+                    os.chdir(self.cwd)
+                res = self.func()
+                os._exit(res if res is not None else 0)
+            except Exception:
+                traceback.print_exc()
+                os._exit(1)
+
+        res = os.waitid(os.P_PID, pid, os.WEXITED)
+        return {
+            "stdout": b"",
+            "stderr": b"",
+            "returncode": res.si_status,
+        }
