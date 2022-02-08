@@ -9,7 +9,6 @@ import tempfile
 from typing import Optional
 
 from .cli import Command, Fail
-from .distro import Distro
 from .system import System
 
 log = logging.getLogger(__name__)
@@ -61,8 +60,7 @@ class CI(Command):
         return parser
 
     def run(self):
-        distro = Distro.from_path(self.args.image)
-        system = System(os.path.basename(self.args.image), os.path.abspath(self.args.image), distro)
+        system = System(os.path.basename(self.args.image), os.path.abspath(self.args.image))
         with system.create_ephemeral_run() as run:
             log.info("Machine %s started", run.instance_name)
 
@@ -119,8 +117,7 @@ class Shell(Command):
         return parser
 
     def run(self):
-        distro = Distro.from_path(self.args.path)
-        system = System(os.path.basename(self.args.path), os.path.abspath(self.args.path), distro)
+        system = System(os.path.basename(self.args.path), os.path.abspath(self.args.path))
         if self.args.maintenance:
             run = system.create_maintenance_run()
         else:
@@ -174,8 +171,7 @@ class Bootstrap(Command):
 
     def run(self):
         for name in self.args.distros:
-            distro = Distro.create(name)
-            system = System(name, os.path.abspath(os.path.join(self.args.imagedir, name)), distro)
+            system = System(name, os.path.abspath(os.path.join(self.args.imagedir, name)))
             with system.create_bootstrapper() as bootstrapper:
                 if self.args.recreate and os.path.exists(system.root):
                     bootstrapper.remove()

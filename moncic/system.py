@@ -18,13 +18,20 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, name: str, root: str, distro: Distro):
+    def __init__(self, name: str, root: str, distro: Optional[Distro] = None):
+        """
+        If distro is missing, it will be autodetected from the ostree present
+        at root
+        """
         # Name identifying this system
         self.name = name
         # Root path of the ostree of this system
         self.root = root
         # Distribution this system is based on
-        self.distro = distro
+        if distro is None:
+            self.distro = Distro.from_path(root)
+        else:
+            self.distro = distro
 
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         """
