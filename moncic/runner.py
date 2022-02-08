@@ -24,11 +24,33 @@ class RunFailed(Exception):
     pass
 
 
-class AsyncioRunner:
-    def __init__(self, cmd: List[str]):
-        self.cmd = cmd
+class OutputLogMixin:
+    def __init__(self):
+        super().__init__()
         self.stdout: List[bytes] = []
         self.stderr: List[bytes] = []
+
+    async def read_stdout(self, reader: asyncio.StreamReader):
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            self.stdout.append(line)
+            log.info("stdout: %s", line.decode(errors="replace").rstrip())
+
+    async def read_stderr(self, reader: asyncio.StreamReader):
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            self.stderr.append(line)
+            log.info("stderr: %s", line.decode(errors="replace").rstrip())
+
+
+class AsyncioRunner(OutputLogMixin):
+    def __init__(self, cmd: List[str]):
+        super().__init__()
+        self.cmd = cmd
 
     def run(self):
         return asyncio.run(self._run())
@@ -57,22 +79,6 @@ class AsyncioRunner:
             "stderr": b"".join(self.stderr),
             "returncode": proc.returncode,
         }
-
-    async def read_stdout(self, reader: asyncio.StreamReader):
-        while True:
-            line = await reader.readline()
-            if not line:
-                break
-            self.stdout.append(line)
-            log.info("stdout: %s", line.decode(errors="replace").rstrip())
-
-    async def read_stderr(self, reader: asyncio.StreamReader):
-        while True:
-            line = await reader.readline()
-            if not line:
-                break
-            self.stderr.append(line)
-            log.info("stderr: %s", line.decode(errors="replace").rstrip())
 
 
 class LocalRunner(AsyncioRunner):
@@ -146,17 +152,49 @@ class LegacyRunRunner(MachineRunner):
                 **self.kwargs)
 
 
-class SetnsCallableRunner:
+class SetnsCallableRunner(OutputLogMixin):
     def __init__(self, leader_pid: int, func: Callable[[], Optional[int]], cwd: Optional[str] = None):
+        super().__init__()
         self.leader_pid = leader_pid
         self.func = func
         self.cwd = cwd
 
+    async def make_reader(self, fd: int):
+        loop = asyncio.get_running_loop()
+        reader = asyncio.StreamReader()
+        reader_protocol = asyncio.StreamReaderProtocol(reader)
+        transport, protocol = await loop.connect_read_pipe(
+                lambda: reader_protocol, os.fdopen(fd))
+        return reader
+
+    async def collect_output(self, stdout_r: int, stderr_r: int):
+        # See https://gist.github.com/oconnor663/08c081904264043e55bf
+        stdout_reader = await self.make_reader(stdout_r)
+        stderr_reader = await self.make_reader(stderr_r)
+
+        await asyncio.gather(
+            self.read_stdout(stdout_reader),
+            self.read_stderr(stderr_reader),
+        )
+
     def run(self) -> int:
-        # TODO: catch stdout + stderr
+        # Create pipes for catching stdout and stderr
+        stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
+        stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)
+
         pid = os.fork()
         if pid == 0:
             try:
+                # Close stdin
+                os.close(0)
+                os.close(stdout_r)
+                os.close(stderr_r)
+                # Redirect stdout and stderr to the pipes to parent
+                os.dup2(stdout_w, 1)
+                os.close(stdout_w)
+                os.dup2(stderr_w, 2)
+                os.close(stderr_w)
+
                 logging.shutdown()
                 importlib.reload(logging)
                 setns.nsenter(self.leader_pid)
@@ -167,10 +205,15 @@ class SetnsCallableRunner:
             except Exception:
                 traceback.print_exc()
                 os._exit(1)
+        else:
+            os.close(stdout_w)
+            os.close(stderr_w)
+
+        asyncio.run(self.collect_output(stdout_r, stderr_r))
 
         res = os.waitid(os.P_PID, pid, os.WEXITED)
         return {
-            "stdout": b"",
-            "stderr": b"",
+            "stdout": b"".join(self.stdout),
+            "stderr": b"".join(self.stderr),
             "returncode": res.si_status,
         }
