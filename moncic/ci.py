@@ -77,8 +77,9 @@ class CI(Command):
 
         system = System(root)
         with checkout(self.args.checkout, branch=self.args.branch) as srcdir:
-            with system.create_ephemeral_run() as run:
-                log.info("Machine %s started", run.instance_name)
+            run = system.create_ephemeral_run()
+            run.workdir = srcdir
+            with run:
 
                 # if [[ -n "$BUILDSCRIPT" ]]; then
                 #     [[ -e "$BUILDSCRIPT" ]] || { echo "build script $BUILDSCRIPT does not exist"; exit 1; }
@@ -90,7 +91,6 @@ class CI(Command):
 
                 run.run([
                     "/bin/sh", "-c",
-                    f"cd {shlex.quote(dirname)};"
                     f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}",
                 ])
 
