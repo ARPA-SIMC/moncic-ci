@@ -44,7 +44,6 @@ class RunTestCase:
         system = self.get_system()
         with privs.root():
             with system.create_ephemeral_run() as run:
-
                 def test_function():
                     with open("/tmp/token", "wb") as out:
                         out.write(token)
@@ -58,6 +57,20 @@ class RunTestCase:
                 res = run.run(["/usr/bin/cat", "/tmp/token"])
                 self.assertEqual(res["stdout"], token)
                 self.assertEqual(res["stderr"], b"")
+
+    def test_callable_prints(self):
+        system = self.get_system()
+        with privs.root():
+            with system.create_ephemeral_run() as run:
+                def test_function():
+                    print("stdout")
+                    print("stderr", file=sys.stderr)
+
+                self.assertEqual(run.run_callable(test_function), {
+                    'stdout': b'stdout\n',
+                    'stderr': b'stderr\n',
+                    'returncode': 0,
+                })
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
