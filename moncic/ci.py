@@ -12,6 +12,7 @@ import urllib.parse
 from .cli import Command, Fail
 from .system import System
 from .runner import LocalRunner
+from .build import Builder
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def checkout(repo: Optional[str] = None, branch: Optional[str] = None):
         yield None
     else:
         # If repo points to a local path, use its absolute path
-        parsed = urllib.parse(repo)
+        parsed = urllib.parse.urlparse(repo)
         if parsed.scheme in ('', 'file'):
             repo = os.path.abspath(parsed.path)
 
@@ -76,23 +77,13 @@ class CI(Command):
             root = os.path.join(self.args.imagedir, root)
 
         system = System(root)
-        with checkout(self.args.checkout, branch=self.args.branch) as srcdir:
+        with checkout(self.args.repo, branch=self.args.branch) as srcdir:
             run = system.create_ephemeral_run()
             run.workdir = srcdir
+            builder = Builder.detect(run)
             with run:
-
-                # if [[ -n "$BUILDSCRIPT" ]]; then
-                #     [[ -e "$BUILDSCRIPT" ]] || { echo "build script $BUILDSCRIPT does not exist"; exit 1; }
-                #     buildscript=./.travis-build.sh
-                # else
-                #     buildscript=$(mktemp -p .)
-                #     cp $BUILDSCRIPT $buildscript
-                # fi
-
-                run.run([
-                    "/bin/sh", "-c",
-                    f"sh {shlex.quote(self.args.buildscript)} {shlex.quote(self.args.tag)}",
-                ])
+                res = run.run_callable(builder.build)
+            return res["returncode"]
 
 
 class Shell(Command):
