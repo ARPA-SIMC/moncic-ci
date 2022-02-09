@@ -2,12 +2,20 @@
 
 set -ue
 
+ARGS=""
+
+if [ "$#" -gt 0 ] && [ "$1" = "-v" ]
+then
+	shift
+	ARGS="-v"
+fi
+
 if [ "$#" -eq 0 ]
 then
-	python3 -m unittest discover
+	python3 -m unittest discover "$ARGS"
 else
 	for name in "$@"
 	do
-		python3 -m unittest discover -k $name
+		python3 -m unittest discover "$ARGS" -k $name
 	done
 fi
