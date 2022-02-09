@@ -9,7 +9,7 @@ from moncic.system import System
 
 class RunTestCase:
     def get_system(self) -> System:
-        return System(os.path.join("images", self.distro_name), name=self.distro_name)
+        return System.from_path(os.path.join("images", self.distro_name))
 
     def test_true(self):
         system = self.get_system()

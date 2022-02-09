@@ -21,6 +21,19 @@ class Distro:
     distros: Dict[str, Type[Distro]] = {}
     runner_class = SystemdRunRunner
 
+    @property
+    def name(self) -> str:
+        """
+        Name for this distribution
+        """
+        name = getattr(self, "NAME", None)
+        if name is None:
+            name = self.__class__.__name__.lower()
+        return name
+
+    def __str__(self) -> str:
+        return self.name
+
     def bootstrap(self, bootstrapper: Bootstrapper) -> None:
         """
         Boostrap a fresh system inside the given directory

@@ -76,7 +76,7 @@ class CI(Command):
         if not os.path.isdir(root):
             root = os.path.join(self.args.imagedir, root)
 
-        system = System(root)
+        system = System.from_path(root)
         with checkout(self.args.repo, branch=self.args.branch) as srcdir:
             run = system.create_ephemeral_run()
             run.workdir = srcdir
@@ -119,7 +119,7 @@ class Shell(Command):
         return parser
 
     def run(self):
-        system = System(self.args.path)
+        system = System.from_path(self.args.path)
         if self.args.maintenance:
             run = system.create_maintenance_run()
         else:
@@ -174,7 +174,7 @@ class Bootstrap(Command):
 
     def run(self):
         for name in self.args.distros:
-            system = System(os.path.join(self.args.imagedir, name), name=name)
+            system = System.from_path(os.path.join(self.args.imagedir, name))
             with system.create_bootstrapper() as bootstrapper:
                 if self.args.recreate and os.path.exists(system.path):
                     bootstrapper.remove()

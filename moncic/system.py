@@ -1,7 +1,10 @@
 from __future__ import annotations
+import dataclasses
 import logging
 import os
 from typing import Optional, TYPE_CHECKING
+
+import yaml
 
 from .distro import Distro
 if TYPE_CHECKING:
@@ -9,6 +12,64 @@ if TYPE_CHECKING:
     from .run import RunningSystem
 
 log = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class Config:
+    """
+    Configuration for a system
+    """
+    # Image name
+    name: str
+    # Path to the image on disk
+    path: str
+    # Name of the distribution used to bootstrap this image.
+    # If missing, this image needs to be created from an existing image
+    distro: Optional[str] = None
+    # Name of the distribution used as a base for this one.
+    # If missing, this image needs to be created by bootstrapping from scratch
+    parent: Optional[str] = None
+
+    @classmethod
+    def load(cls, path):
+        """
+        Load the configuration from the given path.
+
+        If a .yaml file exists, it is used.
+
+        Otherwise, if an os tree exists, configuration is inferred from it.
+
+        Otherwise, configuration is inferred from the basename of the path,
+        which is assumed to be a distribution name.
+        """
+        name = os.path.basename(path)
+        try:
+            with open(f"{path}.yaml", "rt") as fd:
+                conf = yaml.load(fd, Loader=yaml.CLoader)
+        except FileNotFoundError:
+            conf = {}
+            if os.path.exists(path):
+                conf["distro"] = Distro.from_path(path).name
+            else:
+                conf["distro"] = name
+
+        conf["name"] = name
+        conf["path"] = os.path.abspath(path)
+
+        has_distro = "distro" in conf
+        has_parent = "parent" in conf
+        if has_distro and has_parent:
+            raise RuntimeError(f"{name}: both 'distro' and 'parent' have been specified")
+        elif not has_distro and not has_parent:
+            raise RuntimeError(f"{name}: neither 'distro' nor 'parent' have been specified")
+
+        allowed_names = {f.name for f in dataclasses.fields(Config)}
+        if unsupported_names := conf.keys() - allowed_names:
+            for name in unsupported_names:
+                log.debug("%s: ignoring unsupported configuration: %r", path, name)
+                del conf[name]
+
+        return cls(**conf)
 
 
 class System:
@@ -19,23 +80,39 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, path: str, name: Optional[str] = None, distro: Optional[Distro] = None):
+    def __init__(self, config: Config):
+        self.config = config
+
+    @classmethod
+    def from_path(cls, path: str):
         """
-        If distro is missing, it will be autodetected from the ostree present
-        at path
+        Create a System from the ostree or configuration at the given path
         """
-        # Name identifying this system
-        if name is None:
-            self.name = os.path.basename(path)
+        return cls(Config.load(path))
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"{self.distro}@{self.path}"
+
+    @property
+    def name(self) -> str:
+        return self.config.name
+
+    @property
+    def path(self) -> str:
+        return self.config.path
+
+    @property
+    def distro(self) -> Distro:
+        """
+        Return the distribution this system is based on
+        """
+        if self.config.distro is None:
+            return Distro.from_path(self.config.path)
         else:
-            self.name = name
-        # Root path of the ostree of this system
-        self.path = os.path.abspath(path)
-        # Distribution this system is based on
-        if distro is None:
-            self.distro = Distro.from_path(path)
-        else:
-            self.distro = distro
+            return Distro.create(self.config.distro)
 
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         """

@@ -8,7 +8,7 @@ import tempfile
 from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
-from moncic.system import System
+from moncic.system import System, Config
 from moncic.run import RunningSystem, UpdateMixin
 from moncic.bootstrap import Bootstrapper
 
@@ -188,5 +188,6 @@ class DistroTestMixin:
             }
 
         with tempfile.TemporaryDirectory() as workdir:
-            system = MockSystem(os.path.join(workdir, "test"), name="test", distro=distro, run_log=log)
+            config = Config(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
+            system = MockSystem(config, run_log=log)
             yield system
