@@ -160,9 +160,8 @@ class MockSystem(System):
     """
     Mock machine that just logs what is run and does nothing, useful for tests
     """
-    def __init__(self, *args, run_log, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.run_log = run_log
+    def attach_testcase(self, testcase):
+        self.run_log = MockRunLog(testcase)
 
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         return MockRunningSystem(self)
@@ -177,17 +176,8 @@ class MockSystem(System):
 class DistroTestMixin:
     @contextlib.contextmanager
     def mock_system(self, distro: Distro):
-        log = MockRunLog(self)
-
-        def logging_run(cmd, **kwargs):
-            log.append(cmd, kwargs)
-            return {
-                "stdout": b"",
-                "stderr": b"",
-                "returncode": 0,
-            }
-
         with tempfile.TemporaryDirectory() as workdir:
             config = Config(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
-            system = MockSystem(config, run_log=log)
+            system = MockSystem(config)
+            system.attach_testcase(self)
             yield system
