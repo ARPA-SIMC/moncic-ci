@@ -30,11 +30,12 @@ class Bootstrapper(contextlib.ExitStack):
         return runner.run()
 
     def bootstrap(self):
+        tarball_path = self.system.get_distro_tarball()
         subvolume = Subvolume(self)
         with subvolume.create():
-            if os.path.exists(self.system.path + ".tar.gz"):
+            if tarball_path is not None:
                 # Shortcut in case we have a chroot in a tarball
-                self.run(["tar", "-C", self.system.path, "-zxf", self.system.path + ".tar.gz"])
+                self.run(["tar", "-C", self.system.path, "-zxf", tarball_path])
             else:
                 self.system.distro.bootstrap(self)
 

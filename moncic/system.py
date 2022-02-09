@@ -116,6 +116,20 @@ class System:
         else:
             return Distro.create(self.config.distro)
 
+    def get_distro_tarball(self) -> Optional[str]:
+        """
+        Return the path to a tarball that can be used to bootstrap a chroot for
+        this system.
+
+        Return None if no such tarball is present
+        """
+        distro_name = self.config.distro
+        tarball_path = os.path.join(self.moncic.imagedir, distro_name + ".tar.gz")
+        if os.path.exists(tarball_path):
+            return tarball_path
+        else:
+            return None
+
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         """
         Boot this system in a container
