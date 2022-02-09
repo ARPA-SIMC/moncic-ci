@@ -2,7 +2,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-import re
 import shlex
 import subprocess
 import tempfile
@@ -10,9 +9,9 @@ from typing import Optional
 import urllib.parse
 
 from .cli import Command, Fail
-from .system import System
 from .runner import LocalRunner
 from .build import Builder
+from .moncic import Moncic
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +47,23 @@ def checkout(repo: Optional[str] = None, branch: Optional[str] = None):
             yield os.path.join(workdir, names[0])
 
 
-class CI(Command):
+class MoncicCommand(Command):
+    """
+    Base class for commands that need a Moncic state
+    """
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("-I", "--imagedir", action="store", default="./images",
+                            help="path to the directory that contains container images. Default: ./images")
+        return parser
+
+    def __init__(self, args):
+        super().__init__(self, args)
+        self.moncic = Moncic(self.args.imagedir)
+
+
+class CI(MoncicCommand):
     """
     clone a git repository and launch a container instance in the
     requested OS chroot executing a build in the cloned source tree
@@ -59,8 +74,6 @@ class CI(Command):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("-I", "--imagedir", action="store", default="./images",
-                            help="path to the directory that contains container images. Default: ./images")
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
         parser.add_argument("-s", "--system", action="store",
@@ -72,11 +85,7 @@ class CI(Command):
         return parser
 
     def run(self):
-        root = self.args.system
-        if not os.path.isdir(root):
-            root = os.path.join(self.args.imagedir, root)
-
-        system = System.from_path(root)
+        system = self.moncic.create_system(self.args.system)
         with checkout(self.args.repo, branch=self.args.branch) as srcdir:
             run = system.create_ephemeral_run()
             run.workdir = srcdir
@@ -89,7 +98,7 @@ class CI(Command):
             return res["returncode"]
 
 
-class Shell(Command):
+class Shell(MoncicCommand):
     """
     Run a shell in the given container
     """
@@ -97,7 +106,7 @@ class Shell(Command):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("path", help="path to the chroot")
+        parser.add_argument("system", help="name or path of the system to use")
 
         parser.add_argument("--maintenance", action="store_true",
                             help="do not run ephemerally: changes will be preserved")
@@ -119,7 +128,7 @@ class Shell(Command):
         return parser
 
     def run(self):
-        system = System.from_path(self.args.path)
+        system = self.moncic.create_system(self.args.system)
         if self.args.maintenance:
             run = system.create_maintenance_run()
         else:
@@ -135,46 +144,22 @@ class Shell(Command):
             run.shell(self.args.path)
 
 
-class Bootstrap(Command):
+class Bootstrap(MoncicCommand):
     """
     Create or update the whole set of OS images for the CI
     """
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("-I", "--imagedir", action="store", default="./images",
-                            help="path to the directory that contains container images")
         parser.add_argument("--recreate", action="store_true",
                             help="delete the images and recreate them from scratch")
-        parser.add_argument("distros", nargs="+",
-                            help="distributions to bootstrap")
+        parser.add_argument("systems", nargs="+",
+                            help="names or paths of systems to bootstrap")
         return parser
-
-    def remove_nested_subvolumes(self, path):
-        """
-        Run btrfs remove on all subvolumes nested inside the given path
-        """
-        # Fetch IDs of subvolumes to delete
-        #
-        # Use IDs rather than paths to avoid potential issues with exotic path
-        # names
-        re_btrfslist = re.compile(r"^ID (\d+) gen \d+ top level \d+ path (.+)$")
-        res = subprocess.run(["btrfs", "subvolume", "list", "-o", path], check=True, text=True, capture_output=True)
-        to_delete = []
-        for line in res.stdout.splitlines():
-            if mo := re_btrfslist.match(line):
-                to_delete.append((mo.group(1), mo.group(2)))
-            else:
-                raise RuntimeError(f"Unparsable line in btrfs output: {line!r}")
-
-        # Delete in reverse order
-        for subvolid, subvolpath in to_delete[::-1]:
-            log.info("removing btrfs subvolume %r", subvolpath)
-            subprocess.run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, path], check=True)
 
     def run(self):
         for name in self.args.distros:
-            system = System.from_path(os.path.join(self.args.imagedir, name))
+            system = self.moncic.create_system(name)
             with system.create_bootstrapper() as bootstrapper:
                 if self.args.recreate and os.path.exists(system.path):
                     bootstrapper.remove()

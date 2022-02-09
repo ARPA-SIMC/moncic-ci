@@ -1,15 +1,16 @@
 from __future__ import annotations
 import unittest
 import sys
-import os
 import secrets
 from moncic.unittest import privs, TEST_CHROOTS
 from moncic.system import System
+from moncic.moncic import Moncic
 
 
 class RunTestCase:
     def get_system(self) -> System:
-        return System.from_path(os.path.join("images", self.distro_name))
+        moncic = Moncic(imagedir="images")
+        return moncic.create_system(self.distro_name)
 
     def test_true(self):
         system = self.get_system()

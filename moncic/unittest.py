@@ -11,6 +11,7 @@ from unittest import SkipTest
 from moncic.system import System, Config
 from moncic.run import RunningSystem, UpdateMixin
 from moncic.bootstrap import Bootstrapper
+from moncic.moncic import Moncic
 
 if TYPE_CHECKING:
     from moncic.distro import Distro
@@ -178,6 +179,6 @@ class DistroTestMixin:
     def mock_system(self, distro: Distro):
         with tempfile.TemporaryDirectory() as workdir:
             config = Config(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
-            system = MockSystem(config)
+            system = MockSystem(Moncic(imagedir=workdir), config)
             system.attach_testcase(self)
             yield system

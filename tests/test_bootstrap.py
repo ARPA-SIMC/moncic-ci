@@ -5,6 +5,7 @@ import unittest
 
 from moncic.unittest import DistroTestMixin, MockSystem
 from moncic.system import Config
+from moncic.moncic import Moncic
 
 
 class Bootstrap(DistroTestMixin, unittest.TestCase):
@@ -19,7 +20,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
 
             config = Config.load(os.path.join(imagedir, "test"))
-            system = MockSystem(config)
+            system = MockSystem(Moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
 
             bootstrapper = system.create_bootstrapper()

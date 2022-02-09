@@ -10,6 +10,7 @@ from .distro import Distro
 if TYPE_CHECKING:
     from .bootstrap import Bootstrapper
     from .run import RunningSystem
+    from .moncic import Moncic
 
 log = logging.getLogger(__name__)
 
@@ -80,15 +81,16 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, moncic: Moncic, config: Config):
+        self.moncic = moncic
         self.config = config
 
     @classmethod
-    def from_path(cls, path: str):
+    def from_path(cls, moncic: Moncic, path: str):
         """
         Create a System from the ostree or configuration at the given path
         """
-        return cls(Config.load(path))
+        return cls(moncic, Config.load(path))
 
     def __str__(self) -> str:
         return self.name
