@@ -19,21 +19,21 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, root: str, name: Optional[str] = None, distro: Optional[Distro] = None):
+    def __init__(self, path: str, name: Optional[str] = None, distro: Optional[Distro] = None):
         """
         If distro is missing, it will be autodetected from the ostree present
-        at root
+        at path
         """
         # Name identifying this system
         if name is None:
-            self.name = os.path.basename(root)
+            self.name = os.path.basename(path)
         else:
             self.name = name
         # Root path of the ostree of this system
-        self.root = os.path.abspath(root)
+        self.path = os.path.abspath(path)
         # Distribution this system is based on
         if distro is None:
-            self.distro = Distro.from_path(root)
+            self.distro = Distro.from_path(path)
         else:
             self.distro = distro
 

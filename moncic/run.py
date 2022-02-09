@@ -135,7 +135,7 @@ class NspawnRunningSystem(RunningSystem):
         cmd = [
             "systemd-nspawn",
             "--quiet",
-            f"--directory={self.system.root}",
+            f"--directory={self.system.path}",
             f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
@@ -155,7 +155,7 @@ class NspawnRunningSystem(RunningSystem):
         return cmd
 
     def get_shell_start_command(self):
-        cmd = ["systemd-nspawn", "-D", self.system.root]
+        cmd = ["systemd-nspawn", "-D", self.system.path]
         if self.workdir is not None:
             self.workdir = os.path.abspath(self.workdir)
             name = os.path.basename(self.workdir)
@@ -175,7 +175,7 @@ class NspawnRunningSystem(RunningSystem):
         if self.started:
             return
 
-        log.info("Starting system %s as %s using image %s", self.system.name, self.instance_name, self.system.root)
+        log.info("Starting system %s as %s using image %s", self.system.name, self.instance_name, self.system.path)
 
         cmd = self.get_start_command()
 

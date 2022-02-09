@@ -24,17 +24,17 @@ class Bootstrapper(contextlib.ExitStack):
         """
         Wrapper around subprocess.run which logs what is run
         """
-        if os.path.exists(self.system.root):
-            kw.setdefault("cwd", self.system.root)
+        if os.path.exists(self.system.path):
+            kw.setdefault("cwd", self.system.path)
         runner = LocalRunner(cmd, **kw)
         return runner.run()
 
     def bootstrap(self):
         subvolume = Subvolume(self)
         with subvolume.create():
-            if os.path.exists(self.system.root + ".tar.gz"):
+            if os.path.exists(self.system.path + ".tar.gz"):
                 # Shortcut in case we have a chroot in a tarball
-                self.run(["tar", "-C", self.system.root, "-zxf", self.system.root + ".tar.gz"])
+                self.run(["tar", "-C", self.system.path, "-zxf", self.system.path + ".tar.gz"])
             else:
                 self.system.distro.bootstrap(self)
 

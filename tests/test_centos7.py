@@ -15,10 +15,10 @@ class Centos7(DistroTestMixin, unittest.TestCase):
             bootstrapper.bootstrap()
         log = system.run_log
 
-        log.assertPopFirst(f'btrfs -q subvolume create {system.root}')
+        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
         log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-            rf' --installroot={system.root} --releasever=7 install bash vim-minimal yum rootfiles dbus'))
+            rf' --installroot={system.path} --releasever=7 install bash vim-minimal yum rootfiles dbus'))
         log.assertLogEmpty()
 
     def test_upgrade(self):

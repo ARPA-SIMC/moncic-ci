@@ -17,7 +17,7 @@ class Subvolume:
     """
     def __init__(self, bootstrapper: Bootstrapper):
         self.bootstrapper = bootstrapper
-        self.path = self.bootstrapper.system.root
+        self.path = self.bootstrapper.system.path
 
     @contextlib.contextmanager
     def create(self):

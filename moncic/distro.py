@@ -88,7 +88,7 @@ class Rpm(Distro):
             cmd = [
                 self.installer, "-c", chroot_initial, "-y", "--disablerepo=*",
                 "--enablerepo=chroot-base", "--disableplugin=*",
-                f"--installroot={os.path.abspath(bootstrapper.system.root)}", f"--releasever={self.RELEASEVER}",
+                f"--installroot={os.path.abspath(bootstrapper.system.path)}", f"--releasever={self.RELEASEVER}",
                 "install"
             ] + self.PACKAGES
             bootstrapper.run(cmd)

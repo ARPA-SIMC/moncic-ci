@@ -15,10 +15,10 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
             bootstrapper.bootstrap()
         log = system.run_log
 
-        log.assertPopFirst(f'btrfs -q subvolume create {system.root}')
+        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
         log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-            rf' --installroot={system.root} --releasever=34 install bash vim-minimal dnf rootfiles git dbus'))
+            rf' --installroot={system.path} --releasever=34 install bash vim-minimal dnf rootfiles git dbus'))
         log.assertLogEmpty()
 
     def test_upgrade(self):

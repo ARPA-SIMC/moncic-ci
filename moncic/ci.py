@@ -176,10 +176,10 @@ class Bootstrap(Command):
         for name in self.args.distros:
             system = System(os.path.join(self.args.imagedir, name), name=name)
             with system.create_bootstrapper() as bootstrapper:
-                if self.args.recreate and os.path.exists(system.root):
+                if self.args.recreate and os.path.exists(system.path):
                     bootstrapper.remove()
 
-                if not os.path.exists(system.root):
+                if not os.path.exists(system.path):
                     log.info("%s: bootstrapping subvolume", name)
                     try:
                         bootstrapper.bootstrap()
