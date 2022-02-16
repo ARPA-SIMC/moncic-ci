@@ -73,6 +73,18 @@ class RunTestCase:
                     'returncode': 0,
                 })
 
+    def test_multi_maint_runs(self):
+        system = self.get_system()
+        with privs.root():
+            with system.create_maintenance_run() as run:
+                res = run.run(["/bin/echo", "1"])
+                self.assertEqual(res["stdout"], b"1\n")
+                self.assertEqual(res["stderr"], b"")
+            with system.create_maintenance_run() as run:
+                res = run.run(["/bin/echo", "2"])
+                self.assertEqual(res["stdout"], b"2\n")
+                self.assertEqual(res["stderr"], b"")
+
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
 # The test cases will be named Test$DISTRO. For example:

@@ -1,9 +1,12 @@
 from __future__ import annotations
 import contextlib
+import errno
 import logging
 import os
 import shlex
+import signal
 import subprocess
+import time
 from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
 import uuid
 
@@ -221,9 +224,21 @@ class NspawnRunningSystem(RunningSystem):
         if not self.started:
             return
 
-        res = subprocess.run(["machinectl", "terminate", self.instance_name])
-        if res.returncode != 0:
-            raise RuntimeError(f"Terminating machine {self.instance_name} failed with code {res.returncode}")
+        # See https://github.com/systemd/systemd/issues/6458
+        leader_pid = int(self.properties["Leader"])
+        os.kill(leader_pid, signal.SIGRTMIN + 4)
+        while True:
+            try:
+                os.kill(leader_pid, 0)
+            except OSError as e:
+                if e.errno == errno.ESRCH:
+                    break
+                raise
+            time.sleep(0.1)
+
+        # res = subprocess.run(["machinectl", "stop", self.instance_name])
+        # if res.returncode != 0:
+        #     raise RuntimeError(f"Terminating machine {self.instance_name} failed with code {res.returncode}")
         self.started = False
 
 
