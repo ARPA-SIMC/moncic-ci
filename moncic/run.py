@@ -209,7 +209,7 @@ class NspawnRunningSystem(RunningSystem):
         runner = SetnsCallableRunner(int(self.properties["Leader"]), func, cwd=cwd)
         return runner.run()
 
-    def shell(self, ostree: str):
+    def shell(self):
         """
         Open a shell on the given ostree
         """

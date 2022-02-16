@@ -59,7 +59,7 @@ class MoncicCommand(Command):
         return parser
 
     def __init__(self, args):
-        super().__init__(self, args)
+        super().__init__(args)
         self.moncic = Moncic(self.args.imagedir)
 
 
@@ -141,7 +141,7 @@ class Shell(MoncicCommand):
 
         with checkout(self.args.checkout) as workdir:
             run.workdir = workdir if workdir is not None else self.args.workdir
-            run.shell(self.args.path)
+            run.shell()
 
 
 class Bootstrap(MoncicCommand):
@@ -158,7 +158,7 @@ class Bootstrap(MoncicCommand):
         return parser
 
     def run(self):
-        for name in self.args.distros:
+        for name in self.args.systems:
             system = self.moncic.create_system(name)
             with system.create_bootstrapper() as bootstrapper:
                 if self.args.recreate and os.path.exists(system.path):
