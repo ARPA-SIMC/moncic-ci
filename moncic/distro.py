@@ -44,7 +44,7 @@ class Distro:
         """
         Get the sequence of commands to use for regular update/maintenance
         """
-        raise NotImplementedError(f"{self.__class__}.get_update_script not implemented")
+        return []
 
     @classmethod
     def register(cls, distro_cls: Type["Distro"]) -> Type["Distro"]:
@@ -119,71 +119,43 @@ class Rpm(Distro):
                 with run:
                     run.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
+    def get_update_script(self):
+        res = super().get_update_script()
+        return res + [
+            ["/usr/bin/dnf", "upgrade", "-q", "-y"]
+        ]
+
 
 @Distro.register
 class Centos7(Rpm):
     BASEURL = "http://mirror.centos.org/centos/7/os/$basearch"
     RELEASEVER = 7
-    PACKAGES = ["bash", "vim-minimal", "yum", "rootfiles", "dbus"]
+    PACKAGES = ["bash", "yum", "rootfiles", "dbus"]
     runner_class = LegacyRunRunner
 
     def get_update_script(self):
-        res = [
-            ["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/yum.conf"],
-        ]
-        for pkg in ["epel-release", "@buildsys-build", "yum-utils", "git", "rpmdevtools"]:
-            res.append(["/usr/bin/yum", "install", "-y", pkg])
-        res += [
-            ["/usr/bin/yum", "install", "-q", "-y", "yum-plugin-copr"],
-            ["/usr/bin/yum", "copr", "enable", "-q", "-y", "simc/stable", "epel-7"],
+        res = super().get_update_script()
+        return res + [
             ["/usr/bin/yum", "upgrade", "-q", "-y"],
         ]
-        return res
 
 
 @Distro.register
 class Centos8(Rpm):
     BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
     RELEASEVER = 8
-    PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "dbus"]
-
-    def get_update_script(self):
-        return [
-            ["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/dnf/dnf.conf"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "epel-release"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(config-manager)"],
-            ["/usr/bin/dnf", "config-manager", "--set-enabled", "powertools"],
-            ["/usr/bin/dnf", "groupinstall", "-q", "-y", "Development Tools"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(builddep)"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "git"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "rpmdevtools"],
-            ["/usr/bin/dnf", "copr", "enable", "-y", "simc/stable"],
-            ["/usr/bin/dnf", "upgrade", "-q", "-y"],
-        ]
-
-
-class Fedora(Rpm):
-    def get_update_script(self):
-        return [
-            ["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/dnf/dnf.conf"],
-            ["/usr/bin/dnf", "install", "-y", "--allowerasing", "@buildsys-build"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(builddep)"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "git"],
-            ["/usr/bin/dnf", "install", "-q", "-y", "rpmdevtools"],
-            ["/usr/bin/dnf", "copr", "enable", "-y", "simc/stable"],
-            ["/usr/bin/dnf", "upgrade", "-q", "-y"],
-        ]
+    PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
 
 
 @Distro.register
-class Fedora32(Fedora):
+class Fedora32(Rpm):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/32/Everything/$basearch/os/"
     RELEASEVER = 32
-    PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "git", "dbus"]
+    PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
 
 
 @Distro.register
-class Fedora34(Fedora):
+class Fedora34(Rpm):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/34/Everything/$basearch/os/"
     RELEASEVER = 34
-    PACKAGES = ["bash", "vim-minimal", "dnf", "rootfiles", "git", "dbus"]
+    PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
