@@ -6,7 +6,7 @@ import re
 import subprocess
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from .bootstrap import Bootstrapper
+    from .run import MaintenanceMixin
 
 log = logging.getLogger(__name__)
 
@@ -15,9 +15,9 @@ class Subvolume:
     """
     Low-level functions to access and maintain a btrfs subvolume
     """
-    def __init__(self, bootstrapper: Bootstrapper):
-        self.bootstrapper = bootstrapper
-        self.path = self.bootstrapper.system.path
+    def __init__(self, run: MaintenanceMixin):
+        self.run = run
+        self.path = self.run.system.path
 
     @contextlib.contextmanager
     def create(self):
@@ -28,11 +28,11 @@ class Subvolume:
         if os.path.exists(self.path):
             raise RuntimeError(f"{self.path!r} already exists")
 
-        self.bootstrapper.run(["btrfs", "-q", "subvolume", "create", self.path])
+        self.run.local_run(["btrfs", "-q", "subvolume", "create", self.path])
         try:
             yield
         except Exception:
-            self.bootstrapper.run(["btrfs", "-q", "subvolume", "delete", self.path])
+            self.run.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
             raise
 
     def remove(self):
@@ -57,7 +57,7 @@ class Subvolume:
         # Delete in reverse order
         for subvolid, subvolpath in to_delete[::-1]:
             log.info("removing btrfs subvolume %r", subvolpath)
-            self.bootstrapper.run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, self.path])
+            self.run.local_run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, self.path])
 
         # Delete the subvolume itself
-        self.bootstrapper.run(["btrfs", "-q", "subvolume", "delete", self.path])
+        self.run.local_run(["btrfs", "-q", "subvolume", "delete", self.path])

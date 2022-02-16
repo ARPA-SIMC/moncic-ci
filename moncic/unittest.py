@@ -9,8 +9,7 @@ from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
 from moncic.system import System, Config
-from moncic.run import RunningSystem, UpdateMixin
-from moncic.bootstrap import Bootstrapper
+from moncic.run import RunningSystem, MaintenanceMixin
 from moncic.moncic import Moncic
 
 if TYPE_CHECKING:
@@ -123,7 +122,7 @@ class MockRunLog:
         self.testcase.assertEqual(self.log, [])
 
 
-class MockRunningSystem(UpdateMixin, RunningSystem):
+class MockRunningSystem(RunningSystem):
     def start(self):
         if self.started:
             return
@@ -147,8 +146,8 @@ class MockRunningSystem(UpdateMixin, RunningSystem):
         return 0
 
 
-class MockBootstrapper(Bootstrapper):
-    def run(self, cmd: List[str], **kw) -> Dict[str, Any]:
+class MockMaintRunningSystem(MaintenanceMixin, MockRunningSystem):
+    def local_run(self, cmd: List[str], **kw) -> Dict[str, Any]:
         self.system.run_log.append(cmd, {})
         return {
             "stdout": b'',
@@ -168,10 +167,7 @@ class MockSystem(System):
         return MockRunningSystem(self)
 
     def create_maintenance_run(self, instance_name: Optional[str] = None) -> RunningSystem:
-        return MockRunningSystem(self)
-
-    def create_bootstrapper(self) -> Bootstrapper:
-        return MockBootstrapper(self)
+        return MockMaintRunningSystem(self)
 
 
 class DistroTestMixin:

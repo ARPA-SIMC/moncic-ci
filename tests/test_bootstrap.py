@@ -23,8 +23,8 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             system = MockSystem(Moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
 
-            bootstrapper = system.create_bootstrapper()
-            bootstrapper.bootstrap()
+            run = system.create_maintenance_run()
+            run.bootstrap()
 
         log = system.run_log
 

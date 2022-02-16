@@ -10,7 +10,8 @@ import time
 from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
 import uuid
 
-from .runner import SetnsCallableRunner
+from .runner import LocalRunner, SetnsCallableRunner
+from .btrfs import Subvolume
 if TYPE_CHECKING:
     from .system import System
 
@@ -242,13 +243,36 @@ class NspawnRunningSystem(RunningSystem):
         self.started = False
 
 
-class UpdateMixin:
+class MaintenanceMixin:
     def update(self):
         """
         Run periodic maintenance on the system
         """
         for cmd in self.system.distro.get_update_script():
             self.run(cmd)
+
+    def local_run(self, cmd: List[str], **kw) -> Dict[str, Any]:
+        """
+        Wrapper around subprocess.run which logs what is run
+        """
+        if os.path.exists(self.system.path):
+            kw.setdefault("cwd", self.system.path)
+        runner = LocalRunner(cmd, **kw)
+        return runner.run()
+
+    def bootstrap(self):
+        tarball_path = self.system.get_distro_tarball()
+        subvolume = Subvolume(self)
+        with subvolume.create():
+            if tarball_path is not None:
+                # Shortcut in case we have a chroot in a tarball
+                self.local_run(["tar", "-C", self.system.path, "-zxf", tarball_path])
+            else:
+                self.system.distro.bootstrap(self)
+
+    def remove(self):
+        subvolume = Subvolume(self)
+        subvolume.remove()
 
 
 class EphemeralNspawnRunningSystem(NspawnRunningSystem):
@@ -263,5 +287,5 @@ class EphemeralNspawnRunningSystem(NspawnRunningSystem):
         return cmd
 
 
-class MaintenanceNspawnRunningSystem(UpdateMixin, NspawnRunningSystem):
+class MaintenanceNspawnRunningSystem(MaintenanceMixin, NspawnRunningSystem):
     pass

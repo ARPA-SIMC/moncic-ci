@@ -11,8 +11,8 @@ class Centos7(DistroTestMixin, unittest.TestCase):
         distro = Distro.create("centos7")
 
         with self.mock_system(distro) as system:
-            bootstrapper = system.create_bootstrapper()
-            bootstrapper.bootstrap()
+            run = system.create_maintenance_run()
+            run.bootstrap()
         log = system.run_log
 
         log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
@@ -25,8 +25,8 @@ class Centos7(DistroTestMixin, unittest.TestCase):
         distro = Distro.create("centos7")
 
         with self.mock_system(distro) as system:
-            runner = system.create_maintenance_run()
-            runner.update()
+            with system.create_maintenance_run() as run:
+                run.update()
         log = system.run_log
 
         log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/yum.conf")

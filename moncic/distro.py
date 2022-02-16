@@ -8,7 +8,7 @@ import tempfile
 
 from .osrelease import parse_osrelase
 from .runner import SystemdRunRunner, LegacyRunRunner
-from .bootstrap import Bootstrapper
+from .run import MaintenanceMixin
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class Distro:
     def __str__(self) -> str:
         return self.name
 
-    def bootstrap(self, bootstrapper: Bootstrapper) -> None:
+    def bootstrap(self, run: MaintenanceMixin) -> None:
         """
         Boostrap a fresh system inside the given directory
         """
@@ -96,16 +96,16 @@ class Rpm(Distro):
             fd.flush()
             yield fd.name
 
-    def bootstrap(self, bootstrapper: Bootstrapper):
+    def bootstrap(self, run: MaintenanceMixin):
         with self.chroot_config() as dnf_config:
-            installroot = os.path.abspath(bootstrapper.system.path)
+            installroot = os.path.abspath(run.system.path)
             cmd = [
                 self.installer, "-c", dnf_config, "-y", "--disablerepo=*",
                 "--enablerepo=chroot-base", "--disableplugin=*",
                 f"--installroot={installroot}", f"--releasever={self.RELEASEVER}",
                 "install"
             ] + self.PACKAGES
-            bootstrapper.run(cmd)
+            run.local_run(cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
             # created system. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
@@ -116,8 +116,8 @@ class Rpm(Distro):
                 if os.path.isdir(system_rpmdb):
                     shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-                with bootstrapper.system.create_maintenance_run() as maint:
-                    maint.run(["/usr/bin/rpmdb", "--rebuilddb"])
+                with run:
+                    run.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
 
 @Distro.register

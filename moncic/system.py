@@ -8,7 +8,6 @@ import yaml
 
 from .distro import Distro
 if TYPE_CHECKING:
-    from .bootstrap import Bootstrapper
     from .run import RunningSystem
     from .moncic import Moncic
 
@@ -145,10 +144,3 @@ class System:
         # Import here to avoid an import loop
         from .run import MaintenanceNspawnRunningSystem
         return MaintenanceNspawnRunningSystem(self)
-
-    def create_bootstrapper(self) -> Bootstrapper:
-        """
-        Create a boostrapper object for this system
-        """
-        from .bootstrap import Bootstrapper
-        return Bootstrapper(self)
