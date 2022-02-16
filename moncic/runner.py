@@ -10,9 +10,11 @@ import os
 import shlex
 import subprocess
 import traceback
-from typing import List, Optional, Callable
+from typing import List, Optional, Callable, TYPE_CHECKING
 
 from . import setns
+if TYPE_CHECKING:
+    from .run import NspawnRunningSystem
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ class AsyncioRunner(OutputLogMixin):
         self.cmd = cmd
         self.check = check
 
-    def run(self):
+    def execute(self):
         return asyncio.run(self._run())
 
     async def start_process(self):
@@ -100,9 +102,9 @@ class MachineRunner(AsyncioRunner):
     """
     Base class for running commands in running containers
     """
-    def __init__(self, machine_name: str, cmd: List[str], check=True, **kwargs):
+    def __init__(self, run: NspawnRunningSystem, cmd: List[str], check=True, **kwargs):
         super().__init__(cmd, check)
-        self.machine_name = machine_name
+        self.run = run
         self.kwargs = kwargs
 
 
@@ -111,8 +113,18 @@ class SystemdRunRunner(MachineRunner):
         cmd = [
             "/usr/bin/systemd-run", "--quiet", "--pipe", "--wait",
             "--setenv=HOME=/root",
-            f"--machine={self.machine_name}", "--",
+            f"--machine={self.run.instance_name}",
         ]
+
+        cwd = self.kwargs.get("cwd")
+        if cwd is not None:
+            cmd.append("--working-directory=" + cwd)
+            kwargs = dict(self.kwargs)
+            kwargs.pop("cwd")
+        else:
+            kwargs = self.kwargs
+
+        cmd.append("--")
         cmd += self.cmd
 
         log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
@@ -121,23 +133,29 @@ class SystemdRunRunner(MachineRunner):
                 cmd[0], *cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                **self.kwargs)
+                **kwargs)
 
 
 class LegacyRunRunner(MachineRunner):
     async def start_process(self):
         # See https://lists.debian.org/debian-devel/2021/12/msg00148.html
         # Thank you Marco d'Itri for the nsenter tip
-
-        res = subprocess.run(
-                ["machinectl", "show", "--property=Leader", "--value", self.machine_name],
-                capture_output=True, text=True, check=True)
-        leader_pid = int(res.stdout)
+        leader_pid = int(self.run.properties["Leader"])
 
         # Verify that we can interact with the given process
         os.kill(leader_pid, 0)
 
         cmd = ["nsenter", "--mount", "--uts", "--ipc", "--net", "--pid", "--cgroup", "--target", str(leader_pid)]
+
+        cwd = self.kwargs.get("cwd")
+        if cwd is not None:
+            cmd.append("--wd=" + os.path.join(self.run.properties["RootDirectory"], cwd.lstrip("/")))
+            kwargs = dict(self.kwargs)
+            kwargs.pop("cwd")
+        else:
+            kwargs = self.kwargs
+
+        cmd.append("--")
         cmd += self.cmd
 
         log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
@@ -146,7 +164,7 @@ class LegacyRunRunner(MachineRunner):
                 cmd[0], *cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                **self.kwargs)
+                **kwargs)
 
 
 class SetnsCallableRunner(OutputLogMixin):
@@ -175,7 +193,7 @@ class SetnsCallableRunner(OutputLogMixin):
             self.read_stderr(stderr_reader),
         )
 
-    def run(self) -> subprocess.CompletedProcess:
+    def execute(self) -> subprocess.CompletedProcess:
         # Create pipes for catching stdout and stderr
         stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
         stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)

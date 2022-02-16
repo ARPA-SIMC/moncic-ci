@@ -210,16 +210,19 @@ class NspawnRunningSystem(RunningSystem):
         if self.workdir is not None:
             name = os.path.basename(self.workdir)
             kwargs.setdefault("cwd", f"/root/{name}")
-        runner = self.system.distro.runner_class(self.instance_name, command, **kwargs)
-        return runner.run()
+        runner = self.system.distro.runner_class(self, command, **kwargs)
+        return runner.execute()
 
     def run_script(self, body: str, **kwargs) -> subprocess.CompletedProcess:
         chroot = self.properties["RootDirectory"]
-        with tempfile.NamedTemporaryFile(mode="w+t", dir=os.path.join(chroot, "root")) as tf:
-            tf.write(body)
-            tf.flush()
-            os.chmod(tf.fileno(), 0o700)
-            return self.run(os.path.join("/root", os.path.basename(tf.name)), **kwargs)
+        with tempfile.TemporaryDirectory(dir=os.path.join(chroot, "root")) as workdir:
+            with open(os.path.join(workdir, "script"), "wt") as fd:
+                fd.write(body)
+                fd.flush()
+                os.chmod(fd.fileno(), 0o700)
+            inside_workdir = os.path.join("/root", os.path.basename(workdir))
+            kwargs.setdefault("cwd", inside_workdir)
+            return self.run([os.path.join(inside_workdir, "script")], **kwargs)
 
     def run_callable(self, func: Callable[[], Optional[int]], **kwargs) -> subprocess.CompletedProcess:
         if self.workdir is not None:
@@ -227,7 +230,7 @@ class NspawnRunningSystem(RunningSystem):
             kwargs.setdefault("cwd", f"/root/{name}")
 
         runner = SetnsCallableRunner(int(self.properties["Leader"]), func, **kwargs)
-        return runner.run()
+        return runner.execute()
 
     def shell(self):
         """
@@ -276,7 +279,7 @@ class MaintenanceMixin:
         if os.path.exists(self.system.path):
             kw.setdefault("cwd", self.system.path)
         runner = LocalRunner(cmd, **kw)
-        return runner.run()
+        return runner.execute()
 
     def bootstrap(self):
         tarball_path = self.system.get_distro_tarball()

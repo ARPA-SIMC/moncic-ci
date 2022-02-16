@@ -39,7 +39,7 @@ def checkout(repo: Optional[str] = None, branch: Optional[str] = None):
             if branch is not None:
                 cmd += ["--branch", branch]
             runner = LocalRunner(cmd, cwd=workdir)
-            runner.run()
+            runner.execute()
             # Look for the directory that git created
             names = os.listdir(workdir)
             if len(names) != 1:
