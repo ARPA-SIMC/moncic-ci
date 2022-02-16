@@ -230,10 +230,10 @@ class SetnsCallableRunner(OutputLogMixin):
         stdout = b"".join(self.stdout)
         stderr = b"".join(self.stderr)
 
-        res = os.waitid(os.P_PID, pid, os.WEXITED)
-        if self.check and res.si_status != 0:
+        wres = os.waitid(os.P_PID, pid, os.WEXITED)
+        if self.check and wres.si_status != 0:
             raise subprocess.CalledProcessError(
-                    res.si_status, self.func.__name__, stdout, stderr)
+                    wres.si_status, self.func.__name__, stdout, stderr)
 
         return subprocess.CompletedProcess(
-                self.func.__name__, res.si_status, stdout, stderr)
+                self.func.__name__, wres.si_status, stdout, stderr)

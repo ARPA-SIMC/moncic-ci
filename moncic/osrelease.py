@@ -1,9 +1,9 @@
 from __future__ import annotations
-from typing import Sequence, Dict
+from typing import Iterator, Dict
 import shlex
 
 
-def iter_assigns(tokens: Sequence[str]):
+def iter_assigns(tokens: Iterator[str]):
     while True:
         try:
             name = next(tokens)

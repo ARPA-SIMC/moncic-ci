@@ -130,6 +130,8 @@ class System:
         Return None if no such tarball is present
         """
         distro_name = self.config.distro
+        if distro_name is None:
+            raise RuntimeError("get_distro_tarball called on a system that is bootstrapped by snapshotting")
         tarball_path = os.path.join(self.moncic.imagedir, distro_name + ".tar.gz")
         if os.path.exists(tarball_path):
             return tarball_path
