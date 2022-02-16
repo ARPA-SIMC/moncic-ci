@@ -29,6 +29,8 @@ class Config:
     # Name of the distribution used as a base for this one.
     # If missing, this image needs to be created by bootstrapping from scratch
     parent: Optional[str] = None
+    # Contents of a script to run for system maintenance
+    maintscript: Optional[str] = None
 
     @classmethod
     def load(cls, path):
@@ -55,6 +57,11 @@ class Config:
 
         conf["name"] = name
         conf["path"] = os.path.abspath(path)
+
+        # Prepend a default shebang to the maintscript if missing
+        maintscript = conf.get("maintscript")
+        if maintscript is not None and not maintscript.startswith("#!"):
+            conf["maintscript"] = "#!/bin/sh\n" + maintscript
 
         has_distro = "distro" in conf
         has_parent = "parent" in conf
