@@ -10,18 +10,11 @@ import os
 import shlex
 import subprocess
 import traceback
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Optional, Callable
 
 from . import setns
 
 log = logging.getLogger(__name__)
-
-
-class RunFailed(Exception):
-    """
-    Exception raised when a task failed to run on the machine
-    """
-    pass
 
 
 class OutputLogMixin:
@@ -48,9 +41,10 @@ class OutputLogMixin:
 
 
 class AsyncioRunner(OutputLogMixin):
-    def __init__(self, cmd: List[str]):
+    def __init__(self, cmd: List[str], check=True):
         super().__init__()
         self.cmd = cmd
+        self.check = check
 
     def run(self):
         return asyncio.run(self._run())
@@ -62,7 +56,7 @@ class AsyncioRunner(OutputLogMixin):
         """
         raise NotImplementedError(f"{self.__class__}.start_process")
 
-    async def _run(self) -> Dict[str, Any]:
+    async def _run(self) -> subprocess.CompletedProcess:
         proc = await self.start_process()
 
         await asyncio.gather(
@@ -71,22 +65,25 @@ class AsyncioRunner(OutputLogMixin):
             proc.wait(),
         )
 
-        if proc.returncode != 0:
-            raise RunFailed(f"Command exited with code {proc.returncode}")
+        stdout = b"".join(self.stdout)
+        stderr = b"".join(self.stderr)
 
-        return {
-            "stdout": b"".join(self.stdout),
-            "stderr": b"".join(self.stderr),
-            "returncode": proc.returncode,
-        }
+        if self.check and proc.returncode != 0:
+            raise subprocess.CalledProcessError(
+                    proc.returncode,
+                    self.cmd,
+                    stdout, stderr)
+
+        return subprocess.CompletedProcess(
+                self.cmd, proc.returncode, stdout, stderr)
 
 
 class LocalRunner(AsyncioRunner):
     """
     Run a command locally, logging its output
     """
-    def __init__(self, cmd: List[str], **kwargs):
-        super().__init__(cmd)
+    def __init__(self, cmd: List[str], check=True, **kwargs):
+        super().__init__(cmd, check)
         self.kwargs = kwargs
 
     async def start_process(self):
@@ -103,8 +100,8 @@ class MachineRunner(AsyncioRunner):
     """
     Base class for running commands in running containers
     """
-    def __init__(self, machine_name: str, cmd: List[str], **kwargs):
-        super().__init__(cmd)
+    def __init__(self, machine_name: str, cmd: List[str], check=True, **kwargs):
+        super().__init__(cmd, check)
         self.machine_name = machine_name
         self.kwargs = kwargs
 
@@ -153,11 +150,12 @@ class LegacyRunRunner(MachineRunner):
 
 
 class SetnsCallableRunner(OutputLogMixin):
-    def __init__(self, leader_pid: int, func: Callable[[], Optional[int]], cwd: Optional[str] = None):
+    def __init__(self, leader_pid: int, func: Callable[[], Optional[int]], cwd: Optional[str] = None, check=True):
         super().__init__()
         self.leader_pid = leader_pid
         self.func = func
         self.cwd = cwd
+        self.check = check
 
     async def make_reader(self, fd: int):
         loop = asyncio.get_running_loop()
@@ -177,7 +175,7 @@ class SetnsCallableRunner(OutputLogMixin):
             self.read_stderr(stderr_reader),
         )
 
-    def run(self) -> int:
+    def run(self) -> subprocess.CompletedProcess:
         # Create pipes for catching stdout and stderr
         stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
         stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)
@@ -211,9 +209,13 @@ class SetnsCallableRunner(OutputLogMixin):
 
         asyncio.run(self.collect_output(stdout_r, stderr_r))
 
+        stdout = b"".join(self.stdout)
+        stderr = b"".join(self.stderr)
+
         res = os.waitid(os.P_PID, pid, os.WEXITED)
-        return {
-            "stdout": b"".join(self.stdout),
-            "stderr": b"".join(self.stderr),
-            "returncode": res.si_status,
-        }
+        if self.check and res.si_status != 0:
+            raise subprocess.CalledProcessError(
+                    res.si_status, self.func.__name__, stdout, stderr)
+
+        return subprocess.CompletedProcess(
+                self.func.__name__, res.si_status, stdout, stderr)

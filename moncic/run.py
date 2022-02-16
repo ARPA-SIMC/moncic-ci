@@ -6,8 +6,9 @@ import os
 import shlex
 import signal
 import subprocess
+import tempfile
 import time
-from typing import List, Optional, Dict, Any, Callable, TYPE_CHECKING
+from typing import List, Optional, Callable, TYPE_CHECKING
 import uuid
 
 from .runner import LocalRunner, SetnsCallableRunner
@@ -45,7 +46,7 @@ class RunningSystem(contextlib.ExitStack):
 
         self.started = False
 
-    def run(self, command: List[str]) -> Dict[str, Any]:
+    def run(self, command: List[str]) -> subprocess.CompletedProcess:
         """
         Run the given command inside the running system.
 
@@ -60,7 +61,17 @@ class RunningSystem(contextlib.ExitStack):
         """
         raise NotImplementedError(f"{self.__class__}.run() not implemented")
 
-    def run_callable(self, func: Callable[[], Optional[int]]) -> Dict[str, Any]:
+    def run_script(self, body: str) -> subprocess.CompletedProcess:
+        """
+        Run the given string as a script in the machine.
+
+        A shebang at the beginning of the script will be honored.
+
+        Returns the process exit status.
+        """
+        raise NotImplementedError(f"{self.__class__}.run_script() not implemented")
+
+    def run_callable(self, func: Callable[[], Optional[int]]) -> subprocess.CompletedProcess:
         """
         Run the given callable in a separate process inside the running
         system. Returns the process exit status.
@@ -195,22 +206,27 @@ class NspawnRunningSystem(RunningSystem):
             key, value = line.split('=', 1)
             self.properties[key] = value
 
-    def run(self, command: List[str]) -> Dict[str, Any]:
-        kwargs = {}
+    def run(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
         if self.workdir is not None:
             name = os.path.basename(self.workdir)
-            kwargs["cwd"] = f"/root/{name}"
+            kwargs.setdefault("cwd", f"/root/{name}")
         runner = self.system.distro.runner_class(self.instance_name, command, **kwargs)
         return runner.run()
 
-    def run_callable(self, func: Callable[[], Optional[int]]) -> Dict[str, Any]:
+    def run_script(self, body: str, **kwargs) -> subprocess.CompletedProcess:
+        chroot = self.properties["RootDirectory"]
+        with tempfile.NamedTemporaryFile(mode="w+t", dir=os.path.join(chroot, "root")) as tf:
+            tf.write(body)
+            tf.flush()
+            os.chmod(tf.fileno(), 0o700)
+            return self.run(os.path.join("/root", os.path.basename(tf.name)), **kwargs)
+
+    def run_callable(self, func: Callable[[], Optional[int]], **kwargs) -> subprocess.CompletedProcess:
         if self.workdir is not None:
             name = os.path.basename(self.workdir)
-            cwd = f"/root/{name}"
-        else:
-            cwd = None
+            kwargs.setdefault("cwd", f"/root/{name}")
 
-        runner = SetnsCallableRunner(int(self.properties["Leader"]), func, cwd=cwd)
+        runner = SetnsCallableRunner(int(self.properties["Leader"]), func, **kwargs)
         return runner.run()
 
     def shell(self):
@@ -250,8 +266,10 @@ class MaintenanceMixin:
         """
         for cmd in self.system.distro.get_update_script():
             self.run(cmd)
+        if self.system.config.maintscript is not None:
+            self.run_script(self.system.config.maintscript)
 
-    def local_run(self, cmd: List[str], **kw) -> Dict[str, Any]:
+    def local_run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
         """
         Wrapper around subprocess.run which logs what is run
         """

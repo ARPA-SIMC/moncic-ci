@@ -29,16 +29,16 @@ class RunTestCase:
         with privs.root():
             with system.create_ephemeral_run() as run:
                 res = run.run(["/usr/bin/echo", "test"])
-                self.assertEqual(res["stdout"], b"test\n")
-                self.assertEqual(res["stderr"], b"")
+                self.assertEqual(res.stdout, b"test\n")
+                self.assertEqual(res.stderr, b"")
 
     def test_env(self):
         system = self.get_system()
         with privs.root():
             with system.create_ephemeral_run() as run:
                 res = run.run(["/bin/sh", "-c", "echo $HOME"])
-                self.assertEqual(res["stdout"], b"/root\n")
-                self.assertEqual(res["stderr"], b"")
+                self.assertEqual(res.stdout, b"/root\n")
+                self.assertEqual(res.stderr, b"")
 
     def test_callable(self):
         token = secrets.token_bytes(8)
@@ -49,15 +49,15 @@ class RunTestCase:
                     with open("/tmp/token", "wb") as out:
                         out.write(token)
 
-                self.assertEqual(run.run_callable(test_function), {
-                    'stdout': b'',
-                    'stderr': b'',
-                    'returncode': 0,
-                })
+                res = run.run_callable(test_function)
+                self.assertEqual(res.stdout, b'')
+                self.assertEqual(res.stderr, b'')
+                self.assertEqual(res.returncode, 0)
 
                 res = run.run(["/usr/bin/cat", "/tmp/token"])
-                self.assertEqual(res["stdout"], token)
-                self.assertEqual(res["stderr"], b"")
+                self.assertEqual(res.stdout, token)
+                self.assertEqual(res.stderr, b"")
+                self.assertEqual(res.returncode, 0)
 
     def test_callable_prints(self):
         system = self.get_system()
@@ -67,23 +67,31 @@ class RunTestCase:
                     print("stdout")
                     print("stderr", file=sys.stderr)
 
-                self.assertEqual(run.run_callable(test_function), {
-                    'stdout': b'stdout\n',
-                    'stderr': b'stderr\n',
-                    'returncode': 0,
-                })
+                res = run.run_callable(test_function)
+                self.assertEqual(res.stdout, b'stdout\n')
+                self.assertEqual(res.stderr, b'stderr\n')
+                self.assertEqual(res.returncode, 0)
 
     def test_multi_maint_runs(self):
         system = self.get_system()
         with privs.root():
             with system.create_maintenance_run() as run:
                 res = run.run(["/bin/echo", "1"])
-                self.assertEqual(res["stdout"], b"1\n")
-                self.assertEqual(res["stderr"], b"")
+                self.assertEqual(res.stdout, b"1\n")
+                self.assertEqual(res.stderr, b"")
             with system.create_maintenance_run() as run:
                 res = run.run(["/bin/echo", "2"])
-                self.assertEqual(res["stdout"], b"2\n")
-                self.assertEqual(res["stderr"], b"")
+                self.assertEqual(res.stdout, b"2\n")
+                self.assertEqual(res.stderr, b"")
+
+    def test_run_script(self):
+        system = self.get_system()
+        with privs.root():
+            with system.create_ephemeral_run() as run:
+                res = run.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", check=False)
+                self.assertEqual(res.stdout, b"test\n")
+                self.assertEqual(res.stderr, b"")
+                self.assertEqual(res.returncode, 1)
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
