@@ -97,14 +97,27 @@ class Rpm(Distro):
             yield fd.name
 
     def bootstrap(self, bootstrapper: Bootstrapper):
-        with self.chroot_config() as chroot_initial:
+        with self.chroot_config() as dnf_config:
+            installroot = os.path.abspath(bootstrapper.system.path)
             cmd = [
-                self.installer, "-c", chroot_initial, "-y", "--disablerepo=*",
+                self.installer, "-c", dnf_config, "-y", "--disablerepo=*",
                 "--enablerepo=chroot-base", "--disableplugin=*",
-                f"--installroot={os.path.abspath(bootstrapper.system.path)}", f"--releasever={self.RELEASEVER}",
+                f"--installroot={installroot}", f"--releasever={self.RELEASEVER}",
                 "install"
             ] + self.PACKAGES
             bootstrapper.run(cmd)
+
+            # If dnf used a private rpmdb, promote it as the rpmdb of the newly
+            # created system. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
+            private_rpmdb = os.path.join(installroot, "root", ".rpmdb")
+            system_rpmdb = os.path.join(installroot, "var", "lib", "rpm")
+            if os.path.isdir(private_rpmdb):
+                log.info("Moving %r to %r", private_rpmdb, system_rpmdb)
+                if os.path.isdir(system_rpmdb):
+                    shutil.rmtree(system_rpmdb)
+                shutil.move(private_rpmdb, system_rpmdb)
+                with bootstrapper.system.create_maintenance_run() as maint:
+                    maint.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
 
 @Distro.register
@@ -152,7 +165,6 @@ class Centos8(Rpm):
 class Fedora(Rpm):
     def get_update_script(self):
         return [
-            ["/usr/bin/rpmdb", "--rebuilddb"],
             ["/usr/bin/sed", "-i", "/^tsflags=/d", "/etc/dnf/dnf.conf"],
             ["/usr/bin/dnf", "install", "-y", "--allowerasing", "@buildsys-build"],
             ["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(builddep)"],

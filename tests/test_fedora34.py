@@ -29,7 +29,6 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
             runner.update()
         log = system.run_log
 
-        log.assertPopFirst('/usr/bin/rpmdb --rebuilddb')
         log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf")
         log.assertPopFirst('/usr/bin/dnf install -y --allowerasing @buildsys-build')
         log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(builddep)'")
