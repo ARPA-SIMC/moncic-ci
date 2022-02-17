@@ -64,9 +64,16 @@ class DistroFamily:
         Instantiate a Distro from an existing filesystem tree
         """
         # TODO: check if "{path}.yaml" exists
-        info = parse_osrelase(os.path.join(path, "etc", "os-release"))
-        family = cls.lookup_family(info["ID"])
-        return family.create_distro(info["VERSION_ID"])
+        try:
+            info = parse_osrelase(os.path.join(path, "etc", "os-release"))
+        except FileNotFoundError:
+            info = None
+
+        if info is None:
+            return cls.lookup_distro(os.path.basename(path))
+        else:
+            family = cls.lookup_family(info["ID"])
+            return family.create_distro(info["VERSION_ID"])
 
     @property
     def name(self) -> str:
