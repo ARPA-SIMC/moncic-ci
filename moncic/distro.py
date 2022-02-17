@@ -80,12 +80,21 @@ class Rpm(Distro):
     """
     Common implementation for rpm-based distributions
     """
+    RELEASEVER: int
+
     def __init__(self):
         self.installer = shutil.which("dnf")
         if self.installer is None:
             self.installer = shutil.which("yum")
         if self.installer is None:
             raise RuntimeError("yum or dnf not found")
+
+    def get_base_packages(self) -> List[str]:
+        """
+        Return the list of packages that are expected to be installed on a
+        freshly bootstrapped system
+        """
+        return ["bash", "rootfiles", "dbus"]
 
     @contextlib.contextmanager
     def chroot_config(self):
@@ -106,7 +115,7 @@ class Rpm(Distro):
                 "--enablerepo=chroot-base", "--disableplugin=*",
                 f"--installroot={installroot}", f"--releasever={self.RELEASEVER}",
                 "install"
-            ] + self.PACKAGES
+            ] + self.get_base_packages()
             system.local_run(cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
@@ -123,6 +132,9 @@ class Rpm(Distro):
 
 
 class Yum(Rpm):
+    def get_base_packages(self) -> List[str]:
+        return super().get_base_packages() + ["yum"]
+
     def get_update_script(self):
         res = super().get_update_script()
         return res + [
@@ -131,6 +143,9 @@ class Yum(Rpm):
 
 
 class Dnf(Rpm):
+    def get_base_packages(self) -> List[str]:
+        return super().get_base_packages() + ["dnf"]
+
     def get_update_script(self):
         res = super().get_update_script()
         return res + [
@@ -142,7 +157,6 @@ class Dnf(Rpm):
 class Centos7(Yum):
     BASEURL = "http://mirror.centos.org/centos/7/os/$basearch"
     RELEASEVER = 7
-    PACKAGES = ["bash", "yum", "rootfiles", "dbus"]
     runner_class = LegacyRunRunner
 
 
@@ -150,18 +164,15 @@ class Centos7(Yum):
 class Centos8(Dnf):
     BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
     RELEASEVER = 8
-    PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
 
 
 @Distro.register
 class Fedora32(Dnf):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/32/Everything/$basearch/os/"
     RELEASEVER = 32
-    PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
 
 
 @Distro.register
 class Fedora34(Dnf):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/34/Everything/$basearch/os/"
     RELEASEVER = 34
-    PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
