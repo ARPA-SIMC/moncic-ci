@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import shlex
+import subprocess
 import tempfile
 from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
@@ -108,7 +109,7 @@ class MockRunLog:
     def append_callable(self, func: Callable[[], Optional[int]]):
         self.log.append((f"callable:{func.__name__}", {}))
 
-    def assertPopFirst(self, cmd: Union[str, re.compile], **kwargs):
+    def assertPopFirst(self, cmd: Union[str, re.Pattern], **kwargs):
         actual_cmd, actual_kwargs = self.log.pop(0)
 
         if isinstance(cmd, str):
@@ -133,17 +134,13 @@ class MockRunMixin:
             return
         self.started = False
 
-    def run(self, command: List[str]) -> Dict[str, Any]:
+    def run(self, command: List[str]) -> subprocess.CompletedProcess:
         self.system.run_log.append(command, {})
-        return {
-            "stdout": b'',
-            "stderr": b'',
-            "returncode": 0,
-        }
+        return subprocess.CompletedProcess(command, 0, b'', b'')
 
-    def run_callable(self, func: Callable[[], Optional[int]]) -> int:
+    def run_callable(self, func: Callable[[], Optional[int]]) -> subprocess.CompletedProcess:
         self.system.run_log.append_callable(func)
-        return 0
+        return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
 
 
 class MockRunningSystem(MockRunMixin, RunningSystem):
@@ -161,13 +158,9 @@ class MockSystem(System):
     def attach_testcase(self, testcase):
         self.run_log = MockRunLog(testcase)
 
-    def local_run(self, cmd: List[str], **kw) -> Dict[str, Any]:
+    def local_run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
         self.run_log.append(cmd, {})
-        return {
-            "stdout": b'',
-            "stderr": b'',
-            "returncode": 0,
-        }
+        return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         return MockRunningSystem(self)
