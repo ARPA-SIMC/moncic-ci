@@ -8,7 +8,7 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Callable, Protocol, TYPE_CHECKING
+from typing import List, Optional, Callable, ContextManager, Protocol, TYPE_CHECKING
 import uuid
 
 from .runner import SetnsCallableRunner
@@ -19,11 +19,14 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class RunningSystem(Protocol):
+class RunningSystem(ContextManager, Protocol):
     """
     An instance of a System in execution as a container
     """
     system: System
+    # Bind mount this directory in the running system and use it as default
+    # working directory
+    workdir: Optional[str]
 
     def run(self, command: List[str]) -> subprocess.CompletedProcess:
         """

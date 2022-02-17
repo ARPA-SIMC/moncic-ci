@@ -36,6 +36,8 @@ class Builder:
 
     @classmethod
     def detect(cls, run: RunningSystem) -> "Builder":
+        if run.workdir is None:
+            raise ValueError("Running system has no workdir defined")
         for builder_cls in reversed(cls.builders.values()):
             if builder_cls.builds(run.workdir):
                 return builder_cls(run)

@@ -1,14 +1,13 @@
 from __future__ import annotations
-from typing import Type, List, Dict
 import contextlib
 import logging
 import os
 import shutil
 import tempfile
-from typing import TYPE_CHECKING
+from typing import Type, List, Dict, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
-from .runner import SystemdRunRunner, LegacyRunRunner
+from .runner import MachineRunner, SystemdRunRunner, LegacyRunRunner
 if TYPE_CHECKING:
     from .system import System
 
@@ -21,7 +20,7 @@ class Distro:
     """
     # Registry of known distributions
     distros: Dict[str, Type[Distro]] = {}
-    runner_class = SystemdRunRunner
+    runner_class: Type[MachineRunner] = SystemdRunRunner
 
     @property
     def name(self) -> str:

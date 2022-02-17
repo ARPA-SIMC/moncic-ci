@@ -130,6 +130,7 @@ class MockRunningSystem(RunningSystemBase):
     def __init__(self, system: "MockSystem", instance_name: Optional[str] = None):
         super().__init__(system, instance_name)
         self.run_log = system.run_log
+        self.workdir = None
 
     def start(self):
         if self.started:
