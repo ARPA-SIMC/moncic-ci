@@ -5,10 +5,12 @@ import logging
 import os
 import shutil
 import tempfile
+from typing import TYPE_CHECKING
 
 from .osrelease import parse_osrelase
 from .runner import SystemdRunRunner, LegacyRunRunner
-from .run import MaintenanceMixin
+if TYPE_CHECKING:
+    from .system import System
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class Distro:
     def __str__(self) -> str:
         return self.name
 
-    def bootstrap(self, run: MaintenanceMixin) -> None:
+    def bootstrap(self, system: System) -> None:
         """
         Boostrap a fresh system inside the given directory
         """
@@ -96,16 +98,16 @@ class Rpm(Distro):
             fd.flush()
             yield fd.name
 
-    def bootstrap(self, run: MaintenanceMixin):
+    def bootstrap(self, system: System):
         with self.chroot_config() as dnf_config:
-            installroot = os.path.abspath(run.system.path)
+            installroot = os.path.abspath(system.path)
             cmd = [
                 self.installer, "-c", dnf_config, "-y", "--disablerepo=*",
                 "--enablerepo=chroot-base", "--disableplugin=*",
                 f"--installroot={installroot}", f"--releasever={self.RELEASEVER}",
                 "install"
             ] + self.PACKAGES
-            run.local_run(cmd)
+            system.local_run(cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
             # created system. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
@@ -116,9 +118,19 @@ class Rpm(Distro):
                 if os.path.isdir(system_rpmdb):
                     shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-                with run:
+                with system.create_maintenance_run() as run:
                     run.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
+
+class Yum(Rpm):
+    def get_update_script(self):
+        res = super().get_update_script()
+        return res + [
+            ["/usr/bin/yum", "upgrade", "-q", "-y"]
+        ]
+
+
+class Dnf(Rpm):
     def get_update_script(self):
         res = super().get_update_script()
         return res + [
@@ -127,35 +139,29 @@ class Rpm(Distro):
 
 
 @Distro.register
-class Centos7(Rpm):
+class Centos7(Yum):
     BASEURL = "http://mirror.centos.org/centos/7/os/$basearch"
     RELEASEVER = 7
     PACKAGES = ["bash", "yum", "rootfiles", "dbus"]
     runner_class = LegacyRunRunner
 
-    def get_update_script(self):
-        res = super().get_update_script()
-        return res + [
-            ["/usr/bin/yum", "upgrade", "-q", "-y"],
-        ]
-
 
 @Distro.register
-class Centos8(Rpm):
+class Centos8(Dnf):
     BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
     RELEASEVER = 8
     PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
 
 
 @Distro.register
-class Fedora32(Rpm):
+class Fedora32(Dnf):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/32/Everything/$basearch/os/"
     RELEASEVER = 32
     PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]
 
 
 @Distro.register
-class Fedora34(Rpm):
+class Fedora34(Dnf):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/34/Everything/$basearch/os/"
     RELEASEVER = 34
     PACKAGES = ["bash", "dnf", "rootfiles", "dbus"]

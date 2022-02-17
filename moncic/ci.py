@@ -172,10 +172,9 @@ class Bootstrap(MoncicCommand):
                     log.critical("%s: cannot create image", name, exc_info=True)
                     return 5
 
-            with run:
-                log.info("%s: updating subvolume", name)
-                try:
-                    run.update()
-                except Exception:
-                    log.critical("%s: cannot update image", name, exc_info=True)
-                    return 6
+            log.info("%s: updating subvolume", name)
+            try:
+                system.update()
+            except Exception:
+                log.critical("%s: cannot update image", name, exc_info=True)
+                return 6

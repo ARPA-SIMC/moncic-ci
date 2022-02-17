@@ -11,8 +11,7 @@ import time
 from typing import List, Optional, Callable, TYPE_CHECKING
 import uuid
 
-from .runner import LocalRunner, SetnsCallableRunner
-from .btrfs import Subvolume
+from .runner import SetnsCallableRunner
 if TYPE_CHECKING:
     from .system import System
 
@@ -99,12 +98,22 @@ class RunningSystem(contextlib.ExitStack):
         return super().__exit__(exc_type, exc_value, exc_tb)
 
 
-class NspawnRunningSystem(RunningSystem):
+class MaintenanceRunningSystem(RunningSystem):
+    """
+    RunningSystem with maintenance-oriented functions.
+
+    When a container is run using a MaintenanceRunningSystem it is not
+    ephemeral, and changes to its filesystem persist after shutdown.
+    """
+    pass
+
+
+class NspawnMixin:
     """
     Running system implemented using systemd nspawn
     """
-    def __init__(self, system: System, instance_name: Optional[str] = None):
-        super().__init__(system, instance_name)
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
         # machinectl properties of the running machine
         self.properties = None
         # systemd-nspawn --bind pathspecs to bind read-write
@@ -262,41 +271,7 @@ class NspawnRunningSystem(RunningSystem):
         self.started = False
 
 
-class MaintenanceMixin:
-    def update(self):
-        """
-        Run periodic maintenance on the system
-        """
-        for cmd in self.system.distro.get_update_script():
-            self.run(cmd)
-        if self.system.config.maintscript is not None:
-            self.run_script(self.system.config.maintscript)
-
-    def local_run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
-        """
-        Wrapper around subprocess.run which logs what is run
-        """
-        if os.path.exists(self.system.path):
-            kw.setdefault("cwd", self.system.path)
-        runner = LocalRunner(cmd, **kw)
-        return runner.execute()
-
-    def bootstrap(self):
-        tarball_path = self.system.get_distro_tarball()
-        subvolume = Subvolume(self)
-        with subvolume.create():
-            if tarball_path is not None:
-                # Shortcut in case we have a chroot in a tarball
-                self.local_run(["tar", "-C", self.system.path, "-zxf", tarball_path])
-            else:
-                self.system.distro.bootstrap(self)
-
-    def remove(self):
-        subvolume = Subvolume(self)
-        subvolume.remove()
-
-
-class EphemeralNspawnRunningSystem(NspawnRunningSystem):
+class EphemeralNspawnRunningSystem(NspawnMixin, RunningSystem):
     def get_start_command(self):
         cmd = super().get_start_command()
         cmd.append("--ephemeral")
@@ -308,5 +283,5 @@ class EphemeralNspawnRunningSystem(NspawnRunningSystem):
         return cmd
 
 
-class MaintenanceNspawnRunningSystem(MaintenanceMixin, NspawnRunningSystem):
+class MaintenanceNspawnRunningSystem(NspawnMixin, MaintenanceRunningSystem):
     pass

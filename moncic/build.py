@@ -78,7 +78,7 @@ class ARPA(Builder):
         elif isinstance(run.system.distro, Rpm):
             self.builddep = ["dnf", "builddep"]
         else:
-            raise RuntimeError(f"Unsupported distro: {run.system.distro.__name__}")
+            raise RuntimeError(f"Unsupported distro: {run.system.distro.name}")
 
     @classmethod
     def builds(cls, srcdir: str) -> bool:
@@ -128,3 +128,5 @@ class ARPA(Builder):
                 shutil.copy(f, "/root/rpmbuild/SOURCES/")
             run(["spectool", "-g", "-R", specs[0]])
             run(["rpmbuild", "-ba", specs[0]])
+
+        return None

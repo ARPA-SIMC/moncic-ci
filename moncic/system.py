@@ -2,12 +2,15 @@ from __future__ import annotations
 import dataclasses
 import logging
 import os
-from typing import Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 
 import yaml
 
 from .distro import Distro
+
 if TYPE_CHECKING:
+    import subprocess
+
     from .run import RunningSystem
     from .moncic import Moncic
 
@@ -137,6 +140,55 @@ class System:
             return tarball_path
         else:
             return None
+
+    def local_run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
+        """
+        Run a command on the host system.
+
+        This is used for bootstrapping or removing a system.
+        """
+        # Import here to avoid dependency loops
+        from .runner import LocalRunner
+        if os.path.exists(self.path):
+            kw.setdefault("cwd", self.path)
+        runner = LocalRunner(cmd, **kw)
+        return runner.execute()
+
+        raise NotImplementedError(f"{self.__class__}.local_run() not implemented")
+
+    def bootstrap(self):
+        """
+        Create a system that is missing from disk
+        """
+        # Import here to avoid an import loop
+        from .btrfs import Subvolume
+        tarball_path = self.get_distro_tarball()
+        subvolume = Subvolume(self)
+        with subvolume.create():
+            if tarball_path is not None:
+                # Shortcut in case we have a chroot in a tarball
+                self.local_run(["tar", "-C", self.path, "-zxf", tarball_path])
+            else:
+                self.distro.bootstrap(self)
+
+    def update(self):
+        """
+        Run periodic maintenance on the system
+        """
+        with self.create_maintenance_run() as run:
+            for cmd in self.distro.get_update_script():
+                run.run(cmd)
+            if self.config.maintscript is not None:
+                run.run_script(self.config.maintscript)
+
+    def remove(self):
+        """
+        Completely remove a system image from disk
+        """
+        # Import here to avoid an import loop
+        from .btrfs import Subvolume
+        subvolume = Subvolume(self)
+        subvolume.remove()
 
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         """

@@ -9,7 +9,7 @@ from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
 from moncic.system import System, Config
-from moncic.run import RunningSystem, MaintenanceMixin
+from moncic.run import RunningSystem, MaintenanceRunningSystem
 from moncic.moncic import Moncic
 
 if TYPE_CHECKING:
@@ -122,7 +122,7 @@ class MockRunLog:
         self.testcase.assertEqual(self.log, [])
 
 
-class MockRunningSystem(RunningSystem):
+class MockRunMixin:
     def start(self):
         if self.started:
             return
@@ -146,14 +146,12 @@ class MockRunningSystem(RunningSystem):
         return 0
 
 
-class MockMaintRunningSystem(MaintenanceMixin, MockRunningSystem):
-    def local_run(self, cmd: List[str], **kw) -> Dict[str, Any]:
-        self.system.run_log.append(cmd, {})
-        return {
-            "stdout": b'',
-            "stderr": b'',
-            "returncode": 0,
-        }
+class MockRunningSystem(MockRunMixin, RunningSystem):
+    pass
+
+
+class MockMaintRunningSystem(MockRunMixin, MaintenanceRunningSystem):
+    pass
 
 
 class MockSystem(System):
@@ -162,6 +160,14 @@ class MockSystem(System):
     """
     def attach_testcase(self, testcase):
         self.run_log = MockRunLog(testcase)
+
+    def local_run(self, cmd: List[str], **kw) -> Dict[str, Any]:
+        self.run_log.append(cmd, {})
+        return {
+            "stdout": b'',
+            "stderr": b'',
+            "returncode": 0,
+        }
 
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         return MockRunningSystem(self)

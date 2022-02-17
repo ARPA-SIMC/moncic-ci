@@ -11,32 +11,31 @@ class Centos8(DistroTestMixin, unittest.TestCase):
         distro = Distro.create("centos8")
 
         with self.mock_system(distro) as system:
-            run = system.create_maintenance_run()
-            run.bootstrap()
+            system.bootstrap()
         log = system.run_log
 
         log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
         log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-            rf' --installroot={system.path} --releasever=8 install bash vim-minimal dnf rootfiles dbus'))
+            rf' --installroot={system.path} --releasever=8 install bash dnf rootfiles dbus'))
         log.assertLogEmpty()
 
     def test_upgrade(self):
         distro = Distro.create("centos8")
 
         with self.mock_system(distro) as system:
-            with system.create_maintenance_run() as run:
-                run.update()
+            system.update()
         log = system.run_log
 
-        log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf")
-        log.assertPopFirst('/usr/bin/dnf install -q -y epel-release')
-        log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(config-manager)'")
-        log.assertPopFirst("/usr/bin/dnf config-manager --set-enabled powertools")
-        log.assertPopFirst("/usr/bin/dnf groupinstall -q -y 'Development Tools'")
-        log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(builddep)'")
-        log.assertPopFirst('/usr/bin/dnf install -q -y git')
-        log.assertPopFirst('/usr/bin/dnf install -q -y rpmdevtools')
-        log.assertPopFirst('/usr/bin/dnf copr enable -y simc/stable')
         log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
+        # log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf")
+        # log.assertPopFirst('/usr/bin/dnf install -q -y epel-release')
+        # log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(config-manager)'")
+        # log.assertPopFirst("/usr/bin/dnf config-manager --set-enabled powertools")
+        # log.assertPopFirst("/usr/bin/dnf groupinstall -q -y 'Development Tools'")
+        # log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(builddep)'")
+        # log.assertPopFirst('/usr/bin/dnf install -q -y git')
+        # log.assertPopFirst('/usr/bin/dnf install -q -y rpmdevtools')
+        # log.assertPopFirst('/usr/bin/dnf copr enable -y simc/stable')
+        # log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
         log.assertLogEmpty()
