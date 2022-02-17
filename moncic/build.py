@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from typing import Dict, Type, List, Optional, TYPE_CHECKING
 
-from .distro import Centos7, Rpm
+from .distro import Centos7, RpmDistro
 if TYPE_CHECKING:
     from .run import RunningSystem
 
@@ -77,7 +77,7 @@ class ARPA(Builder):
         super().__init__(run)
         if run.system.distro == Centos7:
             self.builddep = ["yum-builddep"]
-        elif isinstance(run.system.distro, Rpm):
+        elif isinstance(run.system.distro, RpmDistro):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {run.system.distro.name}")

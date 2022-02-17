@@ -271,7 +271,7 @@ class DebianDistro(Distro):
     Common implementation for Debian-based distributions
     """
     def __init__(self, name: str, suite: str):
-        super().__init__(self, name)
+        super().__init__(name)
         self.mirror = "http://deb.debian.org/debian"
         self.suite = suite
 
