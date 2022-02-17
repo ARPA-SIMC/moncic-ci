@@ -2,13 +2,13 @@ from __future__ import annotations
 import re
 import unittest
 
-from moncic.distro import Distro
+from moncic.distro import DistroFamily
 from moncic.unittest import DistroTestMixin
 
 
 class Fedora32(DistroTestMixin, unittest.TestCase):
     def test_bootstrap(self):
-        distro = Distro.create("fedora32")
+        distro = DistroFamily.lookup_distro("fedora32")
 
         with self.mock_system(distro) as system:
             system.bootstrap()
@@ -21,7 +21,7 @@ class Fedora32(DistroTestMixin, unittest.TestCase):
         log.assertLogEmpty()
 
     def test_upgrade(self):
-        distro = Distro.create("fedora32")
+        distro = DistroFamily.lookup_distro("fedora32")
 
         with self.mock_system(distro) as system:
             system.update()

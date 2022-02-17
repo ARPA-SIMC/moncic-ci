@@ -6,13 +6,14 @@ from typing import List, Optional, TYPE_CHECKING
 
 import yaml
 
-from .distro import Distro
+from .distro import DistroFamily
 
 if TYPE_CHECKING:
     import subprocess
 
     from .run import RunningSystem
     from .moncic import Moncic
+    from .distro import Distro
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class Config:
         if conf is None:
             conf = {}
             if os.path.exists(path):
-                conf["distro"] = Distro.from_path(path).name
+                conf["distro"] = DistroFamily.from_path(path).name
             else:
                 conf["distro"] = name
 
@@ -124,9 +125,9 @@ class System:
         Return the distribution this system is based on
         """
         if self.config.distro is None:
-            return Distro.from_path(self.config.path)
+            return DistroFamily.from_path(self.config.path)
         else:
-            return Distro.create(self.config.distro)
+            return DistroFamily.lookup_distro(self.config.distro)
 
     def get_distro_tarball(self) -> Optional[str]:
         """

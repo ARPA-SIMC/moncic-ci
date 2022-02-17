@@ -4,7 +4,7 @@ import logging
 import os
 import shutil
 import tempfile
-from typing import Type, List, Dict, TYPE_CHECKING
+from typing import Type, List, Dict, Sequence, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
 from .runner import MachineRunner, SystemdRunRunner, LegacyRunRunner
@@ -14,13 +14,59 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class Distro:
+class DistroFamily:
     """
-    Common base class for bootstrapping distributions
+    Base class for handling a family of distributions
     """
-    # Registry of known distributions
-    distros: Dict[str, Type[Distro]] = {}
-    runner_class: Type[MachineRunner] = SystemdRunRunner
+    # Registry of known families
+    families: Dict[str, Type[DistroFamily]] = {}
+
+    # Registry mapping known shortcut names to the corresponding full
+    # ``family:version`` name
+    SHORTCUTS: Dict[str, str] = {}
+
+    @classmethod
+    def register(cls, family_cls: Type["DistroFamily"]) -> Type["DistroFamily"]:
+        name = getattr(family_cls, "NAME", None)
+        if name is None:
+            name = family_cls.__name__.lower()
+        cls.families[name] = family_cls()
+        return family_cls
+
+    @classmethod
+    def list(cls) -> Sequence[DistroFamily]:
+        return cls.families.values()
+
+    @classmethod
+    def lookup_family(cls, name: str) -> DistroFamily:
+        return cls.families[name]
+
+    @classmethod
+    def lookup_distro(cls, name: str) -> Distro:
+        """
+        Lookup a Distro object by name.
+
+        If the name contains a ``:``, it is taken as a full ``family:version``
+        name. Otherwise, it is looked up among distribution shortcut names.
+        """
+        if ":" in name:
+            family, version = name.split(":", 1)
+            return cls.lookup_family(family).create_distro(version)
+        else:
+            for family in cls.families.values():
+                if (fullname := family.SHORTCUTS.get(name)) is not None:
+                    return cls.lookup_distro(fullname)
+            raise KeyError(f"Distro {name!r} not found")
+
+    @classmethod
+    def from_path(cls, path: str) -> Distro:
+        """
+        Instantiate a Distro from an existing filesystem tree
+        """
+        # TODO: check if "{path}.yaml" exists
+        info = parse_osrelase(os.path.join(path, "etc", "os-release"))
+        family = cls.lookup_family(info["ID"])
+        return family.create_distro(info["VERSION_ID"])
 
     @property
     def name(self) -> str:
@@ -31,6 +77,86 @@ class Distro:
         if name is None:
             name = self.__class__.__name__.lower()
         return name
+
+    def __str__(self) -> str:
+        return self.name
+
+    def create_distro(self, version: str) -> "Distro":
+        """
+        Create a Distro object for a distribution in this family, given its
+        version
+        """
+        raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
+
+
+@DistroFamily.register
+class Debian(DistroFamily):
+    VERSION_IDS = {
+        "10": "buster",
+        "11": "bullseye",
+        "12": "bookworm",
+    }
+    ALIASES = {
+        "oldstable": "buster",
+        "stable": "bullseye",
+        "testing": "bookworm",
+        "unstable": "sid",
+    }
+    SHORTCUTS = {
+        suite: f"debian:{suite}"
+        for suite in ("buster", "bullseye", "bookworm")
+    }
+
+    def create_distro(self, version: str) -> "Distro":
+        # Map version numbers to release codenames
+        suite = self.VERSION_IDS.get(version, version)
+
+        if suite in ("buster", "bullseye", "bookworm", "sid", "oldstable", "stable", "testing", "unstable"):
+            return DebianDistro(f"debian:{version}", suite)
+        else:
+            raise KeyError(f"Debian version {version!r} is not (yet) supported")
+
+
+@DistroFamily.register
+class Fedora(DistroFamily):
+    SHORTCUTS = {
+        f"fedora{version}": f"fedora:{version}"
+        for version in (32, 34)
+    }
+
+    def create_distro(self, version: str) -> "Distro":
+        intver = int(version)
+        if intver in (32, 34):
+            return FedoraDistro(f"fedora:{intver}", intver)
+        else:
+            raise KeyError(f"Fedora version {version!r} is not (yet) supported")
+
+
+@DistroFamily.register
+class Centos(DistroFamily):
+    SHORTCUTS = {
+        f"centos{version}": f"centos:{version}"
+        for version in (7, 8)
+    }
+
+    def create_distro(self, version: str) -> "Distro":
+        intver = int(version)
+        if intver == 7:
+            return Centos7(f"centos:{intver}")
+        elif intver == 8:
+            return Centos8(f"centos:{intver}")
+        else:
+            raise KeyError(f"Centos version {version!r} is not (yet) supported")
+
+
+class Distro:
+    """
+    Common base class for bootstrapping distributions
+    """
+    runner_class: Type[MachineRunner] = SystemdRunRunner
+
+    def __init__(self, name: str):
+        self.name = name
 
     def __str__(self) -> str:
         return self.name
@@ -47,53 +173,11 @@ class Distro:
         """
         return []
 
-    @classmethod
-    def register(cls, distro_cls: Type["Distro"]) -> Type["Distro"]:
-        name = getattr(distro_cls, "NAME", None)
-        if name is None:
-            name = distro_cls.__name__.lower()
-        cls.distros[name] = distro_cls
-        return distro_cls
 
-    @classmethod
-    def list(cls) -> List[str]:
-        return list(cls.distros.keys())
-
-    @classmethod
-    def create(cls, name: str) -> "Distro":
-        distro_cls = cls.distros[name]
-        return distro_cls()
-
-    @classmethod
-    def from_path(cls, path: str) -> "Distro":
-        """
-        Instantiate a Distro from an existing filesystem tree
-        """
-        # TODO: check if "{path}.yaml" exists
-        info = parse_osrelase(os.path.join(path, "etc", "os-release"))
-        if info["ID"] == "debian":
-            # FIXME: "debian" is all we could say from os-release, unless we
-            # parse PRETTY_NAME. If a moncic-ci .yaml file is present in the
-            # chroot, use that instead.
-            return Debian()
-        else:
-            name = info["ID"] + info["VERSION_ID"]
-        return cls.create(name)
-
-
-class Rpm(Distro):
+class RpmDistro(Distro):
     """
     Common implementation for rpm-based distributions
     """
-    RELEASEVER: int
-
-    def __init__(self):
-        self.installer = shutil.which("dnf")
-        if self.installer is None:
-            self.installer = shutil.which("yum")
-        if self.installer is None:
-            raise RuntimeError("yum or dnf not found")
-
     def get_base_packages(self) -> List[str]:
         """
         Return the list of packages that are expected to be installed on a
@@ -106,19 +190,25 @@ class Rpm(Distro):
         with tempfile.NamedTemporaryFile("wt", suffix=".repo") as fd:
             print("[chroot-base]", file=fd)
             print("name=Linux $releasever - $basearch", file=fd)
-            print(f"baseurl={self.BASEURL}", file=fd)
+            print(f"baseurl={self.baseurl}", file=fd)
             print("enabled=1", file=fd)
             print("gpgcheck=0", file=fd)
             fd.flush()
             yield fd.name
 
     def bootstrap(self, system: System):
+        installer = shutil.which("dnf")
+        if installer is None:
+            installer = shutil.which("yum")
+        if installer is None:
+            raise RuntimeError("yum or dnf not found")
+
         with self.chroot_config() as dnf_config:
             installroot = os.path.abspath(system.path)
             cmd = [
-                self.installer, "-c", dnf_config, "-y", "--disablerepo=*",
+                installer, "-c", dnf_config, "-y", "--disablerepo=*",
                 "--enablerepo=chroot-base", "--disableplugin=*",
-                f"--installroot={installroot}", f"--releasever={self.RELEASEVER}",
+                f"--installroot={installroot}", f"--releasever={self.version}",
                 "install"
             ] + self.get_base_packages()
             system.local_run(cmd)
@@ -136,7 +226,7 @@ class Rpm(Distro):
                     run.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
 
-class Yum(Rpm):
+class YumDistro(RpmDistro):
     def get_base_packages(self) -> List[str]:
         return super().get_base_packages() + ["yum"]
 
@@ -147,7 +237,7 @@ class Yum(Rpm):
         ]
 
 
-class Dnf(Rpm):
+class DnfDistro(RpmDistro):
     def get_base_packages(self) -> List[str]:
         return super().get_base_packages() + ["dnf"]
 
@@ -158,87 +248,40 @@ class Dnf(Rpm):
         ]
 
 
-@Distro.register
-class Centos7(Yum):
-    BASEURL = "http://mirror.centos.org/centos/7/os/$basearch"
-    RELEASEVER = 7
+class Centos7(YumDistro):
+    baseurl = "http://mirror.centos.org/centos/7/os/$basearch"
+    version = 7
     runner_class = LegacyRunRunner
 
 
-@Distro.register
-class Centos8(Dnf):
-    BASEURL = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
-    RELEASEVER = 8
+class Centos8(DnfDistro):
+    baseurl = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
+    version = 8
 
 
-@Distro.register
-class Fedora32(Dnf):
-    BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/32/Everything/$basearch/os/"
-    RELEASEVER = 32
+class FedoraDistro(DnfDistro):
+    def __init__(self, name: str, version: int):
+        super().__init__(name)
+        self.version = version
+        self.baseurl = f"http://download.fedoraproject.org/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
 
 
-@Distro.register
-class Fedora34(Dnf):
-    BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/34/Everything/$basearch/os/"
-    RELEASEVER = 34
-
-
-class Debian(Distro):
+class DebianDistro(Distro):
     """
     Common implementation for Debian-based distributions
     """
-    MIRROR: str = "http://deb.debian.org/debian"
-    SUITE: str
+    def __init__(self, name: str, suite: str):
+        super().__init__(self, name)
+        self.mirror = "http://deb.debian.org/debian"
+        self.suite = suite
 
     def bootstrap(self, system: System):
         installroot = os.path.abspath(system.path)
         cmd = [
-            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.SUITE, installroot, self.MIRROR
+            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.suite, installroot, self.mirror
         ]
         # If eatmydata is available, we can use it to make deboostrap significantly faster
         eatmydata = shutil.which("eatmydata")
         if eatmydata is not None:
             cmd.insert(0, eatmydata)
         system.local_run(cmd)
-
-
-@Distro.register
-class DebianStable(Debian):
-    NAME = "debian-stable"
-    SUITE = "stable"
-
-
-@Distro.register
-class DebianTesting(Debian):
-    NAME = "debian-testing"
-    SUITE = "testing"
-
-
-@Distro.register
-class DebianUnstable(Debian):
-    NAME = "debian-unstable"
-    SUITE = "unstable"
-
-
-@Distro.register
-class DebianSid(Debian):
-    NAME = "debian-sid"
-    SUITE = "sid"
-
-
-@Distro.register
-class DebianBuster(Debian):
-    NAME = "debian-buster"
-    SUITE = "buster"
-
-
-@Distro.register
-class DebianBullseye(Debian):
-    NAME = "debian-bullseye"
-    SUITE = "bullseye"
-
-
-@Distro.register
-class DebianBookworm(Debian):
-    NAME = "debian-bookworm"
-    SUITE = "bookworm"
