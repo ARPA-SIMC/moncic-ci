@@ -304,6 +304,6 @@ class DebianDistro(Distro):
         Get the sequence of commands to use for regular update/maintenance
         """
         return [
-            ["apt", "update"],
-            ["apt", "-y", "upgrade"],
+            ["/usr/bin/apt-get", "update"],
+            ["/usr/bin/apt-get", "-y", "upgrade"],
         ]
