@@ -160,14 +160,13 @@ class Bootstrap(MoncicCommand):
     def run(self):
         for name in self.args.systems:
             system = self.moncic.create_system(name)
-            run = system.create_maintenance_run()
             if self.args.recreate and os.path.exists(system.path):
-                run.remove()
+                system.remove()
 
             if not os.path.exists(system.path):
                 log.info("%s: bootstrapping subvolume", name)
                 try:
-                    run.bootstrap()
+                    system.bootstrap()
                 except Exception:
                     log.critical("%s: cannot create image", name, exc_info=True)
                     return 5

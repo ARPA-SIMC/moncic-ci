@@ -52,6 +52,9 @@ class Config:
             with open(f"{path}.yaml", "rt") as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
         except FileNotFoundError:
+            conf = None
+
+        if conf is None:
             conf = {}
             if os.path.exists(path):
                 conf["distro"] = Distro.from_path(path).name
