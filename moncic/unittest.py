@@ -16,7 +16,7 @@ from moncic.moncic import Moncic
 if TYPE_CHECKING:
     from moncic.distro import Distro
 
-TEST_CHROOTS = ["centos7", "centos8", "fedora32", "fedora34"]
+TEST_CHROOTS = ["centos7", "centos8", "fedora32", "fedora34", "buster", "bookworm", "bullseye"]
 
 log = logging.getLogger(__name__)
 
