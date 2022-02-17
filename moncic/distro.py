@@ -71,7 +71,13 @@ class Distro:
         """
         # TODO: check if "{path}.yaml" exists
         info = parse_osrelase(os.path.join(path, "etc", "os-release"))
-        name = info["ID"] + info["VERSION_ID"]
+        if info["ID"] == "debian":
+            # FIXME: "debian" is all we could say from os-release, unless we
+            # parse PRETTY_NAME. If a moncic-ci .yaml file is present in the
+            # chroot, use that instead.
+            return Debian()
+        else:
+            name = info["ID"] + info["VERSION_ID"]
         return cls.create(name)
 
 
@@ -175,3 +181,64 @@ class Fedora32(Dnf):
 class Fedora34(Dnf):
     BASEURL = "http://download.fedoraproject.org/pub/fedora/linux/releases/34/Everything/$basearch/os/"
     RELEASEVER = 34
+
+
+class Debian(Distro):
+    """
+    Common implementation for Debian-based distributions
+    """
+    MIRROR: str = "http://deb.debian.org/debian"
+    SUITE: str
+
+    def bootstrap(self, system: System):
+        installroot = os.path.abspath(system.path)
+        cmd = [
+            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.SUITE, installroot, self.MIRROR
+        ]
+        # If eatmydata is available, we can use it to make deboostrap significantly faster
+        eatmydata = shutil.which("eatmydata")
+        if eatmydata is not None:
+            cmd.insert(0, eatmydata)
+        system.local_run(cmd)
+
+
+@Distro.register
+class DebianStable(Debian):
+    NAME = "debian-stable"
+    SUITE = "stable"
+
+
+@Distro.register
+class DebianTesting(Debian):
+    NAME = "debian-testing"
+    SUITE = "testing"
+
+
+@Distro.register
+class DebianUnstable(Debian):
+    NAME = "debian-unstable"
+    SUITE = "unstable"
+
+
+@Distro.register
+class DebianSid(Debian):
+    NAME = "debian-sid"
+    SUITE = "sid"
+
+
+@Distro.register
+class DebianBuster(Debian):
+    NAME = "debian-buster"
+    SUITE = "buster"
+
+
+@Distro.register
+class DebianBullseye(Debian):
+    NAME = "debian-bullseye"
+    SUITE = "bullseye"
+
+
+@Distro.register
+class DebianBookworm(Debian):
+    NAME = "debian-bookworm"
+    SUITE = "bookworm"
