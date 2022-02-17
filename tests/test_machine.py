@@ -8,6 +8,8 @@ from moncic.moncic import Moncic
 
 
 class RunTestCase:
+    distro_name: str
+
     def get_system(self) -> System:
         moncic = Moncic(imagedir="images")
         return moncic.create_system(self.distro_name)

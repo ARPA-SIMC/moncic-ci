@@ -10,7 +10,7 @@ from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
 from moncic.system import System, Config
-from moncic.run import RunningSystem, MaintenanceRunningSystem
+from moncic.run import RunningSystem, RunningSystemBase
 from moncic.moncic import Moncic
 
 if TYPE_CHECKING:
@@ -106,6 +106,9 @@ class MockRunLog:
     def append(self, cmd: List[str], kwargs: Dict[str, Any]):
         self.log.append((' '.join(shlex.quote(c) for c in cmd), kwargs))
 
+    def append_script(self, body: str):
+        self.log.append((f"script:{body}", {}))
+
     def append_callable(self, func: Callable[[], Optional[int]]):
         self.log.append((f"callable:{func.__name__}", {}))
 
@@ -123,7 +126,11 @@ class MockRunLog:
         self.testcase.assertEqual(self.log, [])
 
 
-class MockRunMixin:
+class MockRunningSystem(RunningSystemBase):
+    def __init__(self, system: "MockSystem", instance_name: Optional[str] = None):
+        super().__init__(system, instance_name)
+        self.run_log = system.run_log
+
     def start(self):
         if self.started:
             return
@@ -135,20 +142,16 @@ class MockRunMixin:
         self.started = False
 
     def run(self, command: List[str]) -> subprocess.CompletedProcess:
-        self.system.run_log.append(command, {})
+        self.run_log.append(command, {})
         return subprocess.CompletedProcess(command, 0, b'', b'')
 
+    def run_script(self, body: str) -> subprocess.CompletedProcess:
+        self.run_log.append_script(body)
+        return subprocess.CompletedProcess(["script"], 0, b'', b'')
+
     def run_callable(self, func: Callable[[], Optional[int]]) -> subprocess.CompletedProcess:
-        self.system.run_log.append_callable(func)
+        self.run_log.append_callable(func)
         return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
-
-
-class MockRunningSystem(MockRunMixin, RunningSystem):
-    pass
-
-
-class MockMaintRunningSystem(MockRunMixin, MaintenanceRunningSystem):
-    pass
 
 
 class MockSystem(System):
@@ -166,7 +169,7 @@ class MockSystem(System):
         return MockRunningSystem(self)
 
     def create_maintenance_run(self, instance_name: Optional[str] = None) -> RunningSystem:
-        return MockMaintRunningSystem(self)
+        return MockRunningSystem(self)
 
 
 class DistroTestMixin:

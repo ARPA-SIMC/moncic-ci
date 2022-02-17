@@ -192,7 +192,7 @@ class System:
 
     def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
         """
-        Boot this system in a container
+        Boot this system in an ephemeral container
         """
         # Import here to avoid an import loop
         from .run import EphemeralNspawnRunningSystem
@@ -203,5 +203,5 @@ class System:
         Boot this system in a container
         """
         # Import here to avoid an import loop
-        from .run import MaintenanceNspawnRunningSystem
-        return MaintenanceNspawnRunningSystem(self)
+        from .run import NspawnRunningSystem
+        return NspawnRunningSystem(self)

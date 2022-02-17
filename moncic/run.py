@@ -8,42 +8,22 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Callable, TYPE_CHECKING
+from typing import List, Optional, Callable, Protocol, TYPE_CHECKING
 import uuid
 
 from .runner import SetnsCallableRunner
+from .nspawn import escape_bind_ro
 if TYPE_CHECKING:
     from .system import System
 
 log = logging.getLogger(__name__)
 
 
-def escape_bind_ro(s: str):
-    r"""
-    Escape a path for use in systemd-nspawn --bind-ro.
-
-    Man systemd-nspawn says:
-
-      Backslash escapes are interpreted, so "\:" may be used to embed
-      colons in either path.
-    """
-    return s.replace(":", r"\:")
-
-
-class RunningSystem(contextlib.ExitStack):
+class RunningSystem(Protocol):
     """
     An instance of a System in execution as a container
     """
-    def __init__(self, system: System, instance_name: Optional[str] = None):
-        super().__init__()
-        self.system = system
-
-        if instance_name is None:
-            self.instance_name = str(uuid.uuid4())
-        else:
-            self.instance_name = instance_name
-
-        self.started = False
+    system: System
 
     def run(self, command: List[str]) -> subprocess.CompletedProcess:
         """
@@ -58,7 +38,7 @@ class RunningSystem(contextlib.ExitStack):
 
         stdout and stderr are logged in real time as the process is running.
         """
-        raise NotImplementedError(f"{self.__class__}.run() not implemented")
+        ...
 
     def run_script(self, body: str) -> subprocess.CompletedProcess:
         """
@@ -68,26 +48,52 @@ class RunningSystem(contextlib.ExitStack):
 
         Returns the process exit status.
         """
-        raise NotImplementedError(f"{self.__class__}.run_script() not implemented")
+        ...
 
     def run_callable(self, func: Callable[[], Optional[int]]) -> subprocess.CompletedProcess:
         """
         Run the given callable in a separate process inside the running
         system. Returns the process exit status.
         """
-        raise NotImplementedError(f"{self.__class__}.run_callable() not implemented")
+        ...
 
     def start(self):
         """
         Start the running system
         """
-        raise NotImplementedError(f"{self.__class__}.start() not implemented")
+        ...
 
     def terminate(self) -> None:
         """
         Shut down the running system
         """
-        raise NotImplementedError(f"{self.__class__}.terminate() not implemented")
+        ...
+
+
+# class MaintenanceRunningSystem(RunningSystem):
+#     """
+#     RunningSystem with maintenance-oriented functions.
+#
+#     When a container is run using a MaintenanceRunningSystem it is not
+#     ephemeral, and changes to its filesystem persist after shutdown.
+#     """
+#     pass
+
+
+class RunningSystemBase(contextlib.ExitStack):
+    """
+    Convenience common base implementation for RunningSystem
+    """
+    def __init__(self, system: System, instance_name: Optional[str] = None):
+        super().__init__()
+        self.system = system
+
+        if instance_name is None:
+            self.instance_name = str(uuid.uuid4())
+        else:
+            self.instance_name = instance_name
+
+        self.started = False
 
     def __enter__(self):
         self.start()
@@ -98,17 +104,7 @@ class RunningSystem(contextlib.ExitStack):
         return super().__exit__(exc_type, exc_value, exc_tb)
 
 
-class MaintenanceRunningSystem(RunningSystem):
-    """
-    RunningSystem with maintenance-oriented functions.
-
-    When a container is run using a MaintenanceRunningSystem it is not
-    ephemeral, and changes to its filesystem persist after shutdown.
-    """
-    pass
-
-
-class NspawnMixin:
+class NspawnRunningSystem(RunningSystemBase):
     """
     Running system implemented using systemd nspawn
     """
@@ -271,7 +267,7 @@ class NspawnMixin:
         self.started = False
 
 
-class EphemeralNspawnRunningSystem(NspawnMixin, RunningSystem):
+class EphemeralNspawnRunningSystem(NspawnRunningSystem):
     def get_start_command(self):
         cmd = super().get_start_command()
         cmd.append("--ephemeral")
@@ -281,7 +277,3 @@ class EphemeralNspawnRunningSystem(NspawnMixin, RunningSystem):
         cmd = super().get_shell_start_command()
         cmd.append("--ephemeral")
         return cmd
-
-
-class MaintenanceNspawnRunningSystem(NspawnMixin, MaintenanceRunningSystem):
-    pass
