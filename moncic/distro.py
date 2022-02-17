@@ -69,7 +69,7 @@ class DistroFamily:
         except FileNotFoundError:
             info = None
 
-        if info is None:
+        if info is None or "ID" not in info or "VERSION_ID" not in info:
             return cls.lookup_distro(os.path.basename(path))
         else:
             family = cls.lookup_family(info["ID"])
@@ -218,6 +218,12 @@ class RpmDistro(Distro):
                 f"--installroot={installroot}", f"--releasever={self.version}",
                 "install"
             ] + self.get_base_packages()
+
+            # If eatmydata is available, we can use it to make boostrap significantly faster
+            eatmydata = shutil.which("eatmydata")
+            if eatmydata is not None:
+                cmd.insert(0, eatmydata)
+
             system.local_run(cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
@@ -292,3 +298,12 @@ class DebianDistro(Distro):
         if eatmydata is not None:
             cmd.insert(0, eatmydata)
         system.local_run(cmd)
+
+    def get_update_script(self) -> List[List[str]]:
+        """
+        Get the sequence of commands to use for regular update/maintenance
+        """
+        return [
+            ["apt", "update"],
+            ["apt", "-y", "upgrade"],
+        ]

@@ -153,12 +153,17 @@ class Bootstrap(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--recreate", action="store_true",
                             help="delete the images and recreate them from scratch")
-        parser.add_argument("systems", nargs="+",
-                            help="names or paths of systems to bootstrap")
+        parser.add_argument("systems", nargs="*",
+                            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
         return parser
 
     def run(self):
-        for name in self.args.systems:
+        if not self.args.systems:
+            systems = self.moncic.list_images()
+        else:
+            systems = self.args.systems
+
+        for name in systems:
             system = self.moncic.create_system(name)
             if self.args.recreate and os.path.exists(system.path):
                 system.remove()
@@ -177,3 +182,55 @@ class Bootstrap(MoncicCommand):
             except Exception:
                 log.critical("%s: cannot update image", name, exc_info=True)
                 return 6
+
+
+class Update(MoncicCommand):
+    """
+    Update existing OS images
+    """
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("systems", nargs="*",
+                            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
+        return parser
+
+    def run(self):
+        if not self.args.systems:
+            systems = self.moncic.list_images()
+        else:
+            systems = self.args.systems
+
+        for name in systems:
+            system = self.moncic.create_system(name)
+
+            if not os.path.exists(system.path):
+                continue
+
+            log.info("%s: updating subvolume", name)
+            try:
+                system.update()
+            except Exception:
+                log.critical("%s: cannot update image", name, exc_info=True)
+                return 6
+
+
+class Remove(MoncicCommand):
+    """
+    Remove existing OS images
+    """
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("--recreate", action="store_true",
+                            help="delete the images and recreate them from scratch")
+        parser.add_argument("systems", nargs="+",
+                            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
+        return parser
+
+    def run(self):
+        for name in self.args.systems:
+            system = self.moncic.create_system(name)
+            if not os.path.exists(system.path):
+                continue
+            system.remove()
