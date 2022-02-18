@@ -158,9 +158,9 @@ class Rocky(DistroFamily):
     }
 
     def create_distro(self, version: str) -> "Distro":
-        intver = int(version)
-        if intver in (8,):
-            return RockyDistro(f"rocky:{intver}", intver)
+        major = version.split(".")[0]
+        if major in ("8",):
+            return RockyDistro(f"rocky:{major}", int(major))
         else:
             raise KeyError(f"Rocky version {version!r} is not (yet) supported")
 
