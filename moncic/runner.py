@@ -46,7 +46,7 @@ class Runner:
 
 
 class AsyncioRunner(Runner):
-    def __init__(self, system: System, cmd: List[str], user: Optional[str] = None, check=True):
+    def __init__(self, system: System, cmd: List[str], check=True, user: Optional[str] = None):
         super().__init__(system)
         self.cmd = cmd
         self.check = check
@@ -106,9 +106,9 @@ class MachineRunner(AsyncioRunner):
     """
     Base class for running commands in running containers
     """
-    def __init__(self, run: NspawnContainer, cmd: List[str], check=True, **kwargs):
-        super().__init__(run.system, cmd, check)
-        self.run = run
+    def __init__(self, container: NspawnContainer, cmd: List[str], check=True, **kwargs):
+        super().__init__(container.system, cmd, check)
+        self.container = container
         self.kwargs = kwargs
 
 
@@ -117,7 +117,7 @@ class SystemdRunRunner(MachineRunner):
         cmd = [
             "/usr/bin/systemd-run", "--quiet", "--pipe", "--wait",
             "--setenv=HOME=/root",
-            f"--machine={self.run.instance_name}",
+            f"--machine={self.container.instance_name}",
         ]
 
         cwd = self.kwargs.get("cwd")
@@ -144,7 +144,7 @@ class LegacyRunRunner(MachineRunner):
     async def start_process(self):
         # See https://lists.debian.org/debian-devel/2021/12/msg00148.html
         # Thank you Marco d'Itri for the nsenter tip
-        leader_pid = int(self.run.properties["Leader"])
+        leader_pid = int(self.container.properties["Leader"])
 
         # Verify that we can interact with the given process
         os.kill(leader_pid, 0)
@@ -153,7 +153,7 @@ class LegacyRunRunner(MachineRunner):
 
         cwd = self.kwargs.get("cwd")
         if cwd is not None:
-            cmd.append("--wd=" + os.path.join(self.run.properties["RootDirectory"], cwd.lstrip("/")))
+            cmd.append("--wd=" + os.path.join(self.container.properties["RootDirectory"], cwd.lstrip("/")))
             kwargs = dict(self.kwargs)
             kwargs.pop("cwd")
         else:
