@@ -73,6 +73,9 @@ class DistroFamily:
         """
         Instantiate a Distro from an existing filesystem tree
         """
+        # For os-release format documentation, see
+        # https://www.freedesktop.org/software/systemd/man/os-release.html
+
         # TODO: check if "{path}.yaml" exists
         info: Optional[Dict[str, str]]
         try:
