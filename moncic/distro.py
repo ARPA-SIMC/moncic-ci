@@ -181,13 +181,17 @@ class Ubuntu(DistroFamily):
         suite: f"ubuntu:{suite}"
         for suite in ("xenial", "bionic", "focal", "hirsute", "impish", "jammy")
     }
+    LEGACY = ("xenial",)
 
     def create_distro(self, version: str) -> "Distro":
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
 
         if suite in self.SHORTCUTS:
-            return UbuntuDistro(f"ubuntu:{version}", suite)
+            if suite in self.LEGACY:
+                return UbuntuLegacyDistro(f"ubuntu:{version}", suite)
+            else:
+                return UbuntuDistro(f"ubuntu:{version}", suite)
         else:
             raise KeyError(f"Ubuntu version {version!r} is not (yet) supported")
 
@@ -414,11 +418,9 @@ class DebianDistro(Distro):
     """
     Common implementation for Debian-based distributions
     """
-    MIRROR = "http://deb.debian.org/debian"
-
-    def __init__(self, name: str, suite: str):
+    def __init__(self, name: str, suite: str, mirror: str = "http://deb.debian.org/debian"):
         super().__init__(name)
-        self.mirror = self.MIRROR
+        self.mirror = mirror
         self.suite = suite
 
     def bootstrap(self, system: System):
@@ -446,4 +448,13 @@ class UbuntuDistro(DebianDistro):
     """
     Common implementation for Ubuntu-based distributions
     """
-    MIRROR = "http://archive.ubuntu.com/ubuntu/"
+    def __init__(self, name: str, suite: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"):
+        super().__init__(name, suite, mirror=mirror)
+
+
+class UbuntuLegacyDistro(UbuntuDistro):
+    """
+    Implementation for Ubuntu-based distributions that are too old to interface
+    well with current systemd
+    """
+    runner_class = LegacyRunRunner
