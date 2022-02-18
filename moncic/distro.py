@@ -132,7 +132,7 @@ class Debian(DistroFamily):
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
 
-        if suite in ("buster", "bullseye", "bookworm", "sid", "oldstable", "stable", "testing", "unstable"):
+        if suite in self.ALIASES or suite in self.ALIASES.values():
             return DebianDistro(f"debian:{version}", suite)
         else:
             raise KeyError(f"Debian version {version!r} is not (yet) supported")
@@ -140,14 +140,15 @@ class Debian(DistroFamily):
 
 @DistroFamily.register
 class Fedora(DistroFamily):
+    VERSIONS = (32, 34)
     SHORTCUTS = {
         f"fedora{version}": f"fedora:{version}"
-        for version in (32, 34)
+        for version in VERSIONS
     }
 
     def create_distro(self, version: str) -> "Distro":
         intver = int(version)
-        if intver in (32, 34):
+        if intver in self.VERSIONS:
             return FedoraDistro(f"fedora:{intver}", intver)
         else:
             raise KeyError(f"Fedora version {version!r} is not (yet) supported")
@@ -155,24 +156,26 @@ class Fedora(DistroFamily):
 
 @DistroFamily.register
 class Rocky(DistroFamily):
+    VERSIONS = (8,)
     SHORTCUTS = {
         f"rocky{version}": f"rocky:{version}"
-        for version in (8,)
+        for version in VERSIONS
     }
 
     def create_distro(self, version: str) -> "Distro":
-        major = version.split(".")[0]
-        if major in ("8",):
-            return RockyDistro(f"rocky:{major}", int(major))
+        major = int(version.split(".")[0])
+        if major in self.VERSIONS:
+            return RockyDistro(f"rocky:{major}", major)
         else:
             raise KeyError(f"Rocky version {version!r} is not (yet) supported")
 
 
 @DistroFamily.register
 class Centos(DistroFamily):
+    VERSIONS = (7, 8)
     SHORTCUTS = {
         f"centos{version}": f"centos:{version}"
-        for version in (7, 8)
+        for version in VERSIONS
     }
 
     def create_distro(self, version: str) -> "Distro":
