@@ -1,5 +1,6 @@
 from __future__ import annotations
 import contextlib
+import dataclasses
 import errno
 import logging
 import os
@@ -19,14 +20,40 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+@dataclasses.dataclass
+class ContainerConfig:
+    """
+    Configuration needed to customize starting a container
+    """
+    # If true, changes done to the container filesystem will not persist
+    ephemeral: bool = True
+
+    # Bind mount this directory in the running system and use it as default
+    # working directory
+    workdir: Optional[str] = None
+
+    # systemd-nspawn --bind pathspecs to bind read-write
+    bind: List[str] = dataclasses.field(default_factory=list)
+
+    # systemd-nspawn --bind_ro pathspecs to bind read-only
+    bind_ro: List[str] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class RunConfig:
+    """
+    Configuration needed to customize running actions in a container
+    """
+    cwd: Optional[str] = None
+    user: Optional[str] = None
+
+
 class Container(ContextManager, Protocol):
     """
     An instance of a System in execution as a container
     """
     system: System
-    # Bind mount this directory in the running system and use it as default
-    # working directory
-    workdir: Optional[str]
+    config: ContainerConfig
 
     def run(self, command: List[str]) -> subprocess.CompletedProcess:
         """
@@ -77,7 +104,7 @@ class ContainerBase(contextlib.ExitStack):
     """
     Convenience common base implementation for Container
     """
-    def __init__(self, system: System, instance_name: Optional[str] = None, workdir: Optional[str] = None):
+    def __init__(self, system: System, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None):
         super().__init__()
         self.system = system
 
@@ -86,9 +113,9 @@ class ContainerBase(contextlib.ExitStack):
         else:
             self.instance_name = instance_name
 
-        # Bind mount this directory in the running system and use it as default
-        # working directory
-        self.workdir: Optional[str] = workdir
+        if config is None:
+            config = ContainerConfig()
+        self.config = config
 
         self.started = False
 
@@ -109,10 +136,6 @@ class NspawnContainer(ContainerBase):
         super().__init__(*args, **kw)
         # machinectl properties of the running machine
         self.properties = None
-        # systemd-nspawn --bind pathspecs to bind read-write
-        self.bind: List[str] = []
-        # systemd-nspawn --bind_ro pathspecs to bind read-only
-        self.bind_ro: List[str] = []
 
     def _run_nspawn(self, cmd: List[str]):
         """
@@ -154,35 +177,39 @@ class NspawnContainer(ContainerBase):
             "--boot",
             "--notify-ready=yes",
         ]
-        if self.workdir is not None:
-            self.workdir = os.path.abspath(self.workdir)
-            name = os.path.basename(self.workdir)
+        if self.config.workdir is not None:
+            workdir = os.path.abspath(self.config.workdir)
+            name = os.path.basename(workdir)
             if name.startswith("."):
                 raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            cmd.append(f"--bind={escape_bind_ro(self.workdir)}:/root/{escape_bind_ro(name)}")
-        if self.bind:
-            for pathspec in self.bind:
+            cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
+        if self.config.bind:
+            for pathspec in self.config.bind:
                 cmd.append("--bind=" + pathspec)
-        if self.bind_ro:
-            for pathspec in self.bind_ro:
+        if self.config.bind_ro:
+            for pathspec in self.config.bind_ro:
                 cmd.append("--bind-ro=" + pathspec)
+        if self.config.ephemeral:
+            cmd.append("--ephemeral")
         return cmd
 
     def get_shell_start_command(self):
         cmd = ["systemd-nspawn", "-D", self.system.path]
-        if self.workdir is not None:
-            self.workdir = os.path.abspath(self.workdir)
-            name = os.path.basename(self.workdir)
+        if self.config.workdir is not None:
+            workdir = os.path.abspath(self.config.workdir)
+            name = os.path.basename(self.config.workdir)
             if name.startswith("."):
                 raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            cmd.append(f"--bind={escape_bind_ro(self.workdir)}:/root/{escape_bind_ro(name)}")
+            cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
             cmd.append(f"--chdir=/root/{name}")
-        if self.bind:
-            for pathspec in self.bind:
+        if self.config.bind:
+            for pathspec in self.config.bind:
                 cmd.append("--bind=" + pathspec)
-        if self.bind_ro:
-            for pathspec in self.bind_ro:
+        if self.config.bind_ro:
+            for pathspec in self.config.bind_ro:
                 cmd.append("--bind-ro=" + pathspec)
+        if self.config.ephemeral:
+            cmd.append("--ephemeral")
         return cmd
 
     def start(self):
@@ -207,8 +234,8 @@ class NspawnContainer(ContainerBase):
             self.properties[key] = value
 
     def run(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
-        if self.workdir is not None:
-            name = os.path.basename(self.workdir)
+        if self.config.workdir is not None:
+            name = os.path.basename(self.config.workdir)
             kwargs.setdefault("cwd", f"/root/{name}")
         runner = self.system.distro.runner_class(self, command, **kwargs)
         return runner.execute()
@@ -225,8 +252,8 @@ class NspawnContainer(ContainerBase):
             return self.run([os.path.join(inside_workdir, "script")], **kwargs)
 
     def run_callable(self, func: Callable[[], Optional[int]], **kwargs) -> subprocess.CompletedProcess:
-        if self.workdir is not None:
-            name = os.path.basename(self.workdir)
+        if self.config.workdir is not None:
+            name = os.path.basename(self.config.workdir)
             kwargs.setdefault("cwd", f"/root/{name}")
 
         runner = SetnsCallableRunner(self, func, **kwargs)
@@ -260,15 +287,3 @@ class NspawnContainer(ContainerBase):
         # if res.returncode != 0:
         #     raise RuntimeError(f"Terminating machine {self.instance_name} failed with code {res.returncode}")
         self.started = False
-
-
-class EphemeralNspawnContainer(NspawnContainer):
-    def get_start_command(self):
-        cmd = super().get_start_command()
-        cmd.append("--ephemeral")
-        return cmd
-
-    def get_shell_start_command(self):
-        cmd = super().get_shell_start_command()
-        cmd.append("--ephemeral")
-        return cmd

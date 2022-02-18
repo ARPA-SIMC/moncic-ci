@@ -2,6 +2,7 @@ from __future__ import annotations
 import unittest
 import sys
 import secrets
+import time
 from moncic.unittest import privs, TEST_CHROOTS
 from moncic.system import System
 from moncic.moncic import Moncic
@@ -17,28 +18,31 @@ class RunTestCase:
     def test_true(self):
         system = self.get_system()
         with privs.root():
-            with system.create_ephemeral_run() as run:
-                run.run(["/usr/bin/true"])
+            with system.create_container() as container:
+                container.run(["/usr/bin/true"])
 
     def test_sleep(self):
         system = self.get_system()
         with privs.root():
-            with system.create_ephemeral_run() as run:
-                run.run(["/usr/bin/sleep", "0.1"])
+            with system.create_container() as container:
+                start = time.time()
+                container.run(["/usr/bin/sleep", "0.1"])
+                # Check that 0.1 seconds have passed
+                self.assertGreaterEqual(time.time() - start, 0.1)
 
     def test_stdout(self):
         system = self.get_system()
         with privs.root():
-            with system.create_ephemeral_run() as run:
-                res = run.run(["/usr/bin/echo", "test"])
+            with system.create_container() as container:
+                res = container.run(["/usr/bin/echo", "test"])
                 self.assertEqual(res.stdout, b"test\n")
                 self.assertEqual(res.stderr, b"")
 
     def test_env(self):
         system = self.get_system()
         with privs.root():
-            with system.create_ephemeral_run() as run:
-                res = run.run(["/bin/sh", "-c", "echo $HOME"])
+            with system.create_container() as container:
+                res = container.run(["/bin/sh", "-c", "echo $HOME"])
                 self.assertEqual(res.stdout, b"/root\n")
                 self.assertEqual(res.stderr, b"")
 
@@ -46,17 +50,17 @@ class RunTestCase:
         token = secrets.token_bytes(8)
         system = self.get_system()
         with privs.root():
-            with system.create_ephemeral_run() as run:
+            with system.create_container() as container:
                 def test_function():
                     with open("/tmp/token", "wb") as out:
                         out.write(token)
 
-                res = run.run_callable(test_function)
+                res = container.run_callable(test_function)
                 self.assertEqual(res.stdout, b'')
                 self.assertEqual(res.stderr, b'')
                 self.assertEqual(res.returncode, 0)
 
-                res = run.run(["/usr/bin/cat", "/tmp/token"])
+                res = container.run(["/usr/bin/cat", "/tmp/token"])
                 self.assertEqual(res.stdout, token)
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(res.returncode, 0)
@@ -64,12 +68,12 @@ class RunTestCase:
     def test_callable_prints(self):
         system = self.get_system()
         with privs.root():
-            with system.create_ephemeral_run() as run:
+            with system.create_container() as container:
                 def test_function():
                     print("stdout")
                     print("stderr", file=sys.stderr)
 
-                res = run.run_callable(test_function)
+                res = container.run_callable(test_function)
                 self.assertEqual(res.stdout, b'stdout\n')
                 self.assertEqual(res.stderr, b'stderr\n')
                 self.assertEqual(res.returncode, 0)
@@ -77,20 +81,20 @@ class RunTestCase:
     def test_multi_maint_runs(self):
         system = self.get_system()
         with privs.root():
-            with system.create_maintenance_run() as run:
-                res = run.run(["/bin/echo", "1"])
+            with system.create_container() as container:
+                res = container.run(["/bin/echo", "1"])
                 self.assertEqual(res.stdout, b"1\n")
                 self.assertEqual(res.stderr, b"")
-            with system.create_maintenance_run() as run:
-                res = run.run(["/bin/echo", "2"])
+            with system.create_container() as container:
+                res = container.run(["/bin/echo", "2"])
                 self.assertEqual(res.stdout, b"2\n")
                 self.assertEqual(res.stderr, b"")
 
     def test_run_script(self):
         system = self.get_system()
         with privs.root():
-            with system.create_ephemeral_run() as run:
-                res = run.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", check=False)
+            with system.create_container() as container:
+                res = container.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", check=False)
                 self.assertEqual(res.stdout, b"test\n")
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(res.returncode, 1)

@@ -36,12 +36,12 @@ class Builder:
 
     @classmethod
     def detect(cls, run: Container) -> "Builder":
-        if run.workdir is None:
+        if run.config.workdir is None:
             raise ValueError("Running system has no workdir defined")
         for builder_cls in reversed(cls.builders.values()):
-            if builder_cls.builds(run.workdir):
+            if builder_cls.builds(run.config.workdir):
                 return builder_cls(run)
-        raise RuntimeError(f"No suitable builder found for {run.workdir!r}")
+        raise RuntimeError(f"No suitable builder found for {run.config.workdir!r}")
 
     @classmethod
     def builds(cls, srcdir: str) -> bool:

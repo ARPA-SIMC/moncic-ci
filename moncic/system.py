@@ -11,7 +11,7 @@ from .distro import DistroFamily
 if TYPE_CHECKING:
     import subprocess
 
-    from .container import Container
+    from .container import Container, ContainerConfig
     from .moncic import Moncic
     from .distro import Distro
 
@@ -195,18 +195,11 @@ class System:
         subvolume = Subvolume(self)
         subvolume.remove()
 
-    def create_ephemeral_run(self, instance_name: Optional[str] = None, **kwargs) -> Container:
+    def create_container(
+            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
         """
-        Boot this system in an ephemeral container
-        """
-        # Import here to avoid an import loop
-        from .container import EphemeralNspawnContainer
-        return EphemeralNspawnContainer(self, **kwargs)
-
-    def create_maintenance_run(self, instance_name: Optional[str] = None, **kwargs) -> Container:
-        """
-        Boot this system in a container
+        Boot a container with this system
         """
         # Import here to avoid an import loop
         from .container import NspawnContainer
-        return NspawnContainer(self, **kwargs)
+        return NspawnContainer(self, instance_name, config)

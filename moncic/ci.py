@@ -8,7 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import Optional, Sequence, Any, TextIO, Tuple, NamedTuple, TYPE_CHECKING
+from typing import Optional, Sequence, Any, TextIO, NamedTuple, TYPE_CHECKING
 import urllib.parse
 
 try:
@@ -17,6 +17,7 @@ except ModuleNotFoundError:
     Texttable = None
 
 from .cli import Command, Fail
+from .container import ContainerConfig
 from .runner import LocalRunner
 from .build import Builder
 from .moncic import Moncic
@@ -99,13 +100,13 @@ class CI(MoncicCommand):
     def run(self):
         system = self.moncic.create_system(self.args.system)
         with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-            run = system.create_ephemeral_run(workdir=srcdir)
+            container = system.create_container(config=ContainerConfig(ephemral=True, workdir=srcdir))
             if self.args.build_style:
-                builder = Builder.create(self.args.build_style, run)
+                builder = Builder.create(self.args.build_style, container)
             else:
-                builder = Builder.detect(run)
-            with run:
-                res = run.run_callable(builder.build)
+                builder = Builder.detect(container)
+            with container:
+                res = container.run_callable(builder.build)
             return res["returncode"]
 
 
@@ -148,17 +149,17 @@ class Shell(MoncicCommand):
         with checkout(system, self.args.checkout) as workdir:
             workdir = workdir if workdir is not None else self.args.workdir
 
-            if self.args.maintenance:
-                run = system.create_maintenance_run(workdir=workdir)
-            else:
-                run = system.create_ephemeral_run(workdir=workdir)
+            config = ContainerConfig(
+                    ephemeral=not self.args.maintenance,
+                    workdir=workdir)
 
             if self.args.bind:
-                run.bind = self.args.bind
+                config.bind = self.args.bind
             if self.args.bind_ro:
-                run.bind_ro = self.args.bind_ro
+                config.bind_ro = self.args.bind_ro
 
-            run.shell()
+            container = system.create_container(config=config)
+            container.shell()
 
 
 class Bootstrap(MoncicCommand):

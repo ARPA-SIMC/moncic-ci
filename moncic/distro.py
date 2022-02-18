@@ -10,6 +10,7 @@ import tempfile
 from typing import Optional, Type, List, Dict, Iterable, NamedTuple, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
+from .container import ContainerConfig
 from .runner import MachineRunner, SystemdRunRunner, LegacyRunRunner
 from .utils import atomic_writer
 if TYPE_CHECKING:
@@ -345,8 +346,8 @@ class RpmDistro(Distro):
                 if os.path.isdir(system_rpmdb):
                     shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-                with system.create_maintenance_run() as run:
-                    run.run(["/usr/bin/rpmdb", "--rebuilddb"])
+                with system.create_container(config=ContainerConfig(ephemeral=False)) as container:
+                    container.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
 
 class YumDistro(RpmDistro):
