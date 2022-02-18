@@ -36,6 +36,13 @@ debian:unstable
 fedora:32          fedora32
 fedora:34          fedora34
 rocky:8            rocky8
+ubuntu:trusty      trusty, ubuntu:14.04
+ubuntu:xenial      xenial, ubuntu:16.04
+ubuntu:bionic      bionic, ubuntu:18.04
+ubuntu:focal       focal, ubuntu:20.04
+ubuntu:hirsute     hirsute, ubuntu:21.04
+ubuntu:impish      impish, ubuntu:21.10
+ubuntu:jammy       jammy, ubuntu:22.04
 ```
 
 

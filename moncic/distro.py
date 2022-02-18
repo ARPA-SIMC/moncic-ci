@@ -168,6 +168,46 @@ class Debian(DistroFamily):
 
 
 @DistroFamily.register
+class Ubuntu(DistroFamily):
+    VERSION_IDS = {
+        "14.04": "trusty",
+        "16.04": "xenial",
+        "18.04": "bionic",
+        "20.04": "focal",
+        "21.04": "hirsute",
+        "21.10": "impish",
+        "22.04": "jammy",
+    }
+    SHORTCUTS = {
+        suite: f"ubuntu:{suite}"
+        for suite in ("trusty", "xenial", "bionic", "focal", "hirsute", "impish", "jammy")
+    }
+
+    def create_distro(self, version: str) -> "Distro":
+        # Map version numbers to release codenames
+        suite = self.VERSION_IDS.get(version, version)
+
+        if suite in self.SHORTCUTS:
+            return UbuntuDistro(f"ubuntu:{version}", suite)
+        else:
+            raise KeyError(f"Ubuntu version {version!r} is not (yet) supported")
+
+    def list_distros(self) -> List[DistroInfo]:
+        """
+        Return a list of distros available in this family
+        """
+        by_name = defaultdict(list)
+        for suite, name in self.SHORTCUTS.items():
+            by_name[name].append(suite)
+        for vid, suite in self.VERSION_IDS.items():
+            by_name[f"ubuntu:{suite}"].append(f"ubuntu:{vid}")
+
+        return [
+            DistroInfo(name, shortcuts)
+            for name, shortcuts in by_name.items()]
+
+
+@DistroFamily.register
 class Fedora(DistroFamily):
     VERSIONS = (32, 34)
     SHORTCUTS = {
@@ -375,9 +415,11 @@ class DebianDistro(Distro):
     """
     Common implementation for Debian-based distributions
     """
+    MIRROR = "http://deb.debian.org/debian"
+
     def __init__(self, name: str, suite: str):
         super().__init__(name)
-        self.mirror = "http://deb.debian.org/debian"
+        self.mirror = self.MIRROR
         self.suite = suite
 
     def bootstrap(self, system: System):
@@ -399,3 +441,10 @@ class DebianDistro(Distro):
             ["/usr/bin/apt-get", "update"],
             ["/usr/bin/apt-get", "-y", "upgrade"],
         ]
+
+
+class UbuntuDistro(DebianDistro):
+    """
+    Common implementation for Ubuntu-based distributions
+    """
+    MIRROR = "http://archive.ubuntu.com/ubuntu/"
