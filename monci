@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 from moncic.cli import run
-from moncic.ci import CI, Bootstrap, Shell, Update, Remove
+from moncic.ci import CI, Bootstrap, Shell, Update, Remove, Images, Distros
 
 VERSION = "0.1"
 
@@ -16,6 +16,8 @@ def main():
     subparsers = parser.add_subparsers(help="sub-command help", dest="command", required=True)
 
     CI.make_subparser(subparsers)
+    Images.make_subparser(subparsers)
+    Distros.make_subparser(subparsers)
     Bootstrap.make_subparser(subparsers)
     Update.make_subparser(subparsers)
     Remove.make_subparser(subparsers)

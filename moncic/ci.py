@@ -1,17 +1,26 @@
 from __future__ import annotations
 import contextlib
+import csv
 import logging
 import os
 import shlex
+import shutil
 import subprocess
+import sys
 import tempfile
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, Sequence, Any, TextIO, Tuple, NamedTuple, TYPE_CHECKING
 import urllib.parse
+
+try:
+    from texttable import Texttable
+except ModuleNotFoundError:
+    Texttable = None
 
 from .cli import Command, Fail
 from .runner import LocalRunner
 from .build import Builder
 from .moncic import Moncic
+from .distro import DistroFamily
 
 if TYPE_CHECKING:
     from .system import System
@@ -237,3 +246,80 @@ class Remove(MoncicCommand):
             if not os.path.exists(system.path):
                 continue
             system.remove()
+
+
+class RowOutput:
+    def add_row(self, row: Sequence[Any]):
+        raise NotImplementedError(f"{self.__class__}.add_row() not implemented")
+
+    def flush(self):
+        pass
+
+
+class CSVOutput(RowOutput):
+    def __init__(self, out: TextIO):
+        self.writer = csv.writer(out)
+
+    def add_row(self, row: Sequence[Any]):
+        self.writer.writerow(row)
+
+
+class TextColumn(NamedTuple):
+    title: str
+    dtype: str = 't'
+    align: str = 'l'
+
+
+class TableOutput(RowOutput):
+    def __init__(self, out: TextIO, *args: Tuple[TextColumn]):
+        self.out = out
+        self.table = Texttable(max_width=shutil.get_terminal_size()[0])
+        self.table.set_deco(Texttable.HEADER)
+        self.table.set_cols_dtype([a.dtype for a in args])
+        self.table.set_cols_align([a.align for a in args])
+        self.table.add_row([a.title for a in args])
+
+    def add_row(self, row: Sequence[Any]):
+        self.table.add_row(row)
+
+    def flush(self):
+        print(self.table.draw())
+
+
+class Images(MoncicCommand):
+    """
+    List OS images
+    """
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("--csv", action="store_true",
+                            help="machine readable output in CSV format")
+        return parser
+
+    def run(self):
+        if self.args.csv or Texttable is None:
+            output = CSVOutput(sys.stdout)
+        else:
+            output = TableOutput(
+                    sys.stdout,
+                    TextColumn("Name"),
+                    TextColumn("Distro"),
+                    TextColumn("Boostrapped"),
+                    TextColumn("Path"))
+
+        for name in self.moncic.list_images():
+            system = self.moncic.create_system(name)
+            bootstrapped = os.path.exists(system.path)
+            output.add_row((name, system.distro.name, "yes" if bootstrapped else "no", system.path))
+        output.flush()
+
+
+class Distros(MoncicCommand):
+    """
+    List OS images
+    """
+    def run(self):
+        for family in sorted(DistroFamily.list(), key=lambda x: x.name):
+            print(family)
+            # TODO

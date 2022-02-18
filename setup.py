@@ -46,6 +46,7 @@ setup(
     requires=["yaml"],
     extras_require={
         "colors": ["coloredlogs"],
+        "prettycli": ["texttable"],
     },
     packages=['moncic'],
     scripts=['monci'],
