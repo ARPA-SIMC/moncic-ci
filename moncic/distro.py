@@ -143,7 +143,7 @@ class Debian(DistroFamily):
     }
     SHORTCUTS = {
         suite: f"debian:{suite}"
-        for suite in ("buster", "bullseye", "bookworm")
+        for suite in ("buster", "bullseye", "bookworm", "sid")
     }
 
     def create_distro(self, version: str) -> "Distro":
