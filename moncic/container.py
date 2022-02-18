@@ -38,12 +38,24 @@ class ContainerConfig:
     # systemd-nspawn --bind_ro pathspecs to bind read-only
     bind_ro: List[str] = dataclasses.field(default_factory=list)
 
+    def run_config(self, run_config: Optional[RunConfig] = None) -> RunConfig:
+        if run_config is None:
+            res = RunConfig()
+        else:
+            res = run_config
+
+        if res.cwd is None and self.workdir is not None:
+            name = os.path.basename(self.workdir)
+            res.cwd = f"/root/{name}"
+        return res
+
 
 @dataclasses.dataclass
 class RunConfig:
     """
     Configuration needed to customize running actions in a container
     """
+    check: bool = True
     cwd: Optional[str] = None
     user: Optional[str] = None
 
@@ -55,7 +67,7 @@ class Container(ContextManager, Protocol):
     system: System
     config: ContainerConfig
 
-    def run(self, command: List[str]) -> subprocess.CompletedProcess:
+    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run the given command inside the running system.
 
@@ -70,7 +82,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run_script(self, body: str) -> subprocess.CompletedProcess:
+    def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run the given string as a script in the machine.
 
@@ -80,7 +92,8 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run_callable(self, func: Callable[[], Optional[int]]) -> subprocess.CompletedProcess:
+    def run_callable(
+            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run the given callable in a separate process inside the running
         system. Returns the process exit status.
@@ -233,14 +246,13 @@ class NspawnContainer(ContainerBase):
             key, value = line.split('=', 1)
             self.properties[key] = value
 
-    def run(self, command: List[str], **kwargs) -> subprocess.CompletedProcess:
-        if self.config.workdir is not None:
-            name = os.path.basename(self.config.workdir)
-            kwargs.setdefault("cwd", f"/root/{name}")
-        runner = self.system.distro.runner_class(self, command, **kwargs)
+    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        run_config = self.config.run_config(config)
+        runner = self.system.distro.runner_class(self, run_config, command)
         return runner.execute()
 
-    def run_script(self, body: str, **kwargs) -> subprocess.CompletedProcess:
+    def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        run_config = self.config.run_config(config)
         chroot = self.properties["RootDirectory"]
         with tempfile.TemporaryDirectory(dir=os.path.join(chroot, "root")) as workdir:
             with open(os.path.join(workdir, "script"), "wt") as fd:
@@ -248,15 +260,14 @@ class NspawnContainer(ContainerBase):
                 fd.flush()
                 os.chmod(fd.fileno(), 0o700)
             inside_workdir = os.path.join("/root", os.path.basename(workdir))
-            kwargs.setdefault("cwd", inside_workdir)
-            return self.run([os.path.join(inside_workdir, "script")], **kwargs)
+            if run_config.cwd is None:
+                run_config.cwd = inside_workdir
+            return self.run([os.path.join(inside_workdir, "script")], run_config)
 
-    def run_callable(self, func: Callable[[], Optional[int]], **kwargs) -> subprocess.CompletedProcess:
-        if self.config.workdir is not None:
-            name = os.path.basename(self.config.workdir)
-            kwargs.setdefault("cwd", f"/root/{name}")
-
-        runner = SetnsCallableRunner(self, func, **kwargs)
+    def run_callable(
+            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        run_config = self.config.run_config(config)
+        runner = SetnsCallableRunner(self, run_config, func)
         return runner.execute()
 
     def shell(self):

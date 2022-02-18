@@ -17,8 +17,7 @@ except ModuleNotFoundError:
     Texttable = None
 
 from .cli import Command, Fail
-from .container import ContainerConfig
-from .runner import LocalRunner
+from .container import ContainerConfig, RunConfig
 from .build import Builder
 from .moncic import Moncic
 from .distro import DistroFamily
@@ -51,8 +50,7 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
             cmd = ["git", "clone", repo]
             if branch is not None:
                 cmd += ["--branch", branch]
-            runner = LocalRunner(system, cmd, cwd=workdir)
-            runner.execute()
+            system.local_run(cmd, config=RunConfig(cwd=workdir))
             # Look for the directory that git created
             names = os.listdir(workdir)
             if len(names) != 1:

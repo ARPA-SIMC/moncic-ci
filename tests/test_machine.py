@@ -5,6 +5,7 @@ import secrets
 import time
 from moncic.unittest import privs, TEST_CHROOTS
 from moncic.system import System
+from moncic.container import RunConfig
 from moncic.moncic import Moncic
 
 
@@ -94,7 +95,7 @@ class RunTestCase:
         system = self.get_system()
         with privs.root():
             with system.create_container() as container:
-                res = container.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", check=False)
+                res = container.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", config=RunConfig(check=False))
                 self.assertEqual(res.stdout, b"test\n")
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(res.returncode, 1)

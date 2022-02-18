@@ -15,16 +15,17 @@ from typing import List, Optional, Callable, TYPE_CHECKING
 from . import setns
 if TYPE_CHECKING:
     from .system import System
-    from .container import NspawnContainer
+    from .container import RunConfig, NspawnContainer
 
 
 class Runner:
     """
     Run commands in a system
     """
-    def __init__(self, system: System):
+    def __init__(self, system: System, config: RunConfig):
         super().__init__()
         self.system = system
+        self.config = config
         self.stdout: List[bytes] = []
         self.stderr: List[bytes] = []
 
@@ -46,11 +47,9 @@ class Runner:
 
 
 class AsyncioRunner(Runner):
-    def __init__(self, system: System, cmd: List[str], check=True, user: Optional[str] = None):
-        super().__init__(system)
+    def __init__(self, system: System, config: RunConfig, cmd: List[str]):
+        super().__init__(system, config)
         self.cmd = cmd
-        self.check = check
-        self.user = user
 
     def execute(self):
         return asyncio.run(self._run())
@@ -74,7 +73,7 @@ class AsyncioRunner(Runner):
         stdout = b"".join(self.stdout)
         stderr = b"".join(self.stderr)
 
-        if self.check and proc.returncode != 0:
+        if self.config.check and proc.returncode != 0:
             raise subprocess.CalledProcessError(
                     proc.returncode,
                     self.cmd,
@@ -88,28 +87,27 @@ class LocalRunner(AsyncioRunner):
     """
     Run a command locally, logging its output
     """
-    def __init__(self, system: System, cmd: List[str], check=True, **kwargs):
-        super().__init__(system, cmd, check)
-        self.kwargs = kwargs
-
     async def start_process(self):
         self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
+
+        kwargs = {}
+        if self.config.cwd is not None:
+            kwargs["cwd"] = self.config.cwd
 
         return await asyncio.create_subprocess_exec(
                 self.cmd[0], *self.cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                **self.kwargs)
+                **kwargs)
 
 
 class MachineRunner(AsyncioRunner):
     """
     Base class for running commands in running containers
     """
-    def __init__(self, container: NspawnContainer, cmd: List[str], check=True, **kwargs):
-        super().__init__(container.system, cmd, check)
+    def __init__(self, container: NspawnContainer, config: RunConfig, cmd: List[str]):
+        super().__init__(container.system, config, cmd)
         self.container = container
-        self.kwargs = kwargs
 
 
 class SystemdRunRunner(MachineRunner):
@@ -120,13 +118,8 @@ class SystemdRunRunner(MachineRunner):
             f"--machine={self.container.instance_name}",
         ]
 
-        cwd = self.kwargs.get("cwd")
-        if cwd is not None:
-            cmd.append("--working-directory=" + cwd)
-            kwargs = dict(self.kwargs)
-            kwargs.pop("cwd")
-        else:
-            kwargs = self.kwargs
+        if self.config.cwd is not None:
+            cmd.append("--working-directory=" + self.config.cwd)
 
         cmd.append("--")
         cmd += self.cmd
@@ -136,8 +129,7 @@ class SystemdRunRunner(MachineRunner):
         return await asyncio.create_subprocess_exec(
                 cmd[0], *cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                **kwargs)
+                stderr=asyncio.subprocess.PIPE)
 
 
 class LegacyRunRunner(MachineRunner):
@@ -151,13 +143,8 @@ class LegacyRunRunner(MachineRunner):
 
         cmd = ["nsenter", "--mount", "--uts", "--ipc", "--net", "--pid", "--cgroup", "--target", str(leader_pid)]
 
-        cwd = self.kwargs.get("cwd")
-        if cwd is not None:
-            cmd.append("--wd=" + os.path.join(self.container.properties["RootDirectory"], cwd.lstrip("/")))
-            kwargs = dict(self.kwargs)
-            kwargs.pop("cwd")
-        else:
-            kwargs = self.kwargs
+        if self.config.cwd is not None:
+            cmd.append("--wd=" + os.path.join(self.container.properties["RootDirectory"], self.config.cwd.lstrip("/")))
 
         cmd.append("--")
         cmd += self.cmd
@@ -167,18 +154,15 @@ class LegacyRunRunner(MachineRunner):
         return await asyncio.create_subprocess_exec(
                 cmd[0], *cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                **kwargs)
+                stderr=asyncio.subprocess.PIPE)
 
 
 class SetnsCallableRunner(Runner):
     def __init__(
-            self, run: NspawnContainer, func: Callable[[], Optional[int]], cwd: Optional[str] = None, check=True):
-        super().__init__(run.system)
+            self, run: NspawnContainer, config: RunConfig, func: Callable[[], Optional[int]]):
+        super().__init__(run.system, config)
         self.leader_pid = int(run.properties["Leader"])
         self.func = func
-        self.cwd = cwd
-        self.check = check
 
     async def make_reader(self, fd: int):
         loop = asyncio.get_running_loop()
@@ -219,8 +203,8 @@ class SetnsCallableRunner(Runner):
                 logging.shutdown()
                 importlib.reload(logging)
                 setns.nsenter(self.leader_pid)
-                if self.cwd is not None:
-                    os.chdir(self.cwd)
+                if self.config.cwd is not None:
+                    os.chdir(self.config.cwd)
                 res = self.func()
                 os._exit(res if res is not None else 0)
             except Exception:
@@ -236,7 +220,7 @@ class SetnsCallableRunner(Runner):
         stderr = b"".join(self.stderr)
 
         wres = os.waitid(os.P_PID, pid, os.WEXITED)
-        if self.check and wres.si_status != 0:
+        if self.config.check and wres.si_status != 0:
             raise subprocess.CalledProcessError(
                     wres.si_status, self.func.__name__, stdout, stderr)
 

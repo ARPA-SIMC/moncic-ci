@@ -7,11 +7,12 @@ from typing import List, Optional, TYPE_CHECKING
 import yaml
 
 from .distro import DistroFamily
+from .container import ContainerConfig, RunConfig
 
 if TYPE_CHECKING:
     import subprocess
 
-    from .container import Container, ContainerConfig
+    from .container import Container
     from .moncic import Moncic
     from .distro import Distro
 
@@ -146,7 +147,7 @@ class System:
         else:
             return None
 
-    def local_run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
+    def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
 
@@ -154,12 +155,13 @@ class System:
         """
         # Import here to avoid dependency loops
         from .runner import LocalRunner
-        if os.path.exists(self.path):
-            kw.setdefault("cwd", self.path)
-        runner = LocalRunner(self, cmd, **kw)
-        return runner.execute()
+        if config is None:
+            config = RunConfig()
+        if os.path.exists(self.path) and config.cwd is None:
+            config.cwd = self.path
 
-        raise NotImplementedError(f"{self.__class__}.local_run() not implemented")
+        runner = LocalRunner(self, config, cmd)
+        return runner.execute()
 
     def bootstrap(self):
         """
@@ -180,11 +182,11 @@ class System:
         """
         Run periodic maintenance on the system
         """
-        with self.create_maintenance_run() as run:
+        with self.create_container(config=ContainerConfig(ephemeral=False)) as container:
             for cmd in self.distro.get_update_script():
-                run.run(cmd)
+                container.run(cmd)
             if self.config.maintscript is not None:
-                run.run_script(self.config.maintscript)
+                container.run_script(self.config.maintscript)
 
     def remove(self):
         """

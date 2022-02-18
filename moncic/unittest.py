@@ -10,7 +10,7 @@ from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
 from moncic.system import System, Config
-from moncic.container import Container, ContainerBase
+from moncic.container import Container, ContainerBase, ContainerConfig, RunConfig
 from moncic.moncic import Moncic
 
 if TYPE_CHECKING:
@@ -127,10 +127,10 @@ class MockRunLog:
 
 
 class MockContainer(ContainerBase):
-    def __init__(self, system: "MockSystem", instance_name: Optional[str] = None):
-        super().__init__(system, instance_name)
+    def __init__(
+            self, system: "MockSystem", instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None):
+        super().__init__(system, instance_name, config)
         self.run_log = system.run_log
-        self.workdir = None
 
     def start(self):
         if self.started:
@@ -142,15 +142,16 @@ class MockContainer(ContainerBase):
             return
         self.started = False
 
-    def run(self, command: List[str]) -> subprocess.CompletedProcess:
+    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         self.run_log.append(command, {})
         return subprocess.CompletedProcess(command, 0, b'', b'')
 
-    def run_script(self, body: str) -> subprocess.CompletedProcess:
+    def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         self.run_log.append_script(body)
         return subprocess.CompletedProcess(["script"], 0, b'', b'')
 
-    def run_callable(self, func: Callable[[], Optional[int]]) -> subprocess.CompletedProcess:
+    def run_callable(
+            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         self.run_log.append_callable(func)
         return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
 
@@ -162,15 +163,13 @@ class MockSystem(System):
     def attach_testcase(self, testcase):
         self.run_log = MockRunLog(testcase)
 
-    def local_run(self, cmd: List[str], **kw) -> subprocess.CompletedProcess:
+    def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         self.run_log.append(cmd, {})
         return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
-    def create_ephemeral_run(self, instance_name: Optional[str] = None, **kwargs) -> Container:
-        return MockContainer(self, **kwargs)
-
-    def create_maintenance_run(self, instance_name: Optional[str] = None, **kwargs) -> Container:
-        return MockContainer(self, **kwargs)
+    def create_container(
+            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+        return MockContainer(self, instance_name, config)
 
 
 class DistroTestMixin:
