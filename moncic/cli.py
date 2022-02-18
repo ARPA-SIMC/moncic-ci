@@ -1,9 +1,12 @@
 from __future__ import annotations
 from typing import Optional
 import logging
-import time
 import sys
-import os
+
+try:
+    import coloredlogs
+except ModuleNotFoundError:
+    coloredlogs = None
 
 
 class Fail(RuntimeError):
@@ -29,20 +32,25 @@ class Command:
 
     def setup_logging(self):
         # Setup logging
-        SIMCOP_NAME = f"{os.path.basename(sys.argv[0])}[{os.getpid()}.{int(time.time())}]"
-        FORMAT = f"[%(levelname)-9s] %(asctime)-19.19s {SIMCOP_NAME} %(message)s"
-        log_handler = logging.StreamHandler(sys.stderr)
-        log_handler.setFormatter(logging.Formatter(FORMAT))
+        FORMAT = "%(asctime)-19.19s %(levelname)s %(name)s %(message)s"
         if self.args.debug:
-            log_handler.setLevel(logging.DEBUG)
+            log_level = logging.DEBUG
         elif self.args.verbose:
-            log_handler.setLevel(logging.INFO)
+            log_level = logging.INFO
         else:
-            log_handler.setLevel(logging.WARN)
-        root_logger = logging.getLogger()
-        root_logger.addHandler(log_handler)
-        root_logger.setLevel(logging.DEBUG)
-        # TODO: setup coloredlogs on terminal
+            log_level = logging.WARN
+
+        if coloredlogs is not None:
+            coloredlogs.install(level=log_level, fmt=FORMAT)
+        else:
+            logging.basicConfig(level=log_level, stream=sys.stderr, format=FORMAT)
+
+        # log_handler = logging.StreamHandler(sys.stderr)
+        # log_handler.setFormatter(logging.Formatter(FORMAT))
+        # log_handler.setLevel(log_level)
+        # root_logger = logging.getLogger()
+        # root_logger.addHandler(log_handler)
+        # root_logger.setLevel(logging.DEBUG)
 
     @classmethod
     def get_name(cls):
