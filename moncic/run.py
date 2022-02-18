@@ -238,7 +238,7 @@ class NspawnRunningSystem(RunningSystemBase):
             name = os.path.basename(self.workdir)
             kwargs.setdefault("cwd", f"/root/{name}")
 
-        runner = SetnsCallableRunner(int(self.properties["Leader"]), func, **kwargs)
+        runner = SetnsCallableRunner(self, func, **kwargs)
         return runner.execute()
 
     def shell(self):

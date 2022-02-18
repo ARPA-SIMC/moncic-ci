@@ -5,13 +5,16 @@ import os
 import shlex
 import subprocess
 import tempfile
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 import urllib.parse
 
 from .cli import Command, Fail
 from .runner import LocalRunner
 from .build import Builder
 from .moncic import Moncic
+
+if TYPE_CHECKING:
+    from .system import System
 
 log = logging.getLogger(__name__)
 
@@ -24,7 +27,7 @@ def sh(*cmd):
 
 
 @contextlib.contextmanager
-def checkout(repo: Optional[str] = None, branch: Optional[str] = None):
+def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] = None):
     if repo is None:
         yield None
     else:
@@ -38,7 +41,7 @@ def checkout(repo: Optional[str] = None, branch: Optional[str] = None):
             cmd = ["git", "clone", repo]
             if branch is not None:
                 cmd += ["--branch", branch]
-            runner = LocalRunner(cmd, cwd=workdir)
+            runner = LocalRunner(system, cmd, cwd=workdir)
             runner.execute()
             # Look for the directory that git created
             names = os.listdir(workdir)
@@ -86,7 +89,7 @@ class CI(MoncicCommand):
 
     def run(self):
         system = self.moncic.create_system(self.args.system)
-        with checkout(self.args.repo, branch=self.args.branch) as srcdir:
+        with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
             run = system.create_ephemeral_run()
             run.workdir = srcdir
             if self.args.build_style:
@@ -139,7 +142,7 @@ class Shell(MoncicCommand):
         if self.args.bind_ro:
             run.bind_ro = self.args.bind_ro
 
-        with checkout(self.args.checkout) as workdir:
+        with checkout(system, self.args.checkout) as workdir:
             run.workdir = workdir if workdir is not None else self.args.workdir
             run.shell()
 

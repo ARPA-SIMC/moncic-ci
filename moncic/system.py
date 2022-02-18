@@ -156,7 +156,7 @@ class System:
         from .runner import LocalRunner
         if os.path.exists(self.path):
             kw.setdefault("cwd", self.path)
-        runner = LocalRunner(cmd, **kw)
+        runner = LocalRunner(self, cmd, **kw)
         return runner.execute()
 
         raise NotImplementedError(f"{self.__class__}.local_run() not implemented")

@@ -14,14 +14,17 @@ from typing import List, Optional, Callable, TYPE_CHECKING
 
 from . import setns
 if TYPE_CHECKING:
+    from .system import System
     from .run import NspawnRunningSystem
 
-log = logging.getLogger(__name__)
 
-
-class OutputLogMixin:
-    def __init__(self):
+class Runner:
+    """
+    Run commands in a system
+    """
+    def __init__(self, system: System):
         super().__init__()
+        self.system = system
         self.stdout: List[bytes] = []
         self.stderr: List[bytes] = []
 
@@ -31,7 +34,7 @@ class OutputLogMixin:
             if not line:
                 break
             self.stdout.append(line)
-            log.info("stdout: %s", line.decode(errors="replace").rstrip())
+            self.system.log.info("stdout: %s", line.decode(errors="replace").rstrip())
 
     async def read_stderr(self, reader: asyncio.StreamReader):
         while True:
@@ -39,12 +42,12 @@ class OutputLogMixin:
             if not line:
                 break
             self.stderr.append(line)
-            log.info("stderr: %s", line.decode(errors="replace").rstrip())
+            self.system.log.info("stderr: %s", line.decode(errors="replace").rstrip())
 
 
-class AsyncioRunner(OutputLogMixin):
-    def __init__(self, cmd: List[str], check=True):
-        super().__init__()
+class AsyncioRunner(Runner):
+    def __init__(self, system: System, cmd: List[str], check=True):
+        super().__init__(system)
         self.cmd = cmd
         self.check = check
 
@@ -84,12 +87,12 @@ class LocalRunner(AsyncioRunner):
     """
     Run a command locally, logging its output
     """
-    def __init__(self, cmd: List[str], check=True, **kwargs):
-        super().__init__(cmd, check)
+    def __init__(self, system: System, cmd: List[str], check=True, **kwargs):
+        super().__init__(system, cmd, check)
         self.kwargs = kwargs
 
     async def start_process(self):
-        log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
+        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
 
         return await asyncio.create_subprocess_exec(
                 self.cmd[0], *self.cmd[1:],
@@ -103,7 +106,7 @@ class MachineRunner(AsyncioRunner):
     Base class for running commands in running containers
     """
     def __init__(self, run: NspawnRunningSystem, cmd: List[str], check=True, **kwargs):
-        super().__init__(cmd, check)
+        super().__init__(run.system, cmd, check)
         self.run = run
         self.kwargs = kwargs
 
@@ -127,7 +130,7 @@ class SystemdRunRunner(MachineRunner):
         cmd.append("--")
         cmd += self.cmd
 
-        log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
+        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
 
         return await asyncio.create_subprocess_exec(
                 cmd[0], *cmd[1:],
@@ -158,7 +161,7 @@ class LegacyRunRunner(MachineRunner):
         cmd.append("--")
         cmd += self.cmd
 
-        log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
+        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
 
         return await asyncio.create_subprocess_exec(
                 cmd[0], *cmd[1:],
@@ -167,10 +170,11 @@ class LegacyRunRunner(MachineRunner):
                 **kwargs)
 
 
-class SetnsCallableRunner(OutputLogMixin):
-    def __init__(self, leader_pid: int, func: Callable[[], Optional[int]], cwd: Optional[str] = None, check=True):
-        super().__init__()
-        self.leader_pid = leader_pid
+class SetnsCallableRunner(Runner):
+    def __init__(
+            self, run: NspawnRunningSystem, func: Callable[[], Optional[int]], cwd: Optional[str] = None, check=True):
+        super().__init__(run.system)
+        self.leader_pid = int(run.properties["Leader"])
         self.func = func
         self.cwd = cwd
         self.check = check
