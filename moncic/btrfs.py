@@ -33,7 +33,7 @@ class Subvolume:
         try:
             yield
         except Exception:
-            self.system.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
+            self.remove()
             raise
 
     def remove(self):
