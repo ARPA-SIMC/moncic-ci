@@ -6,7 +6,7 @@ import os
 import shutil
 import stat
 import tempfile
-from typing import Type, List, Dict, Sequence, TYPE_CHECKING
+from typing import Optional, Type, List, Dict, Iterable, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
 from .runner import MachineRunner, SystemdRunRunner, LegacyRunRunner
@@ -22,7 +22,7 @@ class DistroFamily:
     Base class for handling a family of distributions
     """
     # Registry of known families
-    families: Dict[str, Type[DistroFamily]] = {}
+    families: Dict[str, DistroFamily] = {}
 
     # Registry mapping known shortcut names to the corresponding full
     # ``family:version`` name
@@ -37,7 +37,7 @@ class DistroFamily:
         return family_cls
 
     @classmethod
-    def list(cls) -> Sequence[DistroFamily]:
+    def list(cls) -> Iterable[DistroFamily]:
         return cls.families.values()
 
     @classmethod
@@ -56,10 +56,17 @@ class DistroFamily:
             family, version = name.split(":", 1)
             return cls.lookup_family(family).create_distro(version)
         else:
-            for family in cls.families.values():
-                if (fullname := family.SHORTCUTS.get(name)) is not None:
-                    return cls.lookup_distro(fullname)
-            raise KeyError(f"Distro {name!r} not found")
+            return cls._lookup_shortcut(name)
+
+    @classmethod
+    def _lookup_shortcut(cls, name: str) -> Distro:
+        """
+        Lookup a Distro object by shortcut
+        """
+        for family in cls.families.values():
+            if (fullname := family.SHORTCUTS.get(name)) is not None:
+                return cls.lookup_distro(fullname)
+        raise KeyError(f"Distro {name!r} not found")
 
     @classmethod
     def from_path(cls, path: str) -> Distro:
@@ -67,6 +74,7 @@ class DistroFamily:
         Instantiate a Distro from an existing filesystem tree
         """
         # TODO: check if "{path}.yaml" exists
+        info: Optional[Dict[str, str]]
         try:
             info = parse_osrelase(os.path.join(path, "etc", "os-release"))
         except FileNotFoundError:
@@ -203,6 +211,8 @@ class RpmDistro(Distro):
     """
     Common implementation for rpm-based distributions
     """
+    version: int
+
     def get_base_packages(self) -> List[str]:
         """
         Return the list of packages that are expected to be installed on a

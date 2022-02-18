@@ -42,7 +42,7 @@ def atomic_writer(
     All the other arguments are passed to open
     """
 
-    if use_umask:
+    if chmod is not None and use_umask:
         cur_umask = os.umask(0)
         os.umask(cur_umask)
         chmod &= ~cur_umask
