@@ -209,7 +209,7 @@ class Ubuntu(DistroFamily):
 
 @DistroFamily.register
 class Fedora(DistroFamily):
-    VERSIONS = (32, 34)
+    VERSIONS = (32, 33, 34, 35)
     SHORTCUTS = {
         f"fedora{version}": f"fedora:{version}"
         for version in VERSIONS
