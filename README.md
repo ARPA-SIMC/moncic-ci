@@ -15,6 +15,30 @@ Note that only the directory used by Moncic CI to store OS images needs to be
 on a btrfs filesystem.
 
 
+## Distributions supported
+
+The up to date list of supported distribution can be queried with `monci
+distros`. It currently is:
+
+```
+$ monci distros
+Name               Shortcuts
+centos:7           centos7
+centos:8           centos8
+debian:buster      buster, debian:10
+debian:bullseye    bullseye, debian:11
+debian:bookworm    bookworm, debian:12
+debian:sid         sid
+debian:oldstable
+debian:stable
+debian:testing
+debian:unstable
+fedora:32          fedora32
+fedora:34          fedora34
+rocky:8            rocky8
+```
+
+
 ## OS image configuration
 
 A name can provide enough information for Moncic CI to identify a basic OS
