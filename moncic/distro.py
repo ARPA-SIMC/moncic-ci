@@ -140,6 +140,21 @@ class Fedora(DistroFamily):
 
 
 @DistroFamily.register
+class Rocky(DistroFamily):
+    SHORTCUTS = {
+        f"rocky{version}": f"rocky:{version}"
+        for version in (8,)
+    }
+
+    def create_distro(self, version: str) -> "Distro":
+        intver = int(version)
+        if intver in (8,):
+            return RockyDistro(f"rocky:{intver}", intver)
+        else:
+            raise KeyError(f"Rocky version {version!r} is not (yet) supported")
+
+
+@DistroFamily.register
 class Centos(DistroFamily):
     SHORTCUTS = {
         f"centos{version}": f"centos:{version}"
@@ -268,7 +283,7 @@ class Centos7(YumDistro):
 
 
 class Centos8(DnfDistro):
-    baseurl = "http://mirror.centos.org/centos-8/8/BaseOS/$basearch/os"
+    baseurl = "https://vault.centos.org/centos/8/BaseOS//$basearch/os/"
     version = 8
 
 
@@ -277,6 +292,13 @@ class FedoraDistro(DnfDistro):
         super().__init__(name)
         self.version = version
         self.baseurl = f"http://download.fedoraproject.org/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
+
+
+class RockyDistro(DnfDistro):
+    def __init__(self, name: str, version: int):
+        super().__init__(name)
+        self.version = version
+        self.baseurl = f"http://dl.rockylinux.org/pub/rocky/{version}/BaseOS/$basearch/os/"
 
 
 class DebianDistro(Distro):
