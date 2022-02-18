@@ -97,6 +97,7 @@ class System:
     def __init__(self, moncic: Moncic, config: Config):
         self.moncic = moncic
         self.config = config
+        self.log = logging.getLogger(f"system.{self.name}")
 
     @classmethod
     def from_path(cls, moncic: Moncic, path: str):

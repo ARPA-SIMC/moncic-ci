@@ -145,13 +145,13 @@ class NspawnRunningSystem(RunningSystemBase):
 
         systemd_run_cmd.extend(cmd)
 
-        log.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
+        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
         res = subprocess.run(systemd_run_cmd, capture_output=True)
         if res.returncode != 0:
-            log.error("Failed to run %s (exit code %d): %r",
-                      " ".join(shlex.quote(c) for c in systemd_run_cmd),
-                      res.returncode,
-                      res.stderr)
+            self.system.log.error("Failed to run %s (exit code %d): %r",
+                                  " ".join(shlex.quote(c) for c in systemd_run_cmd),
+                                  res.returncode,
+                                  res.stderr)
             raise RuntimeError("Failed to start container")
 
     def get_start_command(self):
@@ -198,7 +198,8 @@ class NspawnRunningSystem(RunningSystemBase):
         if self.started:
             return
 
-        log.info("Starting system %s as %s using image %s", self.system.name, self.instance_name, self.system.path)
+        self.system.log.info("Starting system %s as %s using image %s",
+                             self.system.name, self.instance_name, self.system.path)
 
         cmd = self.get_start_command()
 
@@ -245,7 +246,7 @@ class NspawnRunningSystem(RunningSystemBase):
         Open a shell on the given ostree
         """
         cmd = self.get_shell_start_command()
-        log.info("Running %s", ' '.join(shlex.quote(c) for c in cmd))
+        self.system.log.info("Running %s", ' '.join(shlex.quote(c) for c in cmd))
         subprocess.run(cmd)
 
     def terminate(self):
