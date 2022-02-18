@@ -135,12 +135,7 @@ class Debian(DistroFamily):
         "11": "bullseye",
         "12": "bookworm",
     }
-    ALIASES = {
-        "oldstable": "buster",
-        "stable": "bullseye",
-        "testing": "bookworm",
-        "unstable": "sid",
-    }
+    EXTRA_SUITES = ("oldstable", "stable", "testing", "unstable")
     SHORTCUTS = {
         suite: f"debian:{suite}"
         for suite in ("buster", "bullseye", "bookworm", "sid")
@@ -150,7 +145,7 @@ class Debian(DistroFamily):
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
 
-        if suite in self.ALIASES or suite in self.ALIASES.values():
+        if suite in self.SHORTCUTS or suite in self.EXTRA_SUITES:
             return DebianDistro(f"debian:{version}", suite)
         else:
             raise KeyError(f"Debian version {version!r} is not (yet) supported")
@@ -164,7 +159,7 @@ class Debian(DistroFamily):
             by_name[name].append(suite)
         for vid, suite in self.VERSION_IDS.items():
             by_name[f"debian:{suite}"].append(f"debian:{vid}")
-        for alias in self.ALIASES:
+        for alias in self.EXTRA_SUITES:
             by_name[f"debian:{alias}"]
 
         return [
