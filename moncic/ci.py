@@ -99,8 +99,7 @@ class CI(MoncicCommand):
     def run(self):
         system = self.moncic.create_system(self.args.system)
         with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-            run = system.create_ephemeral_run()
-            run.workdir = srcdir
+            run = system.create_ephemeral_run(workdir=srcdir)
             if self.args.build_style:
                 builder = Builder.create(self.args.build_style, run)
             else:
@@ -137,22 +136,28 @@ class Shell(MoncicCommand):
         parser.add_argument("--bind-ro", action="append",
                             help="option passed to systemd-nspawn as is (see man systemd-nspawn)"
                                  " can be given multiple times")
+
+        parser.add_argument("-u", "--user", action="store",
+                            help="option passed to systemd-nspawn as is (default: root or,"
+                                 " if --workdir is used, the owner of workdir")
+
         return parser
 
     def run(self):
         system = self.moncic.create_system(self.args.system)
-        if self.args.maintenance:
-            run = system.create_maintenance_run()
-        else:
-            run = system.create_ephemeral_run()
-
-        if self.args.bind:
-            run.bind = self.args.bind
-        if self.args.bind_ro:
-            run.bind_ro = self.args.bind_ro
-
         with checkout(system, self.args.checkout) as workdir:
-            run.workdir = workdir if workdir is not None else self.args.workdir
+            workdir = workdir if workdir is not None else self.args.workdir
+
+            if self.args.maintenance:
+                run = system.create_maintenance_run(workdir=workdir)
+            else:
+                run = system.create_ephemeral_run(workdir=workdir)
+
+            if self.args.bind:
+                run.bind = self.args.bind
+            if self.args.bind_ro:
+                run.bind_ro = self.args.bind_ro
+
             run.shell()
 
 
@@ -271,7 +276,7 @@ class TextColumn(NamedTuple):
 
 
 class TableOutput(RowOutput):
-    def __init__(self, out: TextIO, *args: Tuple[TextColumn]):
+    def __init__(self, out: TextIO, *args: TextColumn):
         self.out = out
         self.table = Texttable(max_width=shutil.get_terminal_size()[0])
         self.table.set_deco(Texttable.HEADER)

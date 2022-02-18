@@ -10,7 +10,7 @@ from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
 from moncic.system import System, Config
-from moncic.run import RunningSystem, RunningSystemBase
+from moncic.container import Container, ContainerBase
 from moncic.moncic import Moncic
 
 if TYPE_CHECKING:
@@ -126,7 +126,7 @@ class MockRunLog:
         self.testcase.assertEqual(self.log, [])
 
 
-class MockRunningSystem(RunningSystemBase):
+class MockContainer(ContainerBase):
     def __init__(self, system: "MockSystem", instance_name: Optional[str] = None):
         super().__init__(system, instance_name)
         self.run_log = system.run_log
@@ -166,11 +166,11 @@ class MockSystem(System):
         self.run_log.append(cmd, {})
         return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
-    def create_ephemeral_run(self, instance_name: Optional[str] = None) -> RunningSystem:
-        return MockRunningSystem(self)
+    def create_ephemeral_run(self, instance_name: Optional[str] = None, **kwargs) -> Container:
+        return MockContainer(self, **kwargs)
 
-    def create_maintenance_run(self, instance_name: Optional[str] = None) -> RunningSystem:
-        return MockRunningSystem(self)
+    def create_maintenance_run(self, instance_name: Optional[str] = None, **kwargs) -> Container:
+        return MockContainer(self, **kwargs)
 
 
 class DistroTestMixin:

@@ -7,7 +7,7 @@ from typing import Dict, Type, List, Optional, TYPE_CHECKING
 
 from .distro import Centos7, RpmDistro
 if TYPE_CHECKING:
-    from .run import RunningSystem
+    from .container import Container
 
 
 class Builder:
@@ -30,12 +30,12 @@ class Builder:
         return list(cls.builders.keys())
 
     @classmethod
-    def create(cls, name: str, run: RunningSystem) -> "Builder":
+    def create(cls, name: str, run: Container) -> "Builder":
         builder_cls = cls.builders[name]
         return builder_cls(run)
 
     @classmethod
-    def detect(cls, run: RunningSystem) -> "Builder":
+    def detect(cls, run: Container) -> "Builder":
         if run.workdir is None:
             raise ValueError("Running system has no workdir defined")
         for builder_cls in reversed(cls.builders.values()):
@@ -50,7 +50,7 @@ class Builder:
         """
         raise NotImplementedError(f"{cls}.builds not implemented")
 
-    def __init__(self, run: RunningSystem):
+    def __init__(self, run: Container):
         """
         The constructor is run in the host system
         """
@@ -73,7 +73,7 @@ class Builder:
 
 @Builder.register
 class ARPA(Builder):
-    def __init__(self, run: RunningSystem):
+    def __init__(self, run: Container):
         super().__init__(run)
         if run.system.distro == Centos7:
             self.builddep = ["yum-builddep"]

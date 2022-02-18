@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class RunningSystem(ContextManager, Protocol):
+class Container(ContextManager, Protocol):
     """
     An instance of a System in execution as a container
     """
@@ -73,21 +73,11 @@ class RunningSystem(ContextManager, Protocol):
         ...
 
 
-# class MaintenanceRunningSystem(RunningSystem):
-#     """
-#     RunningSystem with maintenance-oriented functions.
-#
-#     When a container is run using a MaintenanceRunningSystem it is not
-#     ephemeral, and changes to its filesystem persist after shutdown.
-#     """
-#     pass
-
-
-class RunningSystemBase(contextlib.ExitStack):
+class ContainerBase(contextlib.ExitStack):
     """
-    Convenience common base implementation for RunningSystem
+    Convenience common base implementation for Container
     """
-    def __init__(self, system: System, instance_name: Optional[str] = None):
+    def __init__(self, system: System, instance_name: Optional[str] = None, workdir: Optional[str] = None):
         super().__init__()
         self.system = system
 
@@ -95,6 +85,10 @@ class RunningSystemBase(contextlib.ExitStack):
             self.instance_name = str(uuid.uuid4())
         else:
             self.instance_name = instance_name
+
+        # Bind mount this directory in the running system and use it as default
+        # working directory
+        self.workdir: Optional[str] = workdir
 
         self.started = False
 
@@ -107,7 +101,7 @@ class RunningSystemBase(contextlib.ExitStack):
         return super().__exit__(exc_type, exc_value, exc_tb)
 
 
-class NspawnRunningSystem(RunningSystemBase):
+class NspawnContainer(ContainerBase):
     """
     Running system implemented using systemd nspawn
     """
@@ -119,9 +113,6 @@ class NspawnRunningSystem(RunningSystemBase):
         self.bind: List[str] = []
         # systemd-nspawn --bind_ro pathspecs to bind read-only
         self.bind_ro: List[str] = []
-        # Bind mount this directory in the running system and use it as default
-        # working directory
-        self.workdir: Optional[str] = None
 
     def _run_nspawn(self, cmd: List[str]):
         """
@@ -271,7 +262,7 @@ class NspawnRunningSystem(RunningSystemBase):
         self.started = False
 
 
-class EphemeralNspawnRunningSystem(NspawnRunningSystem):
+class EphemeralNspawnContainer(NspawnContainer):
     def get_start_command(self):
         cmd = super().get_start_command()
         cmd.append("--ephemeral")

@@ -15,7 +15,7 @@ from typing import List, Optional, Callable, TYPE_CHECKING
 from . import setns
 if TYPE_CHECKING:
     from .system import System
-    from .run import NspawnRunningSystem
+    from .container import NspawnContainer
 
 
 class Runner:
@@ -46,10 +46,11 @@ class Runner:
 
 
 class AsyncioRunner(Runner):
-    def __init__(self, system: System, cmd: List[str], check=True):
+    def __init__(self, system: System, cmd: List[str], user: Optional[str] = None, check=True):
         super().__init__(system)
         self.cmd = cmd
         self.check = check
+        self.user = user
 
     def execute(self):
         return asyncio.run(self._run())
@@ -105,7 +106,7 @@ class MachineRunner(AsyncioRunner):
     """
     Base class for running commands in running containers
     """
-    def __init__(self, run: NspawnRunningSystem, cmd: List[str], check=True, **kwargs):
+    def __init__(self, run: NspawnContainer, cmd: List[str], check=True, **kwargs):
         super().__init__(run.system, cmd, check)
         self.run = run
         self.kwargs = kwargs
@@ -172,7 +173,7 @@ class LegacyRunRunner(MachineRunner):
 
 class SetnsCallableRunner(Runner):
     def __init__(
-            self, run: NspawnRunningSystem, func: Callable[[], Optional[int]], cwd: Optional[str] = None, check=True):
+            self, run: NspawnContainer, func: Callable[[], Optional[int]], cwd: Optional[str] = None, check=True):
         super().__init__(run.system)
         self.leader_pid = int(run.properties["Leader"])
         self.func = func
