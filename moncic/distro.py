@@ -1,13 +1,16 @@
 from __future__ import annotations
 import contextlib
+import glob
 import logging
 import os
 import shutil
+import stat
 import tempfile
 from typing import Type, List, Dict, Sequence, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
 from .runner import MachineRunner, SystemdRunRunner, LegacyRunRunner
+from .utils import atomic_writer
 if TYPE_CHECKING:
     from .system import System
 
@@ -235,9 +238,13 @@ class RpmDistro(Distro):
             ] + self.get_base_packages()
 
             # If eatmydata is available, we can use it to make boostrap significantly faster
-            eatmydata = shutil.which("eatmydata")
-            if eatmydata is not None:
-                cmd.insert(0, eatmydata)
+            #
+            # Disabled for now, this causes noise when dnf executes scriptlets
+            # inside the target system
+            #
+            # eatmydata = shutil.which("eatmydata")
+            # if eatmydata is not None:
+            #     cmd.insert(0, eatmydata)
 
             system.local_run(cmd)
 
@@ -285,6 +292,24 @@ class Centos7(YumDistro):
 class Centos8(DnfDistro):
     baseurl = "https://vault.centos.org/centos/8/BaseOS//$basearch/os/"
     version = 8
+
+    def bootstrap(self, system: System):
+        super().bootstrap(system)
+        # self.system.local_run(["tar", "-C", self.system.path, "-zxf", "images/centos8.tar.gz"])
+        # Fixup repository information to point at the vault
+        for fn in glob.glob(os.path.join(system.path, "etc/yum.repos.d/CentOS-*")):
+            log.info("Updating %r to point mirrors to the Vault", fn)
+            with open(fn, "rt") as fd:
+                st = os.stat(fd.fileno())
+                with atomic_writer(fn, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
+                    for line in fd:
+                        if line.startswith("mirrorlist="):
+                            print(f"#{line}", file=tf)
+                        elif line.startswith("#baseurl=http://mirror.centos.org"):
+                            print(f"baseurl=http://vault.centos.org{line[33:]}", file=tf)
+                        else:
+                            print(line, file=tf)
+                    tf.flush()
 
 
 class FedoraDistro(DnfDistro):
