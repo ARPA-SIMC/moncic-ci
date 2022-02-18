@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 import contextlib
 import glob
 import logging
@@ -6,7 +7,7 @@ import os
 import shutil
 import stat
 import tempfile
-from typing import Optional, Type, List, Dict, Iterable, TYPE_CHECKING
+from typing import Optional, Type, List, Dict, Iterable, NamedTuple, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
 from .runner import MachineRunner, SystemdRunRunner, LegacyRunRunner
@@ -15,6 +16,15 @@ if TYPE_CHECKING:
     from .system import System
 
 log = logging.getLogger(__name__)
+
+
+class DistroInfo(NamedTuple):
+    """
+    Information about a distribution
+    """
+    # Canonical name
+    name: str
+    shortcuts: List[str]
 
 
 class DistroFamily:
@@ -109,6 +119,14 @@ class DistroFamily:
         """
         raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
 
+    def list_distros(self) -> List[DistroInfo]:
+        """
+        Return a list of distros available in this family
+        """
+        return [
+            DistroInfo(name, [shortcut])
+            for shortcut, name in self.SHORTCUTS.items()]
+
 
 @DistroFamily.register
 class Debian(DistroFamily):
@@ -136,6 +154,22 @@ class Debian(DistroFamily):
             return DebianDistro(f"debian:{version}", suite)
         else:
             raise KeyError(f"Debian version {version!r} is not (yet) supported")
+
+    def list_distros(self) -> List[DistroInfo]:
+        """
+        Return a list of distros available in this family
+        """
+        by_name = defaultdict(list)
+        for suite, name in self.SHORTCUTS.items():
+            by_name[name].append(suite)
+        for vid, suite in self.VERSION_IDS.items():
+            by_name[f"debian:{suite}"].append(f"debian:{vid}")
+        for alias in self.ALIASES:
+            by_name[f"debian:{alias}"]
+
+        return [
+            DistroInfo(name, shortcuts)
+            for name, shortcuts in by_name.items()]
 
 
 @DistroFamily.register

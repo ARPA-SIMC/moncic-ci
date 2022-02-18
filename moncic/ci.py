@@ -319,7 +319,23 @@ class Distros(MoncicCommand):
     """
     List OS images
     """
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("--csv", action="store_true",
+                            help="machine readable output in CSV format")
+        return parser
+
     def run(self):
+        if self.args.csv or Texttable is None:
+            output = CSVOutput(sys.stdout)
+        else:
+            output = TableOutput(
+                    sys.stdout,
+                    TextColumn("Name"),
+                    TextColumn("Shortcuts"))
+
         for family in sorted(DistroFamily.list(), key=lambda x: x.name):
-            print(family)
-            # TODO
+            for info in family.list_distros():
+                output.add_row((info.name, ", ".join(info.shortcuts)))
+        output.flush()
