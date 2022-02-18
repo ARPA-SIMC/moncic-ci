@@ -38,7 +38,6 @@ fedora:33          fedora33
 fedora:34          fedora34
 fedora:35          fedora35
 rocky:8            rocky8
-ubuntu:trusty      trusty, ubuntu:14.04
 ubuntu:xenial      xenial, ubuntu:16.04
 ubuntu:bionic      bionic, ubuntu:18.04
 ubuntu:focal       focal, ubuntu:20.04

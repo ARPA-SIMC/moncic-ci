@@ -170,7 +170,6 @@ class Debian(DistroFamily):
 @DistroFamily.register
 class Ubuntu(DistroFamily):
     VERSION_IDS = {
-        "14.04": "trusty",
         "16.04": "xenial",
         "18.04": "bionic",
         "20.04": "focal",
@@ -180,7 +179,7 @@ class Ubuntu(DistroFamily):
     }
     SHORTCUTS = {
         suite: f"ubuntu:{suite}"
-        for suite in ("trusty", "xenial", "bionic", "focal", "hirsute", "impish", "jammy")
+        for suite in ("xenial", "bionic", "focal", "hirsute", "impish", "jammy")
     }
 
     def create_distro(self, version: str) -> "Distro":
