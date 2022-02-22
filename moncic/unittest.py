@@ -132,15 +132,11 @@ class MockContainer(ContainerBase):
         super().__init__(system, instance_name, config)
         self.run_log = system.run_log
 
-    def start(self):
-        if self.started:
-            return
-        self.started = True
+    def _running(self):
+        yield
 
-    def terminate(self):
-        if not self.started:
-            return
-        self.started = False
+    def _configured(self):
+        yield
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         self.run_log.append(command, {})

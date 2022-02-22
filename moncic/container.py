@@ -9,7 +9,7 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Callable, ContextManager, Protocol, TYPE_CHECKING
+from typing import List, Optional, Callable, ContextManager, Generator, Protocol, TYPE_CHECKING
 import uuid
 
 from .runner import SetnsCallableRunner, RunConfig, UserConfig
@@ -94,18 +94,6 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def start(self):
-        """
-        Start the running system
-        """
-        ...
-
-    def terminate(self) -> None:
-        """
-        Shut down the running system
-        """
-        ...
-
 
 class ContainerBase(contextlib.ExitStack):
     """
@@ -122,17 +110,13 @@ class ContainerBase(contextlib.ExitStack):
 
         if config is None:
             config = ContainerConfig()
+        config.check()
         self.config = config
 
-        self.started = False
-
     def __enter__(self):
-        self.start()
+        self.enter_context(self._running())
+        self.enter_context(self._configured())
         return super().__enter__()
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        self.terminate()
-        return super().__exit__(exc_type, exc_value, exc_tb)
 
 
 class NspawnContainer(ContainerBase):
@@ -200,10 +184,8 @@ class NspawnContainer(ContainerBase):
             cmd.append("--ephemeral")
         return cmd
 
-    def start(self):
-        if self.started:
-            return
-
+    @contextlib.contextmanager
+    def _running(self) -> Generator[None, None, None]:
         self.system.log.info("Starting system %s as %s using image %s",
                              self.system.name, self.instance_name, self.system.path)
 
@@ -220,6 +202,28 @@ class NspawnContainer(ContainerBase):
         for line in res.stdout.splitlines():
             key, value = line.split('=', 1)
             self.properties[key] = value
+
+        try:
+            yield
+        finally:
+            # See https://github.com/systemd/systemd/issues/6458
+            leader_pid = int(self.properties["Leader"])
+            os.kill(leader_pid, signal.SIGRTMIN + 4)
+            while True:
+                try:
+                    os.kill(leader_pid, 0)
+                except OSError as e:
+                    if e.errno == errno.ESRCH:
+                        break
+                    raise
+                time.sleep(0.1)
+
+    @contextlib.contextmanager
+    def _configured(self) -> Generator[None, None, None]:
+        try:
+            yield
+        finally:
+            pass
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         def command_runner():
@@ -254,24 +258,3 @@ class NspawnContainer(ContainerBase):
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func)
         return runner.execute()
-
-    def terminate(self):
-        if not self.started:
-            return
-
-        # See https://github.com/systemd/systemd/issues/6458
-        leader_pid = int(self.properties["Leader"])
-        os.kill(leader_pid, signal.SIGRTMIN + 4)
-        while True:
-            try:
-                os.kill(leader_pid, 0)
-            except OSError as e:
-                if e.errno == errno.ESRCH:
-                    break
-                raise
-            time.sleep(0.1)
-
-        # res = subprocess.run(["machinectl", "stop", self.instance_name])
-        # if res.returncode != 0:
-        #     raise RuntimeError(f"Terminating machine {self.instance_name} failed with code {res.returncode}")
-        self.started = False
