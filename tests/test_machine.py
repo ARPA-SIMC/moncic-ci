@@ -1,9 +1,11 @@
 from __future__ import annotations
-import unittest
+import grp
 import os
-import sys
 import secrets
+import sys
 import time
+import unittest
+
 from moncic.unittest import privs, TEST_CHROOTS
 from moncic.system import System
 from moncic.container import RunConfig
@@ -127,6 +129,34 @@ class RunTestCase:
                 self.assertEqual(res.stderr, b"")
                 res = container.run_callable(print_uid, config=RunConfig(user=user_name))
                 self.assertEqual(res.stdout, f"{user_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+
+    def test_group(self):
+        def print_gid():
+            print(os.getgid())
+
+        system = self.get_system()
+        group_id = os.getgid()
+        group_name = grp.getgrgid(group_id).gr_name
+        with privs.root():
+            with system.create_container() as container:
+                res = container.run(["/usr/bin/id", "-g"], config=RunConfig(group=group_id))
+                self.assertEqual(res.stdout, f"{group_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run(["/usr/bin/id", "-g"], config=RunConfig(group=group_name))
+                self.assertEqual(res.stdout, f"{group_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_script("#!/bin/sh\n/usr/bin/id -g\n", config=RunConfig(group=group_id))
+                self.assertEqual(res.stdout, f"{group_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_script("#!/bin/sh\n/usr/bin/id -g\n", config=RunConfig(group=group_name))
+                self.assertEqual(res.stdout, f"{group_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_callable(print_gid, config=RunConfig(group=group_id))
+                self.assertEqual(res.stdout, f"{group_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_callable(print_gid, config=RunConfig(group=group_name))
+                self.assertEqual(res.stdout, f"{group_id}\n".encode())
                 self.assertEqual(res.stderr, b"")
 
 

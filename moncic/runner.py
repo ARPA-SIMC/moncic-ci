@@ -5,6 +5,7 @@ their output
 from __future__ import annotations
 import asyncio
 import dataclasses
+import grp
 import importlib
 import logging
 import os
@@ -36,6 +37,9 @@ class RunConfig:
     # Run as the given user (id or name)
     user: Optional[str] = None
 
+    # Run as the given group (id or name)
+    group: Optional[str] = None
+
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
 
@@ -53,6 +57,21 @@ class RunConfig:
         else:
             pw = pwd.getpwnam(self.user)
             return pw.pw_uid
+
+    def get_gid(self) -> Optional[int]:
+        """
+        If group is not None, resolve it to a group ID. Otherwise return None
+        """
+        if self.group is None:
+            return None
+
+        if isinstance(self.group, int):
+            return self.group
+        elif self.group.isdigit():
+            return int(self.group)
+        else:
+            gr = grp.getgrnam(self.group)
+            return gr.gr_gid
 
 
 class Runner:
@@ -127,6 +146,8 @@ class LocalRunner(AsyncioRunner):
     async def start_process(self):
         if self.config.user is not None:
             raise NotImplementedError("support for user config in LocalRunner is not yet implemented")
+        if self.config.group is not None:
+            raise NotImplementedError("support for group config in LocalRunner is not yet implemented")
         if self.config.interactive is not None:
             raise NotImplementedError("support for interactive config in LocalRunner is not yet implemented")
 
@@ -170,6 +191,7 @@ class SetnsCallableRunner(Runner):
 
     def execute(self) -> subprocess.CompletedProcess:
         uid = self.config.get_uid()
+        gid = self.config.get_gid()
 
         catch_output = not self.config.interactive
 
@@ -198,6 +220,8 @@ class SetnsCallableRunner(Runner):
                 setns.nsenter(self.leader_pid)
                 if self.config.cwd is not None:
                     os.chdir(self.config.cwd)
+                if gid is not None:
+                    os.setresgid(gid, gid, gid)
                 if uid is not None:
                     os.setresuid(uid, uid, uid)
                 res = self.func()
