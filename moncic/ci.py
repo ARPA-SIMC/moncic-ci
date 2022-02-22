@@ -163,6 +163,9 @@ class Shell(MoncicCommand):
             shell_candidates.extend(("bash", "sh"))
 
             def find_shell():
+                """
+                lookup for a valid shell in the container
+                """
                 for cand in shell_candidates:
                     pathname = shutil.which(cand)
                     if pathname is not None:

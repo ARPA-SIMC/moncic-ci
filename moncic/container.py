@@ -257,6 +257,8 @@ class NspawnContainer(ContainerBase):
         def command_runner():
             os.execv(command[0], command)
 
+        command_runner.__doc__ = " ".join(shlex.quote(c) for c in command)
+
         return self.run_callable(command_runner, config)
 
     def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
@@ -271,11 +273,17 @@ class NspawnContainer(ContainerBase):
                 os.chdir(workdir)
                 os.execv(script_path, [script_path])
 
+        if len(body) > 200:
+            script_runner.__doc__ = f"script: {body[:200]!r}…"
+        else:
+            script_runner.__doc__ = f"script: {body!r}"
+
         return self.run_callable(script_runner, config)
 
     def run_callable(
             self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         run_config = self.config.run_config(config)
+        self.system.log.info("Running %s", func.__doc__ or func.__name__)
         runner = SetnsCallableRunner(self, run_config, func)
         return runner.execute()
 
