@@ -169,16 +169,7 @@ class SetnsCallableRunner(Runner):
         )
 
     def execute(self) -> subprocess.CompletedProcess:
-        if self.config.user is not None:
-            if isinstance(self.config.user, int):
-                uid = self.config.user
-            elif self.config.user.isdigit():
-                uid = int(self.config.user)
-            else:
-                pw = pwd.getpwnam(self.config.user)
-                uid = pw.pw_uid
-        else:
-            uid = None
+        uid = self.config.get_uid()
 
         catch_output = not self.config.interactive
 
@@ -190,6 +181,7 @@ class SetnsCallableRunner(Runner):
         pid = os.fork()
         if pid == 0:
             try:
+                # TODO: setenv HOME
                 if catch_output:
                     # Close stdin
                     os.close(0)
@@ -218,6 +210,8 @@ class SetnsCallableRunner(Runner):
                 os.close(stdout_w)
                 os.close(stderr_w)
 
+        stdout: Optional[bytes]
+        stderr: Optional[bytes]
         if catch_output:
             asyncio.run(self.collect_output(stdout_r, stderr_r))
 

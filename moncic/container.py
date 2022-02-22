@@ -227,13 +227,14 @@ class NspawnContainer(ContainerBase):
 
     def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         def script_runner():
-            # TODO: setenv HOME
             with tempfile.TemporaryDirectory() as workdir:
                 script_path = os.path.join(workdir, "script")
                 with open(script_path, "wt") as fd:
                     fd.write(body)
                     fd.flush()
                     os.chmod(fd.fileno(), 0o700)
+                # FIXME: if cwd is set in config, don't chdir here
+                #        and don't use a working directory
                 os.chdir(workdir)
                 os.execv(script_path, [script_path])
 
