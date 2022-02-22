@@ -156,8 +156,8 @@ class Shell(MoncicCommand):
             if self.args.bind_ro:
                 config.bind_ro = self.args.bind_ro
 
-            container = system.create_container(config=config)
-            container.shell()
+            with system.create_container(config=config) as container:
+                container.run(["/bin/bash", "--login"], config=RunConfig(interactive=True))
 
 
 class Bootstrap(MoncicCommand):

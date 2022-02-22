@@ -11,7 +11,6 @@ from typing import Optional, Type, List, Dict, Iterable, NamedTuple, TYPE_CHECKI
 
 from .osrelease import parse_osrelase
 from .container import ContainerConfig
-from .runner import MachineRunner, SystemdRunRunner, LegacyRunRunner
 from .utils import atomic_writer
 if TYPE_CHECKING:
     from .system import System
@@ -189,10 +188,7 @@ class Ubuntu(DistroFamily):
         suite = self.VERSION_IDS.get(version, version)
 
         if suite in self.SHORTCUTS:
-            if suite in self.LEGACY:
-                return UbuntuLegacyDistro(f"ubuntu:{version}", suite)
-            else:
-                return UbuntuDistro(f"ubuntu:{version}", suite)
+            return UbuntuDistro(f"ubuntu:{version}", suite)
         else:
             raise KeyError(f"Ubuntu version {version!r} is not (yet) supported")
 
@@ -265,8 +261,6 @@ class Distro:
     """
     Common base class for bootstrapping distributions
     """
-    runner_class: Type[MachineRunner] = SystemdRunRunner
-
     def __init__(self, name: str):
         self.name = name
 
@@ -375,7 +369,6 @@ class DnfDistro(RpmDistro):
 class Centos7(YumDistro):
     baseurl = "http://mirror.centos.org/centos/7/os/$basearch"
     version = 7
-    runner_class = LegacyRunRunner
 
 
 class Centos8(DnfDistro):
@@ -451,11 +444,3 @@ class UbuntuDistro(DebianDistro):
     """
     def __init__(self, name: str, suite: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"):
         super().__init__(name, suite, mirror=mirror)
-
-
-class UbuntuLegacyDistro(UbuntuDistro):
-    """
-    Implementation for Ubuntu-based distributions that are too old to interface
-    well with current systemd
-    """
-    runner_class = LegacyRunRunner

@@ -91,6 +91,8 @@ class LocalRunner(AsyncioRunner):
     async def start_process(self):
         if self.config.user is not None:
             raise NotImplementedError("support for user config in LocalRunner is not yet implemented")
+        if self.config.interactive is not None:
+            raise NotImplementedError("support for interactive config in LocalRunner is not yet implemented")
 
         self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
 
@@ -103,68 +105,6 @@ class LocalRunner(AsyncioRunner):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 **kwargs)
-
-
-class MachineRunner(AsyncioRunner):
-    """
-    Base class for running commands in running containers
-    """
-    def __init__(self, container: NspawnContainer, config: RunConfig, cmd: List[str]):
-        super().__init__(container.system, config, cmd)
-        self.container = container
-
-
-class SystemdRunRunner(MachineRunner):
-    async def start_process(self):
-        cmd = [
-            "/usr/bin/systemd-run", "--quiet", "--pipe", "--wait",
-            "--setenv=HOME=/root",
-            f"--machine={self.container.instance_name}",
-        ]
-
-        if self.config.cwd is not None:
-            cmd.append("--working-directory=" + self.config.cwd)
-
-        if (uid := self.config.get_uid()) is not None:
-            cmd.append(f"--uid={uid}")
-
-        cmd.append("--")
-        cmd += self.cmd
-
-        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
-
-        return await asyncio.create_subprocess_exec(
-                cmd[0], *cmd[1:],
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE)
-
-
-class LegacyRunRunner(MachineRunner):
-    async def start_process(self):
-        # See https://lists.debian.org/debian-devel/2021/12/msg00148.html
-        # Thank you Marco d'Itri for the nsenter tip
-        leader_pid = int(self.container.properties["Leader"])
-
-        # Verify that we can interact with the given process
-        os.kill(leader_pid, 0)
-
-        cmd = ["nsenter", "--mount", "--uts", "--ipc", "--net", "--pid", "--cgroup", "--target", str(leader_pid)]
-
-        if self.config.cwd is not None:
-            cmd.append("--wd=" + os.path.join(self.container.properties["RootDirectory"], self.config.cwd.lstrip("/")))
-
-        if (uid := self.config.get_uid()) is not None:
-            cmd.append(f"--setuid={uid}")
-
-        cmd.append("--")
-        cmd += self.cmd
-
-        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in cmd))
-
-        return await asyncio.create_subprocess_exec(
-                cmd[0], *cmd[1:],
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE)
 
 
 class SetnsCallableRunner(Runner):
@@ -204,22 +144,26 @@ class SetnsCallableRunner(Runner):
         else:
             uid = None
 
-        # Create pipes for catching stdout and stderr
-        stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
-        stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)
+        catch_output = not self.config.interactive
+
+        if catch_output:
+            # Create pipes for catching stdout and stderr
+            stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
+            stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)
 
         pid = os.fork()
         if pid == 0:
             try:
-                # Close stdin
-                os.close(0)
-                os.close(stdout_r)
-                os.close(stderr_r)
-                # Redirect stdout and stderr to the pipes to parent
-                os.dup2(stdout_w, 1)
-                os.close(stdout_w)
-                os.dup2(stderr_w, 2)
-                os.close(stderr_w)
+                if catch_output:
+                    # Close stdin
+                    os.close(0)
+                    os.close(stdout_r)
+                    os.close(stderr_r)
+                    # Redirect stdout and stderr to the pipes to parent
+                    os.dup2(stdout_w, 1)
+                    os.close(stdout_w)
+                    os.dup2(stderr_w, 2)
+                    os.close(stderr_w)
 
                 logging.shutdown()
                 importlib.reload(logging)
@@ -234,13 +178,18 @@ class SetnsCallableRunner(Runner):
                 traceback.print_exc()
                 os._exit(1)
         else:
-            os.close(stdout_w)
-            os.close(stderr_w)
+            if catch_output:
+                os.close(stdout_w)
+                os.close(stderr_w)
 
-        asyncio.run(self.collect_output(stdout_r, stderr_r))
+        if catch_output:
+            asyncio.run(self.collect_output(stdout_r, stderr_r))
 
-        stdout = b"".join(self.stdout)
-        stderr = b"".join(self.stderr)
+            stdout = b"".join(self.stdout)
+            stderr = b"".join(self.stderr)
+        else:
+            stdout = None
+            stderr = None
 
         wres = os.waitid(os.P_PID, pid, os.WEXITED)
         if self.config.check and wres.si_status != 0:

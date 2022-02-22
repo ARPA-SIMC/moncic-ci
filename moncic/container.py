@@ -56,9 +56,19 @@ class RunConfig:
     """
     Configuration needed to customize running actions in a container
     """
+    # Set to True to raise CalledProcessError if the process exits with a
+    # non-zero exit status
     check: bool = True
+
+    # Run in this working directory. Defaults to ContainerConfig.workdir, if
+    # set
     cwd: Optional[str] = None
+
+    # Run as the given user (id or name)
     user: Optional[str] = None
+
+    # Set to true to connect to the running terminal instead of logging output
+    interactive: bool = False
 
     def get_uid(self) -> Optional[int]:
         """
@@ -222,25 +232,6 @@ class NspawnContainer(ContainerBase):
             cmd.append("--ephemeral")
         return cmd
 
-    def get_shell_start_command(self):
-        cmd = ["systemd-nspawn", "-D", self.system.path]
-        if self.config.workdir is not None:
-            workdir = os.path.abspath(self.config.workdir)
-            name = os.path.basename(self.config.workdir)
-            if name.startswith("."):
-                raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
-            cmd.append(f"--chdir=/root/{name}")
-        if self.config.bind:
-            for pathspec in self.config.bind:
-                cmd.append("--bind=" + pathspec)
-        if self.config.bind_ro:
-            for pathspec in self.config.bind_ro:
-                cmd.append("--bind-ro=" + pathspec)
-        if self.config.ephemeral:
-            cmd.append("--ephemeral")
-        return cmd
-
     def start(self):
         if self.started:
             return
@@ -287,14 +278,6 @@ class NspawnContainer(ContainerBase):
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func)
         return runner.execute()
-
-    def shell(self):
-        """
-        Open a shell on the given ostree
-        """
-        cmd = self.get_shell_start_command()
-        self.system.log.info("Running %s", ' '.join(shlex.quote(c) for c in cmd))
-        subprocess.run(cmd)
 
     def terminate(self):
         if not self.started:
