@@ -102,6 +102,9 @@ class RunTestCase:
                 self.assertEqual(res.returncode, 1)
 
     def test_user(self):
+        def print_uid():
+            print(os.getuid())
+
         system = self.get_system()
         user_id = os.getuid()
         user_name = os.getlogin()
@@ -111,7 +114,19 @@ class RunTestCase:
                 self.assertEqual(res.stdout, f"{user_id}\n".encode())
                 self.assertEqual(res.stderr, b"")
                 res = container.run(["/usr/bin/id", "-u"], config=RunConfig(user=user_name))
-                self.assertEqual(res.stdout, f"{user_name}\n".encode())
+                self.assertEqual(res.stdout, f"{user_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_script("#!/bin/sh\nid -u\n", config=RunConfig(user=user_id))
+                self.assertEqual(res.stdout, f"{user_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_script("#!/bin/sh\nid -u\n", config=RunConfig(user=user_name))
+                self.assertEqual(res.stdout, f"{user_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_callable(print_uid, config=RunConfig(user=user_id))
+                self.assertEqual(res.stdout, f"{user_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run_callable(print_uid, config=RunConfig(user=user_name))
+                self.assertEqual(res.stdout, f"{user_id}\n".encode())
                 self.assertEqual(res.stderr, b"")
 
 
