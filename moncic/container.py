@@ -263,12 +263,14 @@ class NspawnContainer(ContainerBase):
             self.properties[key] = value
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-        run_config = self.config.run_config(config)
-        runner = self.system.distro.runner_class(self, run_config, command)
-        return runner.execute()
+        def command_runner():
+            os.execv(command[0], command)
+
+        return self.run_callable(command_runner, config)
 
     def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         def script_runner():
+            # TODO: setenv HOME
             with tempfile.TemporaryDirectory() as workdir:
                 script_path = os.path.join(workdir, "script")
                 with open(script_path, "wt") as fd:
