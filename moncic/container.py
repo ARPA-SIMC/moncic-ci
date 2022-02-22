@@ -38,6 +38,18 @@ class ContainerConfig:
     # systemd-nspawn --bind_ro pathspecs to bind read-only
     bind_ro: List[str] = dataclasses.field(default_factory=list)
 
+    # If set to True: if workdir is None, make sure the current user exists in
+    # the container. Else, make sure the owner of workdir exists in the
+    # container. Cannot be used when ephemeral is FAlse
+    forward_user: bool = False
+
+    def check(self):
+        """
+        Raise exceptions if options are used inconsistently
+        """
+        if not self.ephemeral and self.forward_user:
+            raise RuntimeError("forward_user cannot be used on non-ephemeral containers")
+
     def run_config(self, run_config: Optional[RunConfig] = None) -> RunConfig:
         if run_config is None:
             res = RunConfig()
@@ -226,6 +238,8 @@ class NspawnContainer(ContainerBase):
 
     @contextlib.contextmanager
     def _configured(self) -> Generator[None, None, None]:
+        if self.config.forward_user:
+            raise NotImplementedError("forward_user not yet implemented")
         try:
             yield
         finally:

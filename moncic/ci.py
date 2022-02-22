@@ -150,6 +150,8 @@ class Shell(MoncicCommand):
             config = ContainerConfig(
                     ephemeral=not self.args.maintenance,
                     workdir=workdir)
+            if workdir is not None:
+                config.forward_user = True
 
             if self.args.bind:
                 config.bind = self.args.bind
