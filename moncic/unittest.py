@@ -132,9 +132,11 @@ class MockContainer(ContainerBase):
         super().__init__(system, instance_name, config)
         self.run_log = system.run_log
 
+    @contextlib.contextmanager
     def _running(self):
         yield
 
+    @contextlib.contextmanager
     def _configured(self):
         yield
 

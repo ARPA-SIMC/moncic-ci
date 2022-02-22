@@ -113,6 +113,12 @@ class ContainerBase(contextlib.ExitStack):
         config.check()
         self.config = config
 
+    def _running(self) -> ContextManager:
+        raise NotImplementedError(f"{self.__class__}._running not implemented")
+
+    def _configured(self) -> ContextManager:
+        raise NotImplementedError(f"{self.__class__}._configured not implemented")
+
     def __enter__(self):
         self.enter_context(self._running())
         self.enter_context(self._configured())
