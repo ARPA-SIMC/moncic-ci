@@ -4,6 +4,7 @@ their output
 """
 from __future__ import annotations
 import asyncio
+import dataclasses
 import importlib
 import logging
 import os
@@ -16,7 +17,42 @@ from typing import List, Optional, Callable, TYPE_CHECKING
 from . import setns
 if TYPE_CHECKING:
     from .system import System
-    from .container import RunConfig, NspawnContainer
+    from .container import NspawnContainer
+
+
+@dataclasses.dataclass
+class RunConfig:
+    """
+    Configuration needed to customize running actions in a container
+    """
+    # Set to True to raise CalledProcessError if the process exits with a
+    # non-zero exit status
+    check: bool = True
+
+    # Run in this working directory. Defaults to ContainerConfig.workdir, if
+    # set
+    cwd: Optional[str] = None
+
+    # Run as the given user (id or name)
+    user: Optional[str] = None
+
+    # Set to true to connect to the running terminal instead of logging output
+    interactive: bool = False
+
+    def get_uid(self) -> Optional[int]:
+        """
+        If user is not None, resolve it to a user ID. Otherwise return None
+        """
+        if self.user is None:
+            return None
+
+        if isinstance(self.user, int):
+            return self.user
+        elif self.user.isdigit():
+            return int(self.user)
+        else:
+            pw = pwd.getpwnam(self.user)
+            return pw.pw_uid
 
 
 class Runner:

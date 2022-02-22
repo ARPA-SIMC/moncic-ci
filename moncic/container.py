@@ -4,7 +4,6 @@ import dataclasses
 import errno
 import logging
 import os
-import pwd
 import shlex
 import signal
 import subprocess
@@ -13,7 +12,7 @@ import time
 from typing import List, Optional, Callable, ContextManager, Protocol, TYPE_CHECKING
 import uuid
 
-from .runner import SetnsCallableRunner
+from .runner import SetnsCallableRunner, RunConfig
 from .nspawn import escape_bind_ro
 if TYPE_CHECKING:
     from .system import System
@@ -49,41 +48,6 @@ class ContainerConfig:
             name = os.path.basename(self.workdir)
             res.cwd = f"/root/{name}"
         return res
-
-
-@dataclasses.dataclass
-class RunConfig:
-    """
-    Configuration needed to customize running actions in a container
-    """
-    # Set to True to raise CalledProcessError if the process exits with a
-    # non-zero exit status
-    check: bool = True
-
-    # Run in this working directory. Defaults to ContainerConfig.workdir, if
-    # set
-    cwd: Optional[str] = None
-
-    # Run as the given user (id or name)
-    user: Optional[str] = None
-
-    # Set to true to connect to the running terminal instead of logging output
-    interactive: bool = False
-
-    def get_uid(self) -> Optional[int]:
-        """
-        If user is not None, resolve it to a user ID. Otherwise return None
-        """
-        if self.user is None:
-            return None
-
-        if isinstance(self.user, int):
-            return self.user
-        elif self.user.isdigit():
-            return int(self.user)
-        else:
-            pw = pwd.getpwnam(self.user)
-            return pw.pw_uid
 
 
 class Container(ContextManager, Protocol):
