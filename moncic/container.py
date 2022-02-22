@@ -4,6 +4,7 @@ import dataclasses
 import errno
 import logging
 import os
+import pwd
 import shlex
 import signal
 import subprocess
@@ -58,6 +59,21 @@ class RunConfig:
     check: bool = True
     cwd: Optional[str] = None
     user: Optional[str] = None
+
+    def get_uid(self) -> Optional[int]:
+        """
+        If user is not None, resolve it to a user ID. Otherwise return None
+        """
+        if self.user is None:
+            return None
+
+        if isinstance(self.user, int):
+            return self.user
+        elif self.user.isdigit():
+            return int(self.user)
+        else:
+            pw = pwd.getpwnam(self.user)
+            return pw.pw_uid
 
 
 class Container(ContextManager, Protocol):
@@ -252,17 +268,17 @@ class NspawnContainer(ContainerBase):
         return runner.execute()
 
     def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-        run_config = self.config.run_config(config)
-        chroot = self.properties["RootDirectory"]
-        with tempfile.TemporaryDirectory(dir=os.path.join(chroot, "root")) as workdir:
-            with open(os.path.join(workdir, "script"), "wt") as fd:
-                fd.write(body)
-                fd.flush()
-                os.chmod(fd.fileno(), 0o700)
-            inside_workdir = os.path.join("/root", os.path.basename(workdir))
-            if run_config.cwd is None:
-                run_config.cwd = inside_workdir
-            return self.run([os.path.join(inside_workdir, "script")], run_config)
+        def script_runner():
+            with tempfile.TemporaryDirectory() as workdir:
+                script_path = os.path.join(workdir, "script")
+                with open(script_path, "wt") as fd:
+                    fd.write(body)
+                    fd.flush()
+                    os.chmod(fd.fileno(), 0o700)
+                os.chdir(workdir)
+                os.execv(script_path, [script_path])
+
+        return self.run_callable(script_runner, config)
 
     def run_callable(
             self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:

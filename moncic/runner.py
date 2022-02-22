@@ -7,6 +7,7 @@ import asyncio
 import importlib
 import logging
 import os
+import pwd
 import shlex
 import subprocess
 import traceback
@@ -88,6 +89,9 @@ class LocalRunner(AsyncioRunner):
     Run a command locally, logging its output
     """
     async def start_process(self):
+        if self.config.user is not None:
+            raise NotImplementedError("support for user config in LocalRunner is not yet implemented")
+
         self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
 
         kwargs = {}
@@ -121,6 +125,9 @@ class SystemdRunRunner(MachineRunner):
         if self.config.cwd is not None:
             cmd.append("--working-directory=" + self.config.cwd)
 
+        if (uid := self.config.get_uid()) is not None:
+            cmd.append(f"--uid={uid}")
+
         cmd.append("--")
         cmd += self.cmd
 
@@ -145,6 +152,9 @@ class LegacyRunRunner(MachineRunner):
 
         if self.config.cwd is not None:
             cmd.append("--wd=" + os.path.join(self.container.properties["RootDirectory"], self.config.cwd.lstrip("/")))
+
+        if (uid := self.config.get_uid()) is not None:
+            cmd.append(f"--setuid={uid}")
 
         cmd.append("--")
         cmd += self.cmd
@@ -183,6 +193,17 @@ class SetnsCallableRunner(Runner):
         )
 
     def execute(self) -> subprocess.CompletedProcess:
+        if self.config.user is not None:
+            if isinstance(self.config.user, int):
+                uid = self.config.user
+            elif self.config.user.isdigit():
+                uid = int(self.config.user)
+            else:
+                pw = pwd.getpwnam(self.config.user)
+                uid = pw.pw_uid
+        else:
+            uid = None
+
         # Create pipes for catching stdout and stderr
         stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
         stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)
@@ -205,6 +226,8 @@ class SetnsCallableRunner(Runner):
                 setns.nsenter(self.leader_pid)
                 if self.config.cwd is not None:
                     os.chdir(self.config.cwd)
+                if uid is not None:
+                    os.setresuid(uid, uid, uid)
                 res = self.func()
                 os._exit(res if res is not None else 0)
             except Exception:
