@@ -47,6 +47,14 @@ class ContainerConfig:
         if res.cwd is None and self.workdir is not None:
             name = os.path.basename(self.workdir)
             res.cwd = f"/root/{name}"
+
+        if self.workdir is not None and (res.user is None or res.group is None):
+            st = os.stat(self.workdir)
+            if res.user is None:
+                res.user = st.st_uid
+            if res.group is None:
+                res.group = st.st_gid
+
         return res
 
 
@@ -248,7 +256,6 @@ class NspawnContainer(ContainerBase):
     def run_callable(
             self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         run_config = self.config.run_config(config)
-        self.system.log.info("Running %s", func.__doc__ or func.__name__)
         runner = SetnsCallableRunner(self, run_config, func)
         return runner.execute()
 

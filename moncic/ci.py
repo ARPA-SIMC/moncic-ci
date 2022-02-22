@@ -175,7 +175,7 @@ class Shell(MoncicCommand):
 
             with system.create_container(config=config) as container:
                 res = container.run_callable(find_shell)
-                container.run([res.stdout.strip(), "--login"], config=RunConfig(interactive=True))
+                container.run([res.stdout.strip().decode(), "--login"], config=RunConfig(interactive=True))
 
 
 class Bootstrap(MoncicCommand):

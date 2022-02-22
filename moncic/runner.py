@@ -13,7 +13,7 @@ import pwd
 import shlex
 import subprocess
 import traceback
-from typing import List, Optional, Callable, TYPE_CHECKING
+from typing import List, Optional, Union, Callable, TYPE_CHECKING
 
 from . import setns
 if TYPE_CHECKING:
@@ -35,10 +35,10 @@ class RunConfig:
     cwd: Optional[str] = None
 
     # Run as the given user (id or name)
-    user: Optional[str] = None
+    user: Union[None, int, str] = None
 
     # Run as the given group (id or name)
-    group: Optional[str] = None
+    group: Union[None, int, str] = None
 
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
@@ -190,6 +190,8 @@ class SetnsCallableRunner(Runner):
         )
 
     def execute(self) -> subprocess.CompletedProcess:
+        self.system.log.info("Running %s", self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__)
+
         uid = self.config.get_uid()
         gid = self.config.get_gid()
 
