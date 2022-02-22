@@ -1,5 +1,6 @@
 from __future__ import annotations
 import unittest
+import os
 import sys
 import secrets
 import time
@@ -99,6 +100,19 @@ class RunTestCase:
                 self.assertEqual(res.stdout, b"test\n")
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(res.returncode, 1)
+
+    def test_user(self):
+        system = self.get_system()
+        user_id = os.getuid()
+        user_name = os.getlogin()
+        with privs.root():
+            with system.create_container() as container:
+                res = container.run(["/usr/bin/id", "-u"], config=RunConfig(user=user_id))
+                self.assertEqual(res.stdout, f"{user_id}\n".encode())
+                self.assertEqual(res.stderr, b"")
+                res = container.run(["/usr/bin/id", "-u"], config=RunConfig(user=user_name))
+                self.assertEqual(res.stdout, f"{user_name}\n".encode())
+                self.assertEqual(res.stderr, b"")
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
