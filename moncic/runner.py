@@ -13,12 +13,41 @@ import pwd
 import shlex
 import subprocess
 import traceback
-from typing import List, Optional, Union, Callable, TYPE_CHECKING
+from typing import List, Optional, Callable, NamedTuple, TYPE_CHECKING
 
 from . import setns
 if TYPE_CHECKING:
     from .system import System
     from .container import NspawnContainer
+
+
+class UserConfig(NamedTuple):
+    """
+    User and group information to use for running processes
+    """
+    user_name: str
+    user_id: int
+    group_name: str
+    group_id: int
+
+    @classmethod
+    def from_file(cls, pathname: str) -> UserConfig:
+        """
+        Instantiate a UserConfig from ownership of a file
+        """
+        st = os.stat(pathname)
+        pw = pwd.getpwuid(st.st_uid)
+        gr = grp.getgrgid(st.st_gid)
+        return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
+
+    @classmethod
+    def from_current(cls) -> UserConfig:
+        """
+        Instantiate a UserConfig from the current user and group
+        """
+        pw = pwd.getpwuid(os.getuid())
+        gr = grp.getgrgid(os.getgid())
+        return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
 
 @dataclasses.dataclass
@@ -35,10 +64,7 @@ class RunConfig:
     cwd: Optional[str] = None
 
     # Run as the given user (id or name)
-    user: Union[None, int, str] = None
-
-    # Run as the given group (id or name)
-    group: Union[None, int, str] = None
+    user: Optional[UserConfig] = None
 
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
@@ -49,29 +75,17 @@ class RunConfig:
         """
         if self.user is None:
             return None
-
-        if isinstance(self.user, int):
-            return self.user
-        elif self.user.isdigit():
-            return int(self.user)
         else:
-            pw = pwd.getpwnam(self.user)
-            return pw.pw_uid
+            return self.user.user_id
 
     def get_gid(self) -> Optional[int]:
         """
         If group is not None, resolve it to a group ID. Otherwise return None
         """
-        if self.group is None:
+        if self.user is None:
             return None
-
-        if isinstance(self.group, int):
-            return self.group
-        elif self.group.isdigit():
-            return int(self.group)
         else:
-            gr = grp.getgrnam(self.group)
-            return gr.gr_gid
+            return self.user.group_id
 
 
 class Runner:

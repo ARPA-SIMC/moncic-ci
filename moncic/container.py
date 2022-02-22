@@ -12,7 +12,7 @@ import time
 from typing import List, Optional, Callable, ContextManager, Protocol, TYPE_CHECKING
 import uuid
 
-from .runner import SetnsCallableRunner, RunConfig
+from .runner import SetnsCallableRunner, RunConfig, UserConfig
 from .nspawn import escape_bind_ro
 if TYPE_CHECKING:
     from .system import System
@@ -48,12 +48,8 @@ class ContainerConfig:
             name = os.path.basename(self.workdir)
             res.cwd = f"/root/{name}"
 
-        if self.workdir is not None and (res.user is None or res.group is None):
-            st = os.stat(self.workdir)
-            if res.user is None:
-                res.user = st.st_uid
-            if res.group is None:
-                res.group = st.st_gid
+        if self.workdir is not None and res.user is None:
+            res.user = UserConfig.from_file(self.workdir)
 
         return res
 

@@ -8,7 +8,7 @@ import unittest
 
 from moncic.unittest import privs, TEST_CHROOTS
 from moncic.system import System
-from moncic.container import RunConfig
+from moncic.container import RunConfig, UserConfig
 from moncic.moncic import Moncic
 
 
@@ -104,31 +104,19 @@ class RunTestCase:
                 self.assertEqual(res.returncode, 1)
 
     def test_user(self):
+        def format_uc(uc: UserConfig):
+            return f"{uc.user_name},{uc.user_id},{uc.group_name},{uc.group_id}"
+
         def print_uid():
-            print(os.getuid())
+            uc = UserConfig.from_current()
+            print(format_uc(uc))
 
         system = self.get_system()
-        user_id = os.getuid()
-        user_name = os.getlogin()
+        config = RunConfig(user=UserConfig.from_current())
         with privs.root():
             with system.create_container() as container:
-                res = container.run(["/usr/bin/id", "-u"], config=RunConfig(user=user_id))
-                self.assertEqual(res.stdout, f"{user_id}\n".encode())
-                self.assertEqual(res.stderr, b"")
-                res = container.run(["/usr/bin/id", "-u"], config=RunConfig(user=user_name))
-                self.assertEqual(res.stdout, f"{user_id}\n".encode())
-                self.assertEqual(res.stderr, b"")
-                res = container.run_script("#!/bin/sh\n/usr/bin/id -u\n", config=RunConfig(user=user_id))
-                self.assertEqual(res.stdout, f"{user_id}\n".encode())
-                self.assertEqual(res.stderr, b"")
-                res = container.run_script("#!/bin/sh\n/usr/bin/id -u\n", config=RunConfig(user=user_name))
-                self.assertEqual(res.stdout, f"{user_id}\n".encode())
-                self.assertEqual(res.stderr, b"")
-                res = container.run_callable(print_uid, config=RunConfig(user=user_id))
-                self.assertEqual(res.stdout, f"{user_id}\n".encode())
-                self.assertEqual(res.stderr, b"")
-                res = container.run_callable(print_uid, config=RunConfig(user=user_name))
-                self.assertEqual(res.stdout, f"{user_id}\n".encode())
+                res = container.run_callable(print_uid, config=config)
+                self.assertEqual(res.stdout, format_uc(config.user).encode())
                 self.assertEqual(res.stderr, b"")
 
     def test_group(self):
