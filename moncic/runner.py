@@ -268,6 +268,11 @@ class SetnsCallableRunner(Runner):
         uid = self.config.user.user_id
         os.setresuid(uid, uid, uid)
 
+        if uid == 0:
+            os.environ["HOME"] = "/root"
+        else:
+            os.environ["HOME"] = f"/home/{self.config.user.user_name}"
+
     def execute(self) -> subprocess.CompletedProcess:
         self.system.log.info("Running %s", self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__)
 

@@ -238,6 +238,7 @@ class NspawnContainer(ContainerBase):
                     user.group_name], check=True)
                 subprocess.run([
                     "useradd",
+                    "--create-home",
                     "--uid", str(user.user_id),
                     "--gid", str(user.group_id),
                     user.user_name], check=True)
