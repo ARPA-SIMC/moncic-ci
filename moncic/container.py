@@ -1,5 +1,4 @@
 from __future__ import annotations
-import contextlib
 import dataclasses
 import errno
 import grp
@@ -11,7 +10,7 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Callable, ContextManager, Generator, Protocol, TYPE_CHECKING
+from typing import List, Optional, Callable, ContextManager, Protocol, TYPE_CHECKING
 import uuid
 
 from .runner import SetnsCallableRunner, RunConfig, UserConfig
@@ -109,7 +108,7 @@ class Container(ContextManager, Protocol):
         ...
 
 
-class ContainerBase(contextlib.ExitStack):
+class ContainerBase:
     """
     Convenience common base implementation for Container
     """
@@ -126,17 +125,27 @@ class ContainerBase(contextlib.ExitStack):
             config = ContainerConfig()
         config.check()
         self.config = config
+        self.started = False
 
-    def _running(self) -> ContextManager:
-        raise NotImplementedError(f"{self.__class__}._running not implemented")
+    def _start(self):
+        raise NotImplementedError(f"{self.__class__}._start not implemented")
 
-    def _configured(self) -> ContextManager:
-        raise NotImplementedError(f"{self.__class__}._configured not implemented")
+    def _stop(self) -> ContextManager:
+        raise NotImplementedError(f"{self.__class__}._stop not implemented")
 
     def __enter__(self):
-        self.enter_context(self._running())
-        self.enter_context(self._configured())
-        return super().__enter__()
+        if not self.started:
+            try:
+                self._start()
+            except Exception:
+                if self.started:
+                    self._stop()
+                raise
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.started:
+            self._stop()
 
 
 class NspawnContainer(ContainerBase):
@@ -235,8 +244,7 @@ class NspawnContainer(ContainerBase):
 
         self.run_callable(forward)
 
-    @contextlib.contextmanager
-    def _running(self) -> Generator[None, None, None]:
+    def _start(self):
         self.system.log.info("Starting system %s as %s using image %s",
                              self.system.name, self.instance_name, self.system.path)
 
@@ -254,23 +262,7 @@ class NspawnContainer(ContainerBase):
             key, value = line.split('=', 1)
             self.properties[key] = value
 
-        try:
-            yield
-        finally:
-            # See https://github.com/systemd/systemd/issues/6458
-            leader_pid = int(self.properties["Leader"])
-            os.kill(leader_pid, signal.SIGRTMIN + 4)
-            while True:
-                try:
-                    os.kill(leader_pid, 0)
-                except OSError as e:
-                    if e.errno == errno.ESRCH:
-                        break
-                    raise
-                time.sleep(0.1)
-
-    @contextlib.contextmanager
-    def _configured(self) -> Generator[None, None, None]:
+        # Do user forwarding if requested
         if self.config.forward_user:
             if self.config.workdir is None:
                 user = UserConfig.from_sudoer()
@@ -278,10 +270,22 @@ class NspawnContainer(ContainerBase):
                 user = UserConfig.from_file(self.config.workdir)
             self.forward_user(user)
 
-        yield
-
         # We do not need to delete the user if it was created, because we
         # enforce that forward_user is only used on ephemeral containers
+
+    def _stop(self):
+        # See https://github.com/systemd/systemd/issues/6458
+        leader_pid = int(self.properties["Leader"])
+        os.kill(leader_pid, signal.SIGRTMIN + 4)
+        while True:
+            try:
+                os.kill(leader_pid, 0)
+            except OSError as e:
+                if e.errno == errno.ESRCH:
+                    break
+                raise
+            time.sleep(0.1)
+        self.started = False
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         def command_runner():
