@@ -342,9 +342,9 @@ class SetnsCallableRunner(Runner):
                 logging.getLogger().addHandler(JSONStreamHandler(stream=open(log_w, "wt"), level=logging.DEBUG))
                 logging.getLogger().setLevel(logging.DEBUG)
                 setns.nsenter(self.leader_pid)
+                self.set_user()
                 if self.config.cwd is not None:
                     os.chdir(self.config.cwd)
-                self.set_user()
                 res = self.func()
                 os._exit(res if res is not None else 0)
             except Exception:
