@@ -125,24 +125,6 @@ class RunConfig:
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
 
-    def get_uid(self) -> Optional[int]:
-        """
-        If user is not None, resolve it to a user ID. Otherwise return None
-        """
-        if self.user is None:
-            return None
-        else:
-            return self.user.user_id
-
-    def get_gid(self) -> Optional[int]:
-        """
-        If group is not None, resolve it to a group ID. Otherwise return None
-        """
-        if self.user is None:
-            return None
-        else:
-            return self.user.group_id
-
 
 class Runner:
     """
