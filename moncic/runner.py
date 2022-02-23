@@ -7,13 +7,14 @@ import asyncio
 import dataclasses
 import grp
 import importlib
+import json
 import logging
 import os
 import pwd
 import shlex
 import subprocess
 import traceback
-from typing import List, Optional, Callable, NamedTuple, TYPE_CHECKING
+from typing import List, Optional, Callable, NamedTuple, TextIO, TYPE_CHECKING
 
 from . import setns
 if TYPE_CHECKING:
@@ -170,6 +171,19 @@ class Runner:
             self.stderr.append(line)
             self.system.log.info("stderr: %s", line.decode(errors="replace").rstrip())
 
+    async def read_log(self, reader: asyncio.StreamReader):
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            record_args = json.loads(line)
+            message = record_args.pop("msg")
+            record = logging.LogRecord(
+                    name=self.system.log.name,
+                    msg="%s", args=(message,),
+                    exc_info=None, **record_args)
+            self.system.log.handle(record)
+
 
 class AsyncioRunner(Runner):
     def __init__(self, system: System, config: RunConfig, cmd: List[str]):
@@ -233,6 +247,25 @@ class LocalRunner(AsyncioRunner):
                 **kwargs)
 
 
+class JSONStreamHandler(logging.Handler):
+    """
+    Serialize log records as json over a stream
+    """
+    def __init__(self, stream: TextIO, level=logging.NOTSET):
+        super().__init__(level)
+        self.stream = stream
+
+    def emit(self, record):
+        encoded = json.dumps({
+            "level": record.levelno,
+            "pathname": record.pathname,
+            "lineno": record.lineno,
+            "msg": record.msg % record.args,
+        })
+        print(encoded, file=self.stream)
+        self.stream.flush()
+
+
 class SetnsCallableRunner(Runner):
     def __init__(
             self, run: NspawnContainer, config: RunConfig, func: Callable[[], Optional[int]]):
@@ -249,15 +282,16 @@ class SetnsCallableRunner(Runner):
                 lambda: reader_protocol, os.fdopen(fd))
         return reader
 
-    async def collect_output(self, stdout_r: int, stderr_r: int):
+    async def collect_output(self, stdout_r: Optional[int], stderr_r: Optional[int], log_r: int):
         # See https://gist.github.com/oconnor663/08c081904264043e55bf
-        stdout_reader = await self.make_reader(stdout_r)
-        stderr_reader = await self.make_reader(stderr_r)
+        readers = []
+        if stdout_r is not None:
+            readers.append(self.read_stdout(await self.make_reader(stdout_r)))
+        if stderr_r is not None:
+            readers.append(self.read_stderr(await self.make_reader(stderr_r)))
+        readers.append(self.read_log(await self.make_reader(log_r)))
 
-        await asyncio.gather(
-            self.read_stdout(stdout_reader),
-            self.read_stderr(stderr_reader),
-        )
+        await asyncio.gather(*readers)
 
     def set_user(self):
         if self.config.user is None:
@@ -285,6 +319,7 @@ class SetnsCallableRunner(Runner):
             # Create pipes for catching stdout and stderr
             stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
             stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)
+        log_r, log_w = os.pipe2(os.O_CLOEXEC)
 
         pid = os.fork()
         if pid == 0:
@@ -300,9 +335,12 @@ class SetnsCallableRunner(Runner):
                     os.close(stdout_w)
                     os.dup2(stderr_w, 2)
                     os.close(stderr_w)
+                os.close(log_r)
 
                 logging.shutdown()
                 importlib.reload(logging)
+                logging.getLogger().addHandler(JSONStreamHandler(stream=open(log_w, "wt"), level=logging.DEBUG))
+                logging.getLogger().setLevel(logging.DEBUG)
                 setns.nsenter(self.leader_pid)
                 if self.config.cwd is not None:
                     os.chdir(self.config.cwd)
@@ -317,15 +355,16 @@ class SetnsCallableRunner(Runner):
             if catch_output:
                 os.close(stdout_w)
                 os.close(stderr_w)
+            os.close(log_w)
 
         stdout: Optional[bytes]
         stderr: Optional[bytes]
         if catch_output:
-            asyncio.run(self.collect_output(stdout_r, stderr_r))
-
+            asyncio.run(self.collect_output(stdout_r, stderr_r, log_r))
             stdout = b"".join(self.stdout)
             stderr = b"".join(self.stderr)
         else:
+            asyncio.run(self.collect_output(None, None, log_r))
             stdout = None
             stderr = None
 

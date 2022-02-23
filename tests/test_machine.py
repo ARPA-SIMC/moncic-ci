@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import logging
 import os
 import secrets
 import subprocess
@@ -164,6 +165,31 @@ class RunTestCase:
                     res = container.run(["/usr/bin/pwd"])
                     self.assertEqual(res.stdout.decode(), f"/tmp/{os.path.basename(workdir)}\n")
                     self.assertEqual(res.stderr, b"")
+
+    def test_run_callable_logging(self):
+        def test_log():
+            logging.debug("debug")
+            logging.info("info")
+            logging.warning("warning")
+            logging.error("error")
+
+        self.maxDiff = None
+
+        system = self.get_system()
+        with privs.root():
+            with system.create_container() as container:
+                with self.assertLogs() as lg:
+                    res = container.run_callable(test_log)
+                self.assertEqual(res.stdout, b"")
+                self.assertEqual(res.stderr, b"")
+
+                logname = system.log.name
+                self.assertEqual(lg.output, [
+                    f"INFO:{logname}:Running test_log",
+                    f"DEBUG:{logname}:debug",
+                    f"INFO:{logname}:info",
+                    f"WARNING:{logname}:warning",
+                    f"ERROR:{logname}:error"])
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
