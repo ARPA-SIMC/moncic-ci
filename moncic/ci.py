@@ -17,7 +17,7 @@ except ModuleNotFoundError:
     Texttable = None
 
 from .cli import Command, Fail
-from .container import ContainerConfig, RunConfig
+from .container import ContainerConfig, RunConfig, UserConfig
 from .build import Builder
 from .moncic import Moncic
 from .distro import DistroFamily
@@ -136,9 +136,11 @@ class Shell(MoncicCommand):
                             help="option passed to systemd-nspawn as is (see man systemd-nspawn)"
                                  " can be given multiple times")
 
-        parser.add_argument("-u", "--user", action="store",
-                            help="option passed to systemd-nspawn as is (default: root or,"
-                                 " if --workdir is used, the owner of workdir")
+        parser.add_argument("-u", "--user", action="store_true",
+                            help="create a shell as the current user before sudo"
+                                 " (default is root, or the owner of workdir)")
+        parser.add_argument("-r", "--root", action="store_true",
+                            help="create a shell as root (useful if using workdir and still wanting a root shell)")
 
         return parser
 
@@ -152,7 +154,7 @@ class Shell(MoncicCommand):
             config = ContainerConfig(
                     ephemeral=not self.args.maintenance,
                     workdir=workdir)
-            if workdir is not None:
+            if workdir is not None or self.args.user:
                 config.forward_user = True
 
             if self.args.bind:
@@ -177,9 +179,15 @@ class Shell(MoncicCommand):
                         return
                 raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
 
+            run_config = RunConfig(interactive=True)
+            if self.args.root:
+                run_config.user = UserConfig.root()
+            elif self.args.user:
+                run_config.user = UserConfig.from_sudoer()
+
             with system.create_container(config=config) as container:
                 res = container.run_callable(find_shell)
-                container.run([res.stdout.strip().decode(), "--login"], config=RunConfig(interactive=True))
+                container.run([res.stdout.strip().decode(), "--login"], config=run_config)
 
 
 class Bootstrap(MoncicCommand):

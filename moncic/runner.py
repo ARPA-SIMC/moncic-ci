@@ -78,6 +78,9 @@ class UserConfig(NamedTuple):
         system
         """
         # Run consistency checks
+        if self.user_id == 0 and self.group_id == 0:
+            return
+
         try:
             pw = pwd.getpwuid(self.user_id)
         except KeyError:
