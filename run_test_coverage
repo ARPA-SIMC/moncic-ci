@@ -1,0 +1,4 @@
+#!/bin/sh
+set -u
+set -x
+eatmydata sudo nose2-3 -C --coverage-report html "$@"
