@@ -13,7 +13,7 @@ import pwd
 import shlex
 import subprocess
 import traceback
-from typing import List, Optional, Callable, NamedTuple, Generator, TYPE_CHECKING
+from typing import List, Optional, Callable, NamedTuple, TYPE_CHECKING
 
 from . import setns
 if TYPE_CHECKING:
@@ -48,6 +48,34 @@ class UserConfig(NamedTuple):
         pw = pwd.getpwuid(os.getuid())
         gr = grp.getgrgid(os.getgid())
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
+
+    def check_system(self):
+        """
+        Check that this user/group information is consistent in the current
+        system
+        """
+        # Run consistency checks
+        try:
+            pw = pwd.getpwuid(self.user_id)
+        except KeyError:
+            raise RuntimeError(
+                    f"container has no user {self.user_id} {self.user_name!r}"
+                  ) from None
+
+        try:
+            gr = grp.getgrgid(self.group_id)
+        except KeyError:
+            raise RuntimeError(
+                    f"container has no group {self.group_id} {self.group_name!r}"
+                  ) from None
+
+        if pw.pw_name != self.user_name:
+            raise RuntimeError(f"user {self.user_id} in container is named {pw.pw_name!r}"
+                               f" but outside it is named {self.user_name!r}")
+
+        if gr.gr_name != self.group_name:
+            raise RuntimeError(f"group {self.group_id} in container is named {gr.gr_name!r}"
+                               f" but outside it is named {self.group_name!r}")
 
 
 @dataclasses.dataclass
@@ -205,32 +233,16 @@ class SetnsCallableRunner(Runner):
         )
 
     def set_user(self):
-        if self.config.user is not None:
-            # Run consistency checks
-            try:
-                pw = pwd.getpwuid(self.config.user.user_id)
-            except KeyError:
-                raise RuntimeError(
-                        f"container has no user {self.config.user.user_id} {self.config.user.user_name!r}"
-                      ) from None
+        if self.config.user is None:
+            return
 
-            try:
-                gr = grp.getgrgid(self.config.user.group_id)
-            except KeyError:
-                raise RuntimeError(
-                        f"container has no group {self.config.user.group_id} {self.config.user.group_name!r}"
-                      ) from None
+        self.config.user.check_system()
 
-            if pw.pw_name != self.config.user.user_name:
-                raise RuntimeError(f"user {self.config.user.user_id} in container is named {pw.pw_name!r}"
-                                   f" but outside it is named {self.config.user.user_name!r}")
+        gid = self.config.user.group_id
+        os.setresgid(gid, gid, gid)
 
-            if gr.gr_name != self.config.user.group_name:
-                raise RuntimeError(f"group {self.config.user.group_id} in container is named {gr.gr_name!r}"
-                                   f" but outside it is named {self.config.user.group_name!r}")
-
-            os.setresgid(gr.gr_gid, gr.gr_gid, gr.gr_gid)
-            os.setresuid(pw.pw_uid, pw.pw_uid, pw.pw_uid)
+        uid = self.config.user.user_id
+        os.setresuid(uid, uid, uid)
 
     def execute(self) -> subprocess.CompletedProcess:
         self.system.log.info("Running %s", self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__)
@@ -267,7 +279,8 @@ class SetnsCallableRunner(Runner):
                 os._exit(res if res is not None else 0)
             except Exception:
                 traceback.print_exc()
-                os._exit(1)
+                # Reusing systemd-analyze exit-status
+                os._exit(255)
         else:
             if catch_output:
                 os.close(stdout_w)
