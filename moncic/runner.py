@@ -41,6 +41,13 @@ class UserConfig(NamedTuple):
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
     @classmethod
+    def root(cls) -> UserConfig:
+        """
+        Instantiate a UserConfig for the root user
+        """
+        return cls("root", 0, "root", 0)
+
+    @classmethod
     def from_current(cls) -> UserConfig:
         """
         Instantiate a UserConfig from the current user and group
@@ -107,7 +114,8 @@ class RunConfig:
     # set
     cwd: Optional[str] = None
 
-    # Run as the given user (id or name)
+    # Run as the given user. Defaults to the owner of ContainerConfig.workdir,
+    # if set
     user: Optional[UserConfig] = None
 
     # Set to true to connect to the running terminal instead of logging output

@@ -59,7 +59,7 @@ class ContainerConfig:
 
         if res.cwd is None and self.workdir is not None:
             name = os.path.basename(self.workdir)
-            res.cwd = f"/root/{name}"
+            res.cwd = f"/tmp/{name}"
 
         if self.workdir is not None and res.user is None:
             res.user = UserConfig.from_file(self.workdir)
@@ -202,7 +202,7 @@ class NspawnContainer(ContainerBase):
             name = os.path.basename(workdir)
             if name.startswith("."):
                 raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            cmd.append(f"--bind={escape_bind_ro(workdir)}:/root/{escape_bind_ro(name)}")
+            cmd.append(f"--bind={escape_bind_ro(workdir)}:/tmp/{escape_bind_ro(name)}")
         if self.config.bind:
             for pathspec in self.config.bind:
                 cmd.append("--bind=" + pathspec)
@@ -242,7 +242,7 @@ class NspawnContainer(ContainerBase):
                 user.check_system()
         forward.__doc__ = f"check or create user {user.user_name!r} and group {user.group_name!r}"
 
-        self.run_callable(forward)
+        self.run_callable(forward, config=RunConfig(user=UserConfig.root()))
 
     def _start(self):
         self.system.log.info("Starting system %s as %s using image %s",

@@ -4,6 +4,7 @@ import os
 import secrets
 import subprocess
 import sys
+import tempfile
 import time
 import unittest
 
@@ -104,23 +105,7 @@ class RunTestCase:
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(res.returncode, 1)
 
-    def test_user(self):
-        def format_uc(uc: UserConfig):
-            return f"{uc.user_name},{uc.user_id},{uc.group_name},{uc.group_id}"
-
-        def print_uid():
-            uc = UserConfig.from_current()
-            print(format_uc(uc))
-
-        system = self.get_system()
-        config = RunConfig(user=UserConfig.from_current())
-        with privs.root():
-            with system.create_container() as container:
-                res = container.run_callable(print_uid, config=config)
-                self.assertEqual(res.stdout, format_uc(config.user).encode())
-                self.assertEqual(res.stderr, b"")
-
-    def test_user_forward(self):
+    def test_forward_user(self):
         def get_user():
             print(json.dumps(UserConfig.from_current()))
 
@@ -154,6 +139,31 @@ class RunTestCase:
                 u = UserConfig(*json.loads(res.stdout))
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(u, user)
+
+                res = container.run_script("#!/bin/sh\n/bin/true\n", config=RunConfig(user=user))
+                self.assertEqual(res.stdout, b"")
+                self.assertEqual(res.stderr, b"")
+
+    def test_forward_user_workdir(self):
+        system = self.get_system()
+        user = UserConfig.from_sudoer()
+
+        with tempfile.TemporaryDirectory() as workdir:
+            # By default, things are run as root
+            container_config = ContainerConfig(workdir=workdir, forward_user=True)
+            with privs.root():
+                with system.create_container(config=container_config) as container:
+                    res = container.run(["/usr/bin/id", "-u"])
+                    self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")
+                    self.assertEqual(res.stderr, b"")
+
+                    res = container.run_script("#!/bin/sh\n/usr/bin/id -u\n")
+                    self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")
+                    self.assertEqual(res.stderr, b"")
+
+                    res = container.run(["/usr/bin/pwd"])
+                    self.assertEqual(res.stdout.decode(), f"/tmp/{os.path.basename(workdir)}\n")
+                    self.assertEqual(res.stderr, b"")
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
