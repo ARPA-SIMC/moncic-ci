@@ -111,7 +111,7 @@ class RunConfig:
     check: bool = True
 
     # Run in this working directory. Defaults to ContainerConfig.workdir, if
-    # set
+    # set. Else, to the user's home directory
     cwd: Optional[str] = None
 
     # Run as the given user. Defaults to the owner of ContainerConfig.workdir,

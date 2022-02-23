@@ -63,6 +63,8 @@ class ContainerConfig:
                 res.cwd = f"/tmp/{name}"
             elif res.user is not None and res.user.user_id != 0:
                 res.cwd = f"/home/{res.user.user_name}"
+            else:
+                res.cwd = "/root"
 
         if self.workdir is not None and res.user is None:
             res.user = UserConfig.from_file(self.workdir)
