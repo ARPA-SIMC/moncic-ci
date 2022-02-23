@@ -49,6 +49,22 @@ class UserConfig(NamedTuple):
         gr = grp.getgrgid(os.getgid())
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
+    @classmethod
+    def from_sudoer(cls) -> UserConfig:
+        """
+        Instantiate a UserConfig from the user and group that were active
+        before sudo
+        """
+        if "SUDO_UID" in os.environ:
+            uid = int(os.environ["SUDO_UID"])
+            gid = int(os.environ["SUDO_GID"])
+        else:
+            uid = os.getuid()
+            gid = os.getgid()
+        pw = pwd.getpwuid(uid)
+        gr = grp.getgrgid(gid)
+        return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
+
     def check_system(self):
         """
         Check that this user/group information is consistent in the current

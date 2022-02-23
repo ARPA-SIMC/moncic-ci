@@ -125,7 +125,7 @@ class RunTestCase:
             print(json.dumps(UserConfig.from_current()))
 
         system = self.get_system()
-        user = UserConfig.from_current()
+        user = UserConfig.from_sudoer()
 
         # By default, things are run as root
         container_config = ContainerConfig()
@@ -150,25 +150,10 @@ class RunTestCase:
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 
-                res = container.run_callable(get_user)
+                res = container.run_callable(get_user, config=RunConfig(user=user))
                 u = UserConfig(*json.loads(res.stdout))
                 self.assertEqual(res.stderr, b"")
                 self.assertEqual(u, user)
-
-        # def format_uc(uc: UserConfig):
-        #     return f"{uc.user_name},{uc.user_id},{uc.group_name},{uc.group_id}"
-
-        # def print_uid():
-        #     uc = UserConfig.from_current()
-        #     print(format_uc(uc))
-
-        # system = self.get_system()
-        # config = RunConfig(user=UserConfig.from_current())
-        # with privs.root():
-        #     with system.create_container() as container:
-        #         res = container.run_callable(print_uid, config=config)
-        #         self.assertEqual(res.stdout, format_uc(config.user).encode())
-        #         self.assertEqual(res.stderr, b"")
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.

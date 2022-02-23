@@ -2,8 +2,10 @@ from __future__ import annotations
 import contextlib
 import dataclasses
 import errno
+import grp
 import logging
 import os
+import pwd
 import shlex
 import signal
 import subprocess
@@ -202,6 +204,37 @@ class NspawnContainer(ContainerBase):
             cmd.append("--ephemeral")
         return cmd
 
+    def forward_user(self, user: UserConfig):
+        """
+        Ensure the system has a matching user and group
+        """
+        def forward():
+            try:
+                pw = pwd.getpwuid(user.user_id)
+            except KeyError:
+                pw = None
+
+            try:
+                gr = grp.getgrgid(user.group_id)
+            except KeyError:
+                gr = None
+
+            if pw is None and gr is None:
+                subprocess.run([
+                    "groupadd",
+                    "--gid", str(user.group_id),
+                    user.group_name], check=True)
+                subprocess.run([
+                    "useradd",
+                    "--uid", str(user.user_id),
+                    "--gid", str(user.group_id),
+                    user.user_name], check=True)
+            else:
+                user.check_system()
+        forward.__doc__ = f"check or create user {user.user_name!r} and group {user.group_name!r}"
+
+        self.run_callable(forward)
+
     @contextlib.contextmanager
     def _running(self) -> Generator[None, None, None]:
         self.system.log.info("Starting system %s as %s using image %s",
@@ -239,11 +272,16 @@ class NspawnContainer(ContainerBase):
     @contextlib.contextmanager
     def _configured(self) -> Generator[None, None, None]:
         if self.config.forward_user:
-            raise NotImplementedError("forward_user not yet implemented")
-        try:
-            yield
-        finally:
-            pass
+            if self.config.workdir is None:
+                user = UserConfig.from_sudoer()
+            else:
+                user = UserConfig.from_file(self.config.workdir)
+            self.forward_user(user)
+
+        yield
+
+        # We do not need to delete the user if it was created, because we
+        # enforce that forward_user is only used on ephemeral containers
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         def command_runner():
