@@ -57,9 +57,12 @@ class ContainerConfig:
         else:
             res = run_config
 
-        if res.cwd is None and self.workdir is not None:
-            name = os.path.basename(self.workdir)
-            res.cwd = f"/tmp/{name}"
+        if res.cwd is None:
+            if self.workdir is not None:
+                name = os.path.basename(self.workdir)
+                res.cwd = f"/tmp/{name}"
+            elif res.user is not None and res.user.user_id != 0:
+                res.cwd = f"/home/{res.user.user_name}"
 
         if self.workdir is not None and res.user is None:
             res.user = UserConfig.from_file(self.workdir)
