@@ -124,10 +124,10 @@ class RunTestCase:
         def get_user():
             print(json.dumps(UserConfig.from_current()))
 
+        system = self.get_system()
         user = UserConfig.from_current()
 
         # By default, things are run as root
-        system = self.get_system()
         container_config = ContainerConfig()
         with privs.root():
             with system.create_container(config=container_config) as container:
@@ -141,6 +141,19 @@ class RunTestCase:
                 with self.assertRaises(subprocess.CalledProcessError) as e:
                     res = container.run_callable(get_user, config=RunConfig(user=user))
                 self.assertRegex(e.exception.stderr.decode(), "RuntimeError: container has no user 1000 'enrico'")
+
+        container_config = ContainerConfig(forward_user=True)
+        with privs.root():
+            with system.create_container(config=container_config) as container:
+                res = container.run_callable(get_user)
+                u = UserConfig(*json.loads(res.stdout))
+                self.assertEqual(res.stderr, b"")
+                self.assertEqual(u, UserConfig("root", 0, "root", 0))
+
+                res = container.run_callable(get_user)
+                u = UserConfig(*json.loads(res.stdout))
+                self.assertEqual(res.stderr, b"")
+                self.assertEqual(u, user)
 
         # def format_uc(uc: UserConfig):
         #     return f"{uc.user_name},{uc.user_id},{uc.group_name},{uc.group_id}"
