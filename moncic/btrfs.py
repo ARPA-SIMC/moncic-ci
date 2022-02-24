@@ -36,6 +36,18 @@ class Subvolume:
             self.remove()
             raise
 
+    def snapshot(self, source_path: str):
+        """
+        Create a btrfs subvolume, and leave it on exit only if the context
+        manager did not raise an exception
+        """
+        if not os.path.exists(source_path):
+            raise RuntimeError(f"{source_path!r} does not exist")
+        if os.path.exists(self.path):
+            raise RuntimeError(f"{self.path!r} already exists")
+
+        self.system.local_run(["btrfs", "-q", "subvolume", "snapshot", source_path, self.path])
+
     def remove(self):
         """
         Remove this subvolume and all subvolumes nested inside it

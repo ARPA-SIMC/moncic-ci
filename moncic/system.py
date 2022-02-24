@@ -180,14 +180,19 @@ class System:
         """
         # Import here to avoid an import loop
         from .btrfs import Subvolume
-        tarball_path = self.get_distro_tarball()
-        subvolume = Subvolume(self)
-        with subvolume.create():
-            if tarball_path is not None:
-                # Shortcut in case we have a chroot in a tarball
-                self.local_run(["tar", "-C", self.path, "-zxf", tarball_path])
-            else:
-                self.distro.bootstrap(self)
+        if self.config.extends is not None:
+            parent = self.moncic.create_system(self.config.extends)
+            subvolume = Subvolume(self)
+            subvolume.snapshot(parent.path)
+        else:
+            tarball_path = self.get_distro_tarball()
+            subvolume = Subvolume(self)
+            with subvolume.create():
+                if tarball_path is not None:
+                    # Shortcut in case we have a chroot in a tarball
+                    self.local_run(["tar", "-C", self.path, "-zxf", tarball_path])
+                else:
+                    self.distro.bootstrap(self)
 
     def update(self):
         """
