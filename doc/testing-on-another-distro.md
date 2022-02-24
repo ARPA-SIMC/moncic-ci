@@ -44,4 +44,4 @@ sudo monci run mycode --clone=. make check
 ```
 
 All these commands have a very quick startup time, so you can run this instead
-of `make check`.
+of `make check` as you try to debug your issue.
