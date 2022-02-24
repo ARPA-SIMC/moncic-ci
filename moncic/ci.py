@@ -111,11 +111,7 @@ class CI(MoncicCommand):
             return res["returncode"]
 
 
-class Shell(MoncicCommand):
-    """
-    Run a shell in the given container
-    """
-
+class ImageActionCommand(MoncicCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
@@ -147,7 +143,16 @@ class Shell(MoncicCommand):
 
         return parser
 
-    def run(self):
+    def get_run_config(self) -> RunConfig:
+        run_config = RunConfig(interactive=True)
+        if self.args.root:
+            run_config.user = UserConfig.root()
+        elif self.args.user:
+            run_config.user = UserConfig.from_sudoer()
+        return run_config
+
+    @contextlib.contextmanager
+    def container(self):
         system = self.moncic.create_system(self.args.system)
         with checkout(system, self.args.clone) as workdir:
             workdir = workdir if workdir is not None else self.args.workdir
@@ -165,33 +170,39 @@ class Shell(MoncicCommand):
             if self.args.bind_ro:
                 config.bind_ro = self.args.bind_ro
 
-            shell_candidates = []
-            if "SHELL" in os.environ:
-                shell_candidates.append(os.environ["SHELL"])
-                shell_candidates.append(os.path.basename(os.environ["SHELL"]))
-            shell_candidates.extend(("bash", "sh"))
-
-            def find_shell():
-                """
-                lookup for a valid shell in the container
-                """
-                for cand in shell_candidates:
-                    pathname = shutil.which(cand)
-                    if pathname is not None:
-                        print(pathname)
-                        return
-                raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
-
-            run_config = RunConfig(interactive=True)
-            if self.args.root:
-                run_config.user = UserConfig.root()
-            elif self.args.user:
-                run_config.user = UserConfig.from_sudoer()
-
             with self.moncic.privs.root():
                 with system.create_container(config=config) as container:
-                    res = container.run_callable(find_shell)
-                    container.run([res.stdout.strip().decode(), "--login"], config=run_config)
+                    yield container
+
+
+class Shell(ImageActionCommand):
+    """
+    Run a shell in the given container
+    """
+
+    def run(self):
+        shell_candidates = []
+        if "SHELL" in os.environ:
+            shell_candidates.append(os.environ["SHELL"])
+            shell_candidates.append(os.path.basename(os.environ["SHELL"]))
+        shell_candidates.extend(("bash", "sh"))
+
+        def find_shell():
+            """
+            lookup for a valid shell in the container
+            """
+            for cand in shell_candidates:
+                pathname = shutil.which(cand)
+                if pathname is not None:
+                    print(pathname)
+                    return
+            raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
+
+        run_config = self.get_run_config()
+
+        with self.container() as container:
+            res = container.run_callable(find_shell)
+            container.run([res.stdout.strip().decode(), "--login"], config=run_config)
 
 
 class Bootstrap(MoncicCommand):
