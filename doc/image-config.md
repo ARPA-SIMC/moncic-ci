@@ -17,12 +17,15 @@ maintscript: |
 Keywords currently supported are:
 
 * `distro`: what distribution should be bootstrapped to create the image
+* `extends`: instead of bootstrapping, snapshot an existing OS image
 * `maintscript`: script run after bootstrap and during regular maintenance, to
   customize the OS image. If it does not start with a shebang (`#!`),
   `#!/bin/sh` is automatically prepended.
 * `forward_user`: username, or list of usernames, to propagate from the host
   system to the image. Users will be propagated with their primary groups, but
   not with their additional groups.
+
+One, and only one, of `distro` or `extends` must be present.
 
 Note that `.yaml` files in image directories have precedence over plain
 distribution names: one can for example define a `centos8.yaml` image that

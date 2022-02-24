@@ -53,6 +53,40 @@ maintscript: |
     /usr/bin/dnf upgrade -q -y
 ```
 
+## One OS image for each project being developed
+
+You can create a base OS image with developer tools, and then snapshot it as a
+base for one image per project you're developing.
+
+Let's take an example `base.yaml`:
+
+```yaml
+distro: rocky8
+forward_user: enrico
+maintscript: |
+    /usr/bin/dnf install -q -y epel-release
+    /usr/bin/dnf install -q -y dnf-command(config-manager)
+    /usr/bin/dnf config-manager --set-enabled powertools
+    /usr/bin/dnf groupinstall -q -y Development Tools
+    /usr/bin/dnf install -q -y dnf-command(builddep)
+    /usr/bin/dnf install -q -y git
+    /usr/bin/dnf install -q -y rpmdevtools
+    # Add handy development tools
+    /usr/bin/dnf install -q -y git vim-enhanced gdb
+```
+
+And then create another image with build dependencies for a specific project:
+
+```yaml
+extends: base
+maintscript: |
+    /usr/bin/dnf install -q -y python3-pyyaml python3-coloredlogs python3-texttable
+    /usr/bin/dnf upgrade -q -y
+```
+
+Running `monci update` on the second image will also run the maintscript from
+`base.yaml`.
+
 
 ## Reference
 
