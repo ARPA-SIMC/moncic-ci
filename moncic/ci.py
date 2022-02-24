@@ -129,7 +129,7 @@ class Shell(MoncicCommand):
                             "-w", "--workdir",
                             help="bind mount (writable) the given directory in /root")
         git_workdir.add_argument(
-                            "--checkout", "--co",
+                            "--clone", metavar="REPO",
                             help="checkout the given repository (local or remote) in the chroot")
 
         parser.add_argument("--bind", action="append",
