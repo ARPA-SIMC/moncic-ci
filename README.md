@@ -1,9 +1,50 @@
-# Moncic CI
+# Moncic-CI
 
 Continuous integration tool, and development helper.
 
 Moncic CI manages lightweight containers for use with Continuous Integration or
 to help developers target platforms different from the development machine.
+
+
+## Installing Moncic-CI
+
+### Install dependencies
+
+Choose one of:
+
+```
+apt install python3-yaml python3-coloredlogs python3-texttable dnf
+dnf install python3-pyyaml python3-coloredlogs python3-texttable debootstrap
+pip install yaml coloredlogs texttable
+```
+
+### Pick a directory for images
+
+Decide on a directory that will contain container images: it will have to be on
+a BTRFS filesystem. Many systems are on BTRFS by default, or make it convenient
+to create and mount a BTRFS partition.
+
+If none of that is convenient for you, you can use a filesystem on a file. For
+example:
+
+```
+truncate --size=10G images.img
+/sbin/mkfs.btrfs -f images.img
+mkdir images
+sudo mount images.img images
+```
+
+### Try bootstrapping an image
+
+Run `monci distros` to get a list of supported OS images, and `monci bootstrap`
+to create one. For example:
+
+```
+sudo monci bootstrap --imagedir images rocky8
+```
+
+## Using Moncic-CI
+
 
 
 ## Container requirements
