@@ -12,6 +12,7 @@ from unittest import SkipTest
 from moncic.system import System, Config
 from moncic.container import Container, ContainerBase, ContainerConfig, RunConfig, UserConfig
 from moncic.moncic import Moncic
+from moncic.privs import ProcessPrivs
 
 if TYPE_CHECKING:
     from moncic.distro import Distro
@@ -21,38 +22,10 @@ TEST_CHROOTS = ["centos7", "centos8", "rocky8", "fedora32", "fedora34", "buster"
 log = logging.getLogger(__name__)
 
 
-class ProcessPrivs:
-    """
-    Drop root privileges and regain them only when needed
-    """
-    def __init__(self):
-        self.orig_uid, self.orig_euid, self.orig_suid = os.getresuid()
-        self.orig_gid, self.orig_egid, self.orig_sgid = os.getresgid()
-
-        self.have_sudo = "SUDO_UID" in os.environ
-
-        if self.have_sudo:
-            self.user_uid = int(os.environ["SUDO_UID"])
-            self.user_gid = int(os.environ["SUDO_GID"])
-        else:
-            self.user_uid = self.orig_uid
-            self.user_gid = self.orig_gid
-
-        self.dropped = not self.have_sudo
-
+class SudoTestSuite(ProcessPrivs):
     def needs_sudo(self):
         if not self.have_sudo:
             raise SkipTest("Tests need to be run under sudo")
-
-    def drop(self):
-        """
-        Drop root privileges
-        """
-        if self.dropped:
-            return
-        os.setresgid(self.user_gid, self.user_gid, 0)
-        os.setresuid(self.user_uid, self.user_uid, 0)
-        self.dropped = True
 
     def regain(self):
         """
@@ -61,40 +34,10 @@ class ProcessPrivs:
         if not self.dropped:
             return
         self.needs_sudo()
-        os.setresuid(self.orig_suid, self.orig_suid, self.user_uid)
-        os.setresgid(self.orig_sgid, self.orig_sgid, self.user_gid)
-        self.dropped = False
-
-    @contextlib.contextmanager
-    def root(self):
-        """
-        Regain root privileges for the duration of this context manager
-        """
-        if not self.dropped:
-            yield
-        else:
-            self.regain()
-            try:
-                yield
-            finally:
-                self.drop()
-
-    @contextlib.contextmanager
-    def user(self):
-        """
-        Drop root privileges for the duration of this context manager
-        """
-        if self.dropped:
-            yield
-        else:
-            self.drop()
-            try:
-                yield
-            finally:
-                self.regain()
+        super().regain()
 
 
-privs = ProcessPrivs()
+privs = SudoTestSuite()
 privs.drop()
 
 
