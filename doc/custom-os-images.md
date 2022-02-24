@@ -33,6 +33,11 @@ maintscript: |
 
 ```yaml
 distro: rocky8
+
+# Pre-create my local user to the image: this makes startup faster when
+testing, as it won't needed to be created every time
+forward_user: enrico
+
 maintscript: |
     /usr/bin/dnf install -q -y epel-release
     /usr/bin/dnf install -q -y dnf-command(config-manager)
