@@ -67,14 +67,15 @@ class MoncicCommand(Command):
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
         parser.add_argument("-I", "--imagedir", action="store", default="./images",
-                            help="path to the directory that contains container images. Default: ./images")
+                            help="path to the directory that contains container images."
+                                 " Default: from configuration file, or ./images")
         return parser
 
     def __init__(self, args):
         super().__init__(args)
-        self.moncic = Moncic(self.args.imagedir)
-        # Drop privileges right away
-        self.moncic.privs.drop()
+        self.moncic = Moncic()
+        if self.args.imagedir:
+            self.moncic.config.imagedir = self.args.imagedir
 
 
 class CI(MoncicCommand):

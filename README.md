@@ -93,4 +93,5 @@ ubuntu:jammy       jammy, ubuntu:22.04
 
 ## Reference documentation
 
+* [Moncic-CI configuration](doc/moncic-ci-config.md)
 * [YAML configuration for custom OS images](doc/image-config.md)

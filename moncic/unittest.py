@@ -11,7 +11,7 @@ from unittest import SkipTest
 
 from moncic.system import System, SystemConfig
 from moncic.container import Container, ContainerBase, ContainerConfig, RunConfig, UserConfig
-from moncic.moncic import Moncic
+from moncic.moncic import Moncic, MoncicConfig
 from moncic.privs import ProcessPrivs
 
 if TYPE_CHECKING:
@@ -41,12 +41,11 @@ privs = SudoTestSuite()
 privs.drop()
 
 
-def make_moncic(**kw):
+def make_moncic(imagedir: str):
     """
     Create a Moncic instance configured to work with the test suite
     """
-    kw["privs"] = privs
-    return Moncic(**kw)
+    return Moncic(config=MoncicConfig(imagedir=imagedir), privs=privs)
 
 
 class MockRunLog:

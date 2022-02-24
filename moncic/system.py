@@ -40,7 +40,7 @@ class SystemConfig:
     forward_users: List[str] = dataclasses.field(default_factory=list)
 
     @classmethod
-    def load(cls, path):
+    def load(cls, path: str):
         """
         Load the configuration from the given path.
 
@@ -153,7 +153,7 @@ class System:
         distro_name = self.config.distro
         if distro_name is None:
             raise RuntimeError("get_distro_tarball called on a system that is bootstrapped by snapshotting")
-        tarball_path = os.path.join(self.moncic.imagedir, distro_name + ".tar.gz")
+        tarball_path = os.path.join(self.moncic.config.imagedir, distro_name + ".tar.gz")
         if os.path.exists(tarball_path):
             return tarball_path
         else:
