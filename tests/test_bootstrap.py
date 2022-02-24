@@ -4,7 +4,7 @@ import tempfile
 import unittest
 
 from moncic.unittest import DistroTestMixin, MockSystem, make_moncic
-from moncic.system import Config
+from moncic.system import SystemConfig
 from moncic.container import UserConfig
 
 
@@ -19,7 +19,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
                 print("distro: fedora34", file=fd)
 
-            config = Config.load(os.path.join(imagedir, "test"))
+            config = SystemConfig.load(os.path.join(imagedir, "test"))
             system = MockSystem(make_moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
 
@@ -39,7 +39,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
                 print(f"forward_user: {user.user_name}", file=fd)
 
-            config = Config.load(os.path.join(imagedir, "test"))
+            config = SystemConfig.load(os.path.join(imagedir, "test"))
             system = MockSystem(make_moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
             system.update()
@@ -59,7 +59,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
                 print("extends: rocky8", file=fd)
 
-            config = Config.load(os.path.join(imagedir, "test"))
+            config = SystemConfig.load(os.path.join(imagedir, "test"))
             system = MockSystem(make_moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
 
@@ -85,7 +85,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("maintscript: echo test", file=fd)
             os.mkdir(test_dir)
 
-            config = Config.load(os.path.join(imagedir, "test"))
+            config = SystemConfig.load(os.path.join(imagedir, "test"))
             system = MockSystem(make_moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
 

@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class Config:
+class SystemConfig:
     """
     Configuration for a system
     """
@@ -89,7 +89,7 @@ class Config:
         elif not has_distro and not has_extends:
             raise RuntimeError(f"{name}: neither 'distro' nor 'extends' have been specified")
 
-        allowed_names = {f.name for f in dataclasses.fields(Config)}
+        allowed_names = {f.name for f in dataclasses.fields(SystemConfig)}
         if unsupported_names := conf.keys() - allowed_names:
             for name in unsupported_names:
                 log.debug("%s: ignoring unsupported configuration: %r", path, name)
@@ -106,7 +106,7 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, moncic: Moncic, config: Config):
+    def __init__(self, moncic: Moncic, config: SystemConfig):
         self.moncic = moncic
         self.config = config
         self.log = logging.getLogger(f"system.{self.name}")
@@ -116,7 +116,7 @@ class System:
         """
         Create a System from the ostree or configuration at the given path
         """
-        return cls(moncic, Config.load(path))
+        return cls(moncic, SystemConfig.load(path))
 
     def __str__(self) -> str:
         return self.name

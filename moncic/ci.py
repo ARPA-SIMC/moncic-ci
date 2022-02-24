@@ -213,6 +213,8 @@ class Bootstrap(MoncicCommand):
         else:
             systems = self.args.systems
 
+        systems = self.moncic.add_dependencies(systems)
+
         for name in systems:
             system = self.moncic.create_system(name)
             with self.moncic.privs.root():

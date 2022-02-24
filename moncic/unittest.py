@@ -9,7 +9,7 @@ import tempfile
 from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
-from moncic.system import System, Config
+from moncic.system import System, SystemConfig
 from moncic.container import Container, ContainerBase, ContainerConfig, RunConfig, UserConfig
 from moncic.moncic import Moncic
 from moncic.privs import ProcessPrivs
@@ -129,7 +129,7 @@ class DistroTestMixin:
     @contextlib.contextmanager
     def mock_system(self, distro: Distro):
         with tempfile.TemporaryDirectory() as workdir:
-            config = Config(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
+            config = SystemConfig(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
             system = MockSystem(make_moncic(imagedir=workdir), config)
             system.attach_testcase(self)
             yield system
