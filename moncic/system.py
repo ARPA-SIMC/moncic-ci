@@ -137,8 +137,9 @@ class System:
         """
         Return the distribution this system is based on
         """
-        if self.config.distro is None:
-            return DistroFamily.from_path(self.config.path)
+        if self.config.extends is not None:
+            parent = self.moncic.create_system(self.config.extends)
+            return parent.distro
         else:
             return DistroFamily.lookup_distro(self.config.distro)
 
@@ -199,12 +200,29 @@ class System:
         Run periodic maintenance on the system
         """
         with self.create_container(config=ContainerConfig(ephemeral=False)) as container:
-            for u in self.config.forward_users:
-                container.forward_user(UserConfig.from_user(u))
+            self._update_container(container)
+
+    def _update_container(self, container: Container):
+        """
+        Run update machinery on a container
+        """
+        # Base maintenance
+        if self.config.extends is not None:
+            # Chain to the parent's maintenance
+            parent = self.moncic.create_system(self.config.extends)
+            parent._update_container(container)
+        else:
+            # Or run the standard distro maintenance
             for cmd in self.distro.get_update_script():
                 container.run(cmd)
-            if self.config.maintscript is not None:
-                container.run_script(self.config.maintscript)
+
+        # Forward users if needed
+        for u in self.config.forward_users:
+            container.forward_user(UserConfig.from_user(u))
+
+        # Run maintscripts configured for this system
+        if self.config.maintscript is not None:
+            container.run_script(self.config.maintscript)
 
     def remove(self):
         """
