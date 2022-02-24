@@ -126,7 +126,7 @@ class Shell(MoncicCommand):
 
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
-                            "--workdir",
+                            "-w", "--workdir",
                             help="bind mount (writable) the given directory in /root")
         git_workdir.add_argument(
                             "--checkout", "--co",
