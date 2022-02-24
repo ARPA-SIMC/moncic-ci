@@ -33,7 +33,7 @@ class Config:
     distro: Optional[str] = None
     # Name of the distribution used as a base for this one.
     # If missing, this image needs to be created by bootstrapping from scratch
-    parent: Optional[str] = None
+    extends: Optional[str] = None
     # Contents of a script to run for system maintenance
     maintscript: Optional[str] = None
     # List of users to propagate from host to image during maintenance
@@ -83,11 +83,11 @@ class Config:
             conf["maintscript"] = "#!/bin/sh\n" + maintscript
 
         has_distro = "distro" in conf
-        has_parent = "parent" in conf
-        if has_distro and has_parent:
-            raise RuntimeError(f"{name}: both 'distro' and 'parent' have been specified")
-        elif not has_distro and not has_parent:
-            raise RuntimeError(f"{name}: neither 'distro' nor 'parent' have been specified")
+        has_extends = "extends" in conf
+        if has_distro and has_extends:
+            raise RuntimeError(f"{name}: both 'distro' and 'extends' have been specified")
+        elif not has_distro and not has_extends:
+            raise RuntimeError(f"{name}: neither 'distro' nor 'extends' have been specified")
 
         allowed_names = {f.name for f in dataclasses.fields(Config)}
         if unsupported_names := conf.keys() - allowed_names:

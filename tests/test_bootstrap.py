@@ -49,3 +49,23 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
         log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         log.assertLogEmpty()
+
+    def test_snapshot(self):
+        with tempfile.TemporaryDirectory() as imagedir:
+            parent_dir = os.path.join(imagedir, "rocky8")
+            # Pretend that rocky8 has already been bootstrapped
+            os.mkdir(parent_dir)
+
+            with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
+                print("extends: rocky8", file=fd)
+
+            config = Config.load(os.path.join(imagedir, "test"))
+            system = MockSystem(make_moncic(imagedir=imagedir), config)
+            system.attach_testcase(self)
+
+            system.bootstrap()
+
+        log = system.run_log
+
+        log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {system.path}')
+        log.assertLogEmpty()
