@@ -47,7 +47,9 @@ sudo monci bootstrap --imagedir images rocky8
 
 For freely trying things out on a shell, see [Running a shell](doc/shell.md).
 
-For creating OS images with a custom setup, see [Custom OS images](doc/custom-os-images.md)
+For creating OS images with a custom setup, see [Custom OS images](doc/custom-os-images.md).
+
+For running the test suite of local code on a different OS, see [Testing on another distro](doc/testing-on-another-distro.md).
 
 ## Container details
 
