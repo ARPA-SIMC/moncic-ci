@@ -8,7 +8,7 @@ You can do that with `monci shell`:
 
 ```
 $ monci shell --help
-usage: monci shell [-h] [-v] [--debug] [-I IMAGEDIR] [--maintenance] [-w WORKDIR | --clone REPO] [--bind BIND] [--bind-ro BIND_RO] [-u] [-r] system
+usage: monci shell [-h] [-v] [--debug] [-I IMAGEDIR] [--maintenance] [-w WORKDIR | --clone repository] [--bind BIND] [--bind-ro BIND_RO] [-u] [-r] system
 
 positional arguments:
   system                name or path of the system to use
