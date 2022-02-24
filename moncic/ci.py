@@ -149,7 +149,7 @@ class Shell(MoncicCommand):
 
     def run(self):
         system = self.moncic.create_system(self.args.system)
-        with checkout(system, self.args.checkout) as workdir:
+        with checkout(system, self.args.clone) as workdir:
             workdir = workdir if workdir is not None else self.args.workdir
             if workdir is not None:
                 workdir = os.path.abspath(workdir)
