@@ -45,7 +45,7 @@ sudo monci bootstrap --imagedir images rocky8
 
 ## Using Moncic-CI
 
-
+For freely trying things out on a shell, see [Running a shell](doc/shell.md).
 
 ## Container requirements
 
