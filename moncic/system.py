@@ -7,7 +7,7 @@ from typing import List, Optional, TYPE_CHECKING
 import yaml
 
 from .distro import DistroFamily
-from .container import ContainerConfig, RunConfig
+from .container import ContainerConfig, RunConfig, UserConfig
 
 if TYPE_CHECKING:
     import subprocess
@@ -36,6 +36,8 @@ class Config:
     parent: Optional[str] = None
     # Contents of a script to run for system maintenance
     maintscript: Optional[str] = None
+    # List of users to propagate from host to image during maintenance
+    forward_users: List[str] = dataclasses.field(default_factory=list)
 
     @classmethod
     def load(cls, path):
@@ -65,6 +67,15 @@ class Config:
 
         conf["name"] = name
         conf["path"] = os.path.abspath(path)
+
+        # Make sure forward_users, if present, is a list of strings
+        forward_users = conf.pop("forward_user", None)
+        if forward_users is None:
+            pass
+        elif isinstance(forward_users, str):
+            conf["forward_users"] = [forward_users]
+        else:
+            conf["forward_users"] = [str(e) for e in forward_users]
 
         # Prepend a default shebang to the maintscript if missing
         maintscript = conf.get("maintscript")
@@ -183,6 +194,8 @@ class System:
         Run periodic maintenance on the system
         """
         with self.create_container(config=ContainerConfig(ephemeral=False)) as container:
+            for u in self.config.forward_users:
+                container.forward_user(UserConfig.from_user(u))
             for cmd in self.distro.get_update_script():
                 container.run(cmd)
             if self.config.maintscript is not None:

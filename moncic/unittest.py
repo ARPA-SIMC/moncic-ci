@@ -10,7 +10,7 @@ from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
 from unittest import SkipTest
 
 from moncic.system import System, Config
-from moncic.container import Container, ContainerBase, ContainerConfig, RunConfig
+from moncic.container import Container, ContainerBase, ContainerConfig, RunConfig, UserConfig
 from moncic.moncic import Moncic
 
 if TYPE_CHECKING:
@@ -112,6 +112,9 @@ class MockRunLog:
     def append_callable(self, func: Callable[[], Optional[int]]):
         self.log.append((f"callable:{func.__name__}", {}))
 
+    def append_forward_user(self, user: UserConfig):
+        self.log.append((f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}", {}))
+
     def assertPopFirst(self, cmd: Union[str, re.Pattern], **kwargs):
         actual_cmd, actual_kwargs = self.log.pop(0)
 
@@ -137,6 +140,9 @@ class MockContainer(ContainerBase):
 
     def _stop(self):
         self.started = False
+
+    def forward_user(self, user: UserConfig):
+        self.run_log.append_forward_user(user)
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         self.run_log.append(command, {})

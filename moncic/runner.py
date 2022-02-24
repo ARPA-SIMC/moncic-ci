@@ -73,6 +73,15 @@ class UserConfig(NamedTuple):
         gr = grp.getgrgid(gid)
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
+    @classmethod
+    def from_user(cls, name: str) -> UserConfig:
+        """
+        Instantiate a UserConfig from the username of a local user
+        """
+        pw = pwd.getpwnam(name)
+        gr = grp.getgrgid(pw.pw_gid)
+        return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
+
     def check_system(self):
         """
         Check that this user/group information is consistent in the current

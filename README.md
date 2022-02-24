@@ -67,6 +67,9 @@ Keywords currently supported are:
 * `maintscript`: script run after bootstrap and during regular maintenance, to
   customize the OS image. If it does not start with a shebang (`#!`),
   `#!/bin/sh` is automatically prepended.
+* `forward_user`: username, or list of usernames, to propagate from the host
+  system to the image. Users will be propagated with their primary groups, but
+  not with their additional groups.
 
 `.yaml` files in image directories have precedence over plain distribution
 names: one can for example define a `centos8.yaml` image that contains `distro:
