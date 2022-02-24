@@ -220,9 +220,7 @@ class LocalRunner(AsyncioRunner):
     async def start_process(self):
         if self.config.user is not None:
             raise NotImplementedError("support for user config in LocalRunner is not yet implemented")
-        if self.config.group is not None:
-            raise NotImplementedError("support for group config in LocalRunner is not yet implemented")
-        if self.config.interactive is not None:
+        if self.config.interactive:
             raise NotImplementedError("support for interactive config in LocalRunner is not yet implemented")
 
         self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))

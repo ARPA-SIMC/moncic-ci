@@ -9,17 +9,16 @@ import tempfile
 import time
 import unittest
 
-from moncic.unittest import privs, TEST_CHROOTS
+from moncic.unittest import privs, TEST_CHROOTS, make_moncic
 from moncic.system import System
 from moncic.container import ContainerConfig, RunConfig, UserConfig
-from moncic.moncic import Moncic
 
 
 class RunTestCase:
     distro_name: str
 
     def get_system(self) -> System:
-        moncic = Moncic(imagedir="images")
+        moncic = make_moncic(imagedir="images")
         return moncic.create_system(self.distro_name)
 
     def test_true(self):

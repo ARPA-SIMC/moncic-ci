@@ -3,10 +3,9 @@ import os
 import tempfile
 import unittest
 
-from moncic.unittest import DistroTestMixin, MockSystem
+from moncic.unittest import DistroTestMixin, MockSystem, make_moncic
 from moncic.system import Config
 from moncic.container import UserConfig
-from moncic.moncic import Moncic
 
 
 class Bootstrap(DistroTestMixin, unittest.TestCase):
@@ -21,7 +20,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
 
             config = Config.load(os.path.join(imagedir, "test"))
-            system = MockSystem(Moncic(imagedir=imagedir), config)
+            system = MockSystem(make_moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
 
             system.bootstrap()
@@ -41,7 +40,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print(f"forward_user: {user.user_name}", file=fd)
 
             config = Config.load(os.path.join(imagedir, "test"))
-            system = MockSystem(Moncic(imagedir=imagedir), config)
+            system = MockSystem(make_moncic(imagedir=imagedir), config)
             system.attach_testcase(self)
             system.update()
 

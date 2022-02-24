@@ -41,6 +41,14 @@ privs = SudoTestSuite()
 privs.drop()
 
 
+def make_moncic(**kw):
+    """
+    Create a Moncic instance configured to work with the test suite
+    """
+    kw["privs"] = privs
+    return Moncic(**kw)
+
+
 class MockRunLog:
     def __init__(self, testcase):
         self.testcase = testcase
@@ -122,6 +130,6 @@ class DistroTestMixin:
     def mock_system(self, distro: Distro):
         with tempfile.TemporaryDirectory() as workdir:
             config = Config(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
-            system = MockSystem(Moncic(imagedir=workdir), config)
+            system = MockSystem(make_moncic(imagedir=workdir), config)
             system.attach_testcase(self)
             yield system
