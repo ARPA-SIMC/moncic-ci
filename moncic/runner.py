@@ -12,6 +12,7 @@ import logging
 import os
 import pwd
 import shlex
+import shutil
 import subprocess
 import traceback
 from typing import List, Optional, Callable, NamedTuple, TextIO, TYPE_CHECKING
@@ -134,6 +135,10 @@ class RunConfig:
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
 
+    # Set to true to lookup the executable in the path instead of assuming it
+    # is an absolute path
+    use_path: bool = False
+
 
 class Runner:
     """
@@ -229,8 +234,15 @@ class LocalRunner(AsyncioRunner):
         if self.config.cwd is not None:
             kwargs["cwd"] = self.config.cwd
 
+        if self.config.use_path:
+            executable = shutil.which(self.cmd[0])
+            if executable is None:
+                executable = self.cmd[0]
+        else:
+            executable = self.cmd[0]
+
         return await asyncio.create_subprocess_exec(
-                self.cmd[0], *self.cmd[1:],
+                executable, *self.cmd[1:],
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 **kwargs)
@@ -300,7 +312,8 @@ class SetnsCallableRunner(Runner):
             os.environ["HOME"] = f"/home/{self.config.user.user_name}"
 
     def execute(self) -> subprocess.CompletedProcess:
-        self.system.log.info("Running %s", self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__)
+        func_name = self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__
+        self.system.log.info("Running %s", func_name)
 
         catch_output = not self.config.interactive
 
@@ -360,7 +373,7 @@ class SetnsCallableRunner(Runner):
         wres = os.waitid(os.P_PID, pid, os.WEXITED)
         if self.config.check and wres.si_status != 0:
             raise subprocess.CalledProcessError(
-                    wres.si_status, self.func.__name__, stdout, stderr)
+                    wres.si_status, func_name, stdout, stderr)
 
         return subprocess.CompletedProcess(
-                self.func.__name__, wres.si_status, stdout, stderr)
+                func_name, wres.si_status, stdout, stderr)

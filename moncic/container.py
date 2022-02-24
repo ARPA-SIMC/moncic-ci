@@ -294,12 +294,24 @@ class NspawnContainer(ContainerBase):
         self.started = False
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        run_config = self.config.run_config(config)
+
+        if run_config.use_path:
+            exec_func = os.execvp
+        else:
+            exec_func = os.execv
+
         def command_runner():
-            os.execv(command[0], command)
+            try:
+                exec_func(command[0], command)
+            except FileNotFoundError:
+                logging.error("%r: command not found", command[0])
+                # Same return code as the shell for a command not found
+                return 127
 
         command_runner.__doc__ = " ".join(shlex.quote(c) for c in command)
 
-        return self.run_callable(command_runner, config)
+        return self.run_callable(command_runner, run_config)
 
     def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         def script_runner():
