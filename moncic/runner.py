@@ -322,9 +322,9 @@ class SetnsCallableRunner(Runner):
 
         if catch_output:
             # Create pipes for catching stdout and stderr
-            stdout_r, stdout_w = os.pipe2(os.O_CLOEXEC)
-            stderr_r, stderr_w = os.pipe2(os.O_CLOEXEC)
-        log_r, log_w = os.pipe2(os.O_CLOEXEC)
+            stdout_r, stdout_w = os.pipe2(0)
+            stderr_r, stderr_w = os.pipe2(0)
+        log_r, log_w = os.pipe2(0)
 
         pid = os.fork()
         if pid == 0:
@@ -373,8 +373,19 @@ class SetnsCallableRunner(Runner):
                 for k, v in env.items():
                     os.environ[k] = v
 
-                res = self.func()
-                os._exit(res if res is not None else 0)
+                # Refork to actually enter the PID namespace
+                pid = os.fork()
+                if pid == 0:
+                    try:
+                        res = self.func()
+                        os._exit(res if res is not None else 0)
+                    except Exception:
+                        traceback.print_exc()
+                        # Reusing systemd-analyze exit-status
+                        os._exit(255)
+                else:
+                    wres = os.waitid(os.P_PID, pid, os.WEXITED)
+                    os._exit(wres.si_status)
             except Exception:
                 traceback.print_exc()
                 # Reusing systemd-analyze exit-status
