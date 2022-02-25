@@ -1,0 +1,17 @@
+Source: moncic-ci
+Section: python
+Priority: optional
+Maintainer: Enrico Zini <enrico@debian.org>
+Build-Depends: debhelper (>= 13), dh-python,
+               python3-all, python3-yaml
+Standards-Version: 4.2.0
+
+Package: moncic-ci
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends},
+         python3-yaml, btrfs-progs, systemd-container
+Recommends: ${python3:Recommends}, python3-coloredlogs, python3-texttable,
+Suggests: ${python3:Suggests}
+Description: Continuous integration tool, and development helper
+ Moncic CI manages lightweight containers for use with Continuous Integration
+ or to help developers target platforms different from the development machine.

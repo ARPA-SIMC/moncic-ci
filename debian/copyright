@@ -1,0 +1,12 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: Moncic-CI
+Upstream-Contact: ARPAE-SIMC <urpsim@arpae.it>
+Source: https://github.com/ARPA-SIMC/moncic-ci/
+
+Files: *
+Copyright: 2021-2022 © ARPAE-SIMC <urpsim@arpae.it>
+License: GPL-3+
+
+Files: debian/*
+Copyright: 2021-2022 © ARPAE-SIMC <urpsim@arpae.it>
+License: GPL-3+
