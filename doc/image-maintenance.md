@@ -38,7 +38,8 @@ After bootstrapping, each image has a maintenance procedure that is run
 regularly to keep it up to date.
 
 Maintenance is run once automatically after bootstrap, and then each time you
-run `monci update`.
+run `monci update`. You may want to schedule running `monci update` regularly,
+to keep your images up to date.
 
 A maintenance procedure runs a few steps in sequence:
 
