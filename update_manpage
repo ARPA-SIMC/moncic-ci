@@ -1,0 +1,36 @@
+#!/usr/bin/python3
+
+import re
+import shutil
+import sys
+import subprocess
+import tempfile
+
+res = subprocess.run([sys.executable, "setup.py", "--version"], stdout=subprocess.PIPE, text=True, check=True)
+version = res.stdout.strip()
+
+res = subprocess.run([sys.executable, "monci", "--help"], stdout=subprocess.PIPE, text=True, check=True)
+subcommands = re.sub(r'^.+\{(.+)\}.+$', r'\1', res.stdout, flags=re.DOTALL).split(',')
+
+with tempfile.NamedTemporaryFile("wt") as tf:
+    print("[>DESCRIPTION]", file=tf)
+
+    for subcommand in subcommands:
+        res = subprocess.run(
+                ["help2man", "--name=monci", "--section=1",
+                 "--no-info", "--version-string=dummy", f"./monci {subcommand}"],
+                stdout=subprocess.PIPE, text=True, check=True)
+        subcommand_doc = re.sub(r'^.+.SH DESCRIPTION', '', res.stdout, flags=re.DOTALL)
+        print(".SH ", subcommand.upper(), " SUBCOMMAND", file=tf)
+        tf.write(subcommand_doc)
+
+    with open("monci.1.in", "rt") as fd:
+        shutil.copyfileobj(fd, tf)
+
+    tf.flush()
+
+    subprocess.run(
+            ["help2man", f"--include={tf.name}", "--name=monci",
+             "--section=1", "--no-info", f"--version-string={version}",
+             "--output=monci.1", "./monci"],
+            check=True)
