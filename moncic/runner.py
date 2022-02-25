@@ -54,7 +54,10 @@ class UserConfig(NamedTuple):
         """
         Instantiate a UserConfig from the current user and group
         """
-        pw = pwd.getpwuid(os.getuid())
+        uid = os.getuid()
+        if uid == 0:
+            return cls.root()
+        pw = pwd.getpwuid(uid)
         gr = grp.getgrgid(os.getgid())
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
@@ -294,9 +297,12 @@ class SetnsCallableRunner(Runner):
 
         await asyncio.gather(*readers)
 
-    def set_user(self):
+    def set_user(self) -> UserConfig:
+        """
+        Set the user if requested, and return a UserConfig for the current user
+        """
         if self.config.user is None:
-            return
+            return UserConfig.from_current()
 
         self.config.user.check_system()
 
@@ -306,10 +312,7 @@ class SetnsCallableRunner(Runner):
         uid = self.config.user.user_id
         os.setresuid(uid, uid, uid)
 
-        if uid == 0:
-            os.environ["HOME"] = "/root"
-        else:
-            os.environ["HOME"] = f"/home/{self.config.user.user_name}"
+        return self.config.user
 
     def execute(self) -> subprocess.CompletedProcess:
         func_name = self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__
@@ -326,7 +329,6 @@ class SetnsCallableRunner(Runner):
         pid = os.fork()
         if pid == 0:
             try:
-                # TODO: setenv HOME
                 if catch_output:
                     # Close stdin
                     os.close(0)
@@ -339,14 +341,38 @@ class SetnsCallableRunner(Runner):
                     os.close(stderr_w)
                 os.close(log_r)
 
+                # Start building an environment from scratch
+                env = {
+                    "HOSTNAME": self.run.instance_name,
+                }
+                if path := os.environ.get("PATH"):
+                    env["PATH"] = path
+                if term := os.environ.get("TERM"):
+                    env["TERM"] = term
+
                 logging.shutdown()
                 importlib.reload(logging)
                 logging.getLogger().addHandler(JSONStreamHandler(stream=open(log_w, "wt"), level=logging.DEBUG))
                 logging.getLogger().setLevel(logging.DEBUG)
                 setns.nsenter(self.leader_pid)
-                self.set_user()
+
+                user = self.set_user()
+                env["USER"] = user.user_name
+                env["LOGNAME"] = user.user_name
+                if user.user_id == 0:
+                    env["HOME"] = "/root"
+                else:
+                    env["HOME"] = f"/home/{user.user_name}"
+
                 if self.config.cwd is not None:
                     os.chdir(self.config.cwd)
+                    env["PWD"] = self.config.cwd
+
+                # Replace environment
+                os.environ.clear()
+                for k, v in env.items():
+                    os.environ[k] = v
+
                 res = self.func()
                 os._exit(res if res is not None else 0)
             except Exception:
