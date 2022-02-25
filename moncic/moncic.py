@@ -1,6 +1,7 @@
 from __future__ import annotations
 import dataclasses
 import graphlib
+import logging
 import os
 import subprocess
 from typing import List, Optional, Type, TYPE_CHECKING
@@ -11,6 +12,8 @@ from .privs import ProcessPrivs
 
 if TYPE_CHECKING:
     from .system import System
+
+log = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
@@ -82,6 +85,7 @@ class MoncicConfig:
         try:
             with open(path, "rt") as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
+            log.info("Configuration loaded from %s", path)
         except FileNotFoundError:
             conf = None
 
