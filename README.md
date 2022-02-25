@@ -91,6 +91,10 @@ ubuntu:impish      impish, ubuntu:21.10
 ubuntu:jammy       jammy, ubuntu:22.04
 ```
 
+## In depth
+
+* [Security considerations](doc/security.md)
+
 ## Reference documentation
 
 * [Moncic-CI configuration](doc/moncic-ci-config.md)
