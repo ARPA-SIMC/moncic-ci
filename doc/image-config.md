@@ -24,6 +24,11 @@ Keywords currently supported are:
 * `forward_user`: username, or list of usernames, to propagate from the host
   system to the image. Users will be propagated with their primary groups, but
   not with their additional groups.
+* `backup`: if false (the default), a
+  [CACHEDIR.TAG](https://bford.info/cachedir/) file is created inside the
+  image, to hint backup software that it does not need to be backed up.
+  Set it to `true` and Moncic-CI will make sure there is no `CACHEDIR.TAG` file
+  at the top of the OS image.
 
 One, and only one, of `distro` or `extends` must be present.
 

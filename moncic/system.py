@@ -38,6 +38,10 @@ class SystemConfig:
     maintscript: Optional[str] = None
     # List of users to propagate from host to image during maintenance
     forward_users: List[str] = dataclasses.field(default_factory=list)
+    # When False, a CACHEDIR.TAG is created in the container image as a hint
+    # for backup programs to skip backing up an image that can be recreated
+    # from scratch
+    backup: bool = False
 
     @classmethod
     def load(cls, path: str):
@@ -223,6 +227,27 @@ class System:
         # Run maintscripts configured for this system
         if self.config.maintscript is not None:
             container.run_script(self.config.maintscript)
+
+        self._update_cachedir()
+
+    def _update_cachedir(self):
+        """
+        Create or remove a CACHEDIR.TAG file, depending on the image
+        configuration
+        """
+        cachedir_pathname = os.path.join(self.path, "CACHEDIR.TAG")
+        if self.config.backup:
+            try:
+                os.unlink(cachedir_pathname)
+            except FileNotFoundError:
+                pass
+        else:
+            if not os.path.exists(cachedir_pathname):
+                with open(cachedir_pathname, "wt") as fd:
+                    # See https://bford.info/cachedir/
+                    print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
+                    print("# This file hints to backup software that they can skip this directory.", file=fd)
+                    print("# See https://bford.info/cachedir/", file=fd)
 
     def remove(self):
         """

@@ -28,11 +28,5 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
         log = system.run_log
 
         log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
-        # log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf")
-        # log.assertPopFirst('/usr/bin/dnf install -y --allowerasing @buildsys-build')
-        # log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(builddep)'")
-        # log.assertPopFirst('/usr/bin/dnf install -q -y git')
-        # log.assertPopFirst('/usr/bin/dnf install -q -y rpmdevtools')
-        # log.assertPopFirst('/usr/bin/dnf copr enable -y simc/stable')
-        # log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
+        log.assertPopFirst("cachedir_tag:")
         log.assertLogEmpty()

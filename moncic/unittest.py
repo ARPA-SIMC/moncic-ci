@@ -16,6 +16,7 @@ from moncic.privs import ProcessPrivs
 
 if TYPE_CHECKING:
     from moncic.distro import Distro
+    from unittest import TestCase
 
 TEST_CHROOTS = ["centos7", "centos8", "rocky8", "fedora32", "fedora34", "buster", "bookworm", "bullseye"]
 
@@ -41,11 +42,30 @@ privs = SudoTestSuite()
 privs.drop()
 
 
-def make_moncic(imagedir: str):
+class MockMoncic(Moncic):
+    def __init__(self, *, testcase: TestCase, **kw):
+        super().__init__(**kw)
+        self.testcase = testcase
+
+    def create_system(self, name_or_path: str) -> System:
+        res = super().create_system(name_or_path)
+        res.attach_testcase(self.testcase)
+        return res
+
+
+def make_moncic(imagedir: str, testcase: Optional[TestCase] = None):
     """
-    Create a Moncic instance configured to work with the test suite
+    Create a Moncic instance configured to work with the test suite.
+
+    If testcase is present, it will create a fullly mocked Moncic instance that
+    will also create mock systems. Otherwise it will create a real Moncic
+    instance configured to use test images
     """
-    return Moncic(config=MoncicConfig(imagedir=imagedir), privs=privs)
+    config = MoncicConfig(imagedir=imagedir)
+    if testcase is None:
+        return Moncic(config=config, privs=privs)
+    else:
+        return MockMoncic(config=config, privs=privs, system_class=MockSystem, testcase=testcase)
 
 
 class MockRunLog:
@@ -64,6 +84,9 @@ class MockRunLog:
 
     def append_forward_user(self, user: UserConfig):
         self.log.append((f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}", {}))
+
+    def append_cachedir(self):
+        self.log.append(("cachedir_tag:", {}))
 
     def assertPopFirst(self, cmd: Union[str, re.Pattern], **kwargs):
         actual_cmd, actual_kwargs = self.log.pop(0)
@@ -123,12 +146,15 @@ class MockSystem(System):
             self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
         return MockContainer(self, instance_name, config)
 
+    def _update_cachedir(self):
+        self.run_log.append_cachedir()
+
 
 class DistroTestMixin:
     @contextlib.contextmanager
     def mock_system(self, distro: Distro):
         with tempfile.TemporaryDirectory() as workdir:
             config = SystemConfig(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
-            system = MockSystem(make_moncic(imagedir=workdir), config)
+            system = MockSystem(make_moncic(imagedir=workdir, testcase=self), config)
             system.attach_testcase(self)
             yield system

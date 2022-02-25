@@ -20,7 +20,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir), config)
+            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
             system.attach_testcase(self)
 
             system.bootstrap()
@@ -40,7 +40,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print(f"forward_user: {user.user_name}", file=fd)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir), config)
+            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
             system.attach_testcase(self)
             system.update()
 
@@ -48,6 +48,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
 
         log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
+        log.assertPopFirst("cachedir_tag:")
         log.assertLogEmpty()
 
     def test_snapshot_bootstrap(self):
@@ -60,7 +61,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("extends: rocky8", file=fd)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir), config)
+            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
             system.attach_testcase(self)
 
             system.bootstrap()
@@ -86,7 +87,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             os.mkdir(test_dir)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir), config)
+            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
             system.attach_testcase(self)
 
             system.update()
@@ -96,4 +97,5 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         log.assertPopFirst("script:#!/bin/sh\necho base")
         log.assertPopFirst("script:#!/bin/sh\necho test")
+        log.assertPopFirst("cachedir_tag:")
         log.assertLogEmpty()

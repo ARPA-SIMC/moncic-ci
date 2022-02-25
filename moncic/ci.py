@@ -289,6 +289,9 @@ class Update(MoncicCommand):
         else:
             systems = self.args.systems
 
+        count_ok = 0
+        count_failed = 0
+
         for name in systems:
             system = self.moncic.create_system(name)
 
@@ -299,9 +302,15 @@ class Update(MoncicCommand):
             with self.moncic.privs.root():
                 try:
                     system.update()
+                    count_ok += 1
                 except Exception:
                     log.critical("%s: cannot update image", name, exc_info=True)
-                    return 6
+                    count_failed += 1
+
+        log.info("%d images successfully updated", count_ok)
+        if count_failed:
+            log.error("%d images failed to update", count_failed)
+            return 6
 
 
 class Remove(MoncicCommand):

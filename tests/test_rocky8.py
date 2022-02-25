@@ -28,4 +28,5 @@ class Rocky8(DistroTestMixin, unittest.TestCase):
         log = system.run_log
 
         log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
+        log.assertPopFirst("cachedir_tag:")
         log.assertLogEmpty()

@@ -28,13 +28,5 @@ class Centos7(DistroTestMixin, unittest.TestCase):
         log = system.run_log
 
         log.assertPopFirst('/usr/bin/yum upgrade -q -y')
-        # log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/yum.conf")
-        # log.assertPopFirst("/usr/bin/yum install -y epel-release")
-        # log.assertPopFirst("/usr/bin/yum install -y @buildsys-build")
-        # log.assertPopFirst("/usr/bin/yum install -y yum-utils")
-        # log.assertPopFirst("/usr/bin/yum install -y git")
-        # log.assertPopFirst("/usr/bin/yum install -y rpmdevtools")
-        # log.assertPopFirst("/usr/bin/yum install -q -y yum-plugin-copr")
-        # log.assertPopFirst('/usr/bin/yum copr enable -q -y simc/stable epel-7')
-        # log.assertPopFirst('/usr/bin/yum upgrade -q -y')
+        log.assertPopFirst("cachedir_tag:")
         log.assertLogEmpty()

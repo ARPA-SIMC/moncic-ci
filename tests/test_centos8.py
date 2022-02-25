@@ -28,14 +28,5 @@ class Centos8(DistroTestMixin, unittest.TestCase):
         log = system.run_log
 
         log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
-        # log.assertPopFirst("/usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf")
-        # log.assertPopFirst('/usr/bin/dnf install -q -y epel-release')
-        # log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(config-manager)'")
-        # log.assertPopFirst("/usr/bin/dnf config-manager --set-enabled powertools")
-        # log.assertPopFirst("/usr/bin/dnf groupinstall -q -y 'Development Tools'")
-        # log.assertPopFirst("/usr/bin/dnf install -q -y 'dnf-command(builddep)'")
-        # log.assertPopFirst('/usr/bin/dnf install -q -y git')
-        # log.assertPopFirst('/usr/bin/dnf install -q -y rpmdevtools')
-        # log.assertPopFirst('/usr/bin/dnf copr enable -y simc/stable')
-        # log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
+        log.assertPopFirst("cachedir_tag:")
         log.assertLogEmpty()

@@ -3,7 +3,7 @@ import dataclasses
 import graphlib
 import os
 import subprocess
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, Type, TYPE_CHECKING
 
 import yaml
 
@@ -97,7 +97,14 @@ class Moncic:
     """
     General state of the Moncic-CI setup
     """
-    def __init__(self, config: Optional[MoncicConfig] = None, privs: Optional[ProcessPrivs] = None):
+    def __init__(
+            self,
+            config: Optional[MoncicConfig] = None,
+            privs: Optional[ProcessPrivs] = None,
+            system_class: Optional[Type[System]] = None):
+        # Import here to prevent import loops
+        from .system import System
+
         self.privs: ProcessPrivs
         if privs is None:
             self.privs = ProcessPrivs()
@@ -112,16 +119,21 @@ class Moncic:
         else:
             self.config = config
 
+        # Class used to instantiate systems
+        self.system_class: Type[System]
+        if system_class is None:
+            self.system_class = System
+        else:
+            self.system_class = system_class
+
     def create_system(self, name_or_path: str) -> System:
         """
         Instantiate a System from its name or path
         """
-        # Import here to prevent import loops
-        from .system import System
         if os.path.isdir(name_or_path):
-            return System.from_path(self, name_or_path)
+            return self.system_class.from_path(self, name_or_path)
         else:
-            return System.from_path(self, os.path.join(self.config.imagedir, name_or_path))
+            return self.system_class.from_path(self, os.path.join(self.config.imagedir, name_or_path))
 
     def list_images(self) -> List[str]:
         """
