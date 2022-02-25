@@ -201,10 +201,12 @@ class Shell(ImageActionCommand):
             raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
 
         run_config = self.get_run_config()
+        run_config.check = False
 
         with self.container() as container:
             res = container.run_callable(find_shell)
-            container.run([res.stdout.strip().decode(), "--login"], config=run_config)
+            res = container.run([res.stdout.strip().decode(), "--login"], config=run_config)
+        return res.returncode
 
 
 class Run(ImageActionCommand):
