@@ -53,7 +53,7 @@ class MockMoncic(Moncic):
         return res
 
 
-def make_moncic(imagedir: str, testcase: Optional[TestCase] = None):
+def make_moncic(imagedir: Optional[str] = None, testcase: Optional[TestCase] = None):
     """
     Create a Moncic instance configured to work with the test suite.
 
@@ -61,6 +61,9 @@ def make_moncic(imagedir: str, testcase: Optional[TestCase] = None):
     will also create mock systems. Otherwise it will create a real Moncic
     instance configured to use test images
     """
+    if imagedir is None and testcase is None:
+        return Moncic(privs=privs)
+
     config = MoncicConfig(imagedir=imagedir)
     if testcase is None:
         return Moncic(config=config, privs=privs)

@@ -10,53 +10,65 @@ import time
 import unittest
 
 from moncic.unittest import privs, TEST_CHROOTS, make_moncic
-from moncic.system import System
 from moncic.container import ContainerConfig, RunConfig, UserConfig
 
 
 class RunTestCase:
     distro_name: str
 
-    def get_system(self) -> System:
-        moncic = make_moncic(imagedir="images")
-        return moncic.create_system(self.distro_name)
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.moncic = make_moncic()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.moncic = None
+        super().tearDownClass()
+
+    def setUp(self):
+        super().setUp()
+        if self.distro_name not in self.moncic.list_images():
+            raise unittest.SkipTest(f"Image {self.distro_name} not available")
+        self.system = self.moncic.create_system(self.distro_name)
+        if not os.path.exists(self.system.path):
+            raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
+
+    def tearDown(self):
+        self.system = None
+        super().tearDown()
 
     def test_true(self):
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 container.run(["/usr/bin/true"])
 
     def test_sleep(self):
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 start = time.time()
                 container.run(["/usr/bin/sleep", "0.1"])
                 # Check that 0.1 seconds have passed
                 self.assertGreaterEqual(time.time() - start, 0.1)
 
     def test_stdout(self):
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 res = container.run(["/usr/bin/echo", "test"])
                 self.assertEqual(res.stdout, b"test\n")
                 self.assertEqual(res.stderr, b"")
 
     def test_env(self):
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 res = container.run(["/bin/sh", "-c", "echo $HOME"])
                 self.assertEqual(res.stdout, b"/root\n")
                 self.assertEqual(res.stderr, b"")
 
     def test_callable(self):
         token = secrets.token_bytes(8)
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 def test_function():
                     with open("/tmp/token", "wb") as out:
                         out.write(token)
@@ -72,9 +84,8 @@ class RunTestCase:
                 self.assertEqual(res.returncode, 0)
 
     def test_callable_prints(self):
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 def test_function():
                     print("stdout")
                     print("stderr", file=sys.stderr)
@@ -85,21 +96,19 @@ class RunTestCase:
                 self.assertEqual(res.returncode, 0)
 
     def test_multi_maint_runs(self):
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 res = container.run(["/bin/echo", "1"])
                 self.assertEqual(res.stdout, b"1\n")
                 self.assertEqual(res.stderr, b"")
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 res = container.run(["/bin/echo", "2"])
                 self.assertEqual(res.stdout, b"2\n")
                 self.assertEqual(res.stderr, b"")
 
     def test_run_script(self):
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 res = container.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", config=RunConfig(check=False))
                 self.assertEqual(res.stdout, b"test\n")
                 self.assertEqual(res.stderr, b"")
@@ -109,13 +118,12 @@ class RunTestCase:
         def get_user():
             print(json.dumps(UserConfig.from_current()))
 
-        system = self.get_system()
         user = UserConfig.from_sudoer()
 
         # By default, things are run as root
         container_config = ContainerConfig()
         with privs.root():
-            with system.create_container(config=container_config) as container:
+            with self.system.create_container(config=container_config) as container:
                 res = container.run_callable(get_user)
                 u = UserConfig(*json.loads(res.stdout))
                 self.assertEqual(res.stderr, b"")
@@ -129,7 +137,7 @@ class RunTestCase:
 
         container_config = ContainerConfig(forward_user=True)
         with privs.root():
-            with system.create_container(config=container_config) as container:
+            with self.system.create_container(config=container_config) as container:
                 res = container.run_callable(get_user)
                 u = UserConfig(*json.loads(res.stdout))
                 self.assertEqual(res.stderr, b"")
@@ -145,14 +153,13 @@ class RunTestCase:
                 self.assertEqual(res.stderr, b"")
 
     def test_forward_user_workdir(self):
-        system = self.get_system()
         user = UserConfig.from_sudoer()
 
         with tempfile.TemporaryDirectory() as workdir:
             # By default, things are run as root
             container_config = ContainerConfig(workdir=workdir, forward_user=True)
             with privs.root():
-                with system.create_container(config=container_config) as container:
+                with self.system.create_container(config=container_config) as container:
                     res = container.run(["/usr/bin/id", "-u"])
                     self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")
                     self.assertEqual(res.stderr, b"")
@@ -174,15 +181,14 @@ class RunTestCase:
 
         self.maxDiff = None
 
-        system = self.get_system()
         with privs.root():
-            with system.create_container() as container:
+            with self.system.create_container() as container:
                 with self.assertLogs() as lg:
                     res = container.run_callable(test_log)
                 self.assertEqual(res.stdout, b"")
                 self.assertEqual(res.stderr, b"")
 
-                logname = system.log.name
+                logname = self.system.log.name
                 self.assertEqual(lg.output, [
                     f"INFO:{logname}:Running test_log",
                     f"DEBUG:{logname}:debug",
