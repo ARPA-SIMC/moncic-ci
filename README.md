@@ -43,7 +43,7 @@ to create one. For example:
 sudo monci bootstrap --imagedir images rocky8
 ```
 
-## HOWTOs for using Moncic-CI
+## Using Moncic-CI
 
 For freely trying things out on a shell, see [Running a shell](doc/shell.md).
 
@@ -94,6 +94,7 @@ ubuntu:jammy       jammy, ubuntu:22.04
 ## In depth
 
 * [Security considerations](doc/security.md)
+* [Image bootstrapping and maintenance](doc/image-maintenance.md)
 
 ## Reference documentation
 
