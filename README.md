@@ -13,8 +13,8 @@ to help developers target platforms different from the development machine.
 Choose one of:
 
 ```
-apt install python3-yaml python3-coloredlogs python3-texttable dnf
-dnf install python3-pyyaml python3-coloredlogs python3-texttable debootstrap
+apt install python3-yaml python3-coloredlogs python3-texttable dnf btrfs-progs systemd-container
+dnf install python3-pyyaml python3-coloredlogs python3-texttable debootstrap btrfs-progs systemd-container
 pip install yaml coloredlogs texttable
 ```
 
