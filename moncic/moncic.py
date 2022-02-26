@@ -1,8 +1,10 @@
 from __future__ import annotations
+from collections import defaultdict
 import dataclasses
 import graphlib
 import logging
 import os
+import stat
 import subprocess
 from typing import List, Optional, Type, TYPE_CHECKING
 
@@ -173,3 +175,46 @@ class Moncic:
                 res.add(config.name)
 
         return list(res.static_order())
+
+    def deduplicate(self):
+        """
+        Attempt deduplicating files that have the same name and size across OS
+        images
+        """
+        from .btrfs import do_dedupe
+
+        imagedir = self.config.imagedir
+
+        by_name_size = defaultdict(list)
+        for entry in os.scandir(imagedir):
+            if entry.name.startswith("."):
+                continue
+            if not entry.is_dir():
+                continue
+
+            path = os.path.join(imagedir, entry.name)
+            for (dirpath, dirnames, filenames, dirfd) in os.fwalk(path):
+                relpath = os.path.relpath(dirpath, path)
+                for fn in filenames:
+                    st = os.lstat(fn, dir_fd=dirfd)
+                    if not stat.S_ISREG(st.st_mode):
+                        continue
+                    size = st.st_size
+                    by_name_size[(os.path.join(relpath, fn), size)].append(entry.name)
+
+        with self.privs.root():
+            total_saved = 0
+            for (name, size), images in by_name_size.items():
+                if len(images) < 2:
+                    continue
+                saved = 0
+                for imgname in images[1:]:
+                    saved += do_dedupe(
+                            os.path.join(imagedir, images[0], name),
+                            os.path.join(imagedir, imgname, name),
+                            size)
+                # if saved > 0:
+                #     log.info("%s: found in %s, recovered %db", name, ", ".join(images), saved)
+                total_saved += saved
+
+        log.info("%d total bytes are currently deduplicated", total_saved)
