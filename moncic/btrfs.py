@@ -1,10 +1,12 @@
 from __future__ import annotations
 import contextlib
+import fcntl
 import logging
 import os
 import re
+import struct
 import subprocess
-from typing import TYPE_CHECKING
+from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .system import System
@@ -74,3 +76,52 @@ class Subvolume:
 
         # Delete the subvolume itself
         self.system.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
+
+
+FIDEDUPERANGE = 0xc0189436
+
+
+def ioctl_fideduperange(src_fd: int, s: bytes) -> Tuple[int, int]:
+    """
+    Wrapper for ioctl_fideduperange(2)
+    """
+    v = fcntl.ioctl(src_fd, FIDEDUPERANGE, s)
+    _, _, _, _, _, _, _, bytes_dup, status, _ = struct.unpack("QQHHIqQQiH", v)
+    return bytes_dup, status
+
+
+def do_dedupe(src_file: str, dst_file: str, size: int):
+    """
+    Tell the kernel to deduplicate the two files if their contents are the
+    same.
+
+    The files are supposed to have the same size, which is already known and
+    passed as the ``size`` argument.
+    """
+    # The code to interface with BTRFS is taken using dduper as a reference.
+    # See https://github.com/Lakshmipathi/dduper/blob/master/dduper
+
+    total_bytes_deduped = 0
+
+    src_fd = os.open(src_file, os.O_RDONLY)
+    try:
+        dst_fd = os.open(dst_file, os.O_WRONLY)
+        try:
+            # todo: Clear dict/np/list if there are not used further
+            # todo : handle same content within single file
+
+            chunk_size = 1024 * 1024
+            for offset in range(0, size, chunk_size):
+                src_len = min(chunk_size, size - offset)
+
+                s = struct.pack("QQHHIqQQiH", offset, src_len, 1,
+                                0, 0, dst_fd, offset,
+                                0, 0, 0)
+                bytes_deduped, status = ioctl_fideduperange(src_fd, s)
+                total_bytes_deduped += bytes_deduped
+        finally:
+            os.close(dst_fd)
+    finally:
+        os.close(src_fd)
+
+    return total_bytes_deduped

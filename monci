@@ -4,7 +4,7 @@ import argparse
 import logging
 import sys
 from moncic.cli import run
-from moncic.ci import CI, Bootstrap, Shell, Update, Remove, Images, Distros, Run
+from moncic.ci import CI, Bootstrap, Shell, Update, Remove, Images, Distros, Run, Dedup
 
 VERSION = "0.1"
 
@@ -23,6 +23,7 @@ def main():
     Remove.make_subparser(subparsers)
     Shell.make_subparser(subparsers)
     Run.make_subparser(subparsers)
+    Dedup.make_subparser(subparsers)
 
     args = parser.parse_args()
     handler = args.handler(args)
