@@ -65,3 +65,16 @@ If you are running `monci bootstrap myimage`, and `myimage` extends
 `baseimage`, `baseimage` (and its parent images if any) will be added to the
 list of images to bootstrap, so the command will be equivalent to running
 `monci bootstrap baseimage myimage`.
+
+
+## Deduplicating common files
+
+BTRFS can share disk space when files are the same, with copy on write
+semantics. Moncic-CI implements a simple deduplication strategy, offering the
+kernel to attempt deduplication of every file which has the same pathname and
+size across OS images. This is fast, and safe, since the kernel checks that
+file contents really are the same before deduplicating them.
+
+There is a `monci dedup` command to trigger this deduplication across all OS
+images, and it is also performed automatically at the end of `monci update`
+runs.
