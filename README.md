@@ -28,10 +28,8 @@ If none of that is convenient for you, you can use a filesystem on a file. For
 example:
 
 ```
-truncate --size=10G images.img
-/sbin/mkfs.btrfs -f images.img
-mkdir images
-sudo mount images.img images
+truncate --size=10G images
+/sbin/mkfs.btrfs images
 ```
 
 ### Try bootstrapping an image
@@ -42,6 +40,22 @@ to create one. For example:
 ```
 sudo monci bootstrap --imagedir images rocky8
 ```
+
+### Set image location as default
+
+You can configure the image location as a default so you do not need to type
+`--imagedir` every time you run `monci`.
+
+Create `~/.config/moncic-ci/moncic-ci.yaml` and add:
+
+```yaml
+imagedir: <your image file or directory location>
+```
+
+Then `monci` will just work with no extra arguments: try it out with `sudo
+monci images` to get a list of available OS images, and you should see `rocky8`
+listed.
+
 
 ## Using Moncic-CI
 
@@ -57,7 +71,9 @@ The current implementation of containers uses systemd-nspawn as a backend, and
 a btrfs filesystem for storage and fast snapshotting.
 
 Note that only the directory used by Moncic CI to store OS images needs to be
-on a btrfs filesystem.
+on a btrfs filesystem, and if creating a btrfs partition is not an option for
+you, Moncic-CI can use a file to store OS images (see [OS images in a
+file](doc/btrfs-on-file.md) for details).
 
 
 ## Distributions supported
@@ -95,6 +111,7 @@ ubuntu:jammy       jammy, ubuntu:22.04
 
 * [Security considerations](doc/security.md)
 * [Image bootstrapping and maintenance](doc/image-maintenance.md)
+* [OS images in a file](doc/btrfs-on-file.md)
 
 ## Reference documentation
 

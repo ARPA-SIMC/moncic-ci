@@ -9,6 +9,8 @@
   `shell` or `run` on an image that has not yet been bootstrapped
 * If bootstrap is interrupted by keyboard interrupt, remove the subvolume
   instead of leaving a partially built OS image
+* If imagedir points to a btrfs filesystem on a file, automatically mount it an
+  unmount it as needed (#21)
 
 # Version 0.1
 
