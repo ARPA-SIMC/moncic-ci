@@ -41,7 +41,9 @@ class Subvolume:
             if compression is not None:
                 self.system.local_run(["btrfs", "-q", "property", "set", self.path, "compression", compression])
             yield
-        except Exception:
+        except BaseException:
+            # Catch BaseException instead of Exception to also cleanup in case
+            # of KeyboardInterrupt
             self.remove()
             raise
 

@@ -7,6 +7,8 @@
   subvolumes
 * Exit with an appropriate error message instead of a traceback when asking for
   `shell` or `run` on an image that has not yet been bootstrapped
+* If bootstrap is interrupted by keyboard interrupt, remove the subvolume
+  instead of leaving a partially built OS image
 
 # Version 0.1
 
