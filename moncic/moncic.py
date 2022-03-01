@@ -1,12 +1,13 @@
 from __future__ import annotations
 from collections import defaultdict
+import contextlib
 import dataclasses
 import graphlib
 import logging
 import os
 import stat
 import subprocess
-from typing import List, Optional, Type, TYPE_CHECKING
+from typing import List, Optional, Type, Generator, TYPE_CHECKING
 
 import yaml
 
@@ -135,6 +136,14 @@ class Moncic:
             self.system_class = System
         else:
             self.system_class = system_class
+
+    @contextlib.contextmanager
+    def imagedir(self) -> Generator[str]:
+        """
+        Make sure the image directory is available for the duration of this
+        context manager
+        """
+        yield self.config.imagedir
 
     def create_system(self, name_or_path: str) -> System:
         """
