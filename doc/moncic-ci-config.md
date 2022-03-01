@@ -31,3 +31,7 @@ The only keyword currently supported is:
 * `imagedir`: directory that contains OS images. Note that this needs to be on
   a BTRFS file system. It will be expanded with `os.path.expanduser`, so `~`
   and `~user` notations are supported.
+* `compression`: [btrfs compression attribute](https://btrfs.wiki.kernel.org/index.php/Compression)
+  to set on OS image subvolumes when they are created. The value is the same as
+  can be set by `btrfs property set compression`. By default, nothing is set.
+

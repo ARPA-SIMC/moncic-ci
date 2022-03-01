@@ -29,10 +29,14 @@ Keywords currently supported are:
   image, to hint backup software that it does not need to be backed up.
   Set it to `true` and Moncic-CI will make sure there is no `CACHEDIR.TAG` file
   at the top of the OS image.
+* `compression`: [btrfs compression attribute](https://btrfs.wiki.kernel.org/index.php/Compression)
+  to set on the OS image subvolume when they are created. The value is the same
+  as can be set by `btrfs property set compression`. Default: the global
+  'compression' setting. You can use 'no' or 'none' to ask for no compression
+  when one is globally set.
 
 One, and only one, of `distro` or `extends` must be present.
 
 Note that `.yaml` files in image directories have precedence over plain
 distribution names: one can for example define a `centos8.yaml` image that
 contains `distro: rocky8`.
-

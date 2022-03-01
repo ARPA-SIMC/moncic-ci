@@ -31,8 +31,15 @@ class Subvolume:
         if os.path.exists(self.path):
             raise RuntimeError(f"{self.path!r} already exists")
 
+        # See if there is a compression level configured that we should apply
+        compression = self.system.config.compression
+        if compression is None:
+            compression = self.system.moncic.config.compression
+
         self.system.local_run(["btrfs", "-q", "subvolume", "create", self.path])
         try:
+            if compression is not None:
+                self.system.local_run(["btrfs", "-q", "property", "set", self.path, "compression", compression])
             yield
         except Exception:
             self.remove()

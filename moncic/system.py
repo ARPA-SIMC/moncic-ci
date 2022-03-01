@@ -42,6 +42,11 @@ class SystemConfig:
     # for backup programs to skip backing up an image that can be recreated
     # from scratch
     backup: bool = False
+    # Btrfs compression level to set on the OS image subvolume when it is
+    # created. The value is the same as can be set by `btrfs property set
+    # compression`. Default: the global 'compression' setting. You can use 'no'
+    # or 'none' to ask for no compression when one globally is set.
+    compression: Optional[str] = None
 
     @classmethod
     def load(cls, path: str):

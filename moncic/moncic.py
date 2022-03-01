@@ -25,6 +25,10 @@ class MoncicConfig:
     """
     # Directory where images are stored
     imagedir: str = os.path.abspath("./images")
+    # Btrfs compression level to set on OS image subvolumes when they are
+    # created. The value is the same as can be set by `btrfs property set
+    # compression`. Default: nothing is set
+    compression: Optional[str] = None
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:

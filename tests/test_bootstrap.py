@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import tempfile
 import unittest
 
@@ -98,4 +99,23 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log.assertPopFirst("script:#!/bin/sh\necho base")
         log.assertPopFirst("script:#!/bin/sh\necho test")
         log.assertPopFirst("cachedir_tag:")
+        log.assertLogEmpty()
+
+    def test_compression(self):
+        with tempfile.TemporaryDirectory() as imagedir:
+            with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
+                print("distro: fedora34", file=fd)
+                print("compression: zstd:9", file=fd)
+
+            config = SystemConfig.load(os.path.join(imagedir, "test"))
+            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
+            system.attach_testcase(self)
+
+            system.bootstrap()
+
+        log = system.run_log
+
+        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
+        log.assertPopFirst(f'btrfs -q property set {system.path} compression zstd:9')
+        log.assertPopFirst(re.compile('/usr/bin/dnf -c .+'))
         log.assertLogEmpty()
