@@ -152,6 +152,12 @@ class System:
         else:
             return DistroFamily.lookup_distro(self.config.distro)
 
+    def is_bootstrapped(self):
+        """
+        Check if the image has been bootstrapped
+        """
+        return os.path.exists(self.path)
+
     def get_distro_tarball(self) -> Optional[str]:
         """
         Return the path to a tarball that can be used to bootstrap a chroot for

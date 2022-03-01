@@ -156,6 +156,9 @@ class ImageActionCommand(MoncicCommand):
     @contextlib.contextmanager
     def container(self):
         system = self.moncic.create_system(self.args.system)
+        if not system.is_bootstrapped():
+            raise Fail(f"{system.name!r} has not been bootstrapped")
+
         with checkout(system, self.args.clone) as workdir:
             workdir = workdir if workdir is not None else self.args.workdir
             if workdir is not None:
@@ -402,8 +405,7 @@ class Images(MoncicCommand):
 
         for name in self.moncic.list_images():
             system = self.moncic.create_system(name)
-            bootstrapped = os.path.exists(system.path)
-            output.add_row((name, system.distro.name, "yes" if bootstrapped else "no", system.path))
+            output.add_row((name, system.distro.name, "yes" if system.is_bootstrapped() else "no", system.path))
         output.flush()
 
 
