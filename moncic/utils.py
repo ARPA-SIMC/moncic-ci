@@ -5,6 +5,7 @@ import contextlib
 import subprocess
 import shlex
 import os
+import re
 import tempfile
 
 log = logging.getLogger(__name__)
@@ -66,3 +67,32 @@ def atomic_writer(
         raise
     finally:
         outfd.close()
+
+
+@contextlib.contextmanager
+def pause_automounting(pathname: str):
+    """
+    Pause automounting on the file image for the duration of this context manager
+    """
+    # Get the partition UUID
+    res = subprocess.run(["btrfs", "filesystem", "show", pathname, "--raw"], check=True, capture_output=True, text=True)
+    if mo := re.search(r"uuid: (\S+)", res.stdout):
+        uuid = mo.group(1)
+    else:
+        raise RuntimeError(f"btrfs filesystem uuid not found in {pathname}")
+
+    # See /usr/lib/udisks2/udisks2-inhibit
+    rules_dir = "/run/udev/rules.d"
+    os.makedirs(rules_dir, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="wt", dir=rules_dir, prefix="90-udisks-inhibit-", suffix=".rules") as fd:
+        print(f'SUBSYSTEM=="block", ENV{{ID_FS_UUID}}=="{uuid}", ENV{{UDISKS_IGNORE}}="1"', file=fd)
+        fd.flush()
+        os.fsync(fd.fileno())
+        subprocess.run(["udevadm", "control", "--reload"], check=True)
+        subprocess.run(["udevadm", "trigger", "--settle", "--subsystem-match=block"], check=True)
+        try:
+            yield
+        finally:
+            fd.close()
+            subprocess.run(["udevadm", "control", "--reload"], check=True)
+            subprocess.run(["udevadm", "trigger", "--settle", "--subsystem-match=block"], check=True)

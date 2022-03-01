@@ -7,11 +7,13 @@ import logging
 import os
 import stat
 import subprocess
-from typing import List, Optional, Type, Generator, TYPE_CHECKING
+import tempfile
+from typing import List, Optional, Type, TYPE_CHECKING
 
 import yaml
 
 from .privs import ProcessPrivs
+from .utils import pause_automounting
 
 if TYPE_CHECKING:
     from .system import System
@@ -137,13 +139,31 @@ class Moncic:
         else:
             self.system_class = system_class
 
-    @contextlib.contextmanager
-    def imagedir(self) -> Generator[str]:
-        """
-        Make sure the image directory is available for the duration of this
-        context manager
-        """
-        yield self.config.imagedir
+        # Actual image directory (might be None if not mounted)
+        self.imagedir: Optional[str] = None
+
+        # ExitStack tracking context managers associated to Moncic's usage as
+        # context manager
+        self.exit_stack = contextlib.ExitStack()
+
+    def __enter__(self):
+        if os.path.isdir(self.config.imagedir):
+            self.imagedir = self.config.imagedir
+        else:
+            imagefile = os.path.join(self.config.imagedir)
+            self.imagedir = self.exit_stack.enter_context(tempfile.TemporaryDirectory())
+            with self.privs.root():
+                self.exit_stack.enter_context(pause_automounting(imagefile))
+                subprocess.run(["mount", imagefile, self.imagedir], check=True)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if not os.path.isdir(self.config.imagedir):
+            with self.privs.root():
+                subprocess.run(["umount", self.imagedir], check=True)
+        with self.privs.root():
+            self.exit_stack.close()
+        self.imagedir = None
 
     def create_system(self, name_or_path: str) -> System:
         """
@@ -152,14 +172,14 @@ class Moncic:
         if os.path.isdir(name_or_path):
             return self.system_class.from_path(self, name_or_path)
         else:
-            return self.system_class.from_path(self, os.path.join(self.config.imagedir, name_or_path))
+            return self.system_class.from_path(self, os.path.join(self.imagedir, name_or_path))
 
     def list_images(self) -> List[str]:
         """
         List the names of images found in image directories
         """
         res = set()
-        for entry in os.scandir(self.config.imagedir):
+        for entry in os.scandir(self.imagedir):
             if entry.name.startswith("."):
                 continue
 
@@ -181,7 +201,7 @@ class Moncic:
         from .system import SystemConfig
         res = graphlib.TopologicalSorter()
         for name in images:
-            config = SystemConfig.load(os.path.join(self.config.imagedir, name))
+            config = SystemConfig.load(os.path.join(self.imagedir, name))
             if config.extends is not None:
                 res.add(config.name, config.extends)
             else:
@@ -196,7 +216,7 @@ class Moncic:
         """
         from .btrfs import do_dedupe
 
-        imagedir = self.config.imagedir
+        imagedir = self.imagedir
 
         by_name_size = defaultdict(list)
         for entry in os.scandir(imagedir):

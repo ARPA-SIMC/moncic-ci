@@ -100,7 +100,7 @@ class CI(MoncicCommand):
         return parser
 
     def run(self):
-        with self.moncic.imagedir():
+        with self.moncic:
             system = self.moncic.create_system(self.args.system)
             with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
                 container = system.create_container(config=ContainerConfig(ephemral=True, workdir=srcdir))
@@ -156,7 +156,7 @@ class ImageActionCommand(MoncicCommand):
 
     @contextlib.contextmanager
     def container(self):
-        with self.moncic.imagedir():
+        with self.moncic:
             system = self.moncic.create_system(self.args.system)
             if not system.is_bootstrapped():
                 raise Fail(f"{system.name!r} has not been bootstrapped")
@@ -250,7 +250,7 @@ class Bootstrap(MoncicCommand):
         return parser
 
     def run(self):
-        with self.moncic.imagedir():
+        with self.moncic:
             if not self.args.systems:
                 systems = self.moncic.list_images()
             else:
@@ -292,7 +292,7 @@ class Update(MoncicCommand):
         return parser
 
     def run(self):
-        with self.moncic.imagedir():
+        with self.moncic:
             if not self.args.systems:
                 systems = self.moncic.list_images()
             else:
@@ -339,7 +339,7 @@ class Remove(MoncicCommand):
         return parser
 
     def run(self):
-        with self.moncic.imagedir():
+        with self.moncic:
             for name in self.args.systems:
                 system = self.moncic.create_system(name)
                 if not os.path.exists(system.path):
@@ -408,7 +408,7 @@ class Images(MoncicCommand):
                     TextColumn("Boostrapped"),
                     TextColumn("Path"))
 
-        with self.moncic.imagedir():
+        with self.moncic:
             for name in self.moncic.list_images():
                 system = self.moncic.create_system(name)
                 output.add_row((name, system.distro.name, "yes" if system.is_bootstrapped() else "no", system.path))
