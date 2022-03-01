@@ -319,6 +319,7 @@ class Update(MoncicCommand):
             log.info("%d images successfully updated", count_ok)
 
             self.moncic.deduplicate()
+            self.moncic.maybe_trim_image_file()
 
             if count_failed:
                 log.error("%d images failed to update", count_failed)

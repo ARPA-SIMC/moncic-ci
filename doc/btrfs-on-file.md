@@ -46,3 +46,7 @@ umount /mnt
 
 This will check what blogs on `images` are not in use, and deallocate them in
 the `images` file, leaving "holes" in their places.
+
+Moncic-CI will do this automatically if it can detect that the images file is
+on a SSD. This feature can be forced on or off with the [`trim_image_file`
+configuration option](moncic-ci-config.md).

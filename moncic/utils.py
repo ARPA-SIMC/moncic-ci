@@ -96,3 +96,26 @@ def pause_automounting(pathname: str):
             fd.close()
             subprocess.run(["udevadm", "control", "--reload"], check=True)
             subprocess.run(["udevadm", "trigger", "--settle", "--subsystem-match=block"], check=True)
+
+
+def is_on_rotational(pathname: str) -> Optional[bool]:
+    """
+    Check if the given file is stored on rotational storage.
+
+    Returns None if detection failed.
+    """
+    st = os.stat(pathname)
+    dev = f"/sys/dev/block/{os.major(st.st_dev)}:{os.minor(st.st_dev)}"
+    try:
+        dest = os.readlink(dev)
+    except FileNotFoundError:
+        return None
+    # Resolve the relative symlink to the partition device
+    fulldev = os.path.join(os.path.dirname(dev), dest)
+    # Look for queue/rotational in the parent directory (which should be the disk device)
+    rotfile = os.path.join(os.path.dirname(fulldev), "queue", "rotational")
+    try:
+        with open(rotfile, "rt") as fd:
+            return fd.read().strip() == "1"
+    except FileNotFoundError:
+        return None

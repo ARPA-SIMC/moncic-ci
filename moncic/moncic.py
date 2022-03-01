@@ -13,7 +13,7 @@ from typing import List, Optional, Type, TYPE_CHECKING
 import yaml
 
 from .privs import ProcessPrivs
-from .utils import pause_automounting
+from .utils import pause_automounting, is_on_rotational
 
 if TYPE_CHECKING:
     from .system import System
@@ -32,6 +32,10 @@ class MoncicConfig:
     # created. The value is the same as can be set by `btrfs property set
     # compression`. Default: nothing is set
     compression: Optional[str] = None
+    # If set to True, automatically run fstrim on the image file after regular
+    # maintenance. If set to False, do not do that. By default, Moncic-CI will
+    # run fstrim if it can detect that the image file is on a SSD
+    trim_image_file: Optional[bool] = None
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:
@@ -251,3 +255,23 @@ class Moncic:
                 total_saved += saved
 
         log.info("%d total bytes are currently deduplicated", total_saved)
+
+    def maybe_trim_image_file(self):
+        """
+        Run fstrim on the image file if requested by config or if we can see
+        that the image file is on a SSD
+        """
+        if os.path.isdir(self.config.imagedir):
+            return
+
+        do_trim = self.config.trim_image_file
+        if do_trim is None:
+            rot = is_on_rotational(self.config.imagedir)
+            if rot or rot is None:
+                return
+        elif not do_trim:
+            return
+
+        log.info("%s: trimming unused storage", self.config.imagedir)
+        with self.privs.root():
+            subprocess.run(["fstrim", self.imagedir], check=True)

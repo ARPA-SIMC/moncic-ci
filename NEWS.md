@@ -11,6 +11,8 @@
   instead of leaving a partially built OS image
 * If imagedir points to a btrfs filesystem on a file, automatically mount it an
   unmount it as needed (#21)
+* `fstrim(8)` disk usage on an images file if configured, or if it can be
+  detected to be on an SSD (#21)
 
 # Version 0.1
 
