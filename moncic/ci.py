@@ -447,5 +447,5 @@ class Dedup(MoncicCommand):
     Deduplicate disk usage in image directories
     """
     def run(self):
-        with self.moncic.imagedir():
+        with self.moncic:
             self.moncic.deduplicate()
