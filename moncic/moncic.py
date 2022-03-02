@@ -21,6 +21,22 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+class MonciPrivs(ProcessPrivs):
+    def needs_sudo(self):
+        if not self.have_sudo:
+            from .cli import Fail
+            raise Fail("This command needs sudo to run")
+
+    def regain(self):
+        """
+        Regain root privileges
+        """
+        if not self.dropped:
+            return
+        self.needs_sudo()
+        super().regain()
+
+
 @dataclasses.dataclass
 class MoncicConfig:
     """
@@ -126,7 +142,7 @@ class Moncic:
 
         self.privs: ProcessPrivs
         if privs is None:
-            self.privs = ProcessPrivs()
+            self.privs = MonciPrivs()
         else:
             self.privs = privs
 
