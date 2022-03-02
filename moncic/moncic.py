@@ -15,6 +15,7 @@ import yaml
 
 from .privs import ProcessPrivs
 from .utils import pause_automounting, is_on_rotational
+from .cli import Fail
 
 if TYPE_CHECKING:
     from .system import System
@@ -23,11 +24,16 @@ log = logging.getLogger(__name__)
 
 
 class MonciPrivs(ProcessPrivs):
+    def __init__(self):
+        super().__init__()
+        self.auto_sudo = True
+
     def needs_sudo(self):
         if not self.have_sudo:
-            # from .cli import Fail
-            # raise Fail("This command needs sudo to run")
-            os.execvp("sudo", ["sudo"] + sys.argv)
+            if self.auto_sudo:
+                os.execvp("sudo", ["sudo"] + sys.argv)
+            else:
+                raise Fail("This command needs sudo to run")
 
     def regain(self):
         """
@@ -54,6 +60,8 @@ class MoncicConfig:
     # maintenance. If set to False, do not do that. By default, Moncic-CI will
     # run fstrim if it can detect that the image file is on a SSD
     trim_image_file: Optional[bool] = None
+    # Automatically reexec with sudo if permissions are needed
+    auto_sudo: bool = True
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:
@@ -155,6 +163,8 @@ class Moncic:
             self.config = MoncicConfig.load()
         else:
             self.config = config
+
+        self.privs.auto_sudo = self.config.auto_sudo
 
         # Class used to instantiate systems
         self.system_class: Type[System]

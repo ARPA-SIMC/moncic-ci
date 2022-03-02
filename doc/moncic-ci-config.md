@@ -38,3 +38,5 @@ The only keyword currently supported is:
   after regular maintenance. If set to False, do not do that. By default,
   Moncic-CI will run fstrim if it can detect that the image file is on a SSD.
   This is only relevant when [using a file to store OS images](btrfs-on-file.md).
+* `auto_sudo`: Automatically reexec with sudo if permissions are needed.
+  Default: true

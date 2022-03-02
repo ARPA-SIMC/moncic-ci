@@ -13,6 +13,7 @@
   unmount it as needed (#21)
 * `fstrim(8)` disk usage on an images file if configured, or if it can be
   detected to be on an SSD (#21)
+* Automatically reexec with sudo if permissions are needed (#23)
 
 # Version 0.1
 
