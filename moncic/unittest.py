@@ -158,6 +158,8 @@ class DistroTestMixin:
     def mock_system(self, distro: Distro):
         with tempfile.TemporaryDirectory() as workdir:
             config = SystemConfig(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
-            system = MockSystem(make_moncic(imagedir=workdir, testcase=self), config)
-            system.attach_testcase(self)
-            yield system
+            moncic = make_moncic(imagedir=workdir, testcase=self)
+            with moncic:
+                system = MockSystem(moncic, config)
+                system.attach_testcase(self)
+                yield system

@@ -20,9 +20,11 @@ class RunTestCase:
     def setUpClass(cls):
         super().setUpClass()
         cls.moncic = make_moncic()
+        cls.moncic.__enter__()
 
     @classmethod
     def tearDownClass(cls):
+        cls.moncic.__exit__(None, None, None)
         cls.moncic = None
         super().tearDownClass()
 

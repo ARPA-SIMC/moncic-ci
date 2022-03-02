@@ -62,10 +62,12 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("extends: rocky8", file=fd)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
-            system.attach_testcase(self)
+            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            with moncic:
+                system = MockSystem(moncic, config)
+                system.attach_testcase(self)
 
-            system.bootstrap()
+                system.bootstrap()
 
         log = system.run_log
 
@@ -88,10 +90,12 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             os.mkdir(test_dir)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
-            system.attach_testcase(self)
+            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            with moncic:
+                system = MockSystem(moncic, config)
+                system.attach_testcase(self)
 
-            system.update()
+                system.update()
 
         log = system.run_log
 
