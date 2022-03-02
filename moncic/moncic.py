@@ -175,10 +175,7 @@ class Moncic:
         """
         Instantiate a System from its name or path
         """
-        if os.path.isdir(name_or_path):
-            return self.system_class.from_path(self, name_or_path)
-        else:
-            return self.system_class.from_path(self, os.path.join(self.imagedir, name_or_path))
+        return self.system_class.from_path(self, os.path.join(self.imagedir, name_or_path))
 
     def list_images(self) -> List[str]:
         """
