@@ -7,6 +7,7 @@ import logging
 import os
 import stat
 import subprocess
+import sys
 import tempfile
 from typing import List, Optional, Type, TYPE_CHECKING
 
@@ -24,8 +25,9 @@ log = logging.getLogger(__name__)
 class MonciPrivs(ProcessPrivs):
     def needs_sudo(self):
         if not self.have_sudo:
-            from .cli import Fail
-            raise Fail("This command needs sudo to run")
+            # from .cli import Fail
+            # raise Fail("This command needs sudo to run")
+            os.execvp("sudo", ["sudo"] + sys.argv)
 
     def regain(self):
         """
