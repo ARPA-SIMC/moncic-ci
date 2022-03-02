@@ -40,9 +40,11 @@ class MoncicConfig:
     @classmethod
     def find_git_dir(cls) -> Optional[str]:
         try:
-            res = subprocess.run(["git", "rev-parse", "--git-dir"], capture_output=True, text=True, check=True)
+            res = subprocess.run(["git", "rev-parse", "--git-dir"], capture_output=True, text=True)
         except FileNotFoundError:
             # Handle the rare case where git is missing
+            return None
+        if res.returncode != 0:
             return None
         path = res.stdout.strip()
         if path:
