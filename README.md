@@ -73,15 +73,16 @@ For creating OS images with a custom setup, see [Custom OS images](doc/custom-os
 
 For running the test suite of local code on a different OS, see [Testing on another distro](doc/testing-on-another-distro.md).
 
-## Container details
+## Technology
 
-The current implementation of containers uses systemd-nspawn as a backend, and
-a btrfs filesystem for storage and fast snapshotting.
+Moncic-CI uses [systemd-nspawn](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
+as a backend, and a [btrfs](https://btrfs.wiki.kernel.org/index.php/Main_Page)
+filesystem for storage and fast snapshotting.
 
-Note that only the directory used by Moncic CI to store OS images needs to be
-on a btrfs filesystem, and if creating a btrfs partition is not an option for
-you, Moncic-CI can use a file to store OS images (see [OS images in a
-file](doc/btrfs-on-file.md) for details).
+The btrfs storage can be just a normal directory for systems that already use
+btrfs or can easily setup a btrfs partition. Otherwise, with a small
+performance penalty, Moncic-CI can [store OS images in a
+file](doc/btrfs-on-file.md) by managing a btrfs filesystem inside it.
 
 
 ## Distributions supported
