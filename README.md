@@ -13,6 +13,10 @@ It has low startup times on containers, making it convenient for quick
 development iterations: run tests on your code on another OS about as easily as
 you would run it on your normal system, keeping iteration lags low.
 
+Does your test suite complete on the production OS? Does your software install
+where it should? Does your playbook do what it should? With Moncic-CI it
+becomes second nature to check it out.
+
 
 ## Installing Moncic-CI
 
