@@ -1,9 +1,17 @@
 # Moncic-CI
 
-Continuous integration tool, and development helper.
-
 Moncic CI manages lightweight containers for use with Continuous Integration or
 to help developers target platforms different from the development machine.
+
+It manages a pool of Operating System images that can be used to run shells,
+commands, and builds.
+
+It deduplicates common files across OS images, so one can have one image per
+project on a developer machine with limited disk usage.
+
+It has low startup times on containers, making it convenient for quick
+development iterations: run tests on your code on another OS about as easily as
+you would run it on your normal system, keeping iteration lags low.
 
 
 ## Installing Moncic-CI
