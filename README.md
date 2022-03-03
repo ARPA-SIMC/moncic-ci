@@ -21,9 +21,12 @@ you would run it on your normal system, keeping iteration lags low.
 Choose one of:
 
 ```
+# On apt-based systems:
 apt install python3-yaml python3-coloredlogs python3-texttable dnf btrfs-progs systemd-container
+# On dnf-based systems:
 dnf install python3-pyyaml python3-coloredlogs python3-texttable debootstrap btrfs-progs systemd-container
-pip install yaml coloredlogs texttable
+# On all systems:
+pip install .
 ```
 
 ### Pick a directory for images
