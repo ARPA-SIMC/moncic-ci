@@ -43,11 +43,15 @@ setup(
     author_email='enrico@enricozini.org',
     url='https://github.com/ARPA-SIMC/moncic-ci/',
     license="http://www.gnu.org/licenses/gpl-3.0.html",
-    requires=["yaml"],
+    requires=["pyyaml"],
     extras_require={
         "colors": ["coloredlogs"],
         "prettycli": ["texttable"],
     },
+    # It does not make muc sense to run pip install without installing also
+    # coloredlogs and texttable, although moncic-ci is able to work without
+    # them
+    install_requires=["pyyaml", "coloredlogs", "texttable"],
     packages=['moncic'],
     scripts=['monci'],
 )
