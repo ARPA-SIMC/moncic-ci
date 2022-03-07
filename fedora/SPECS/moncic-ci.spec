@@ -8,7 +8,7 @@ Version:        0.1
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
-License:        GPLv3+
+License:        GPLv2+
 URL:            https://github.com/ARPA-SIMC/moncic-ci
 Source0:        https://github.com/ARPA-SIMC/%{name}/archive/v%{version}-%{releaseno}.tar.gz#/%{srcarchivename}.tar.gz
 
@@ -24,10 +24,7 @@ Requires:       systemd-container
 
 # not strictly necessary, for formatting
 Requires:       python3-texttable
-# (not available on CentOS8)
-%{?fedora:Requires: python3-coloredlogs}
-
-
+Requires:       python3-coloredlogs
 
 %description
 Moncic CI manages lightweight containers for use with Continuous Integration
