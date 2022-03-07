@@ -1,3 +1,7 @@
+[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/centos8.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
+[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora34.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
+[![Build Status](https://copr.fedorainfracloud.org/coprs/simc/stable/package/moncic-ci/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/simc/stable/package/moncic-ci/)
+
 # Moncic-CI
 
 Moncic CI manages lightweight containers for use with Continuous Integration or
