@@ -39,19 +39,23 @@ setup(
     version=read_version("monci"),
     python_requires=">= 3.8",
     description="CI tool",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     author='Enrico Zini',
     author_email='enrico@enricozini.org',
     url='https://github.com/ARPA-SIMC/moncic-ci/',
-    license="http://www.gnu.org/licenses/gpl-3.0.html",
+    license="GPLV2+",
     requires=["pyyaml"],
-    extras_require={
-        "colors": ["coloredlogs"],
-        "prettycli": ["texttable"],
-    },
     # It does not make muc sense to run pip install without installing also
     # coloredlogs and texttable, although moncic-ci is able to work without
     # them
     install_requires=["pyyaml", "coloredlogs", "texttable"],
     packages=['moncic'],
     scripts=['monci'],
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: GNU General Public License v2 or later (GPLv2+)",
+        "Topic :: Software Development :: Testing",
+    ],
 )
