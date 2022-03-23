@@ -47,8 +47,8 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
 
         log = system.run_log
 
-        log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
+        log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         log.assertPopFirst("cachedir_tag:")
         log.assertLogEmpty()
 
@@ -122,4 +122,5 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
         log.assertPopFirst(f'btrfs -q property set {system.path} compression zstd:9')
         log.assertPopFirst(re.compile('/usr/bin/dnf -c .+'))
+        log.assertPopFirst("/usr/bin/rpmdb --rebuilddb")
         log.assertLogEmpty()
