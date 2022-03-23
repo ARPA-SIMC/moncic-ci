@@ -245,6 +245,7 @@ class Moncic:
         Attempt deduplicating files that have the same name and size across OS
         images
         """
+        log.info("Deduplicating disk usage...")
         from .btrfs import do_dedupe
 
         imagedir = self.imagedir

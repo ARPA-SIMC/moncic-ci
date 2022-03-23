@@ -267,11 +267,36 @@ class Distro:
     def __str__(self) -> str:
         return self.name
 
+    def get_base_packages(self) -> List[str]:
+        """
+        Return the list of packages that are expected to be installed on a
+        freshly bootstrapped system
+        """
+        return []
+
     def bootstrap(self, system: System) -> None:
         """
         Boostrap a fresh system inside the given directory
         """
-        raise NotImplementedError(f"{self.__class__}.bootstrap not implemented")
+        distro, release = self.name.split(":", 1)
+        installroot = os.path.abspath(system.path)
+        base_packages = ','.join(self.get_base_packages())
+        with tempfile.TemporaryDirectory() as workdir:
+            cmd = [
+                "/usr/bin/mkosi", f"--distribution={distro}",
+                f"--release={release}", "--format=directory",
+                f"--output={installroot}", "--base-packages=true",
+                f"--package={base_packages}", f"--directory={workdir}",
+                "--force",
+                # f"--mirror={self.mirror}",
+            ]
+            system.local_run(cmd)
+
+        # Cleanup mkosi manifest file
+        try:
+            os.unlink(f"{installroot}.manifest")
+        except FileNotFoundError:
+            pass
 
     def get_update_script(self) -> List[List[str]]:
         """
@@ -287,18 +312,18 @@ class RpmDistro(Distro):
     version: int
 
     def get_base_packages(self) -> List[str]:
-        """
-        Return the list of packages that are expected to be installed on a
-        freshly bootstrapped system
-        """
-        return ["bash", "rootfiles", "dbus"]
+        res = super().get_base_packages()
+        res += ["bash", "rootfiles", "dbus"]
+        return res
 
     @contextlib.contextmanager
     def chroot_config(self):
+        baseurl = self.baseurl.format(mirror=self.mirror)
+
         with tempfile.NamedTemporaryFile("wt", suffix=".repo") as fd:
             print("[chroot-base]", file=fd)
             print("name=Linux $releasever - $basearch", file=fd)
-            print(f"baseurl={self.baseurl}", file=fd)
+            print(f"baseurl={baseurl}", file=fd)
             print("enabled=1", file=fd)
             print("gpgcheck=0", file=fd)
             fd.flush()
@@ -367,12 +392,14 @@ class DnfDistro(RpmDistro):
 
 
 class Centos7(YumDistro):
-    baseurl = "http://mirror.centos.org/centos/7/os/$basearch"
+    mirror = "http://mirror.centos.org"
+    baseurl = "{mirror}/centos/7/os/$basearch"
     version = 7
 
 
 class Centos8(DnfDistro):
-    baseurl = "https://vault.centos.org/centos/8/BaseOS//$basearch/os/"
+    mirror = "https://vault.centos.org"
+    baseurl = "{mirror}/centos/8/BaseOS//$basearch/os/"
     version = 8
 
     def bootstrap(self, system: System):
@@ -395,17 +422,21 @@ class Centos8(DnfDistro):
 
 
 class FedoraDistro(DnfDistro):
+    mirror = "http://download.fedoraproject.org"
+
     def __init__(self, name: str, version: int):
         super().__init__(name)
         self.version = version
-        self.baseurl = f"http://download.fedoraproject.org/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
+        self.baseurl = f"{self.mirror}/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
 
 
 class RockyDistro(DnfDistro):
+    mirror = "http://dl.rockylinux.org"
+
     def __init__(self, name: str, version: int):
         super().__init__(name)
         self.version = version
-        self.baseurl = f"http://dl.rockylinux.org/pub/rocky/{version}/BaseOS/$basearch/os/"
+        self.baseurl = f"{self.mirror}/pub/rocky/{version}/BaseOS/$basearch/os/"
 
 
 class DebianDistro(Distro):
@@ -417,10 +448,15 @@ class DebianDistro(Distro):
         self.mirror = mirror
         self.suite = suite
 
+    def get_base_packages(self) -> List[str]:
+        res = super().get_base_packages()
+        res += ["bash", "dbus", "systemd"]
+        return res
+
     def bootstrap(self, system: System):
         installroot = os.path.abspath(system.path)
         cmd = [
-            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.suite, installroot, self.mirror
+            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.release, installroot, self.mirror
         ]
         # If eatmydata is available, we can use it to make deboostrap significantly faster
         eatmydata = shutil.which("eatmydata")
