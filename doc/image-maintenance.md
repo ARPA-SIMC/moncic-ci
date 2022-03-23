@@ -5,10 +5,10 @@
 Moncic-CI knows how to bootstrap an image from scratch for a number of
 operating systems: run `monci distros` to get a list.
 
-If a file called `$imagename.tar.gz` exists in the images directory, Moncic-CI
-will use its contents instead of running the usual bootstrap operations. This
-can be useful as a cache, or for bootstrapping images that the host system is
-not able to recreate from scratch.
+If a file called `$imagename.tar.gz` (`.tar` and `.tar.xz` are also supported)
+exists in the images directory, Moncic-CI will use its contents instead of
+running the usual bootstrap operations. This can be useful as a cache, or for
+bootstrapping images that the host system is not able to recreate from scratch.
 
 `debootstrap` is used to boostrap Debian and Ubuntu.
 

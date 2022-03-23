@@ -15,6 +15,7 @@
   detected to be on an SSD (#21)
 * Automatically reexec with sudo if permissions are needed (#23)
 * Do not run the default upgrade command if a maintscript is provided
+* Allow using `.tar.xz` and `.tar` as cached distribution images
 
 # Version 0.1
 

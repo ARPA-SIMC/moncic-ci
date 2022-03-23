@@ -168,11 +168,11 @@ class System:
         distro_name = self.config.distro
         if distro_name is None:
             raise RuntimeError("get_distro_tarball called on a system that is bootstrapped by snapshotting")
-        tarball_path = os.path.join(self.moncic.config.imagedir, distro_name + ".tar.gz")
-        if os.path.exists(tarball_path):
-            return tarball_path
-        else:
-            return None
+        for ext in ('.tar.gz', '.tar.xz', '.tar'):
+            tarball_path = os.path.join(self.moncic.config.imagedir, distro_name + ext)
+            if os.path.exists(tarball_path):
+                return tarball_path
+        return None
 
     def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
@@ -206,7 +206,7 @@ class System:
             with subvolume.create():
                 if tarball_path is not None:
                     # Shortcut in case we have a chroot in a tarball
-                    self.local_run(["tar", "-C", self.path, "-zxf", tarball_path])
+                    self.local_run(["tar", "-C", self.path, "-axf", tarball_path])
                 else:
                     self.distro.bootstrap(self)
 
