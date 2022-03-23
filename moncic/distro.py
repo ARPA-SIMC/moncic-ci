@@ -340,8 +340,8 @@ class RpmDistro(Distro):
                 if os.path.isdir(system_rpmdb):
                     shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-                with system.create_container(config=ContainerConfig(ephemeral=False)) as container:
-                    container.run(["/usr/bin/rpmdb", "--rebuilddb"])
+            with system.create_container(config=ContainerConfig(ephemeral=False)) as container:
+                container.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
 
 class YumDistro(RpmDistro):
