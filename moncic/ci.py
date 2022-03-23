@@ -103,7 +103,7 @@ class CI(MoncicCommand):
         with self.moncic:
             system = self.moncic.create_system(self.args.system)
             with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                container = system.create_container(config=ContainerConfig(ephemral=True, workdir=srcdir))
+                container = system.create_container(config=ContainerConfig(ephemeral=True, workdir=srcdir))
                 if self.args.build_style:
                     builder = Builder.create(self.args.build_style, container)
                 else:
