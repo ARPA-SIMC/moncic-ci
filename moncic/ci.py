@@ -111,7 +111,7 @@ class CI(MoncicCommand):
                 with self.moncic.privs.root():
                     with container:
                         res = container.run_callable(builder.build)
-                return res["returncode"]
+                return res.returncode
 
 
 class ImageActionCommand(MoncicCommand):
