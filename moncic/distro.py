@@ -314,7 +314,7 @@ class RpmDistro(Distro):
         with self.chroot_config() as dnf_config:
             installroot = os.path.abspath(system.path)
             cmd = [
-                installer, "-c", dnf_config, "-y", "--disablerepo=*",
+                installer, "-c", dnf_config, "-y", "-q", "--disablerepo=*",
                 "--enablerepo=chroot-base", "--disableplugin=*",
                 f"--installroot={installroot}", f"--releasever={self.version}",
                 "install"
