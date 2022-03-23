@@ -9,7 +9,7 @@ Standards-Version: 4.2.0
 Package: moncic-ci
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
-         python3-yaml, btrfs-progs, systemd-container
+         python3-yaml, btrfs-progs, systemd-container, mkosi
 Recommends: ${python3:Recommends}, python3-coloredlogs, python3-texttable,
 Suggests: ${python3:Suggests}
 Description: Continuous integration tool, and development helper

@@ -226,18 +226,18 @@ class System:
             # Chain to the parent's maintenance
             parent = self.moncic.create_system(self.config.extends)
             parent._update_container(container)
-        else:
-            # Or run the standard distro maintenance
-            for cmd in self.distro.get_update_script():
-                container.run(cmd)
 
         # Forward users if needed
         for u in self.config.forward_users:
             container.forward_user(UserConfig.from_user(u))
 
-        # Run maintscripts configured for this system
         if self.config.maintscript is not None:
+            # Run maintscripts configured for this system
             container.run_script(self.config.maintscript)
+        else:
+            # Or run the default standard distro maintenance
+            for cmd in self.distro.get_update_script():
+                container.run(cmd)
 
         self._update_cachedir()
 

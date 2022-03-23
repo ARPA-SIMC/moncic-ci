@@ -41,18 +41,24 @@ Maintenance is run once automatically after bootstrap, and then each time you
 run `monci update`. You may want to schedule running `monci update` regularly,
 to keep your images up to date.
 
-A maintenance procedure runs a few steps in sequence:
+A maintenance procedure for an image configured as `distro:` (without
+`extends:`):
 
-1. For images configured with `distro:`: a distribution-specfic upgrade
-   command, like `apt-get update; apt-get -y upgrade` or `dnf upgrade -q -y`
-2. For images configured with `extends:`: the whole maintenance procedure of
+1. The `maintscript:` script configured in the image, if present
+2. If the image configuration does not specify a `maintascript:` script, a
+   default distribution-specfic upgrade command, like `apt-get update; apt-get
+   -y upgrade` or `dnf upgrade -q -y`
+
+For images configured with `extends:`:
+
+1. Moncic-CI recursively runs the whole maintenance procedure of
    the parent image (which may in turn have a parent image, and so on)
-3. The `maintscript:` script configured in the image, if present
+2. The `maintscript:` script of the image, if present.
 
-This means that the distribution-specific upgrade command of the base
-distribution is always executed first, followed by the sequence of maintscripts
-of all parent images from the top down, and the image maintscript as the last
-command.
+This means that the sequence of maintscripts of all parent images from the top
+down is executed first, followed by the the image maintscript. If no image
+maintscript is configured for an image that does not use `extends:`, then a
+distribution-specific default upgrade command is run instead.
 
 
 ## Image dependencies and monci bootstrap
