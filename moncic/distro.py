@@ -278,6 +278,8 @@ class Distro:
         """
         Boostrap a fresh system inside the given directory
         """
+        # At least on Debian, mkosi does not seem able to install working
+        # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
         distro, release = self.name.split(":", 1)
         installroot = os.path.abspath(system.path)
         base_packages = ','.join(self.get_base_packages())
