@@ -16,8 +16,9 @@ class Fedora32(DistroTestMixin, unittest.TestCase):
 
         log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
         log.assertPopFirst(re.compile(
-            rf"/usr/bin/dnf -c \S+\.repo -y '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+            rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
             rf' --installroot={system.path} --releasever=32 install bash rootfiles dbus dnf'))
+        log.assertPopFirst('/usr/bin/rpmdb --rebuilddb')
         log.assertLogEmpty()
 
     def test_upgrade(self):
