@@ -6,7 +6,7 @@ import sys
 from moncic.cli import run
 from moncic.ci import CI, Bootstrap, Shell, Update, Remove, Images, Distros, Run, Dedup
 
-VERSION = "0.1"
+VERSION = "0.2"
 
 log = logging.getLogger(__name__)
 

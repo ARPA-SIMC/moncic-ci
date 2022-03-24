@@ -1,4 +1,4 @@
-# Version NEXT
+# Version 0.2
 
 * Implemented simple deduplication of files with the same name and size across
   OS images. (#19)
@@ -16,6 +16,7 @@
 * Automatically reexec with sudo if permissions are needed (#23)
 * Do not run the default upgrade command if a maintscript is provided
 * Allow using `.tar.xz` and `.tar` as cached distribution images
+* Reduce yum/dnf verbosity on bootstrap
 
 # Version 0.1
 
