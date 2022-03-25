@@ -182,4 +182,4 @@ class Moncic:
         """
         Set the image directory, overriding the one from config
         """
-        self.image_storage = imagestorage.ImageStorage.create(imagedir)
+        self.image_storage = imagestorage.ImageStorage.create(self, imagedir)
