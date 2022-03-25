@@ -318,8 +318,6 @@ class Update(MoncicCommand):
 
             log.info("%d images successfully updated", count_ok)
 
-            images.deduplicate()
-
             if count_failed:
                 log.error("%d images failed to update", count_failed)
                 return 6
