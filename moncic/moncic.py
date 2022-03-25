@@ -57,6 +57,8 @@ class MoncicConfig:
     trim_image_file: Optional[bool] = None
     # Automatically reexec with sudo if permissions are needed
     auto_sudo: bool = True
+    # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
+    tmpfs: bool = False
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:

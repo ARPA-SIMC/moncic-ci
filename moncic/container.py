@@ -29,6 +29,11 @@ class ContainerConfig:
     # If true, changes done to the container filesystem will not persist
     ephemeral: bool = True
 
+    # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
+    #
+    # Leave to None to use system or container defaults.
+    tmpfs: Optional[bool] = None
+
     # Bind mount this directory in the running system and use it as default
     # working directory
     workdir: Optional[str] = None
@@ -117,7 +122,7 @@ class ContainerBase:
     """
     Convenience common base implementation for Container
     """
-    def __init__(self, system: System, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None):
+    def __init__(self, system: System, config: ContainerConfig, instance_name: Optional[str] = None):
         super().__init__()
         self.system = system
 
@@ -126,8 +131,6 @@ class ContainerBase:
         else:
             self.instance_name = instance_name
 
-        if config is None:
-            config = ContainerConfig()
         config.check()
         self.config = config
         self.started = False
@@ -215,7 +218,15 @@ class NspawnContainer(ContainerBase):
             for pathspec in self.config.bind_ro:
                 cmd.append("--bind-ro=" + pathspec)
         if self.config.ephemeral:
-            cmd.append("--ephemeral")
+            if self.config.tmpfs:
+                cmd.append("--volatile=overlay")
+                # See https://github.com/Truelite/nspawn-runner/issues/10
+                # According to systemd-nspawn(1), --read-only is implied if --volatile
+                # is used, but it seems that without using --read-only one ostree
+                # remains locked and VMs can only be started once from it.
+                cmd.append("--read-only")
+            else:
+                cmd.append("--ephemeral")
         return cmd
 
     def forward_user(self, user: UserConfig):

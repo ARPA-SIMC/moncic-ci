@@ -40,3 +40,5 @@ The only keyword currently supported is:
   This is only relevant when [using a file to store OS images](btrfs-on-file.md).
 * `auto_sudo`: Automatically reexec with sudo if permissions are needed.
   Default: true
+* `tmpfs`: Use a tmpfs overlay for ephemeral containers instead of btrfs
+  snapshots. Default: false, or true if OS images are not on btrfs

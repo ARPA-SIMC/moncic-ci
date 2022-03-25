@@ -1,6 +1,9 @@
 # Version UNRELEASED
 
-* Default for imagedir changed from `./images` to `/var/lib/images`
+* Default for imagedir changed from `./images` to `/var/lib/machines` (#25)
+* Added a `tmpfs` configuration, both global and per-image, to use `tmpfs`
+  backing for ephemeral images instead of btrfs snapshots. If the machine is
+  configured with enough ram and swap, it makes for faster CI runs (#27)
 
 # Version 0.2
 

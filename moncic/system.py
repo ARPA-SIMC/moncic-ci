@@ -47,6 +47,10 @@ class SystemConfig:
     # compression`. Default: the global 'compression' setting. You can use 'no'
     # or 'none' to ask for no compression when one globally is set.
     compression: Optional[str] = None
+    # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
+    #
+    # Leave to None to use system or container defaults.
+    tmpfs: Optional[bool] = None
 
     @classmethod
     def load(cls, path: str):
@@ -267,6 +271,20 @@ class System:
         """
         Boot a container with this system
         """
+        if config is None:
+            config = ContainerConfig()
+            if self.config.tmpfs is not None:
+                config.tmpfs = self.config.tmpfs
+            else:
+                config.tmpfs = self.moncic.config.tmpfs
+        elif config.ephemeral and config.tmpfs is None:
+            # Make a copy to prevent changing the caller's config
+            config = ContainerConfig(config)
+            if self.config.tmpfs is not None:
+                config.tmpfs = self.config.tmpfs
+            else:
+                config.tmpfs = self.moncic.config.tmpfs
+
         # Import here to avoid an import loop
         from .container import NspawnContainer
-        return NspawnContainer(self, instance_name, config)
+        return NspawnContainer(self, config, instance_name)
