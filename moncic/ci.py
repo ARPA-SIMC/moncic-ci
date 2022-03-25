@@ -108,9 +108,8 @@ class CI(MoncicCommand):
                     builder = Builder.create(self.args.build_style, container)
                 else:
                     builder = Builder.detect(container)
-                with self.moncic.privs.root():
-                    with container:
-                        res = container.run_callable(builder.build)
+                with container:
+                    res = container.run_callable(builder.build)
                 return res.returncode
 
 
@@ -177,9 +176,8 @@ class ImageActionCommand(MoncicCommand):
                 if self.args.bind_ro:
                     config.bind_ro = self.args.bind_ro
 
-                with self.moncic.privs.root():
-                    with system.create_container(config=config) as container:
-                        yield container
+                with system.create_container(config=config) as container:
+                    yield container
 
 
 class Shell(ImageActionCommand):
@@ -260,24 +258,23 @@ class Bootstrap(MoncicCommand):
 
             for name in systems:
                 system = images.create_system(name)
-                with self.moncic.privs.root():
-                    if self.args.recreate and os.path.exists(system.path):
-                        system.remove()
+                if self.args.recreate and os.path.exists(system.path):
+                    system.remove()
 
-                    if not os.path.exists(system.path):
-                        log.info("%s: bootstrapping subvolume", name)
-                        try:
-                            system.bootstrap()
-                        except Exception:
-                            log.critical("%s: cannot create image", name, exc_info=True)
-                            return 5
-
-                    log.info("%s: updating subvolume", name)
+                if not os.path.exists(system.path):
+                    log.info("%s: bootstrapping subvolume", name)
                     try:
-                        system.update()
+                        system.bootstrap()
                     except Exception:
-                        log.critical("%s: cannot update image", name, exc_info=True)
-                        return 6
+                        log.critical("%s: cannot create image", name, exc_info=True)
+                        return 5
+
+                log.info("%s: updating subvolume", name)
+                try:
+                    system.update()
+                except Exception:
+                    log.critical("%s: cannot update image", name, exc_info=True)
+                    return 6
 
 
 class Update(MoncicCommand):
@@ -308,13 +305,12 @@ class Update(MoncicCommand):
                     continue
 
                 log.info("%s: updating subvolume", name)
-                with self.moncic.privs.root():
-                    try:
-                        system.update()
-                        count_ok += 1
-                    except Exception:
-                        log.critical("%s: cannot update image", name, exc_info=True)
-                        count_failed += 1
+                try:
+                    system.update()
+                    count_ok += 1
+                except Exception:
+                    log.critical("%s: cannot update image", name, exc_info=True)
+                    count_failed += 1
 
             log.info("%d images successfully updated", count_ok)
 
@@ -342,8 +338,7 @@ class Remove(MoncicCommand):
                 system = images.create_system(name)
                 if not os.path.exists(system.path):
                     continue
-                with self.moncic.privs.root():
-                    system.remove()
+                system.remove()
 
 
 class RowOutput:

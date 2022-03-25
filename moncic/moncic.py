@@ -153,9 +153,6 @@ class Moncic:
         else:
             self.privs = privs
 
-        # Drop privileges right away
-        self.privs.drop()
-
         if config is None:
             self.config = MoncicConfig.load()
         else:

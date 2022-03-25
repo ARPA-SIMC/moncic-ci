@@ -122,20 +122,19 @@ class BtrfsImages(Images):
                     size = st.st_size
                     by_name_size[(os.path.join(relpath, fn), size)].append(entry.name)
 
-        with self.moncic.privs.root():
-            total_saved = 0
-            for (name, size), images in by_name_size.items():
-                if len(images) < 2:
-                    continue
-                saved = 0
-                for imgname in images[1:]:
-                    saved += do_dedupe(
-                            os.path.join(imagedir, images[0], name),
-                            os.path.join(imagedir, imgname, name),
-                            size)
-                # if saved > 0:
-                #     log.info("%s: found in %s, recovered %db", name, ", ".join(images), saved)
-                total_saved += saved
+        total_saved = 0
+        for (name, size), images in by_name_size.items():
+            if len(images) < 2:
+                continue
+            saved = 0
+            for imgname in images[1:]:
+                saved += do_dedupe(
+                        os.path.join(imagedir, images[0], name),
+                        os.path.join(imagedir, imgname, name),
+                        size)
+            # if saved > 0:
+            #     log.info("%s: found in %s, recovered %db", name, ", ".join(images), saved)
+            total_saved += saved
 
         log.info("%d total bytes are currently deduplicated", total_saved)
 
@@ -153,8 +152,7 @@ class ImagesInFile(BtrfsImages):
 
         if self.storage.should_trim():
             log.info("%s: trimming unused storage", self.storage.imagefile)
-            with self.moncic.privs.root():
-                subprocess.run(["fstrim", self.imagedir], check=True)
+            subprocess.run(["fstrim", self.imagedir], check=True)
 
 
 class ImageStorage:
@@ -235,15 +233,13 @@ class FileImageStorage(ImageStorage):
     @contextlib.contextmanager
     def images(self) -> Generator[Images]:
         with tempfile.TemporaryDirectory() as imagedir:
-            with self.moncic.privs.root():
-                with pause_automounting(self.imagefile):
-                    subprocess.run(["mount", self.imagefile, imagedir], check=True)
+            with pause_automounting(self.imagefile):
+                subprocess.run(["mount", self.imagefile, imagedir], check=True)
 
-                    try:
-                        with self.moncic.privs.user():
-                            yield ImagesInFile(self, imagedir)
-                    finally:
-                        subprocess.run(["umount", imagedir], check=True)
+                try:
+                    yield ImagesInFile(self, imagedir)
+                finally:
+                    subprocess.run(["umount", imagedir], check=True)
 
     def should_trim(self):
         """
