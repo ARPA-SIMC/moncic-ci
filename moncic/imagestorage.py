@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("images")
 
+MACHINECTL_PATH = "/var/lib/machines"
+
 
 class Images:
     """
@@ -175,7 +177,7 @@ class ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """
-        if path == "/var/lib/machines":
+        if path == MACHINECTL_PATH:
             if is_btrfs(path):
                 return BtrfsMachineImageStorage(moncic)
             else:
@@ -193,7 +195,7 @@ class ImageStorage:
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        return cls.create("/var/lib/machines")
+        return cls.create(MACHINECTL_PATH)
 
 
 class PlainImageStorage(ImageStorage):
@@ -265,8 +267,7 @@ class PlainMachineImageStorage(PlainImageStorage):
     machinectl
     """
     def __init__(self, moncic: Moncic):
-        super().__init__(moncic)
-        self.imagedir = "/var/lib/machines"
+        super().__init__(moncic, MACHINECTL_PATH)
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images]:
@@ -279,8 +280,7 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
     machinectl
     """
     def __init__(self, moncic: Moncic):
-        super().__init__(moncic)
-        self.imagedir = "/var/lib/machines"
+        super().__init__(moncic, MACHINECTL_PATH)
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images]:

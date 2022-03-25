@@ -46,7 +46,7 @@ class MoncicConfig:
     Global Moncic-CI configuration
     """
     # Directory where images are stored
-    imagedir: str = "/var/lib/images"
+    imagedir: str = "/var/lib/machines"
     # Btrfs compression level to set on OS image subvolumes when they are
     # created. The value is the same as can be set by `btrfs property set
     # compression`. Default: nothing is set

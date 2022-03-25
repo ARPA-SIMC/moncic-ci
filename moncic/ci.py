@@ -68,7 +68,7 @@ class MoncicCommand(Command):
         parser = super().make_subparser(subparsers)
         parser.add_argument("-I", "--imagedir", action="store",
                             help="path to the directory that contains container images."
-                                 " Default: from configuration file, or /var/lib/images")
+                                 " Default: from configuration file, or /var/lib/machines")
         return parser
 
     def __init__(self, args):
