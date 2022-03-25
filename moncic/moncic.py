@@ -1,20 +1,15 @@
 from __future__ import annotations
-from collections import defaultdict
-import contextlib
 import dataclasses
-import graphlib
 import logging
 import os
-import stat
 import subprocess
 import sys
-import tempfile
-from typing import List, Optional, Type, TYPE_CHECKING
+from typing import ContextManager, Optional, Type, TYPE_CHECKING
 
 import yaml
 
+from . import imagestorage
 from .privs import ProcessPrivs
-from .utils import pause_automounting, is_on_rotational
 from .cli import Fail
 
 if TYPE_CHECKING:
@@ -173,133 +168,18 @@ class Moncic:
         else:
             self.system_class = system_class
 
-        # Actual image directory (might be None if not mounted)
-        self.imagedir: Optional[str] = None
-
-        # ExitStack tracking context managers associated to Moncic's usage as
-        # context manager
-        self.exit_stack = contextlib.ExitStack()
-
-    def __enter__(self):
-        if os.path.isdir(self.config.imagedir):
-            self.imagedir = self.config.imagedir
+        # Storage for OS images
+        self.image_storage: imagestorage.ImageStorage
+        if self.config.imagedir is None:
+            self.image_storage = imagestorage.ImageStorage.create_default(self)
         else:
-            imagefile = os.path.join(self.config.imagedir)
-            self.imagedir = self.exit_stack.enter_context(tempfile.TemporaryDirectory())
-            with self.privs.root():
-                self.exit_stack.enter_context(pause_automounting(imagefile))
-                subprocess.run(["mount", imagefile, self.imagedir], check=True)
-        return self
+            self.image_storage = imagestorage.ImageStorage.create(self, self.config.imagedir)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if not os.path.isdir(self.config.imagedir):
-            with self.privs.root():
-                subprocess.run(["umount", self.imagedir], check=True)
-        with self.privs.root():
-            self.exit_stack.close()
-        self.imagedir = None
+    def images(self) -> ContextManager[imagestorage.Images]:
+        return self.image_storage.images()
 
-    def create_system(self, name_or_path: str) -> System:
+    def set_imagedir(self, imagedir: str):
         """
-        Instantiate a System from its name or path
+        Set the image directory, overriding the one from config
         """
-        return self.system_class.from_path(self, os.path.join(self.imagedir, name_or_path))
-
-    def list_images(self) -> List[str]:
-        """
-        List the names of images found in image directories
-        """
-        res = set()
-        for entry in os.scandir(self.imagedir):
-            if entry.name.startswith("."):
-                continue
-
-            if entry.is_dir():
-                res.add(entry.name)
-            elif entry.name.endswith(".yaml"):
-                res.add(entry.name[:-5])
-        return sorted(res)
-
-    def add_dependencies(self, images: List[str]) -> List[str]:
-        """
-        Add dependencies to the given list of images, returning the extended
-        list.
-
-        The list returned is ordered by dependencies: if an image extends
-        another, the base image is listed before those that depend on it.
-        """
-        # Import here to prevent import loops
-        from .system import SystemConfig
-        res = graphlib.TopologicalSorter()
-        for name in images:
-            config = SystemConfig.load(os.path.join(self.imagedir, name))
-            if config.extends is not None:
-                res.add(config.name, config.extends)
-            else:
-                res.add(config.name)
-
-        return list(res.static_order())
-
-    def deduplicate(self):
-        """
-        Attempt deduplicating files that have the same name and size across OS
-        images
-        """
-        log.info("Deduplicating disk usage...")
-        from .btrfs import do_dedupe
-
-        imagedir = self.imagedir
-
-        by_name_size = defaultdict(list)
-        for entry in os.scandir(imagedir):
-            if entry.name.startswith("."):
-                continue
-            if not entry.is_dir():
-                continue
-
-            path = os.path.join(imagedir, entry.name)
-            for (dirpath, dirnames, filenames, dirfd) in os.fwalk(path):
-                relpath = os.path.relpath(dirpath, path)
-                for fn in filenames:
-                    st = os.lstat(fn, dir_fd=dirfd)
-                    if not stat.S_ISREG(st.st_mode):
-                        continue
-                    size = st.st_size
-                    by_name_size[(os.path.join(relpath, fn), size)].append(entry.name)
-
-        with self.privs.root():
-            total_saved = 0
-            for (name, size), images in by_name_size.items():
-                if len(images) < 2:
-                    continue
-                saved = 0
-                for imgname in images[1:]:
-                    saved += do_dedupe(
-                            os.path.join(imagedir, images[0], name),
-                            os.path.join(imagedir, imgname, name),
-                            size)
-                # if saved > 0:
-                #     log.info("%s: found in %s, recovered %db", name, ", ".join(images), saved)
-                total_saved += saved
-
-        log.info("%d total bytes are currently deduplicated", total_saved)
-
-    def maybe_trim_image_file(self):
-        """
-        Run fstrim on the image file if requested by config or if we can see
-        that the image file is on a SSD
-        """
-        if os.path.isdir(self.config.imagedir):
-            return
-
-        do_trim = self.config.trim_image_file
-        if do_trim is None:
-            rot = is_on_rotational(self.config.imagedir)
-            if rot or rot is None:
-                return
-        elif not do_trim:
-            return
-
-        log.info("%s: trimming unused storage", self.config.imagedir)
-        with self.privs.root():
-            subprocess.run(["fstrim", self.imagedir], check=True)
+        self.image_storage = imagestorage.ImageStorage.create(imagedir)
