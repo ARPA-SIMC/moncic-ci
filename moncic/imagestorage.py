@@ -10,7 +10,7 @@ import tempfile
 from collections import defaultdict
 from typing import TYPE_CHECKING, Generator, List
 
-from .btrfs import do_dedupe
+from .btrfs import do_dedupe, is_btrfs
 from .system import System, SystemConfig
 from .utils import is_on_rotational, pause_automounting
 
@@ -47,8 +47,7 @@ class Images:
         """
         Instantiate a System from its name or path
         """
-        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
-        return self.moncic.system_class(self, system_config)
+        raise NotImplementedError(f"{self.__class__.__name__}.create_system is not implemented")
 
     def add_dependencies(self, images: List[str]) -> List[str]:
         """
@@ -71,10 +70,30 @@ class Images:
         return list(res.static_order())
 
     def deduplicate(self):
+        pass
+
+
+class PlainImages(Images):
+    """
+    Images stored in a non-btrfs filesystem
+    """
+    ...  # TODO
+
+
+class BtrfsImages(Images):
+    """
+    Images stored in a btrfs filesystem
+    """
+    def create_system(self, name: str) -> System:
+        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        return self.moncic.system_class(self, system_config)
+
+    def deduplicate(self):
         """
         Attempt deduplicating files that have the same name and size across OS
         images
         """
+        super().deduplicate()
         log.info("Deduplicating disk usage...")
 
         imagedir = self.imagedir
@@ -114,7 +133,7 @@ class Images:
         log.info("%d total bytes are currently deduplicated", total_saved)
 
 
-class ImagesInFile(Images):
+class ImagesInFile(BtrfsImages):
     """
     Images stored in a file
     """
@@ -147,23 +166,42 @@ class ImageStorage:
         raise NotImplementedError(f"{self.__class__.__name__}.imagedir is not implemented")
 
     @classmethod
-    def create(self, moncic: Moncic, path: str) -> "ImageStorage":
+    def create(cls, moncic: Moncic, path: str) -> "ImageStorage":
         """
         Instantiate the right ImageStorage for a path
         """
         if path == "/var/lib/machines":
-            return MachineImageStorage(moncic)
+            if is_btrfs(path):
+                return BtrfsMachineImageStorage(moncic)
+            else:
+                return PlainMachineImageStorage(moncic)
         elif os.path.isdir(path):
-            return BtrfsImageStorage(moncic, path)
+            if is_btrfs(path):
+                return BtrfsImageStorage(moncic, path)
+            else:
+                return PlainImageStorage(moncic, path)
         else:
             return FileImageStorage(moncic, path)
 
     @classmethod
-    def create_default(self, moncic: Moncic) -> "ImageStorage":
+    def create_default(cls, moncic: Moncic) -> "ImageStorage":
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        return MachineImageStorage(moncic)
+        return cls.create("/var/lib/machines")
+
+
+class PlainImageStorage(ImageStorage):
+    """
+    Store images in a non-btrfs directory
+    """
+    def __init__(self, moncic: Moncic, imagedir: str):
+        super().__init__(moncic)
+        self.imagedir = imagedir
+
+    @contextlib.contextmanager
+    def images(self) -> Generator[Images]:
+        yield PlainImages(self.moncic, self.imagedir)
 
 
 class BtrfsImageStorage(ImageStorage):
@@ -176,7 +214,7 @@ class BtrfsImageStorage(ImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images]:
-        yield Images(self.moncic, self.imagedir)
+        yield BtrfsImages(self.moncic, self.imagedir)
 
 
 class FileImageStorage(ImageStorage):
@@ -196,7 +234,7 @@ class FileImageStorage(ImageStorage):
 
                     try:
                         with self.moncic.privs.user():
-                            yield Images(self.moncic, imagedir)
+                            yield ImagesInFile(self, imagedir)
                     finally:
                         subprocess.run(["umount", imagedir], check=True)
 
@@ -216,7 +254,7 @@ class FileImageStorage(ImageStorage):
         return True
 
 
-class MachineImageStorage(ImageStorage):
+class PlainMachineImageStorage(PlainImageStorage):
     """
     Store images in /var/lib/machines in a way that is compatibile with
     machinectl
@@ -228,3 +266,17 @@ class MachineImageStorage(ImageStorage):
     @contextlib.contextmanager
     def images(self) -> Generator[Images]:
         yield Images(self.moncic, self.imagedir)
+
+
+class BtrfsMachineImageStorage(BtrfsImageStorage):
+    """
+    Store images in /var/lib/machines in a way that is compatibile with
+    machinectl
+    """
+    def __init__(self, moncic: Moncic):
+        super().__init__(moncic)
+        self.imagedir = "/var/lib/machines"
+
+    @contextlib.contextmanager
+    def images(self) -> Generator[Images]:
+        yield BtrfsImages(self.moncic, self.imagedir)
