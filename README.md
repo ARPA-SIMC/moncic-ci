@@ -38,17 +38,13 @@ pip install .
 
 ### Pick a directory for images
 
-Decide on a directory that will contain container images: it will have to be on
-a BTRFS filesystem. Many systems are on BTRFS by default, or make it convenient
-to create and mount a BTRFS partition.
+Decide on a directory that will contain container images. Using a BTRFS
+filesystem will give you more features, but a non-BTRFS filesystem can work,
+too.
 
-If none of that is convenient for you, you can use a filesystem on a file. For
-example:
-
-```
-truncate --size=10G images
-/sbin/mkfs.btrfs images
-```
+Moncic-CI uses a default of `/var/lib/machines/` to share containers with
+`machinectl`, and it allows to set other paths, to let users manage different
+sets of SO images if needed
 
 ### Try bootstrapping an image
 
@@ -56,24 +52,8 @@ Run `monci distros` to get a list of supported OS images, and `monci bootstrap`
 to create one. For example:
 
 ```
-sudo monci bootstrap --imagedir images rocky8
+sudo monci bootstrap rocky8
 ```
-
-### Set image location as default
-
-You can configure the image location as a default so you do not need to type
-`--imagedir` every time you run `monci`.
-
-Create `~/.config/moncic-ci/moncic-ci.yaml` and add:
-
-```yaml
-imagedir: <your image file or directory location>
-```
-
-Then `monci` will just work with no extra arguments: try it out with `sudo
-monci images` to get a list of available OS images, and you should see `rocky8`
-listed.
-
 
 ## Using Moncic-CI
 

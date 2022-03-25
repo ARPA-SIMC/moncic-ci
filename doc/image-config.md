@@ -34,6 +34,9 @@ Keywords currently supported are:
   as can be set by `btrfs property set compression`. Default: the global
   'compression' setting. You can use 'no' or 'none' to ask for no compression
   when one is globally set.
+* `tmpfs`: Use a tmpfs overlay for ephemeral containers instead of btrfs
+  snapshots. Default: as set in the global configuration, overridden to `true`
+  if the OS image is not on btrfs
 
 One, and only one, of `distro` or `extends` must be present.
 

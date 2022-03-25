@@ -13,8 +13,8 @@ if TYPE_CHECKING:
     import subprocess
 
     from .container import Container
-    from .moncic import Moncic
     from .distro import Distro
+    from .imagestorage import Images
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +47,10 @@ class SystemConfig:
     # compression`. Default: the global 'compression' setting. You can use 'no'
     # or 'none' to ask for no compression when one globally is set.
     compression: Optional[str] = None
+    # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
+    #
+    # Leave to None to use system or container defaults.
+    tmpfs: Optional[bool] = None
 
     @classmethod
     def load(cls, path: str):
@@ -115,17 +119,10 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, moncic: Moncic, config: SystemConfig):
-        self.moncic = moncic
+    def __init__(self, images: Images, config: SystemConfig):
+        self.images = images
         self.config = config
         self.log = logging.getLogger(f"system.{self.name}")
-
-    @classmethod
-    def from_path(cls, moncic: Moncic, path: str):
-        """
-        Create a System from the ostree or configuration at the given path
-        """
-        return cls(moncic, SystemConfig.load(path))
 
     def __str__(self) -> str:
         return self.name
@@ -147,7 +144,7 @@ class System:
         Return the distribution this system is based on
         """
         if self.config.extends is not None:
-            parent = self.moncic.create_system(self.config.extends)
+            parent = self.images.create_system(self.config.extends)
             return parent.distro
         else:
             return DistroFamily.lookup_distro(self.config.distro)
@@ -169,7 +166,7 @@ class System:
         if distro_name is None:
             raise RuntimeError("get_distro_tarball called on a system that is bootstrapped by snapshotting")
         for ext in ('.tar.gz', '.tar.xz', '.tar'):
-            tarball_path = os.path.join(self.moncic.config.imagedir, distro_name + ext)
+            tarball_path = os.path.join(self.images.imagedir, distro_name + ext)
             if os.path.exists(tarball_path):
                 return tarball_path
         return None
@@ -197,7 +194,7 @@ class System:
         # Import here to avoid an import loop
         from .btrfs import Subvolume
         if self.config.extends is not None:
-            parent = self.moncic.create_system(self.config.extends)
+            parent = self.images.create_system(self.config.extends)
             subvolume = Subvolume(self)
             subvolume.snapshot(parent.path)
         else:
@@ -224,7 +221,7 @@ class System:
         # Base maintenance
         if self.config.extends is not None:
             # Chain to the parent's maintenance
-            parent = self.moncic.create_system(self.config.extends)
+            parent = self.images.create_system(self.config.extends)
             parent._update_container(container)
 
         # Forward users if needed
@@ -274,6 +271,20 @@ class System:
         """
         Boot a container with this system
         """
+        if config is None:
+            config = ContainerConfig()
+            if self.config.tmpfs is not None:
+                config.tmpfs = self.config.tmpfs
+            else:
+                config.tmpfs = self.moncic.config.tmpfs
+        elif config.ephemeral and config.tmpfs is None:
+            # Make a copy to prevent changing the caller's config
+            config = ContainerConfig(config)
+            if self.config.tmpfs is not None:
+                config.tmpfs = self.config.tmpfs
+            else:
+                config.tmpfs = self.images.moncic.config.tmpfs
+
         # Import here to avoid an import loop
         from .container import NspawnContainer
-        return NspawnContainer(self, instance_name, config)
+        return NspawnContainer(self, config, instance_name)
