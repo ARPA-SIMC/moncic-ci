@@ -77,7 +77,12 @@ class PlainImages(Images):
     """
     Images stored in a non-btrfs filesystem
     """
-    ...  # TODO
+    def create_system(self, name: str) -> System:
+        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        # Force using tmpfs backing for ephemeral containers, since we cannot
+        # use snapshots
+        system_config.tmpfs = True
+        return self.moncic.system_class(self, system_config)
 
 
 class BtrfsImages(Images):

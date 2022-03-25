@@ -4,6 +4,8 @@
 * Added a `tmpfs` configuration, both global and per-image, to use `tmpfs`
   backing for ephemeral images instead of btrfs snapshots. If the machine is
   configured with enough ram and swap, it makes for faster CI runs (#27)
+* Support non-btrfs image storage, by forcing ephemeral images to use `tmpfs`
+  backing instead of btrfs snapshots
 
 # Version 0.2
 
