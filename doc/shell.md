@@ -18,7 +18,7 @@ optional arguments:
   -v, --verbose         verbose output
   --debug               verbose output
   -I IMAGEDIR, --imagedir IMAGEDIR
-                        path to the directory that contains container images. Default: ./images
+                        path to the directory that contains container images. Default: /var/lib/images
   --maintenance         do not run ephemerally: changes will be preserved
   -w WORKDIR, --workdir WORKDIR
                         bind mount (writable) the given directory in /root

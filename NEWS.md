@@ -1,3 +1,7 @@
+# Version UNRELEASED
+
+* Default for imagedir changed from `./images` to `/var/lib/images`
+
 # Version 0.2
 
 * Implemented simple deduplication of files with the same name and size across
