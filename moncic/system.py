@@ -283,7 +283,7 @@ class System:
             if self.config.tmpfs is not None:
                 config.tmpfs = self.config.tmpfs
             else:
-                config.tmpfs = self.moncic.config.tmpfs
+                config.tmpfs = self.images.moncic.config.tmpfs
 
         # Import here to avoid an import loop
         from .container import NspawnContainer
