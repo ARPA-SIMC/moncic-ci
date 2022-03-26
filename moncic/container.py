@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import dataclasses
 import errno
 import grp
@@ -10,11 +11,13 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import List, Optional, Callable, ContextManager, Protocol, TYPE_CHECKING
 import uuid
+from typing import (TYPE_CHECKING, Callable, ContextManager, List, NoReturn,
+                    Optional, Protocol)
 
-from .runner import SetnsCallableRunner, RunConfig, UserConfig
 from .nspawn import escape_bind_ro
+from .runner import RunConfig, SetnsCallableRunner, UserConfig
+
 if TYPE_CHECKING:
     from .system import System
 
@@ -83,6 +86,12 @@ class Container(ContextManager, Protocol):
     """
     system: System
     config: ContainerConfig
+
+    def forward_user(self, user: UserConfig):
+        """
+        Ensure the system has a matching user and group
+        """
+        ...
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
@@ -307,6 +316,7 @@ class NspawnContainer(ContainerBase):
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         run_config = self.config.run_config(config)
 
+        exec_func: Callable[[str, List[str]], NoReturn]
         if run_config.use_path:
             exec_func = os.execvp
         else:

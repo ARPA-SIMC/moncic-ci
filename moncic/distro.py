@@ -458,7 +458,7 @@ class DebianDistro(Distro):
     def bootstrap(self, system: System):
         installroot = os.path.abspath(system.path)
         cmd = [
-            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.release, installroot, self.mirror
+            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.suite, installroot, self.mirror
         ]
         # If eatmydata is available, we can use it to make deboostrap significantly faster
         eatmydata = shutil.which("eatmydata")

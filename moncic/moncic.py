@@ -3,41 +3,17 @@ import dataclasses
 import logging
 import os
 import subprocess
-import sys
 from typing import ContextManager, Optional, Type, TYPE_CHECKING
 
 import yaml
 
 from . import imagestorage
 from .privs import ProcessPrivs
-from .cli import Fail
 
 if TYPE_CHECKING:
     from .system import System
 
 log = logging.getLogger(__name__)
-
-
-class MonciPrivs(ProcessPrivs):
-    def __init__(self):
-        super().__init__()
-        self.auto_sudo = True
-
-    def needs_sudo(self):
-        if not self.have_sudo:
-            if self.auto_sudo:
-                os.execvp("sudo", ["sudo"] + sys.argv)
-            else:
-                raise Fail("This command needs sudo to run")
-
-    def regain(self):
-        """
-        Regain root privileges
-        """
-        if not self.dropped:
-            return
-        self.needs_sudo()
-        super().regain()
 
 
 @dataclasses.dataclass
@@ -149,7 +125,7 @@ class Moncic:
 
         self.privs: ProcessPrivs
         if privs is None:
-            self.privs = MonciPrivs()
+            self.privs = ProcessPrivs()
         else:
             self.privs = privs
 

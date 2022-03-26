@@ -2,6 +2,7 @@ from __future__ import annotations
 import contextlib
 import os
 import pwd
+import sys
 
 
 class ProcessPrivs:
@@ -22,6 +23,7 @@ class ProcessPrivs:
             self.user_gid = self.orig_gid
 
         self.dropped = not self.have_sudo
+        self.auto_sudo = False
 
     def update_env(self):
         uid = os.getuid()
@@ -32,6 +34,13 @@ class ProcessPrivs:
             pw = pwd.getpwuid(uid)
             os.environ["HOME"] = pw.pw_dir
             os.environ["USER"] = pw.pw_name
+
+    def needs_sudo(self):
+        if not self.have_sudo:
+            if self.auto_sudo:
+                os.execvp("sudo", ["sudo"] + sys.argv)
+            else:
+                raise RuntimeError("This command needs sudo to run")
 
     def drop(self):
         """
@@ -50,6 +59,7 @@ class ProcessPrivs:
         """
         if not self.dropped:
             return
+        self.needs_sudo()
         os.setresuid(self.orig_suid, self.orig_suid, self.user_uid)
         os.setresgid(self.orig_sgid, self.orig_sgid, self.user_gid)
         self.dropped = False

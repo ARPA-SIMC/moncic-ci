@@ -33,15 +33,6 @@ class SudoTestSuite(ProcessPrivs):
         if not self.have_sudo:
             raise SkipTest("Tests need to be run under sudo")
 
-    def regain(self):
-        """
-        Regain root privileges
-        """
-        if not self.dropped:
-            return
-        self.needs_sudo()
-        super().regain()
-
 
 privs = SudoTestSuite()
 privs.drop()
@@ -59,13 +50,8 @@ class MockMoncic(Moncic):
         super().__init__(**kw)
         self.testcase = testcase
 
-    def create_system(self, name_or_path: str) -> System:
-        res = super().create_system(name_or_path)
-        res.attach_testcase(self.testcase)
-        return res
-
     @contextlib.contextmanager
-    def images(self) -> Generator[imagestorage.Images]:
+    def images(self) -> Generator[imagestorage.Images, None, None]:
         yield MockImages(self, self.config.imagedir)
 
 
@@ -80,7 +66,11 @@ def make_moncic(imagedir: Optional[str] = None, testcase: Optional[TestCase] = N
     if imagedir is None and testcase is None:
         return Moncic(privs=privs)
 
-    config = MoncicConfig(imagedir=imagedir)
+    if imagedir is None:
+        config = MoncicConfig()
+    else:
+        config = MoncicConfig(imagedir=imagedir)
+
     if testcase is None:
         return Moncic(config=config, privs=privs)
     else:

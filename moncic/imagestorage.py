@@ -61,7 +61,7 @@ class Images:
         """
         # Import here to prevent import loops
         from .system import SystemConfig
-        res = graphlib.TopologicalSorter()
+        res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
             config = SystemConfig.load(os.path.join(self.imagedir, name))
             if config.extends is not None:
@@ -163,7 +163,7 @@ class ImageStorage:
         self.moncic = moncic
 
     @contextlib.contextmanager
-    def images(self) -> Generator[Images]:
+    def images(self) -> Generator[Images, None, None]:
         """
         Make the image storage available as a directory, for the duration of
         this context manager
@@ -193,7 +193,7 @@ class ImageStorage:
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        return cls.create(MACHINECTL_PATH)
+        return cls.create(moncic, MACHINECTL_PATH)
 
 
 class PlainImageStorage(ImageStorage):
@@ -205,7 +205,7 @@ class PlainImageStorage(ImageStorage):
         self.imagedir = imagedir
 
     @contextlib.contextmanager
-    def images(self) -> Generator[Images]:
+    def images(self) -> Generator[Images, None, None]:
         yield PlainImages(self.moncic, self.imagedir)
 
 
@@ -218,7 +218,7 @@ class BtrfsImageStorage(ImageStorage):
         self.imagedir = imagedir
 
     @contextlib.contextmanager
-    def images(self) -> Generator[Images]:
+    def images(self) -> Generator[Images, None, None]:
         yield BtrfsImages(self.moncic, self.imagedir)
 
 
@@ -231,7 +231,7 @@ class FileImageStorage(ImageStorage):
         self.imagefile = imagefile
 
     @contextlib.contextmanager
-    def images(self) -> Generator[Images]:
+    def images(self) -> Generator[Images, None, None]:
         with tempfile.TemporaryDirectory() as imagedir:
             with pause_automounting(self.imagefile):
                 subprocess.run(["mount", self.imagefile, imagedir], check=True)
@@ -266,7 +266,7 @@ class PlainMachineImageStorage(PlainImageStorage):
         super().__init__(moncic, MACHINECTL_PATH)
 
     @contextlib.contextmanager
-    def images(self) -> Generator[Images]:
+    def images(self) -> Generator[Images, None, None]:
         yield Images(self.moncic, self.imagedir)
 
 
@@ -279,5 +279,5 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
         super().__init__(moncic, MACHINECTL_PATH)
 
     @contextlib.contextmanager
-    def images(self) -> Generator[Images]:
+    def images(self) -> Generator[Images, None, None]:
         yield BtrfsImages(self.moncic, self.imagedir)

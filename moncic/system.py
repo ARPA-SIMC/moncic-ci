@@ -146,8 +146,10 @@ class System:
         if self.config.extends is not None:
             parent = self.images.create_system(self.config.extends)
             return parent.distro
-        else:
+        elif self.config.distro is not None:
             return DistroFamily.lookup_distro(self.config.distro)
+        else:
+            raise RuntimeError("System configuration has neither `extends` nor `distro` set")
 
     def is_bootstrapped(self):
         """
