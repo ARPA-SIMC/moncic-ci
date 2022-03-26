@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import contextlib
 import logging
 import os
@@ -6,17 +7,21 @@ import re
 import shlex
 import subprocess
 import tempfile
-from typing import Callable, Optional, List, Dict, Any, Union, TYPE_CHECKING
+from typing import (TYPE_CHECKING, Any, Callable, Dict, Generator, List,
+                    Optional, Union)
 from unittest import SkipTest
 
-from moncic.system import System, SystemConfig
-from moncic.container import Container, ContainerBase, ContainerConfig, RunConfig, UserConfig
+from moncic import imagestorage
+from moncic.container import (Container, ContainerBase, ContainerConfig,
+                              RunConfig, UserConfig)
 from moncic.moncic import Moncic, MoncicConfig
 from moncic.privs import ProcessPrivs
+from moncic.system import System, SystemConfig
 
 if TYPE_CHECKING:
-    from moncic.distro import Distro
     from unittest import TestCase
+
+    from moncic.distro import Distro
 
 TEST_CHROOTS = ["centos7", "centos8", "rocky8", "fedora32", "fedora34", "buster", "bookworm", "bullseye"]
 
@@ -42,6 +47,13 @@ privs = SudoTestSuite()
 privs.drop()
 
 
+class MockImages(imagestorage.BtrfsImages):
+    def create_system(self, name: str) -> System:
+        system = super().create_system(name)
+        system.attach_testcase(self.moncic.testcase)
+        return system
+
+
 class MockMoncic(Moncic):
     def __init__(self, *, testcase: TestCase, **kw):
         super().__init__(**kw)
@@ -51,6 +63,10 @@ class MockMoncic(Moncic):
         res = super().create_system(name_or_path)
         res.attach_testcase(self.testcase)
         return res
+
+    @contextlib.contextmanager
+    def images(self) -> Generator[imagestorage.Images]:
+        yield MockImages(self, self.config.imagedir)
 
 
 def make_moncic(imagedir: Optional[str] = None, testcase: Optional[TestCase] = None):
