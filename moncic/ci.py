@@ -20,7 +20,7 @@ except ModuleNotFoundError:
 from .cli import Command, Fail
 from .container import ContainerConfig, RunConfig, UserConfig
 from .build import Builder
-from .moncic import Moncic
+from .moncic import Moncic, MoncicConfig
 from .distro import DistroFamily
 
 if TYPE_CHECKING:
@@ -69,11 +69,19 @@ class MoncicCommand(Command):
         parser.add_argument("-I", "--imagedir", action="store",
                             help="path to the directory that contains container images."
                                  " Default: from configuration file, or /var/lib/machines")
+        parser.add_argument("-C", "--config", action="store",
+                            help="path to the Moncic-CI config file to use. By default,"
+                                 " look in a number of well-known locations, see"
+                                 " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md")
         return parser
 
     def __init__(self, args):
         super().__init__(args)
-        self.moncic = Moncic()
+        if self.args.config:
+            config = MoncicConfig.load(self.args.config)
+            self.moncic = Moncic(config=config)
+        else:
+            self.moncic = Moncic()
         if self.args.imagedir:
             self.moncic.set_imagedir(self.args.imagedir)
 

@@ -6,6 +6,7 @@
   configured with enough ram and swap, it makes for faster CI runs (#27)
 * Support non-btrfs image storage, by forcing ephemeral images to use `tmpfs`
   backing instead of btrfs snapshots
+* Add `-C`/`--config` option to specify a config file from command line (#34)
 
 # Version 0.2
 
