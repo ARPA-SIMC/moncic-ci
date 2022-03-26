@@ -111,16 +111,16 @@ class CI(MoncicCommand):
 
     def run(self):
         with self.moncic.images() as images:
-            system = images.create_system(self.args.system)
-            with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                container = system.create_container(config=ContainerConfig(ephemeral=True, workdir=srcdir))
-                if self.args.build_style:
-                    builder = Builder.create(self.args.build_style, container)
-                else:
-                    builder = Builder.detect(container)
-                with container:
-                    res = container.run_callable(builder.build)
-                return res.returncode
+            with images.system(self.args.system) as system:
+                with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
+                    container = system.create_container(config=ContainerConfig(ephemeral=True, workdir=srcdir))
+                    if self.args.build_style:
+                        builder = Builder.create(self.args.build_style, container)
+                    else:
+                        builder = Builder.detect(container)
+                    with container:
+                        res = container.run_callable(builder.build)
+                    return res.returncode
 
 
 class ImageActionCommand(MoncicCommand):
@@ -166,28 +166,33 @@ class ImageActionCommand(MoncicCommand):
     @contextlib.contextmanager
     def container(self):
         with self.moncic.images() as images:
-            system = images.create_system(self.args.system)
-            if not system.is_bootstrapped():
-                raise Fail(f"{system.name!r} has not been bootstrapped")
+            if self.args.maintenance:
+                make_system = images.maintenance_system
+            else:
+                make_system = images.system
 
-            with checkout(system, self.args.clone) as workdir:
-                workdir = workdir if workdir is not None else self.args.workdir
-                if workdir is not None:
-                    workdir = os.path.abspath(workdir)
+            with make_system(self.args.system) as system:
+                if not system.is_bootstrapped():
+                    raise Fail(f"{system.name!r} has not been bootstrapped")
 
-                config = ContainerConfig(
-                        ephemeral=not self.args.maintenance,
-                        workdir=workdir)
-                if workdir is not None or self.args.user:
-                    config.forward_user = True
+                with checkout(system, self.args.clone) as workdir:
+                    workdir = workdir if workdir is not None else self.args.workdir
+                    if workdir is not None:
+                        workdir = os.path.abspath(workdir)
 
-                if self.args.bind:
-                    config.bind = self.args.bind
-                if self.args.bind_ro:
-                    config.bind_ro = self.args.bind_ro
+                    config = ContainerConfig(
+                            ephemeral=not self.args.maintenance,
+                            workdir=workdir)
+                    if workdir is not None or self.args.user:
+                        config.forward_user = True
 
-                with system.create_container(config=config) as container:
-                    yield container
+                    if self.args.bind:
+                        config.bind = self.args.bind
+                    if self.args.bind_ro:
+                        config.bind_ro = self.args.bind_ro
+
+                    with system.create_container(config=config) as container:
+                        yield container
 
 
 class Shell(ImageActionCommand):
@@ -267,24 +272,24 @@ class Bootstrap(MoncicCommand):
             systems = images.add_dependencies(systems)
 
             for name in systems:
-                system = images.create_system(name)
-                if self.args.recreate and os.path.exists(system.path):
-                    system.remove()
+                with images.maintenance_system(name) as system:
+                    if self.args.recreate and os.path.exists(system.path):
+                        system.remove()
 
-                if not os.path.exists(system.path):
-                    log.info("%s: bootstrapping subvolume", name)
+                    if not os.path.exists(system.path):
+                        log.info("%s: bootstrapping subvolume", name)
+                        try:
+                            system.bootstrap()
+                        except Exception:
+                            log.critical("%s: cannot create image", name, exc_info=True)
+                            return 5
+
+                    log.info("%s: updating subvolume", name)
                     try:
-                        system.bootstrap()
+                        system.update()
                     except Exception:
-                        log.critical("%s: cannot create image", name, exc_info=True)
-                        return 5
-
-                log.info("%s: updating subvolume", name)
-                try:
-                    system.update()
-                except Exception:
-                    log.critical("%s: cannot update image", name, exc_info=True)
-                    return 6
+                        log.critical("%s: cannot update image", name, exc_info=True)
+                        return 6
 
 
 class Update(MoncicCommand):
@@ -309,18 +314,17 @@ class Update(MoncicCommand):
             count_failed = 0
 
             for name in systems:
-                system = images.create_system(name)
+                with images.maintenance_system(name) as system:
+                    if not os.path.exists(system.path):
+                        continue
 
-                if not os.path.exists(system.path):
-                    continue
-
-                log.info("%s: updating subvolume", name)
-                try:
-                    system.update()
-                    count_ok += 1
-                except Exception:
-                    log.critical("%s: cannot update image", name, exc_info=True)
-                    count_failed += 1
+                    log.info("%s: updating subvolume", name)
+                    try:
+                        system.update()
+                        count_ok += 1
+                    except Exception:
+                        log.critical("%s: cannot update image", name, exc_info=True)
+                        count_failed += 1
 
             log.info("%d images successfully updated", count_ok)
 
@@ -345,10 +349,10 @@ class Remove(MoncicCommand):
     def run(self):
         with self.moncic.images() as images:
             for name in self.args.systems:
-                system = images.create_system(name)
-                if not os.path.exists(system.path):
-                    continue
-                system.remove()
+                with images.maintenance_system(name) as system:
+                    if not os.path.exists(system.path):
+                        continue
+                    system.remove()
 
 
 class RowOutput:
@@ -413,8 +417,8 @@ class Images(MoncicCommand):
 
         with self.moncic.images() as images:
             for name in images.list_images():
-                system = images.create_system(name)
-                output.add_row((name, system.distro.name, "yes" if system.is_bootstrapped() else "no", system.path))
+                with images.system(name) as system:
+                    output.add_row((name, system.distro.name, "yes" if system.is_bootstrapped() else "no", system.path))
         output.flush()
 
 

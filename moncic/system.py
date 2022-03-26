@@ -144,8 +144,8 @@ class System:
         Return the distribution this system is based on
         """
         if self.config.extends is not None:
-            parent = self.images.create_system(self.config.extends)
-            return parent.distro
+            with self.images.system(self.config.extends) as parent:
+                return parent.distro
         elif self.config.distro is not None:
             return DistroFamily.lookup_distro(self.config.distro)
         else:
@@ -196,9 +196,9 @@ class System:
         # Import here to avoid an import loop
         from .btrfs import Subvolume
         if self.config.extends is not None:
-            parent = self.images.create_system(self.config.extends)
-            subvolume = Subvolume(self)
-            subvolume.snapshot(parent.path)
+            with self.images.system(self.config.extends) as parent:
+                subvolume = Subvolume(self)
+                subvolume.snapshot(parent.path)
         else:
             tarball_path = self.get_distro_tarball()
             subvolume = Subvolume(self)
@@ -223,8 +223,8 @@ class System:
         # Base maintenance
         if self.config.extends is not None:
             # Chain to the parent's maintenance
-            parent = self.images.create_system(self.config.extends)
-            parent._update_container(container)
+            with self.images.system(self.config.extends) as parent:
+                parent._update_container(container)
 
         # Forward users if needed
         for u in self.config.forward_users:
