@@ -82,6 +82,8 @@ class MoncicCommand(Command):
             self.moncic = Moncic(config=config)
         else:
             self.moncic = Moncic()
+        # Do the rest as root
+        self.moncic.privs.regain()
         if self.args.imagedir:
             self.moncic.set_imagedir(self.args.imagedir)
 
