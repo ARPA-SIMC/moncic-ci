@@ -147,7 +147,8 @@ class BtrfsImages(Images):
                 #       doing it. Maybe move that here?
                 raise
             else:
-                os.rename(work_path, path)
+                if os.path.exists(work_path):
+                    os.rename(work_path, path)
         else:
             # Update
             subvolume = Subvolume(system)
