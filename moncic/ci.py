@@ -130,7 +130,7 @@ class ImageActionCommand(MoncicCommand):
         parser.add_argument("system", help="name or path of the system to use")
 
         parser.add_argument("--maintenance", action="store_true",
-                            help="do not run ephemerally: changes will be preserved")
+                            help="run in maintenance mode: changes will be preserved")
 
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
