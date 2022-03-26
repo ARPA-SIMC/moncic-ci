@@ -31,7 +31,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log = system.run_log
 
         log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
-        log.assertPopFirst(f"tar -C {system.path} -zxf {tar_path}")
+        log.assertPopFirst(f"tar -C {system.path} -axf {tar_path}")
         log.assertLogEmpty()
 
     def test_forward_user(self):
