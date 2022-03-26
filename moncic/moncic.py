@@ -136,6 +136,10 @@ class Moncic:
         else:
             self.image_storage = imagestorage.ImageStorage.create(self, self.config.imagedir)
 
+        # Detect systemd's version
+        res = subprocess.run(["systemd", "--version"], check=True, capture_output=True, text=True)
+        self.systemd_version = int(res.stdout.splitlines()[0].split()[1])
+
     def images(self) -> ContextManager[imagestorage.Images]:
         return self.image_storage.images()
 

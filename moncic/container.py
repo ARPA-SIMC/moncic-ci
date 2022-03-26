@@ -236,6 +236,8 @@ class NspawnContainer(ContainerBase):
                 cmd.append("--read-only")
             else:
                 cmd.append("--ephemeral")
+        if self.system.images.moncic.systemd_version >= 250:
+            cmd.append("--suppress-sync=yes")
         return cmd
 
     def forward_user(self, user: UserConfig):

@@ -10,6 +10,7 @@
 * Made non-ephemeral containers transactional on BTRFS: updates are run on a
   snapshot of the OS image, which is swapped with the original if the operation
   succeeds, or removed without changing the original if it fails (#29)
+* Run containers with `--suppress-sync=yes` on systemd >= 250 (#28)
 
 # Version 0.2
 
