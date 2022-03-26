@@ -3,6 +3,7 @@ import contextlib
 import os
 import pwd
 import sys
+from .cli import Fail
 
 
 class ProcessPrivs:
@@ -40,7 +41,7 @@ class ProcessPrivs:
             if self.auto_sudo:
                 os.execvp("sudo", ["sudo"] + sys.argv)
             else:
-                raise RuntimeError("This command needs sudo to run")
+                raise Fail("This command needs sudo to run")
 
     def drop(self):
         """

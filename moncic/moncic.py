@@ -135,6 +135,7 @@ class Moncic:
             self.config = config
 
         self.privs.auto_sudo = self.config.auto_sudo
+        self.privs.regain()
 
         # Class used to instantiate systems
         self.system_class: Type[System]
