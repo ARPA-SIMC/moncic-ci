@@ -20,19 +20,22 @@ class RunTestCase:
     def setUpClass(cls):
         super().setUpClass()
         cls.moncic = make_moncic()
-        cls.moncic.__enter__()
+        cls.images_cm = cls.moncic.images()
+        cls.images = cls.images_cm.__enter__()
 
     @classmethod
     def tearDownClass(cls):
-        cls.moncic.__exit__(None, None, None)
+        cls.images = None
+        cls.images_cm.__exit__(None, None, None)
+        cls.images_cm = None
         cls.moncic = None
         super().tearDownClass()
 
     def setUp(self):
         super().setUp()
-        if self.distro_name not in self.moncic.list_images():
+        if self.distro_name not in self.images.list_images():
             raise unittest.SkipTest(f"Image {self.distro_name} not available")
-        self.system = self.moncic.create_system(self.distro_name)
+        self.system = self.images.create_system(self.distro_name)
         if not os.path.exists(self.system.path):
             raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
 

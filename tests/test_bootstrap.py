@@ -21,10 +21,12 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
-            system.attach_testcase(self)
+            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            with moncic.images() as images:
+                system = MockSystem(images, config)
+                system.attach_testcase(self)
 
-            system.bootstrap()
+                system.bootstrap()
 
         log = system.run_log
 
@@ -63,8 +65,8 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
             moncic = make_moncic(imagedir=imagedir, testcase=self)
-            with moncic:
-                system = MockSystem(moncic, config)
+            with moncic.images() as images:
+                system = MockSystem(images, config)
                 system.attach_testcase(self)
 
                 system.bootstrap()
@@ -91,8 +93,8 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
             moncic = make_moncic(imagedir=imagedir, testcase=self)
-            with moncic:
-                system = MockSystem(moncic, config)
+            with moncic.images() as images:
+                system = MockSystem(images, config)
                 system.attach_testcase(self)
 
                 system.update()
@@ -112,10 +114,12 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("compression: zstd:9", file=fd)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
-            system.attach_testcase(self)
+            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            with moncic.images() as images:
+                system = MockSystem(images, config)
+                system.attach_testcase(self)
 
-            system.bootstrap()
+                system.bootstrap()
 
         log = system.run_log
 
