@@ -119,10 +119,14 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, images: Images, config: SystemConfig):
+    def __init__(self, images: Images, config: SystemConfig, path: Optional[str] = None):
         self.images = images
         self.config = config
         self.log = logging.getLogger(f"system.{self.name}")
+        if path is None:
+            self.path = self.config.path
+        else:
+            self.path = path
 
     def __str__(self) -> str:
         return self.name
@@ -133,10 +137,6 @@ class System:
     @property
     def name(self) -> str:
         return self.config.name
-
-    @property
-    def path(self) -> str:
-        return self.config.path
 
     @property
     def distro(self) -> Distro:
@@ -283,15 +283,6 @@ class MaintenanceSystem(System):
         with self.create_container(config=ContainerConfig(ephemeral=False)) as container:
             self._update_container(container)
         self._update_cachedir()
-
-    def remove(self):
-        """
-        Completely remove a system image from disk
-        """
-        # Import here to avoid an import loop
-        from .btrfs import Subvolume
-        subvolume = Subvolume(self)
-        subvolume.remove()
 
     def _update_cachedir(self):
         """

@@ -4,13 +4,14 @@ import contextlib
 import graphlib
 import logging
 import os
+import shutil
 import stat
 import subprocess
 import tempfile
 from collections import defaultdict
 from typing import TYPE_CHECKING, ContextManager, Generator, List
 
-from .btrfs import do_dedupe, is_btrfs
+from .btrfs import Subvolume, do_dedupe, is_btrfs
 from .system import MaintenanceSystem, System, SystemConfig
 from .utils import is_on_rotational, pause_automounting
 
@@ -63,6 +64,12 @@ class Images:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
 
+    def remove_system(self, name: str):
+        """
+        Remove the named system if it exists
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.remove_system is not implemented")
+
     def add_dependencies(self, images: List[str]) -> List[str]:
         """
         Add dependencies to the given list of images, returning the extended
@@ -107,6 +114,12 @@ class PlainImages(Images):
         system_config.tmpfs = True
         yield MaintenanceSystem(self, system_config)
 
+    def remove_system(self, name: str):
+        path = os.path.join(self.imagedir, name)
+        if not os.path.exists(path):
+            return
+        shutil.rmtree(path)
+
 
 class BtrfsImages(Images):
     """
@@ -120,7 +133,50 @@ class BtrfsImages(Images):
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
         system_config = SystemConfig.load(os.path.join(self.imagedir, name))
-        yield MaintenanceSystem(self, system_config)
+        path = os.path.join(self.imagedir, name)
+        work_path = path + ".new"
+        if os.path.exists(work_path):
+            raise RuntimeError(f"Found existing {work_path} which should be removed")
+        system = MaintenanceSystem(self, system_config, path=work_path)
+        if not os.path.exists(path):
+            # Bootstrap
+            try:
+                yield system
+            except BaseException:
+                # TODO: remove work_path is currently not needed as System is
+                #       doing it. Maybe move that here?
+                raise
+            else:
+                os.rename(work_path, path)
+        else:
+            # Update
+            subvolume = Subvolume(system)
+            subvolume.snapshot(path)
+            try:
+                yield system
+            except BaseException:
+                subvolume.remove()
+                raise
+            else:
+                # Swap and remove
+                # FIXME: a full swap is weird, we could just remove the .tmp
+                # version, but that would mean insantiating a new System and a
+                # new Subvolume. If we disentangle Subvolume from System, we
+                # can them simplify here
+                os.rename(path, path + ".tmp")
+                os.rename(work_path, path)
+                os.rename(path + ".tmp", work_path)
+                subvolume.remove()
+
+    def remove_system(self, name: str):
+        path = os.path.join(self.imagedir, name)
+        if not os.path.exists(path):
+            return
+        system_config = SystemConfig.load(path)
+        system = MaintenanceSystem(self, system_config, path=path)
+        # TODO: can Btrfs be refactored not to require System?
+        subvolume = Subvolume(system)
+        subvolume.remove()
 
     def deduplicate(self):
         """

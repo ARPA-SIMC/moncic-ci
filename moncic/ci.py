@@ -272,10 +272,9 @@ class Bootstrap(MoncicCommand):
             systems = images.add_dependencies(systems)
 
             for name in systems:
-                with images.maintenance_system(name) as system:
-                    if self.args.recreate and os.path.exists(system.path):
-                        system.remove()
+                images.remove_system(name)
 
+                with images.maintenance_system(name) as system:
                     if not os.path.exists(system.path):
                         log.info("%s: bootstrapping subvolume", name)
                         try:
@@ -349,10 +348,7 @@ class Remove(MoncicCommand):
     def run(self):
         with self.moncic.images() as images:
             for name in self.args.systems:
-                with images.maintenance_system(name) as system:
-                    if not os.path.exists(system.path):
-                        continue
-                    system.remove()
+                images.remove_system(name)
 
 
 class RowOutput:
