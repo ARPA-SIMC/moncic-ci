@@ -49,7 +49,7 @@ class ContainerConfig:
 
     # If set to True: if workdir is None, make sure the current user exists in
     # the container. Else, make sure the owner of workdir exists in the
-    # container. Cannot be used when ephemeral is FAlse
+    # container. Cannot be used when ephemeral is False
     forward_user: bool = False
 
     def check(self):
