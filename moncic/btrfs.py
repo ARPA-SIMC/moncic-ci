@@ -34,7 +34,7 @@ class Subvolume:
         # See if there is a compression level configured that we should apply
         compression = self.system.config.compression
         if compression is None:
-            compression = self.system.moncic.config.compression
+            compression = self.system.images.moncic.config.compression
 
         self.system.local_run(["btrfs", "-q", "subvolume", "create", self.path])
         try:

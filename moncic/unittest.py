@@ -107,8 +107,8 @@ class MockRunLog:
 
 class MockContainer(ContainerBase):
     def __init__(
-            self, system: "MockSystem", instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None):
-        super().__init__(system, instance_name, config)
+            self, system: "MockSystem", config: ContainerConfig, instance_name: Optional[str] = None):
+        super().__init__(system, config, instance_name)
         self.run_log = system.run_log
 
     def _start(self):
@@ -147,7 +147,8 @@ class MockSystem(System):
 
     def create_container(
             self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
-        return MockContainer(self, instance_name, config)
+        config = self.container_config(config)
+        return MockContainer(self, config, instance_name)
 
     def _update_cachedir(self):
         self.run_log.append_cachedir()
@@ -159,7 +160,7 @@ class DistroTestMixin:
         with tempfile.TemporaryDirectory() as workdir:
             config = SystemConfig(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
             moncic = make_moncic(imagedir=workdir, testcase=self)
-            with moncic:
-                system = MockSystem(moncic, config)
+            with moncic.images() as images:
+                system = MockSystem(images, config)
                 system.attach_testcase(self)
                 yield system

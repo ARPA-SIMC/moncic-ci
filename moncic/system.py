@@ -266,10 +266,9 @@ class System:
         subvolume = Subvolume(self)
         subvolume.remove()
 
-    def create_container(
-            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+    def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
         """
-        Boot a container with this system
+        Create or complete a ContainerConfig
         """
         if config is None:
             config = ContainerConfig()
@@ -284,6 +283,14 @@ class System:
                 config.tmpfs = self.config.tmpfs
             else:
                 config.tmpfs = self.images.moncic.config.tmpfs
+        return config
+
+    def create_container(
+            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+        """
+        Boot a container with this system
+        """
+        config = self.container_config(config)
 
         # Import here to avoid an import loop
         from .container import NspawnContainer
