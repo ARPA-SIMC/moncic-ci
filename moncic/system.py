@@ -298,3 +298,9 @@ class System:
         # Import here to avoid an import loop
         from .container import NspawnContainer
         return NspawnContainer(self, config, instance_name)
+
+
+class MaintenanceSystem(System):
+    """
+    System used to do maintenance on an OS image
+    """

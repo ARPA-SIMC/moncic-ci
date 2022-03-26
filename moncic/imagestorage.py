@@ -8,10 +8,10 @@ import stat
 import subprocess
 import tempfile
 from collections import defaultdict
-from typing import TYPE_CHECKING, Generator, List
+from typing import TYPE_CHECKING, ContextManager, Generator, List
 
 from .btrfs import do_dedupe, is_btrfs
-from .system import System, SystemConfig
+from .system import MaintenanceSystem, System, SystemConfig
 from .utils import is_on_rotational, pause_automounting
 
 if TYPE_CHECKING:
@@ -47,9 +47,35 @@ class Images:
 
     def create_system(self, name: str) -> System:
         """
-        Instantiate a System from its name or path
+        Instantiate a System by its name
         """
         raise NotImplementedError(f"{self.__class__.__name__}.create_system is not implemented")
+
+    def system(self, name: str) -> ContextManager[System]:
+        """
+        Instantiate a System that can only be used for the duration
+        of this context manager.
+        """
+        # raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
+        @contextlib.contextmanager
+        def res():
+            yield self.create_system(name)
+        return res()
+
+    def maintenance_system(self, name: str) -> ContextManager[MaintenanceSystem]:
+        """
+        Instantiate a MaintenanceSystem that can only be used for the duration
+        of this context manager.
+
+        This allows maintenance to be transactional, limited to backends that
+        support it, so that errors in the maintenance roll back to the previous
+        state and do not leave an inconsistent OS image
+        """
+        # raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
+        @contextlib.contextmanager
+        def res():
+            yield self.create_system(name)
+        return res()
 
     def add_dependencies(self, images: List[str]) -> List[str]:
         """
