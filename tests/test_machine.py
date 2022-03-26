@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import contextlib
 import json
 import logging
 import os
@@ -9,8 +11,8 @@ import tempfile
 import time
 import unittest
 
-from moncic.unittest import privs, TEST_CHROOTS, make_moncic
 from moncic.container import ContainerConfig, RunConfig, UserConfig
+from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 
 class RunTestCase:
@@ -19,16 +21,18 @@ class RunTestCase:
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.moncic = make_moncic()
-        cls.images_cm = cls.moncic.images()
-        cls.images = cls.images_cm.__enter__()
+        cls.exit_stack = contextlib.ExitStack()
+        cls.workdir = cls.exit_stack.enter_context(tempfile.TemporaryDirectory())
+        cls.moncic = make_moncic(imagedir=cls.workdir)
+        cls.images = cls.exit_stack.enter_context(cls.moncic.images())
 
     @classmethod
     def tearDownClass(cls):
+        cls.exit_stack.close()
         cls.images = None
-        cls.images_cm.__exit__(None, None, None)
-        cls.images_cm = None
         cls.moncic = None
+        cls.workdir = None
+        cls.exit_stack = None
         super().tearDownClass()
 
     def setUp(self):
