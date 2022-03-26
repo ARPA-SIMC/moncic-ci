@@ -7,6 +7,9 @@
 * Support non-btrfs image storage, by forcing ephemeral images to use `tmpfs`
   backing instead of btrfs snapshots
 * Add `-C`/`--config` option to specify a config file from command line (#34)
+* Made non-ephemeral containers transactional on BTRFS: updates are run on a
+  snapshot of the OS image, which is swapped with the original if the operation
+  succeeds, or removed without changing the original if it fails (#29)
 
 # Version 0.2
 
