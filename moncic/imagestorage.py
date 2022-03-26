@@ -155,9 +155,11 @@ class BtrfsImages(Images):
             try:
                 yield system
             except BaseException:
+                system.log.warning("Rolling back maintenance changes")
                 subvolume.remove()
                 raise
             else:
+                system.log.info("Committing maintenance changes")
                 # Swap and remove
                 # FIXME: a full swap is weird, we could just remove the .tmp
                 # version, but that would mean insantiating a new System and a
