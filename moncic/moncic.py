@@ -145,11 +145,10 @@ class Moncic:
 
         # Storage for OS images
         self.image_storage: imagestorage.ImageStorage
-        with self.privs.root():
-            if self.config.imagedir is None:
-                self.image_storage = imagestorage.ImageStorage.create_default(self)
-            else:
-                self.image_storage = imagestorage.ImageStorage.create(self, self.config.imagedir)
+        if self.config.imagedir is None:
+            self.image_storage = imagestorage.ImageStorage.create_default(self)
+        else:
+            self.image_storage = imagestorage.ImageStorage.create(self, self.config.imagedir)
 
     def images(self) -> ContextManager[imagestorage.Images]:
         return self.image_storage.images()
