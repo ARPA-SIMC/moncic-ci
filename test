@@ -3,6 +3,7 @@
 set -ue
 
 ARGS=""
+export PYTHONDEVMODE=1
 
 if [ "$#" -gt 0 ] && [ "$1" = "-v" ]
 then

@@ -9,7 +9,7 @@ import subprocess
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .system import System
+    from .system import MaintenanceSystem
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class Subvolume:
     """
     Low-level functions to access and maintain a btrfs subvolume
     """
-    def __init__(self, system: System):
+    def __init__(self, system: MaintenanceSystem):
         self.system = system
         self.path = self.system.path
 

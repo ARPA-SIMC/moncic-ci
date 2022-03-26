@@ -119,10 +119,14 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, images: Images, config: SystemConfig):
+    def __init__(self, images: Images, config: SystemConfig, path: Optional[str] = None):
         self.images = images
         self.config = config
         self.log = logging.getLogger(f"system.{self.name}")
+        if path is None:
+            self.path = self.config.path
+        else:
+            self.path = path
 
     def __str__(self) -> str:
         return self.name
@@ -135,17 +139,13 @@ class System:
         return self.config.name
 
     @property
-    def path(self) -> str:
-        return self.config.path
-
-    @property
     def distro(self) -> Distro:
         """
         Return the distribution this system is based on
         """
         if self.config.extends is not None:
-            parent = self.images.create_system(self.config.extends)
-            return parent.distro
+            with self.images.system(self.config.extends) as parent:
+                return parent.distro
         elif self.config.distro is not None:
             return DistroFamily.lookup_distro(self.config.distro)
         else:
@@ -189,6 +189,73 @@ class System:
         runner = LocalRunner(self, config, cmd)
         return runner.execute()
 
+    def _update_container(self, container: Container):
+        """
+        Run update machinery on a container
+        """
+        # Base maintenance
+        if self.config.extends is not None:
+            # Chain to the parent's maintenance
+            with self.images.system(self.config.extends) as parent:
+                parent._update_container(container)
+
+        # Forward users if needed
+        for u in self.config.forward_users:
+            container.forward_user(UserConfig.from_user(u))
+
+        if self.config.maintscript is not None:
+            # Run maintscripts configured for this system
+            container.run_script(self.config.maintscript)
+        else:
+            # Or run the default standard distro maintenance
+            for cmd in self.distro.get_update_script():
+                container.run(cmd)
+
+    def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
+        """
+        Create or complete a ContainerConfig
+        """
+        if config is None:
+            config = ContainerConfig()
+            if self.config.tmpfs is not None:
+                config.tmpfs = self.config.tmpfs
+            else:
+                config.tmpfs = self.images.moncic.config.tmpfs
+        elif config.ephemeral and config.tmpfs is None:
+            # Make a copy to prevent changing the caller's config
+            config = dataclasses.replace(config)
+            if self.config.tmpfs is not None:
+                config.tmpfs = self.config.tmpfs
+            else:
+                config.tmpfs = self.images.moncic.config.tmpfs
+
+        # Force ephemeral to True in plain systems
+        config.ephemeral = True
+
+        return config
+
+    def create_container(
+            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+        """
+        Boot a container with this system
+        """
+        config = self.container_config(config)
+
+        # Import here to avoid an import loop
+        from .container import NspawnContainer
+        return NspawnContainer(self, config, instance_name)
+
+
+class MaintenanceSystem(System):
+    """
+    System used to do maintenance on an OS image
+    """
+    def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
+        config = super().container_config(config)
+        # Force ephemeral to False in maintenance systems
+        config.ephemeral = False
+        return config
+
     def bootstrap(self):
         """
         Create a system that is missing from disk
@@ -196,9 +263,9 @@ class System:
         # Import here to avoid an import loop
         from .btrfs import Subvolume
         if self.config.extends is not None:
-            parent = self.images.create_system(self.config.extends)
-            subvolume = Subvolume(self)
-            subvolume.snapshot(parent.path)
+            with self.images.system(self.config.extends) as parent:
+                subvolume = Subvolume(self)
+                subvolume.snapshot(parent.path)
         else:
             tarball_path = self.get_distro_tarball()
             subvolume = Subvolume(self)
@@ -215,29 +282,6 @@ class System:
         """
         with self.create_container(config=ContainerConfig(ephemeral=False)) as container:
             self._update_container(container)
-
-    def _update_container(self, container: Container):
-        """
-        Run update machinery on a container
-        """
-        # Base maintenance
-        if self.config.extends is not None:
-            # Chain to the parent's maintenance
-            parent = self.images.create_system(self.config.extends)
-            parent._update_container(container)
-
-        # Forward users if needed
-        for u in self.config.forward_users:
-            container.forward_user(UserConfig.from_user(u))
-
-        if self.config.maintscript is not None:
-            # Run maintscripts configured for this system
-            container.run_script(self.config.maintscript)
-        else:
-            # Or run the default standard distro maintenance
-            for cmd in self.distro.get_update_script():
-                container.run(cmd)
-
         self._update_cachedir()
 
     def _update_cachedir(self):
@@ -258,43 +302,3 @@ class System:
                     print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
                     print("# This file hints to backup software that they can skip this directory.", file=fd)
                     print("# See https://bford.info/cachedir/", file=fd)
-
-    def remove(self):
-        """
-        Completely remove a system image from disk
-        """
-        # Import here to avoid an import loop
-        from .btrfs import Subvolume
-        subvolume = Subvolume(self)
-        subvolume.remove()
-
-    def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
-        """
-        Create or complete a ContainerConfig
-        """
-        if config is None:
-            config = ContainerConfig()
-            if self.config.tmpfs is not None:
-                config.tmpfs = self.config.tmpfs
-            else:
-                config.tmpfs = self.images.moncic.config.tmpfs
-        elif config.ephemeral and config.tmpfs is None:
-            # Make a copy to prevent changing the caller's config
-            config = dataclasses.replace(config)
-            if self.config.tmpfs is not None:
-                config.tmpfs = self.config.tmpfs
-            else:
-                config.tmpfs = self.images.moncic.config.tmpfs
-
-        return config
-
-    def create_container(
-            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
-        """
-        Boot a container with this system
-        """
-        config = self.container_config(config)
-
-        # Import here to avoid an import loop
-        from .container import NspawnContainer
-        return NspawnContainer(self, config, instance_name)
