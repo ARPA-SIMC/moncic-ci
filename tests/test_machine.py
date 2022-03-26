@@ -22,8 +22,9 @@ class RunTestCase:
     def setUpClass(cls):
         super().setUpClass()
         cls.exit_stack = contextlib.ExitStack()
-        cls.workdir = cls.exit_stack.enter_context(tempfile.TemporaryDirectory())
-        cls.moncic = make_moncic(imagedir=cls.workdir)
+        # cls.workdir = cls.exit_stack.enter_context(tempfile.TemporaryDirectory())
+        # cls.moncic = make_moncic(imagedir=cls.workdir)
+        cls.moncic = make_moncic()
         cls.images = cls.exit_stack.enter_context(cls.moncic.images())
 
     @classmethod
@@ -31,17 +32,18 @@ class RunTestCase:
         cls.exit_stack.close()
         cls.images = None
         cls.moncic = None
-        cls.workdir = None
+        # cls.workdir = None
         cls.exit_stack = None
         super().tearDownClass()
 
     def setUp(self):
         super().setUp()
-        if self.distro_name not in self.images.list_images():
-            raise unittest.SkipTest(f"Image {self.distro_name} not available")
-        self.system = self.images.create_system(self.distro_name)
-        if not os.path.exists(self.system.path):
-            raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
+        with privs.root():
+            if self.distro_name not in self.images.list_images():
+                raise unittest.SkipTest(f"Image {self.distro_name} not available")
+            self.system = self.images.create_system(self.distro_name)
+            if not os.path.exists(self.system.path):
+                raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
 
     def tearDown(self):
         self.system = None
