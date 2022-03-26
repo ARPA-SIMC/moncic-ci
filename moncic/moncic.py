@@ -3,15 +3,12 @@ import dataclasses
 import logging
 import os
 import subprocess
-from typing import ContextManager, Optional, Type, TYPE_CHECKING
+from typing import ContextManager, Optional
 
 import yaml
 
 from . import imagestorage
 from .privs import ProcessPrivs
-
-if TYPE_CHECKING:
-    from .system import System
 
 log = logging.getLogger(__name__)
 
@@ -118,11 +115,7 @@ class Moncic:
     def __init__(
             self,
             config: Optional[MoncicConfig] = None,
-            privs: Optional[ProcessPrivs] = None,
-            system_class: Optional[Type[System]] = None):
-        # Import here to prevent import loops
-        from .system import System
-
+            privs: Optional[ProcessPrivs] = None):
         self.privs: ProcessPrivs
         if privs is None:
             self.privs = ProcessPrivs()
@@ -135,13 +128,6 @@ class Moncic:
             self.config = config
 
         self.privs.auto_sudo = self.config.auto_sudo
-
-        # Class used to instantiate systems
-        self.system_class: Type[System]
-        if system_class is None:
-            self.system_class = System
-        else:
-            self.system_class = system_class
 
         # Storage for OS images
         self.image_storage: imagestorage.ImageStorage

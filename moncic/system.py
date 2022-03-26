@@ -286,6 +286,9 @@ class System:
             else:
                 config.tmpfs = self.images.moncic.config.tmpfs
 
+        # Force ephemeral to True in plain systems
+        config.ephemeral = True
+
         return config
 
     def create_container(
@@ -304,3 +307,8 @@ class MaintenanceSystem(System):
     """
     System used to do maintenance on an OS image
     """
+    def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
+        config = super().container_config(config)
+        # Force ephemeral to False in maintenance systems
+        config.ephemeral = False
+        return config

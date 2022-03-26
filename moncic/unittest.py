@@ -16,7 +16,7 @@ from moncic.container import (Container, ContainerBase, ContainerConfig,
                               RunConfig, UserConfig)
 from moncic.moncic import Moncic, MoncicConfig
 from moncic.privs import ProcessPrivs
-from moncic.system import System, SystemConfig
+from moncic.system import System, SystemConfig, MaintenanceSystem
 
 if TYPE_CHECKING:
     from unittest import TestCase
@@ -39,10 +39,19 @@ privs.drop()
 
 
 class MockImages(imagestorage.BtrfsImages):
-    def create_system(self, name: str) -> System:
-        system = super().create_system(name)
+    @contextlib.contextmanager
+    def system(self, name: str) -> Generator[System, None, None]:
+        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system = MockSystem(self, system_config)
         system.attach_testcase(self.moncic.testcase)
-        return system
+        yield system
+
+    @contextlib.contextmanager
+    def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
+        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system = MockMaintenanceSystem(self, system_config)
+        system.attach_testcase(self.moncic.testcase)
+        yield system
 
 
 class MockMoncic(Moncic):
@@ -74,7 +83,7 @@ def make_moncic(imagedir: Optional[str] = None, testcase: Optional[TestCase] = N
     if testcase is None:
         return Moncic(config=config, privs=privs)
     else:
-        return MockMoncic(config=config, privs=privs, system_class=MockSystem, testcase=testcase)
+        return MockMoncic(config=config, privs=privs, testcase=testcase)
 
 
 class MockRunLog:
@@ -140,24 +149,35 @@ class MockContainer(ContainerBase):
         return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
 
 
-class MockSystem(System):
-    """
-    Mock machine that just logs what is run and does nothing, useful for tests
-    """
+class MockSystemMixin:
     def attach_testcase(self, testcase):
         self.run_log = MockRunLog(testcase)
-
-    def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-        self.run_log.append(cmd, {})
-        return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
     def create_container(
             self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
         config = self.container_config(config)
         return MockContainer(self, config, instance_name)
 
+    def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        self.run_log.append(cmd, {})
+        return subprocess.CompletedProcess(cmd, 0, b'', b'')
+
     def _update_cachedir(self):
         self.run_log.append_cachedir()
+
+
+class MockSystem(MockSystemMixin, System):
+    """
+    Mock machine that just logs what is run and does nothing, useful for tests
+    """
+    pass
+
+
+class MockMaintenanceSystem(MockSystemMixin, MaintenanceSystem):
+    """
+    Mock maintenance machine that just logs what is run and does nothing, useful for tests
+    """
+    pass
 
 
 class DistroTestMixin:

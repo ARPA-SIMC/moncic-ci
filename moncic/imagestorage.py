@@ -45,22 +45,12 @@ class Images:
                 res.add(entry.name[:-5])
         return sorted(res)
 
-    def create_system(self, name: str) -> System:
-        """
-        Instantiate a System by its name
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.create_system is not implemented")
-
     def system(self, name: str) -> ContextManager[System]:
         """
         Instantiate a System that can only be used for the duration
         of this context manager.
         """
-        # raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
-        @contextlib.contextmanager
-        def res():
-            yield self.create_system(name)
-        return res()
+        raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
 
     def maintenance_system(self, name: str) -> ContextManager[MaintenanceSystem]:
         """
@@ -71,11 +61,7 @@ class Images:
         support it, so that errors in the maintenance roll back to the previous
         state and do not leave an inconsistent OS image
         """
-        # raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
-        @contextlib.contextmanager
-        def res():
-            yield self.create_system(name)
-        return res()
+        raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
 
     def add_dependencies(self, images: List[str]) -> List[str]:
         """
@@ -105,21 +91,36 @@ class PlainImages(Images):
     """
     Images stored in a non-btrfs filesystem
     """
-    def create_system(self, name: str) -> System:
+    @contextlib.contextmanager
+    def system(self, name: str) -> Generator[System, None, None]:
         system_config = SystemConfig.load(os.path.join(self.imagedir, name))
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
-        return self.moncic.system_class(self, system_config)
+        yield System(self, system_config)
+
+    @contextlib.contextmanager
+    def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
+        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        # Force using tmpfs backing for ephemeral containers, since we cannot
+        # use snapshots
+        system_config.tmpfs = True
+        yield MaintenanceSystem(self, system_config)
 
 
 class BtrfsImages(Images):
     """
     Images stored in a btrfs filesystem
     """
-    def create_system(self, name: str) -> System:
+    @contextlib.contextmanager
+    def system(self, name: str) -> Generator[System, None, None]:
         system_config = SystemConfig.load(os.path.join(self.imagedir, name))
-        return self.moncic.system_class(self, system_config)
+        yield System(self, system_config)
+
+    @contextlib.contextmanager
+    def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
+        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        yield MaintenanceSystem(self, system_config)
 
     def deduplicate(self):
         """
