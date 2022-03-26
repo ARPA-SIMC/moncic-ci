@@ -4,7 +4,7 @@ import re
 import tempfile
 import unittest
 
-from moncic.unittest import DistroTestMixin, MockSystem, make_moncic
+from moncic.unittest import DistroTestMixin, MockMaintenanceSystem, make_moncic
 from moncic.system import SystemConfig
 from moncic.container import UserConfig
 
@@ -23,7 +23,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             config = SystemConfig.load(os.path.join(imagedir, "test"))
             moncic = make_moncic(imagedir=imagedir, testcase=self)
             with moncic.images() as images:
-                system = MockSystem(images, config)
+                system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
 
                 system.bootstrap()
@@ -43,7 +43,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print(f"forward_user: {user.user_name}", file=fd)
 
             config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockSystem(make_moncic(imagedir=imagedir, testcase=self), config)
+            system = MockMaintenanceSystem(make_moncic(imagedir=imagedir, testcase=self), config)
             system.attach_testcase(self)
             system.update()
 
@@ -66,7 +66,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             config = SystemConfig.load(os.path.join(imagedir, "test"))
             moncic = make_moncic(imagedir=imagedir, testcase=self)
             with moncic.images() as images:
-                system = MockSystem(images, config)
+                system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
 
                 system.bootstrap()
@@ -94,7 +94,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             config = SystemConfig.load(os.path.join(imagedir, "test"))
             moncic = make_moncic(imagedir=imagedir, testcase=self)
             with moncic.images() as images:
-                system = MockSystem(images, config)
+                system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
 
                 system.update()
@@ -116,7 +116,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             config = SystemConfig.load(os.path.join(imagedir, "test"))
             moncic = make_moncic(imagedir=imagedir, testcase=self)
             with moncic.images() as images:
-                system = MockSystem(images, config)
+                system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
 
                 system.bootstrap()

@@ -182,11 +182,11 @@ class MockMaintenanceSystem(MockSystemMixin, MaintenanceSystem):
 
 class DistroTestMixin:
     @contextlib.contextmanager
-    def mock_system(self, distro: Distro):
+    def mock_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
         with tempfile.TemporaryDirectory() as workdir:
             config = SystemConfig(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
             moncic = make_moncic(imagedir=workdir, testcase=self)
             with moncic.images() as images:
-                system = MockSystem(images, config)
+                system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
                 yield system

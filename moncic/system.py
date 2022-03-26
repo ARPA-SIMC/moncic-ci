@@ -189,33 +189,6 @@ class System:
         runner = LocalRunner(self, config, cmd)
         return runner.execute()
 
-    def bootstrap(self):
-        """
-        Create a system that is missing from disk
-        """
-        # Import here to avoid an import loop
-        from .btrfs import Subvolume
-        if self.config.extends is not None:
-            with self.images.system(self.config.extends) as parent:
-                subvolume = Subvolume(self)
-                subvolume.snapshot(parent.path)
-        else:
-            tarball_path = self.get_distro_tarball()
-            subvolume = Subvolume(self)
-            with subvolume.create():
-                if tarball_path is not None:
-                    # Shortcut in case we have a chroot in a tarball
-                    self.local_run(["tar", "-C", self.path, "-axf", tarball_path])
-                else:
-                    self.distro.bootstrap(self)
-
-    def update(self):
-        """
-        Run periodic maintenance on the system
-        """
-        with self.create_container(config=ContainerConfig(ephemeral=False)) as container:
-            self._update_container(container)
-
     def _update_container(self, container: Container):
         """
         Run update machinery on a container
@@ -237,36 +210,6 @@ class System:
             # Or run the default standard distro maintenance
             for cmd in self.distro.get_update_script():
                 container.run(cmd)
-
-        self._update_cachedir()
-
-    def _update_cachedir(self):
-        """
-        Create or remove a CACHEDIR.TAG file, depending on the image
-        configuration
-        """
-        cachedir_pathname = os.path.join(self.path, "CACHEDIR.TAG")
-        if self.config.backup:
-            try:
-                os.unlink(cachedir_pathname)
-            except FileNotFoundError:
-                pass
-        else:
-            if not os.path.exists(cachedir_pathname):
-                with open(cachedir_pathname, "wt") as fd:
-                    # See https://bford.info/cachedir/
-                    print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
-                    print("# This file hints to backup software that they can skip this directory.", file=fd)
-                    print("# See https://bford.info/cachedir/", file=fd)
-
-    def remove(self):
-        """
-        Completely remove a system image from disk
-        """
-        # Import here to avoid an import loop
-        from .btrfs import Subvolume
-        subvolume = Subvolume(self)
-        subvolume.remove()
 
     def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
         """
@@ -312,3 +255,59 @@ class MaintenanceSystem(System):
         # Force ephemeral to False in maintenance systems
         config.ephemeral = False
         return config
+
+    def bootstrap(self):
+        """
+        Create a system that is missing from disk
+        """
+        # Import here to avoid an import loop
+        from .btrfs import Subvolume
+        if self.config.extends is not None:
+            with self.images.system(self.config.extends) as parent:
+                subvolume = Subvolume(self)
+                subvolume.snapshot(parent.path)
+        else:
+            tarball_path = self.get_distro_tarball()
+            subvolume = Subvolume(self)
+            with subvolume.create():
+                if tarball_path is not None:
+                    # Shortcut in case we have a chroot in a tarball
+                    self.local_run(["tar", "-C", self.path, "-axf", tarball_path])
+                else:
+                    self.distro.bootstrap(self)
+
+    def update(self):
+        """
+        Run periodic maintenance on the system
+        """
+        with self.create_container(config=ContainerConfig(ephemeral=False)) as container:
+            self._update_container(container)
+        self._update_cachedir()
+
+    def remove(self):
+        """
+        Completely remove a system image from disk
+        """
+        # Import here to avoid an import loop
+        from .btrfs import Subvolume
+        subvolume = Subvolume(self)
+        subvolume.remove()
+
+    def _update_cachedir(self):
+        """
+        Create or remove a CACHEDIR.TAG file, depending on the image
+        configuration
+        """
+        cachedir_pathname = os.path.join(self.path, "CACHEDIR.TAG")
+        if self.config.backup:
+            try:
+                os.unlink(cachedir_pathname)
+            except FileNotFoundError:
+                pass
+        else:
+            if not os.path.exists(cachedir_pathname):
+                with open(cachedir_pathname, "wt") as fd:
+                    # See https://bford.info/cachedir/
+                    print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
+                    print("# This file hints to backup software that they can skip this directory.", file=fd)
+                    print("# See https://bford.info/cachedir/", file=fd)
