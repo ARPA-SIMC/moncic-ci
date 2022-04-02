@@ -239,7 +239,7 @@ class NspawnContainer(ContainerBase):
             cmd.append("--suppress-sync=yes")
         return cmd
 
-    def forward_user(self, user: UserConfig):
+    def forward_user(self, user: UserConfig, allow_maint=False):
         """
         Ensure the system has a matching user and group
         """
@@ -248,14 +248,14 @@ class NspawnContainer(ContainerBase):
                 pw = pwd.getpwuid(user.user_id)
             except KeyError:
                 pw = None
-                if not self.ephemeral:
+                if not allow_maint and not self.config.ephemeral:
                     raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
 
             try:
                 gr = grp.getgrgid(user.group_id)
             except KeyError:
                 gr = None
-                if not self.ephemeral:
+                if not allow_maint and not self.config.ephemeral:
                     raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
             if pw is None and gr is None:

@@ -201,7 +201,7 @@ class System:
 
         # Forward users if needed
         for u in self.config.forward_users:
-            container.forward_user(UserConfig.from_user(u))
+            container.forward_user(UserConfig.from_user(u), allow_maint=True)
 
         if self.config.maintscript is not None:
             # Run maintscripts configured for this system
