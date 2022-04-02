@@ -272,7 +272,8 @@ class Bootstrap(MoncicCommand):
             systems = images.add_dependencies(systems)
 
             for name in systems:
-                images.remove_system(name)
+                if self.args.recreate:
+                    images.remove_system(name)
 
                 with images.maintenance_system(name) as system:
                     if not os.path.exists(system.path):
@@ -339,8 +340,6 @@ class Remove(MoncicCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--recreate", action="store_true",
-                            help="delete the images and recreate them from scratch")
         parser.add_argument("systems", nargs="+",
                             help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
         return parser
