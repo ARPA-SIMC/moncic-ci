@@ -56,8 +56,7 @@ class ContainerConfig:
         """
         Raise exceptions if options are used inconsistently
         """
-        if not self.ephemeral and self.forward_user:
-            raise RuntimeError("forward_user cannot be used on non-ephemeral containers")
+        pass
 
     def run_config(self, run_config: Optional[RunConfig] = None) -> RunConfig:
         if run_config is None:
@@ -249,11 +248,15 @@ class NspawnContainer(ContainerBase):
                 pw = pwd.getpwuid(user.user_id)
             except KeyError:
                 pw = None
+                if not self.ephemeral:
+                    raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
 
             try:
                 gr = grp.getgrgid(user.group_id)
             except KeyError:
                 gr = None
+                if not self.ephemeral:
+                    raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
             if pw is None and gr is None:
                 subprocess.run([
