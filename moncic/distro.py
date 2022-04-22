@@ -131,6 +131,8 @@ class DistroFamily:
 @DistroFamily.register
 class Debian(DistroFamily):
     VERSION_IDS = {
+        "8": "jessie",
+        "9": "stretch",
         "10": "buster",
         "11": "bullseye",
         "12": "bookworm",
@@ -138,7 +140,7 @@ class Debian(DistroFamily):
     EXTRA_SUITES = ("oldstable", "stable", "testing", "unstable")
     SHORTCUTS = {
         suite: f"debian:{suite}"
-        for suite in ("buster", "bullseye", "bookworm", "sid")
+        for suite in list(VERSION_IDS.values()) + ["sid"]
     }
 
     def create_distro(self, version: str) -> "Distro":
