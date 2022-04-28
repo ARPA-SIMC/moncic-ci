@@ -201,7 +201,7 @@ class RunTestCase:
 
     def test_issue37(self):
         def test_redirect():
-            os.execvp("sh", ("sh", "-c", "exec 7<&0 </dev/null"))
+            sys.stdin.read(1)
 
         self.maxDiff = None
 
