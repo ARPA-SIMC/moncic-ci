@@ -330,8 +330,11 @@ class SetnsCallableRunner(Runner):
         if pid == 0:
             try:
                 if catch_output:
-                    # Close stdin
-                    os.close(0)
+                    # Redirect /dev/null to stdin
+                    fd = os.open("/dev/null", os.O_RDONLY)
+                    os.dup2(fd, 0)
+                    os.close(fd)
+
                     os.close(stdout_r)
                     os.close(stderr_r)
                     # Redirect stdout and stderr to the pipes to parent
