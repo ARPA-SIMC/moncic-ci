@@ -86,7 +86,7 @@ class Container(ContextManager, Protocol):
     system: System
     config: ContainerConfig
 
-    def forward_user(self, user: UserConfig):
+    def forward_user(self, user: UserConfig, allow_maint: bool=False):
         """
         Ensure the system has a matching user and group
         """

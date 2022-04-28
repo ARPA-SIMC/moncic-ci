@@ -132,7 +132,7 @@ class MockContainer(ContainerBase):
     def _stop(self):
         self.started = False
 
-    def forward_user(self, user: UserConfig):
+    def forward_user(self, user: UserConfig, allow_maint: bool = False):
         self.run_log.append_forward_user(user)
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
