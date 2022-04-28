@@ -199,6 +199,17 @@ class RunTestCase:
                 f"WARNING:{logname}:warning",
                 f"ERROR:{logname}:error"])
 
+    def test_issue37(self):
+        def test_redirect():
+            os.execvp("sh", ("sh", "-c", "exec 7<&0 </dev/null"))
+
+        self.maxDiff = None
+
+        with self.container() as container:
+            res = container.run_callable(test_redirect)
+            self.assertEqual(res.stdout, b"")
+            self.assertEqual(res.stderr, b"")
+
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
 # The test cases will be named Test$DISTRO. For example:
