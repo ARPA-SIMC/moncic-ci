@@ -11,6 +11,9 @@
   snapshot of the OS image, which is swapped with the original if the operation
   succeeds, or removed without changing the original if it fails (#29)
 * Run containers with `--suppress-sync=yes` on systemd >= 250 (#28)
+* Run commands in container with /dev/null redirectd to stdin, instead of stdin
+  being a closed file descriptor (#37)
+* Fixed selection of build-dep command in ARPA-style builds (#38)
 
 # Version 0.2
 
