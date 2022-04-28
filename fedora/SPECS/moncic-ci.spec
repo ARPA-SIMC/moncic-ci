@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.2
+Version:        0.3
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -59,6 +59,22 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Thu Apr 28 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.3-1
+- Default for imagedir changed from `./images` to `/var/lib/machines` (#25)
+- Added a `tmpfs` configuration, both global and per-image, to use `tmpfs`
+  backing for ephemeral images instead of btrfs snapshots. If the machine is
+  configured with enough ram and swap, it makes for faster CI runs (#27)
+- Support non-btrfs image storage, by forcing ephemeral images to use `tmpfs`
+  backing instead of btrfs snapshots
+- Add `-C`/`--config` option to specify a config file from command line (#34)
+- Made non-ephemeral containers transactional on BTRFS: updates are run on a
+  snapshot of the OS image, which is swapped with the original if the operation
+  succeeds, or removed without changing the original if it fails (#29)
+- Run containers with `--suppress-sync=yes` on systemd >= 250 (#28)
+- Run commands in container with /dev/null redirectd to stdin, instead of stdin
+  being a closed file descriptor (#37)
+- Fixed selection of build-dep command in ARPA-style builds (#38)
+
 * Thu Mar 24 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.2-1
 - Implemented simple deduplication of files with the same name and size across
   OS images. (#19)
