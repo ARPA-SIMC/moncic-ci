@@ -1,13 +1,19 @@
 from __future__ import annotations
+
 import glob
+import logging
 import os
+import shlex
 import shutil
 import subprocess
-from typing import Dict, Type, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, List, Optional, Type
 
-from .distro import Centos7, RpmDistro
+from .distro import DnfDistro, YumDistro
+
 if TYPE_CHECKING:
     from .container import Container
+
+log = logging.getLogger(__name__)
 
 
 class Builder:
@@ -75,9 +81,9 @@ class Builder:
 class ARPA(Builder):
     def __init__(self, run: Container):
         super().__init__(run)
-        if run.system.distro == Centos7:
+        if isinstance(run.system.distro, YumDistro):
             self.builddep = ["yum-builddep"]
-        elif isinstance(run.system.distro, RpmDistro):
+        elif isinstance(run.system.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {run.system.distro.name}")
@@ -93,6 +99,7 @@ class ARPA(Builder):
 
     def build(self) -> Optional[int]:
         def run(cmd, check=True, **kwargs):
+            log.info("Run: %s", " ".join(shlex.quote(c) for c in cmd))
             return subprocess.run(cmd, check=check, **kwargs)
 
         # This is executed as a process in the running system; stdout and
