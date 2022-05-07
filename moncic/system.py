@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from .container import Container
     from .distro import Distro
     from .imagestorage import Images
+    from .moncic import MoncicConfig
 
 log = logging.getLogger(__name__)
 
@@ -53,9 +54,9 @@ class SystemConfig:
     tmpfs: Optional[bool] = None
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, mconfig: MoncicConfig, imagedir: str, name: str):
         """
-        Load the configuration from the given path.
+        Load the configuration from the given path setup.
 
         If a .yaml file exists, it is used.
 
@@ -64,22 +65,29 @@ class SystemConfig:
         Otherwise, configuration is inferred from the basename of the path,
         which is assumed to be a distribution name.
         """
-        name = os.path.basename(path)
-        try:
-            with open(f"{path}.yaml", "rt") as fd:
-                conf = yaml.load(fd, Loader=yaml.CLoader)
-        except FileNotFoundError:
+        for path in [imagedir] + mconfig.imageconfdirs:
+            conf_pathname = os.path.join(path, name)
+            try:
+                with open(f"{conf_pathname}.yaml", "rt") as fd:
+                    conf = yaml.load(fd, Loader=yaml.CLoader)
+                break
+            except FileNotFoundError:
+                pass
+        else:
             conf = None
+            conf_pathname = None
+
+        image_pathname = os.path.abspath(os.path.join(imagedir, name))
 
         if conf is None:
             conf = {}
-            if os.path.exists(path):
-                conf["distro"] = DistroFamily.from_path(path).name
+            if os.path.exists(image_pathname):
+                conf["distro"] = DistroFamily.from_path(image_pathname).name
             else:
                 conf["distro"] = name
 
         conf["name"] = name
-        conf["path"] = os.path.abspath(path)
+        conf["path"] = image_pathname
 
         # Make sure forward_users, if present, is a list of strings
         forward_users = conf.pop("forward_user", None)

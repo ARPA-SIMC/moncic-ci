@@ -20,8 +20,9 @@ class MoncicConfig:
     """
     # Directory where images are stored
     imagedir: str = "/var/lib/machines"
-    # Directory where image configuration is stored
-    imageconfdir: List[str] = dataclasses.field(default_factory=list)
+    # Directories where image configuration can stored, if not found in
+    # imagedir
+    imageconfdirs: List[str] = dataclasses.field(default_factory=list)
     # Btrfs compression level to set on OS image subvolumes when they are
     # created. The value is the same as can be set by `btrfs property set
     # compression`. Default: nothing is set
@@ -39,11 +40,11 @@ class MoncicConfig:
         # Allow to use ~ in config files
         self.imagedir = os.path.expanduser(self.imagedir)
 
-        # Use ~ in imageconfdir, and default to [$imagedir, $XDG_CONFIG_HOME/moncic-ci]
-        if not self.imageconfdir:
-            self.imageconfdir = [self.imagedir, os.path.join(self.xdg_local_config_dir())]
+        # Use ~ in imageconfdirs, and default to [$XDG_CONFIG_HOME/moncic-ci]
+        if not self.imageconfdirs:
+            self.imageconfdirs = [os.path.join(self.xdg_local_config_dir(), "moncic-ci")]
         else:
-            self.imageconfdir = [os.path.expanduser(path) for path in self.imageconfdir]
+            self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:

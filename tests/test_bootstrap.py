@@ -1,27 +1,37 @@
 from __future__ import annotations
+import contextlib
 import os
 import re
 import tempfile
 import unittest
+from typing import Generator
 
 from moncic.unittest import DistroTestMixin, MockMaintenanceSystem, make_moncic
+from moncic.moncic import MoncicConfig
 from moncic.system import SystemConfig
 from moncic.container import UserConfig
 
 
 class Bootstrap(DistroTestMixin, unittest.TestCase):
-    def test_tarball(self):
+    @contextlib.contextmanager
+    def config(self) -> Generator[MoncicConfig]:
         with tempfile.TemporaryDirectory() as imagedir:
+            yield MoncicConfig(
+                    imagedir=imagedir,
+                    imageconfdirs=[])
+
+    def test_tarball(self):
+        with self.config() as mconfig:
             # Create a mock tarball for fedora34
-            tar_path = os.path.join(imagedir, "fedora34.tar.gz")
+            tar_path = os.path.join(mconfig.imagedir, "fedora34.tar.gz")
             with open(tar_path, "wb"):
                 pass
 
-            with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("distro: fedora34", file=fd)
 
-            config = SystemConfig.load(os.path.join(imagedir, "test"))
-            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
+            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
@@ -37,13 +47,13 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
     def test_forward_user(self):
         user = UserConfig.from_sudoer()
 
-        with tempfile.TemporaryDirectory() as imagedir:
-            with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
+        with self.config() as mconfig:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("distro: fedora34", file=fd)
                 print(f"forward_user: {user.user_name}", file=fd)
 
-            config = SystemConfig.load(os.path.join(imagedir, "test"))
-            system = MockMaintenanceSystem(make_moncic(imagedir=imagedir, testcase=self), config)
+            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
+            system = MockMaintenanceSystem(make_moncic(imagedir=mconfig.imagedir, testcase=self), config)
             system.attach_testcase(self)
             system.update()
 
@@ -55,16 +65,16 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log.assertLogEmpty()
 
     def test_snapshot_bootstrap(self):
-        with tempfile.TemporaryDirectory() as imagedir:
-            parent_dir = os.path.join(imagedir, "rocky8")
+        with self.config() as mconfig:
+            parent_dir = os.path.join(mconfig.imagedir, "rocky8")
             # Pretend that rocky8 has already been bootstrapped
             os.mkdir(parent_dir)
 
-            with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("extends: rocky8", file=fd)
 
-            config = SystemConfig.load(os.path.join(imagedir, "test"))
-            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
+            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
@@ -77,22 +87,22 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log.assertLogEmpty()
 
     def test_snapshot_update(self):
-        with tempfile.TemporaryDirectory() as imagedir:
-            base_dir = os.path.join(imagedir, "base")
+        with self.config() as mconfig:
+            base_dir = os.path.join(mconfig.imagedir, "base")
             # Pretend that rocky8 has already been bootstrapped
-            with open(os.path.join(imagedir, "base.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "base.yaml"), "wt") as fd:
                 print("extends: rocky8", file=fd)
                 print("maintscript: echo base", file=fd)
             os.mkdir(base_dir)
 
-            test_dir = os.path.join(imagedir, "test")
-            with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
+            test_dir = os.path.join(mconfig.imagedir, "test")
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("extends: base", file=fd)
                 print("maintscript: echo test", file=fd)
             os.mkdir(test_dir)
 
-            config = SystemConfig.load(os.path.join(imagedir, "test"))
-            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
+            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
@@ -108,13 +118,13 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
         log.assertLogEmpty()
 
     def test_compression(self):
-        with tempfile.TemporaryDirectory() as imagedir:
-            with open(os.path.join(imagedir, "test.yaml"), "wt") as fd:
+        with self.config() as mconfig:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("distro: fedora34", file=fd)
                 print("compression: zstd:9", file=fd)
 
-            config = SystemConfig.load(os.path.join(imagedir, "test"))
-            moncic = make_moncic(imagedir=imagedir, testcase=self)
+            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
+            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)

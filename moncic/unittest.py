@@ -41,14 +41,14 @@ privs.drop()
 class MockImages(imagestorage.BtrfsImages):
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
-        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
         system = MockSystem(self, system_config)
         system.attach_testcase(self.moncic.testcase)
         yield system
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
         system = MockMaintenanceSystem(self, system_config)
         system.attach_testcase(self.moncic.testcase)
         yield system
