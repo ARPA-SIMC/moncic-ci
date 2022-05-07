@@ -14,6 +14,7 @@
 * Run commands in container with /dev/null redirectd to stdin, instead of stdin
   being a closed file descriptor (#37)
 * Fixed selection of build-dep command in ARPA-style builds (#38)
+* Allow to store image configuration separately from images (#33)
 
 # Version 0.2
 
