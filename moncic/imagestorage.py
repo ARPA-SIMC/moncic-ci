@@ -82,7 +82,7 @@ class Images:
         from .system import SystemConfig
         res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
-            config = SystemConfig.load(os.path.join(self.imagedir, name))
+            config = SystemConfig.load(self.moncic.config, self.imagedir, name)
             if config.extends is not None:
                 res.add(config.name, config.extends)
             else:
@@ -100,7 +100,7 @@ class PlainImages(Images):
     """
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
-        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
@@ -108,7 +108,7 @@ class PlainImages(Images):
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
@@ -127,12 +127,12 @@ class BtrfsImages(Images):
     """
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
-        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
         yield System(self, system_config)
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(os.path.join(self.imagedir, name))
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
         path = os.path.join(self.imagedir, name)
         work_path = path + ".new"
         if os.path.exists(work_path):
@@ -175,7 +175,7 @@ class BtrfsImages(Images):
         path = os.path.join(self.imagedir, name)
         if not os.path.exists(path):
             return
-        system_config = SystemConfig.load(path)
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, path)
         system = MaintenanceSystem(self, system_config, path=path)
         # TODO: can Btrfs be refactored not to require System?
         subvolume = Subvolume(system)

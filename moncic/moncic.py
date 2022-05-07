@@ -3,7 +3,7 @@ import dataclasses
 import logging
 import os
 import subprocess
-from typing import ContextManager, Optional
+from typing import ContextManager, Optional, List
 
 import yaml
 
@@ -20,6 +20,9 @@ class MoncicConfig:
     """
     # Directory where images are stored
     imagedir: str = "/var/lib/machines"
+    # Directories where image configuration can stored, if not found in
+    # imagedir
+    imageconfdirs: List[str] = dataclasses.field(default_factory=list)
     # Btrfs compression level to set on OS image subvolumes when they are
     # created. The value is the same as can be set by `btrfs property set
     # compression`. Default: nothing is set
@@ -32,6 +35,16 @@ class MoncicConfig:
     auto_sudo: bool = True
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
+
+    def __post_init__(self):
+        # Allow to use ~ in config files
+        self.imagedir = os.path.expanduser(self.imagedir)
+
+        # Use ~ in imageconfdirs, and default to [$XDG_CONFIG_HOME/moncic-ci]
+        if not self.imageconfdirs:
+            self.imageconfdirs = [self.xdg_local_config_dir()]
+        else:
+            self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:
@@ -46,6 +59,11 @@ class MoncicConfig:
         if path:
             return path
         return None
+
+    @classmethod
+    def xdg_local_config_dir(self) -> str:
+        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        return os.path.join(config_home, "moncic-ci")
 
     @classmethod
     def find_config_file(cls) -> Optional[str]:
@@ -70,8 +88,7 @@ class MoncicConfig:
                 return candidate
 
         # Try in the home directory, as ~/.config/moncic-ci/moncic-ci.yaml
-        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        local_config = os.path.join(config_home, "moncic-ci", "moncic-ci.yaml")
+        local_config = os.path.join(cls.xdg_local_config_dir(), "moncic-ci.yaml")
         if os.path.exists(local_config):
             return local_config
 
@@ -100,11 +117,6 @@ class MoncicConfig:
         except FileNotFoundError:
             conf = None
 
-        # Allow to use ~ in config files
-        imagedir = conf.pop("imagedir", None)
-        if imagedir is not None:
-            conf["imagedir"] = os.path.expanduser(imagedir)
-
         return cls(**conf)
 
 
@@ -114,7 +126,7 @@ class Moncic:
     """
     def __init__(
             self,
-            config: Optional[MoncicConfig] = None,
+            config: MoncicConfig,
             privs: Optional[ProcessPrivs] = None):
         self.privs: ProcessPrivs
         if privs is None:
@@ -122,11 +134,7 @@ class Moncic:
         else:
             self.privs = privs
 
-        if config is None:
-            self.config = MoncicConfig.load()
-        else:
-            self.config = config
-
+        self.config = config
         self.privs.auto_sudo = self.config.auto_sudo
 
         # Storage for OS images
