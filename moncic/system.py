@@ -67,9 +67,11 @@ class SystemConfig:
         """
         for path in [imagedir] + mconfig.imageconfdirs:
             conf_pathname = os.path.join(path, name)
+            log.debug("%s: look for configuration on %s", name, conf_pathname)
             try:
                 with open(f"{conf_pathname}.yaml", "rt") as fd:
                     conf = yaml.load(fd, Loader=yaml.CLoader)
+                log.debug("%s: configuration found at %s", name, conf_pathname)
                 break
             except FileNotFoundError:
                 pass
@@ -78,6 +80,7 @@ class SystemConfig:
             conf_pathname = None
 
         image_pathname = os.path.abspath(os.path.join(imagedir, name))
+        log.debug("%s: image pathname: %s", name, image_pathname)
 
         if conf is None:
             conf = {}

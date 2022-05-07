@@ -22,6 +22,7 @@ from .container import ContainerConfig, RunConfig, UserConfig
 from .build import Builder
 from .moncic import Moncic, MoncicConfig
 from .distro import DistroFamily
+from .privs import ProcessPrivs
 
 if TYPE_CHECKING:
     from .system import System
@@ -78,16 +79,20 @@ class MoncicCommand(Command):
     def __init__(self, args):
         super().__init__(args)
 
+        privs = ProcessPrivs()
+
         # Load config
-        if self.args.config:
-            config = MoncicConfig.load(self.args.config)
-        else:
-            config = MoncicConfig.load()
+        with privs.user():
+            if self.args.config:
+                config = MoncicConfig.load(self.args.config)
+            else:
+                config = MoncicConfig.load()
+
         if self.args.imagedir:
             config.imagedir = self.args.imagedir
 
         # Instantiate Moncic
-        self.moncic = Moncic(config=config)
+        self.moncic = Moncic(config=config, privs=privs)
 
         # Do the rest as root
         self.moncic.privs.regain()

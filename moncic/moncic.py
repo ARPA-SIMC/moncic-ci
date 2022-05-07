@@ -42,7 +42,7 @@ class MoncicConfig:
 
         # Use ~ in imageconfdirs, and default to [$XDG_CONFIG_HOME/moncic-ci]
         if not self.imageconfdirs:
-            self.imageconfdirs = [os.path.join(self.xdg_local_config_dir(), "moncic-ci")]
+            self.imageconfdirs = [self.xdg_local_config_dir()]
         else:
             self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
 
