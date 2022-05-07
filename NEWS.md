@@ -1,4 +1,4 @@
-# Version UNRELEASED
+# Version 0.3
 
 * Default for imagedir changed from `./images` to `/var/lib/machines` (#25)
 * Added a `tmpfs` configuration, both global and per-image, to use `tmpfs`
