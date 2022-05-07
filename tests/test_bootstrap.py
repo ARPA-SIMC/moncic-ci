@@ -31,7 +31,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
 
             config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
+            moncic = make_moncic(mconfig, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
@@ -53,7 +53,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print(f"forward_user: {user.user_name}", file=fd)
 
             config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            system = MockMaintenanceSystem(make_moncic(imagedir=mconfig.imagedir, testcase=self), config)
+            system = MockMaintenanceSystem(make_moncic(mconfig, testcase=self), config)
             system.attach_testcase(self)
             system.update()
 
@@ -74,7 +74,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("extends: rocky8", file=fd)
 
             config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
+            moncic = make_moncic(mconfig, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
@@ -102,7 +102,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             os.mkdir(test_dir)
 
             config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
+            moncic = make_moncic(mconfig, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
@@ -124,7 +124,7 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("compression: zstd:9", file=fd)
 
             config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(imagedir=mconfig.imagedir, testcase=self)
+            moncic = make_moncic(mconfig, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)

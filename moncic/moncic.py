@@ -126,7 +126,7 @@ class Moncic:
     """
     def __init__(
             self,
-            config: Optional[MoncicConfig] = None,
+            config: MoncicConfig,
             privs: Optional[ProcessPrivs] = None):
         self.privs: ProcessPrivs
         if privs is None:
@@ -134,11 +134,7 @@ class Moncic:
         else:
             self.privs = privs
 
-        if config is None:
-            self.config = MoncicConfig.load()
-        else:
-            self.config = config
-
+        self.config = config
         self.privs.auto_sudo = self.config.auto_sudo
 
         # Storage for OS images

@@ -77,15 +77,20 @@ class MoncicCommand(Command):
 
     def __init__(self, args):
         super().__init__(args)
+
+        # Load config
         if self.args.config:
             config = MoncicConfig.load(self.args.config)
-            self.moncic = Moncic(config=config)
         else:
-            self.moncic = Moncic()
+            config = MoncicConfig.load()
+        if self.args.imagedir:
+            config.imagedir = self.args.imagedir
+
+        # Instantiate Moncic
+        self.moncic = Moncic(config=config)
+
         # Do the rest as root
         self.moncic.privs.regain()
-        if self.args.imagedir:
-            self.moncic.set_imagedir(self.args.imagedir)
 
 
 class CI(MoncicCommand):

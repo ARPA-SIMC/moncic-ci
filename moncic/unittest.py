@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import logging
 import os
 import re
@@ -64,7 +65,7 @@ class MockMoncic(Moncic):
         yield MockImages(self, self.config.imagedir)
 
 
-def make_moncic(imagedir: Optional[str] = None, testcase: Optional[TestCase] = None):
+def make_moncic(config: Optional[MoncicConfig] = None, testcase: Optional[TestCase] = None):
     """
     Create a Moncic instance configured to work with the test suite.
 
@@ -72,13 +73,10 @@ def make_moncic(imagedir: Optional[str] = None, testcase: Optional[TestCase] = N
     will also create mock systems. Otherwise it will create a real Moncic
     instance configured to use test images
     """
-    if imagedir is None and testcase is None:
-        return Moncic(privs=privs)
-
-    if imagedir is None:
-        config = MoncicConfig()
+    if config is not None:
+        config = dataclasses.replace(config)
     else:
-        config = MoncicConfig(imagedir=imagedir)
+        config = MoncicConfig.load()
 
     if testcase is None:
         return Moncic(config=config, privs=privs)
@@ -185,7 +183,8 @@ class DistroTestMixin:
     def mock_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
         with tempfile.TemporaryDirectory() as workdir:
             config = SystemConfig(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
-            moncic = make_moncic(imagedir=workdir, testcase=self)
+            mconfig = MoncicConfig(imagedir=workdir)
+            moncic = make_moncic(mconfig, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
