@@ -2,6 +2,7 @@
 
 * Allow to store image configuration separately from images (#33)
 * Get systemd version from systemcl instead of systemd (#40)
+* Added Fedora 36 distro
 
 # Version 0.3
 

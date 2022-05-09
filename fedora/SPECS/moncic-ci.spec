@@ -1,4 +1,4 @@
-%global releaseno 1
+%global releaseno 2
 # Note: define _srcarchivename in Travis build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
@@ -59,6 +59,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon May  9 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.4-2
+- Added Fedora 36 distro
+
 * Mon May  9 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.4-1
 - Allow to store image configuration separately from images (#33)
 - Get systemd version from systemcl instead of systemd (#40)
