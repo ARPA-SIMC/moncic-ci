@@ -97,6 +97,7 @@ fedora:32          fedora32
 fedora:33          fedora33
 fedora:34          fedora34
 fedora:35          fedora35
+fedora:36          fedora36
 rocky:8            rocky8
 ubuntu:xenial      xenial, ubuntu:16.04
 ubuntu:bionic      bionic, ubuntu:18.04
