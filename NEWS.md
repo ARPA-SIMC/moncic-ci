@@ -1,4 +1,4 @@
-# Version UNRELEASED
+# Version 0.4
 
 * Allow to store image configuration separately from images (#33)
 * Get systemd version from systemcl instead of systemd (#40)

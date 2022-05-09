@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.3
+Version:        0.4
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -59,6 +59,10 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon May  9 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.4-1
+- Allow to store image configuration separately from images (#33)
+- Get systemd version from systemcl instead of systemd (#40)
+
 * Thu Apr 28 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.3-1
 - Default for imagedir changed from `./images` to `/var/lib/machines` (#25)
 - Added a `tmpfs` configuration, both global and per-image, to use `tmpfs`
