@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import glob
+import itertools
 import logging
 import os
 import shlex
@@ -104,13 +105,13 @@ class ARPA(Builder):
 
         # This is executed as a process in the running system; stdout and
         # stderr are logged
-        spec_glob = "*/SPECS/*.spec"
-        specs = glob.glob(spec_glob)
+        spec_globs = ["*/SPECS/*.spec", "*.spec"]
+        itertools.chain.from_iterable(glob(g) for g in spec_globs)
         if not specs:
-            raise RuntimeError(f"{spec_glob!r} not found")
+            raise RuntimeError(f"Spec file not found")
 
         if len(specs) > 1:
-            raise RuntimeError(f"{len(specs)} .spec files found as {spec_glob!r}")
+            raise RuntimeError(f"{len(specs)} .spec files found")
 
         # Install build dependencies
         run(self.builddep + ["-q", "-y", specs[0]])
