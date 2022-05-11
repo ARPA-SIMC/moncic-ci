@@ -106,7 +106,8 @@ class ARPA(Builder):
         # This is executed as a process in the running system; stdout and
         # stderr are logged
         spec_globs = ["*/SPECS/*.spec", "*.spec"]
-        itertools.chain.from_iterable(glob(g) for g in spec_globs)
+        spec = list(itertools.chain.from_iterable(glob(g) for g in spec_globs))
+
         if not specs:
             raise RuntimeError(f"Spec file not found")
 
