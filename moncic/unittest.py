@@ -18,6 +18,7 @@ from moncic.container import (Container, ContainerBase, ContainerConfig,
 from moncic.moncic import Moncic, MoncicConfig
 from moncic.privs import ProcessPrivs
 from moncic.system import System, SystemConfig, MaintenanceSystem
+from moncic.btrfs import is_btrfs
 
 if TYPE_CHECKING:
     from unittest import TestCase
@@ -178,12 +179,53 @@ class MockMaintenanceSystem(MockSystemMixin, MaintenanceSystem):
     pass
 
 
+@contextlib.contextmanager
+def workdir(filesystem_type: Optional[str] = None):
+    """
+    Create a temporary working directory. If filesystem_type is set to one of
+    the supported options, make sure it is backed by that given filessytem
+    """
+    if filesystem_type is None:
+        # Default: let tempfile choose
+        with tempfile.TemporaryDirectory() as imagedir:
+            yield imagedir
+    elif filesystem_type == "tmpfs":
+        with tempfile.TemporaryDirectory() as imagedir:
+            subprocess.run(["mount", "-t", "tmpfs", "none", imagedir], check=True)
+            try:
+                yield imagedir
+            finally:
+                subprocess.run(["umount", imagedir], check=True)
+    elif filesystem_type == "btrfs":
+        with tempfile.TemporaryDirectory() as imagedir:
+            if is_btrfs(imagedir):
+                yield imagedir
+            else:
+                with tempfile.NamedTemporaryFile() as backing:
+                    backing.truncate(100*1024*1024)
+                    subprocess.run(["mkfs.btrfs", backing.name], check=True)
+                    subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir], check=True)
+                    try:
+                        yield imagedir
+                    finally:
+                        subprocess.run(["umount", imagedir], check=True)
+
+
 class DistroTestMixin:
+    """
+    TestCase mixin with extra common utility infrastructure to test Moncic-CI
+    """
+    @contextlib.contextmanager
+    def config(self) -> Generator[MoncicConfig]:
+        with workdir() as imagedir:
+            yield MoncicConfig(
+                    imagedir=imagedir,
+                    imageconfdirs=[])
+
     @contextlib.contextmanager
     def mock_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
-        with tempfile.TemporaryDirectory() as workdir:
-            config = SystemConfig(name="test", path=os.path.join(workdir, "test"), distro=distro.name)
-            mconfig = MoncicConfig(imagedir=workdir)
+        with self.config() as mconfig:
+            config = SystemConfig(name="test", path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
             moncic = make_moncic(mconfig, testcase=self)
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)

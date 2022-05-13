@@ -1,25 +1,14 @@
 from __future__ import annotations
-import contextlib
 import os
 import re
-import tempfile
 import unittest
-from typing import Generator
 
 from moncic.unittest import DistroTestMixin, MockMaintenanceSystem, make_moncic
-from moncic.moncic import MoncicConfig
 from moncic.system import SystemConfig
 from moncic.container import UserConfig
 
 
 class Bootstrap(DistroTestMixin, unittest.TestCase):
-    @contextlib.contextmanager
-    def config(self) -> Generator[MoncicConfig]:
-        with tempfile.TemporaryDirectory() as imagedir:
-            yield MoncicConfig(
-                    imagedir=imagedir,
-                    imageconfdirs=[])
-
     def test_tarball(self):
         with self.config() as mconfig:
             # Create a mock tarball for fedora34
