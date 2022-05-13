@@ -145,17 +145,27 @@ class DistroTestMixin:
         if run_log is None:
             run_log = MockRunLog(self)
 
-        def _local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        def _subvolume_local_run(self, cmd: List[str]) -> subprocess.CompletedProcess:
+            run_log.append(cmd, {})
+            return subprocess.CompletedProcess(cmd, 0, b'', b'')
+
+        def _btrfsimages_local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
+            run_log.append(cmd, {})
+            return subprocess.CompletedProcess(cmd, 0, b'', b'')
+
+        def _system_local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
             run_log.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
         def _update_cachedir(self):
             run_log.append_cachedir()
 
-        with mock.patch("moncic.system.System.local_run", new=_local_run):
-            with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_local_run):
-                with mock.patch("moncic.system.MaintenanceSystem._update_cachedir", new=_update_cachedir):
-                    yield run_log
+        with mock.patch("moncic.btrfs.Subvolume.local_run", new=_subvolume_local_run):
+            with mock.patch("moncic.imagestorage.BtrfsImages.local_run", new=_btrfsimages_local_run):
+                with mock.patch("moncic.system.System.local_run", new=_system_local_run):
+                    with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_system_local_run):
+                        with mock.patch("moncic.system.MaintenanceSystem._update_cachedir", new=_update_cachedir):
+                            yield run_log
 
     @contextlib.contextmanager
     def _mock_container(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog]:

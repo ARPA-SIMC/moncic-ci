@@ -20,6 +20,7 @@ from typing import List, Optional, Callable, NamedTuple, TextIO, TYPE_CHECKING
 from . import setns
 if TYPE_CHECKING:
     from .container import NspawnContainer
+    from .system import SystemConfig
 
 
 class UserConfig(NamedTuple):
@@ -248,6 +249,24 @@ class LocalRunner(AsyncioRunner):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 **kwargs)
+
+    @classmethod
+    def run(
+            cls,
+            logger: logging.Logger,
+            cmd: List[str],
+            config: Optional[RunConfig] = None,
+            system_config: Optional[SystemConfig] = None):
+        """
+        Run a one-off command
+        """
+        if config is None:
+            config = RunConfig()
+        if system_config and os.path.exists(system_config.path) and config.cwd is None:
+            config.cwd = system_config.path
+
+        runner = LocalRunner(logger, config, cmd)
+        return runner.execute()
 
 
 class JSONStreamHandler(logging.Handler):

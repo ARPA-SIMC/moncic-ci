@@ -121,6 +121,13 @@ class SystemConfig:
 
         return cls(**conf)
 
+    @property
+    def logger(self):
+        """
+        Return a logger for this system
+        """
+        return logging.getLogger(f"system.{self.name}")
+
 
 class System:
     """
@@ -133,7 +140,7 @@ class System:
     def __init__(self, images: Images, config: SystemConfig, path: Optional[str] = None):
         self.images = images
         self.config = config
-        self.log = logging.getLogger(f"system.{self.name}")
+        self.log = config.logger
         if path is None:
             self.path = self.config.path
         else:
@@ -176,13 +183,7 @@ class System:
         """
         # Import here to avoid dependency loops
         from .runner import LocalRunner
-        if config is None:
-            config = RunConfig()
-        if os.path.exists(self.path) and config.cwd is None:
-            config.cwd = self.path
-
-        runner = LocalRunner(self.log, config, cmd)
-        return runner.execute()
+        return LocalRunner.run(self.log, cmd, config, self.config)
 
     def _update_container(self, container: Container):
         """
