@@ -1,4 +1,4 @@
-%global releaseno 3
+%global releaseno 4
 # Note: define _srcarchivename in Travis build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
@@ -59,7 +59,7 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
-* Fri May 13 2022 Daniele Branchini <dbranchini@arpae.it> - 0.4-3
+* Fri May 13 2022 Daniele Branchini <dbranchini@arpae.it> - 0.4-4
 - Arpa builder search SPECS both in */SPECS and ./ (#42)
 
 * Mon May  9 2022 Daniele Branchini <dbranchini@arpae.it> - 0.4-2
