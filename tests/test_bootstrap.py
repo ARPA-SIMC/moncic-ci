@@ -26,8 +26,8 @@ class BootstrapTestMixin(DistroTestMixin):
                         path = system.path
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
-            run_log.assertPopFirst(f'btrfs -q subvolume create {path}')
-        run_log.assertPopFirst(f"tar -C {path} -axf {tar_path}")
+            run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')
+        run_log.assertPopFirst(f"tar -C {path}.new -axf {tar_path}")
         run_log.assertLogEmpty()
 
     def test_forward_user(self):
@@ -66,7 +66,7 @@ class BootstrapTestMixin(DistroTestMixin):
                         path = system.path
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
-            run_log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {path}')
+            run_log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {path}.new')
         run_log.assertLogEmpty()
 
     def test_snapshot_update(self):
@@ -110,8 +110,8 @@ class BootstrapTestMixin(DistroTestMixin):
                         path = system.path
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
-            run_log.assertPopFirst(f'btrfs -q subvolume create {path}')
-            run_log.assertPopFirst(f'btrfs -q property set {path} compression zstd:9')
+            run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')
+            run_log.assertPopFirst(f'btrfs -q property set {path}.new compression zstd:9')
         run_log.assertPopFirst(re.compile('/usr/bin/dnf -c .+'))
         run_log.assertPopFirst("/usr/bin/rpmdb --rebuilddb")
         run_log.assertLogEmpty()

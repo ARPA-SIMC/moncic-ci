@@ -16,10 +16,10 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
                 with images.system("test") as system:
                     path = system.path
 
-        run_log.assertPopFirst(f'btrfs -q subvolume create {path}')
+        run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')
         run_log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-            rf' --installroot={path} --releasever=34 install bash rootfiles dbus dnf'))
+            rf' --installroot={path}\.new --releasever=34 install bash rootfiles dbus dnf'))
         run_log.assertPopFirst('/usr/bin/rpmdb --rebuilddb')
         run_log.assertLogEmpty()
 

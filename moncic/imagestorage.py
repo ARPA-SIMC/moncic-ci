@@ -146,7 +146,7 @@ class BtrfsImages(Images):
             raise RuntimeError(f"Found existing {work_path} which should be removed")
         system = MaintenanceSystem(self, system_config, path=work_path)
         if not os.path.exists(path):
-            # Bootstrap
+            # Transactional work on a new path
             try:
                 yield system
             except BaseException:
@@ -199,22 +199,33 @@ class BtrfsImages(Images):
 
         log.info("%s: bootstrapping subvolume", name)
 
-        if system_config.extends is not None:
-            with self.system(system_config.extends) as parent:
-                system = MaintenanceSystem(self, system_config, path=system_config.path)
+        path = os.path.join(self.imagedir, name)
+        work_path = path + ".new"
+
+        try:
+            if system_config.extends is not None:
+                with self.system(system_config.extends) as parent:
+                    system = MaintenanceSystem(self, system_config, path=work_path)
+                    subvolume = Subvolume(system)
+                    subvolume.snapshot(parent.path)
+            else:
+                tarball_path = self.get_distro_tarball(system_config.distro)
+                system = MaintenanceSystem(self, system_config, path=work_path)
                 subvolume = Subvolume(system)
-                subvolume.snapshot(parent.path)
+                with subvolume.create():
+                    if tarball_path is not None:
+                        # Shortcut in case we have a chroot in a tarball
+                        system.local_run(["tar", "-C", work_path, "-axf", tarball_path])
+                    else:
+                        distro = DistroFamily.lookup_distro(system_config.distro)
+                        distro.bootstrap(system)
+        except BaseException:
+            # TODO: remove work_path is currently not needed as System is
+            #       doing it. Maybe move that here?
+            raise
         else:
-            tarball_path = self.get_distro_tarball(system_config.distro)
-            system = MaintenanceSystem(self, system_config, path=system_config.path)
-            subvolume = Subvolume(system)
-            with subvolume.create():
-                if tarball_path is not None:
-                    # Shortcut in case we have a chroot in a tarball
-                    system.local_run(["tar", "-C", system.path, "-axf", tarball_path])
-                else:
-                    distro = DistroFamily.lookup_distro(system_config.distro)
-                    distro.bootstrap(system)
+            if os.path.exists(work_path):
+                os.rename(work_path, path)
 
     def remove_system(self, name: str):
         path = os.path.join(self.imagedir, name)
