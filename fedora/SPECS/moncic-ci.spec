@@ -1,4 +1,4 @@
-%global releaseno 2
+%global releaseno 3
 # Note: define _srcarchivename in Travis build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
@@ -59,14 +59,17 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
-* Mon May  9 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.4-2
+* Fri May 13 2022 Daniele Branchini <dbranchini@arpae.it> - 0.4-3
+- Arpa builder search SPECS both in */SPECS and ./ (#42)
+
+* Mon May  9 2022 Daniele Branchini <dbranchini@arpae.it> - 0.4-2
 - Added Fedora 36 distro
 
-* Mon May  9 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.4-1
+* Mon May  9 2022 Daniele Branchini <dbranchini@arpae.it> - 0.4-1
 - Allow to store image configuration separately from images (#33)
 - Get systemd version from systemcl instead of systemd (#40)
 
-* Thu Apr 28 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.3-1
+* Thu Apr 28 2022 Daniele Branchini <dbranchini@arpae.it> - 0.3-1
 - Default for imagedir changed from `./images` to `/var/lib/machines` (#25)
 - Added a `tmpfs` configuration, both global and per-image, to use `tmpfs`
   backing for ephemeral images instead of btrfs snapshots. If the machine is
@@ -82,7 +85,7 @@ as you would run it on your normal system, keeping iteration lags low.
   being a closed file descriptor (#37)
 - Fixed selection of build-dep command in ARPA-style builds (#38)
 
-* Thu Mar 24 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.2-1
+* Thu Mar 24 2022 Daniele Branchini <dbranchini@arpae.it> - 0.2-1
 - Implemented simple deduplication of files with the same name and size across
   OS images. (#19)
 - Deduplication is triggered automatically at the end of `monci update` (#19)
@@ -101,5 +104,5 @@ as you would run it on your normal system, keeping iteration lags low.
 - Allow using `.tar.xz` and `.tar` as cached distribution images
 - Reduce yum/dnf verbosity on bootstrap
 
-* Mon Mar  7 2022 Daniele Branchini <dbranchini@arpa.emr.it> - 0.1-1
+* Mon Mar  7 2022 Daniele Branchini <dbranchini@arpae.it> - 0.1-1
 - First build
