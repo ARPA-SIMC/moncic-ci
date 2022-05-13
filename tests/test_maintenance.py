@@ -33,9 +33,7 @@ maintscript: |
     # Prevent the default system update
     /bin/true
 """)
-            with cls.images.maintenance_system(test_image_name) as system:
-                if not system.is_bootstrapped():
-                    system.bootstrap()
+            cls.images.bootstrap_system(test_image_name)
 
     @classmethod
     def tearDownClass(cls):

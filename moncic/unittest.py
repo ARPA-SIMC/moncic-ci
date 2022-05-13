@@ -218,7 +218,7 @@ class DistroTestMixin:
                 yield run_log
 
     @contextlib.contextmanager
-    def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
+    def make_images(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
         with self.config() as mconfig:
             moncic = make_moncic(mconfig)
 
@@ -227,5 +227,10 @@ class DistroTestMixin:
 
             with mock.patch("moncic.system.SystemConfig.load", new=_load):
                 with moncic.images() as images:
-                    with images.maintenance_system("test") as system:
-                        yield system
+                    yield images
+
+    @contextlib.contextmanager
+    def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
+        with self.make_images(distro) as images:
+            with images.maintenance_system("test") as system:
+                yield system

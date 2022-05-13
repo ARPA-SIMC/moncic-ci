@@ -9,9 +9,10 @@ import stat
 import subprocess
 import tempfile
 from collections import defaultdict
-from typing import TYPE_CHECKING, ContextManager, Generator, List
+from typing import TYPE_CHECKING, ContextManager, Generator, List, Optional
 
 from .btrfs import Subvolume, do_dedupe, is_btrfs
+from .distro import DistroFamily
 from .system import MaintenanceSystem, System, SystemConfig
 from .utils import is_on_rotational, pause_automounting
 
@@ -63,6 +64,12 @@ class Images:
         state and do not leave an inconsistent OS image
         """
         raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
+
+    def bootstrap_system(self, name: str):
+        """
+        Bootstrap the given system if missing
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.bootstrap_system is not implemented")
 
     def remove_system(self, name: str):
         """
@@ -152,6 +159,7 @@ class BtrfsImages(Images):
         else:
             # Update
             subvolume = Subvolume(system)
+            # Create work_path as a snapshot of path
             subvolume.snapshot(path)
             try:
                 yield system
@@ -170,6 +178,43 @@ class BtrfsImages(Images):
                 os.rename(work_path, path)
                 os.rename(path + ".tmp", work_path)
                 subvolume.remove()
+
+    def get_distro_tarball(self, distro_name: str) -> Optional[str]:
+        """
+        Return the path to a tarball that can be used to bootstrap a chroot for
+        this system.
+
+        Return None if no such tarball is present
+        """
+        for ext in ('.tar.gz', '.tar.xz', '.tar'):
+            tarball_path = os.path.join(self.imagedir, distro_name + ext)
+            if os.path.exists(tarball_path):
+                return tarball_path
+        return None
+
+    def bootstrap_system(self, name: str):
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        if os.path.exists(system_config.path):
+            return
+
+        log.info("%s: bootstrapping subvolume", name)
+
+        if system_config.extends is not None:
+            with self.system(system_config.extends) as parent:
+                system = MaintenanceSystem(self, system_config, path=system_config.path)
+                subvolume = Subvolume(system)
+                subvolume.snapshot(parent.path)
+        else:
+            tarball_path = self.get_distro_tarball(system_config.distro)
+            system = MaintenanceSystem(self, system_config, path=system_config.path)
+            subvolume = Subvolume(system)
+            with subvolume.create():
+                if tarball_path is not None:
+                    # Shortcut in case we have a chroot in a tarball
+                    system.local_run(["tar", "-C", system.path, "-axf", tarball_path])
+                else:
+                    distro = DistroFamily.lookup_distro(system_config.distro)
+                    distro.bootstrap(system)
 
     def remove_system(self, name: str):
         path = os.path.join(self.imagedir, name)
