@@ -106,7 +106,7 @@ class ARPA(Builder):
         # This is executed as a process in the running system; stdout and
         # stderr are logged
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
-        spec = list(itertools.chain.from_iterable(glob(g) for g in spec_globs))
+        specs = list(itertools.chain.from_iterable(glob.glob(g) for g in spec_globs))
 
         if not specs:
             raise RuntimeError(f"Spec file not found")
