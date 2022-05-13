@@ -10,24 +10,24 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
     def test_bootstrap(self):
         distro = DistroFamily.lookup_distro("fedora34")
 
-        with self.mock_system(distro) as system:
-            system.bootstrap()
-        log = system.run_log
+        with self.mock() as run_log:
+            with self.make_system(distro) as system:
+                system.bootstrap()
 
-        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
-        log.assertPopFirst(re.compile(
+        run_log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
+        run_log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
             rf' --installroot={system.path} --releasever=34 install bash rootfiles dbus dnf'))
-        log.assertPopFirst('/usr/bin/rpmdb --rebuilddb')
-        log.assertLogEmpty()
+        run_log.assertPopFirst('/usr/bin/rpmdb --rebuilddb')
+        run_log.assertLogEmpty()
 
     def test_upgrade(self):
         distro = DistroFamily.lookup_distro("fedora34")
 
-        with self.mock_system(distro) as system:
-            system.update()
-        log = system.run_log
+        with self.mock() as run_log:
+            with self.make_system(distro) as system:
+                system.update()
 
-        log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
-        log.assertPopFirst("cachedir_tag:")
-        log.assertLogEmpty()
+        run_log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
+        run_log.assertPopFirst("cachedir_tag:")
+        run_log.assertLogEmpty()

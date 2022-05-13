@@ -10,19 +10,15 @@ import subprocess
 import tempfile
 from typing import (TYPE_CHECKING, Any, Callable, Dict, Generator, List,
                     Optional, Union)
-from unittest import SkipTest
+from unittest import SkipTest, mock
 
-from moncic import imagestorage
-from moncic.container import (Container, ContainerBase, ContainerConfig,
-                              RunConfig, UserConfig)
+from moncic.btrfs import is_btrfs
+from moncic.container import RunConfig, UserConfig
 from moncic.moncic import Moncic, MoncicConfig
 from moncic.privs import ProcessPrivs
-from moncic.system import System, SystemConfig, MaintenanceSystem
-from moncic.btrfs import is_btrfs
+from moncic.system import MaintenanceSystem, SystemConfig
 
 if TYPE_CHECKING:
-    from unittest import TestCase
-
     from moncic.distro import Distro
 
 TEST_CHROOTS = ["centos7", "centos8", "rocky8", "fedora32", "fedora34", "fedora36", "buster", "bookworm", "bullseye"]
@@ -40,33 +36,7 @@ privs = SudoTestSuite()
 privs.drop()
 
 
-class MockImages(imagestorage.BtrfsImages):
-    @contextlib.contextmanager
-    def system(self, name: str) -> Generator[System, None, None]:
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
-        system = MockSystem(self, system_config)
-        system.attach_testcase(self.moncic.testcase)
-        yield system
-
-    @contextlib.contextmanager
-    def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
-        system = MockMaintenanceSystem(self, system_config)
-        system.attach_testcase(self.moncic.testcase)
-        yield system
-
-
-class MockMoncic(Moncic):
-    def __init__(self, *, testcase: TestCase, **kw):
-        super().__init__(**kw)
-        self.testcase = testcase
-
-    @contextlib.contextmanager
-    def images(self) -> Generator[imagestorage.Images, None, None]:
-        yield MockImages(self, self.config.imagedir)
-
-
-def make_moncic(config: Optional[MoncicConfig] = None, testcase: Optional[TestCase] = None):
+def make_moncic(config: Optional[MoncicConfig] = None):
     """
     Create a Moncic instance configured to work with the test suite.
 
@@ -75,14 +45,12 @@ def make_moncic(config: Optional[MoncicConfig] = None, testcase: Optional[TestCa
     instance configured to use test images
     """
     if config is not None:
+        # Use dataclasses.replace to make a copy
         config = dataclasses.replace(config)
     else:
         config = MoncicConfig.load()
 
-    if testcase is None:
-        return Moncic(config=config, privs=privs)
-    else:
-        return MockMoncic(config=config, privs=privs, testcase=testcase)
+    return Moncic(config=config, privs=privs)
 
 
 class MockRunLog:
@@ -117,66 +85,6 @@ class MockRunLog:
 
     def assertLogEmpty(self):
         self.testcase.assertEqual(self.log, [])
-
-
-class MockContainer(ContainerBase):
-    def __init__(
-            self, system: "MockSystem", config: ContainerConfig, instance_name: Optional[str] = None):
-        super().__init__(system, config, instance_name)
-        self.run_log = system.run_log
-
-    def _start(self):
-        self.started = True
-
-    def _stop(self):
-        self.started = False
-
-    def forward_user(self, user: UserConfig, allow_maint: bool = False):
-        self.run_log.append_forward_user(user)
-
-    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-        self.run_log.append(command, {})
-        return subprocess.CompletedProcess(command, 0, b'', b'')
-
-    def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-        self.run_log.append_script(body)
-        return subprocess.CompletedProcess(["script"], 0, b'', b'')
-
-    def run_callable(
-            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-        self.run_log.append_callable(func)
-        return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
-
-
-class MockSystemMixin:
-    def attach_testcase(self, testcase):
-        self.run_log = MockRunLog(testcase)
-
-    def create_container(
-            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
-        config = self.container_config(config)
-        return MockContainer(self, config, instance_name)
-
-    def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-        self.run_log.append(cmd, {})
-        return subprocess.CompletedProcess(cmd, 0, b'', b'')
-
-    def _update_cachedir(self):
-        self.run_log.append_cachedir()
-
-
-class MockSystem(MockSystemMixin, System):
-    """
-    Mock machine that just logs what is run and does nothing, useful for tests
-    """
-    pass
-
-
-class MockMaintenanceSystem(MockSystemMixin, MaintenanceSystem):
-    """
-    Mock maintenance machine that just logs what is run and does nothing, useful for tests
-    """
-    pass
 
 
 @contextlib.contextmanager
@@ -230,11 +138,94 @@ class DistroTestMixin:
                     imageconfdirs=[])
 
     @contextlib.contextmanager
-    def mock_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
+    def _mock_system(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog]:
+        """
+        Mock System objects to log operations instead of running them
+        """
+        if run_log is None:
+            run_log = MockRunLog(self)
+
+        def _local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+            run_log.append(cmd, {})
+            return subprocess.CompletedProcess(cmd, 0, b'', b'')
+
+        def _update_cachedir(self):
+            run_log.append_cachedir()
+
+        with mock.patch("moncic.system.System.local_run", new=_local_run):
+            with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_local_run):
+                with mock.patch("moncic.system.MaintenanceSystem._update_cachedir", new=_update_cachedir):
+                    yield run_log
+
+    @contextlib.contextmanager
+    def _mock_container(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog]:
+        """
+        Mock System objects to log operations instead of running them
+        """
+        if run_log is None:
+            run_log = MockRunLog(self)
+
+        def _start(self):
+            self.started = True
+
+        def _stop(self):
+            self.started = False
+
+        def _forward_user(self, user: UserConfig, allow_maint: bool = False):
+            run_log.append_forward_user(user)
+
+        def _run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+            run_log.append(command, {})
+            return subprocess.CompletedProcess(command, 0, b'', b'')
+
+        def _run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+            run_log.append_script(body)
+            return subprocess.CompletedProcess(["script"], 0, b'', b'')
+
+        def _run_callable(
+                self, func: Callable[[], Optional[int]],
+                config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+            run_log.append_callable(func)
+            return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
+
+        with mock.patch("moncic.container.NspawnContainer._start", new=_start):
+            with mock.patch("moncic.container.NspawnContainer._stop", new=_stop):
+                with mock.patch("moncic.container.NspawnContainer.forward_user", new=_forward_user):
+                    with mock.patch("moncic.container.NspawnContainer.run", new=_run):
+                        with mock.patch("moncic.container.NspawnContainer.run_script", new=_run_script):
+                            with mock.patch("moncic.container.NspawnContainer.run_callable", new=_run_callable):
+                                yield run_log
+
+    @contextlib.contextmanager
+    def mock(self, system: bool = True, container: bool = True) -> Generator[MockRunLog]:
+        """
+        Mock System or Container objects
+        """
+        run_log = MockRunLog(self)
+
+        if system:
+            msys = self._mock_system(run_log)
+        else:
+            msys = contextlib.nullcontext(run_log)
+
+        if container:
+            mcont = self._mock_container(run_log)
+        else:
+            mcont = contextlib.nullcontext(run_log)
+
+        with msys as run_log:
+            with mcont as run_log:
+                yield run_log
+
+    @contextlib.contextmanager
+    def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
         with self.config() as mconfig:
-            config = SystemConfig(name="test", path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
-            moncic = make_moncic(mconfig, testcase=self)
-            with moncic.images() as images:
-                system = MockMaintenanceSystem(images, config)
-                system.attach_testcase(self)
-                yield system
+            moncic = make_moncic(mconfig)
+
+            def _load(mconfig: MoncicConfig, imagedir: str, name: str):
+                return SystemConfig(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
+
+            with mock.patch("moncic.system.SystemConfig.load", new=_load):
+                with moncic.images() as images:
+                    with images.maintenance_system("test") as system:
+                        yield system
