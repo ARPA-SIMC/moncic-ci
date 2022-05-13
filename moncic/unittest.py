@@ -185,17 +185,19 @@ def workdir(filesystem_type: Optional[str] = None):
     Create a temporary working directory. If filesystem_type is set to one of
     the supported options, make sure it is backed by that given filessytem
     """
-    if filesystem_type is None:
+    if filesystem_type is None or filesystem_type == "default":
         # Default: let tempfile choose
         with tempfile.TemporaryDirectory() as imagedir:
             yield imagedir
     elif filesystem_type == "tmpfs":
         with tempfile.TemporaryDirectory() as imagedir:
-            subprocess.run(["mount", "-t", "tmpfs", "none", imagedir], check=True)
+            with privs.root():
+                subprocess.run(["mount", "-t", "tmpfs", "none", imagedir], check=True)
             try:
                 yield imagedir
             finally:
-                subprocess.run(["umount", imagedir], check=True)
+                with privs.root():
+                    subprocess.run(["umount", imagedir], check=True)
     elif filesystem_type == "btrfs":
         with tempfile.TemporaryDirectory() as imagedir:
             if is_btrfs(imagedir):
@@ -204,11 +206,13 @@ def workdir(filesystem_type: Optional[str] = None):
                 with tempfile.NamedTemporaryFile() as backing:
                     backing.truncate(100*1024*1024)
                     subprocess.run(["mkfs.btrfs", backing.name], check=True)
-                    subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir], check=True)
+                    with privs.root():
+                        subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir], check=True)
                     try:
                         yield imagedir
                     finally:
-                        subprocess.run(["umount", imagedir], check=True)
+                        with privs.root():
+                            subprocess.run(["umount", imagedir], check=True)
 
 
 class DistroTestMixin:
@@ -216,8 +220,11 @@ class DistroTestMixin:
     TestCase mixin with extra common utility infrastructure to test Moncic-CI
     """
     @contextlib.contextmanager
-    def config(self) -> Generator[MoncicConfig]:
-        with workdir() as imagedir:
+    def config(self, filesystem_type: Optional[str] = None) -> Generator[MoncicConfig]:
+        if filesystem_type is None:
+            filesystem_type = getattr(self, "DEFAULT_FILESYSTEM_TYPE", None)
+
+        with workdir(filesystem_type=filesystem_type) as imagedir:
             yield MoncicConfig(
                     imagedir=imagedir,
                     imageconfdirs=[])

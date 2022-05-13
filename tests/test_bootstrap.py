@@ -8,7 +8,7 @@ from moncic.system import SystemConfig
 from moncic.container import UserConfig
 
 
-class Bootstrap(DistroTestMixin, unittest.TestCase):
+class BootstrapTestMixin(DistroTestMixin):
     def test_tarball(self):
         with self.config() as mconfig:
             # Create a mock tarball for fedora34
@@ -29,7 +29,8 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
 
         log = system.run_log
 
-        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
         log.assertPopFirst(f"tar -C {system.path} -axf {tar_path}")
         log.assertLogEmpty()
 
@@ -72,7 +73,8 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
 
         log = system.run_log
 
-        log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {system.path}')
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {system.path}')
         log.assertLogEmpty()
 
     def test_snapshot_update(self):
@@ -95,7 +97,6 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             with moncic.images() as images:
                 system = MockMaintenanceSystem(images, config)
                 system.attach_testcase(self)
-
                 system.update()
 
         log = system.run_log
@@ -122,8 +123,17 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
 
         log = system.run_log
 
-        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
-        log.assertPopFirst(f'btrfs -q property set {system.path} compression zstd:9')
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
+            log.assertPopFirst(f'btrfs -q property set {system.path} compression zstd:9')
         log.assertPopFirst(re.compile('/usr/bin/dnf -c .+'))
         log.assertPopFirst("/usr/bin/rpmdb --rebuilddb")
         log.assertLogEmpty()
+
+
+class BtrfsBootstrapTest(BootstrapTestMixin, unittest.TestCase):
+    DEFAULT_FILESYSTEM_TYPE = "btrfs"
+
+
+class PlainBootstrapTest(BootstrapTestMixin, unittest.TestCase):
+    DEFAULT_FILESYSTEM_TYPE = "tmpfs"
