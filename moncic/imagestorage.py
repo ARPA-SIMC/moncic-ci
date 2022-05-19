@@ -48,6 +48,25 @@ class Images:
                 res.add(entry.name[:-5])
         return sorted(res)
 
+    def local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
+        """
+        Run a command on the host system.
+        """
+        return LocalRunner.run(system_config.logger, cmd, system_config=system_config)
+
+    def get_distro_tarball(self, distro_name: str) -> Optional[str]:
+        """
+        Return the path to a tarball that can be used to bootstrap a chroot for
+        this system.
+
+        Return None if no such tarball is present
+        """
+        for ext in ('.tar.gz', '.tar.xz', '.tar'):
+            tarball_path = os.path.join(self.imagedir, distro_name + ext)
+            if os.path.exists(tarball_path):
+                return tarball_path
+        return None
+
     def system(self, name: str) -> ContextManager[System]:
         """
         Instantiate a System that can only be used for the duration
@@ -122,6 +141,38 @@ class PlainImages(Images):
         system_config.tmpfs = True
         yield MaintenanceSystem(self, system_config)
 
+    def bootstrap_system(self, name: str):
+        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        if os.path.exists(system_config.path):
+            return
+
+        log.info("%s: bootstrapping directory", name)
+
+        path = os.path.join(self.imagedir, name)
+        work_path = path + ".new"
+        system_config.path = work_path
+
+        try:
+            if system_config.extends is not None:
+                with self.system(system_config.extends) as parent:
+                    self.local_run(system_config, ["cp", "--reflink=auto", "-a", parent.path, work_path])
+            else:
+                tarball_path = self.get_distro_tarball(system_config.distro)
+                if tarball_path is not None:
+                    # Shortcut in case we have a chroot in a tarball
+                    os.mkdir(work_path)
+                    self.local_run(system_config, ["tar", "-C", work_path, "-axf", tarball_path])
+                else:
+                    system = MaintenanceSystem(self, system_config)
+                    distro = DistroFamily.lookup_distro(system_config.distro)
+                    distro.bootstrap(system)
+        except BaseException:
+            shutil.rmtree(work_path)
+            raise
+        else:
+            if os.path.exists(work_path):
+                os.rename(work_path, path)
+
     def remove_system(self, name: str):
         path = os.path.join(self.imagedir, name)
         if not os.path.exists(path):
@@ -133,12 +184,6 @@ class BtrfsImages(Images):
     """
     Images stored in a btrfs filesystem
     """
-    def local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
-        """
-        Run a command on the host system.
-        """
-        return LocalRunner.run(system_config.logger, cmd, system_config=system_config)
-
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
         system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
@@ -178,19 +223,6 @@ class BtrfsImages(Images):
                 system_config.logger.info("Committing maintenance changes")
                 # Swap and remove
                 subvolume.replace_subvolume(path)
-
-    def get_distro_tarball(self, distro_name: str) -> Optional[str]:
-        """
-        Return the path to a tarball that can be used to bootstrap a chroot for
-        this system.
-
-        Return None if no such tarball is present
-        """
-        for ext in ('.tar.gz', '.tar.xz', '.tar'):
-            tarball_path = os.path.join(self.imagedir, distro_name + ext)
-            if os.path.exists(tarball_path):
-                return tarball_path
-        return None
 
     def bootstrap_system(self, name: str):
         system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)

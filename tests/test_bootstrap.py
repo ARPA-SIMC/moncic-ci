@@ -67,6 +67,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {path}.new')
+        else:
+            run_log.assertPopFirst(f'cp --reflink=auto -a {parent_dir} {path}.new')
         run_log.assertLogEmpty()
 
     def test_snapshot_update(self):
@@ -89,11 +91,16 @@ class BootstrapTestMixin(DistroTestMixin):
                 with moncic.images() as images:
                     with images.maintenance_system("test") as system:
                         system.update()
+                        path = system.path[:-4]
 
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
         run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         run_log.assertPopFirst("script:#!/bin/sh\necho base")
         run_log.assertPopFirst("script:#!/bin/sh\necho test")
         run_log.assertPopFirst("cachedir_tag:")
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f"'<replace>' {path}.new {path}")
         run_log.assertLogEmpty()
 
     def test_compression(self):

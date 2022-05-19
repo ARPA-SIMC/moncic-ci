@@ -153,7 +153,7 @@ class DistroTestMixin:
             run_log.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
-        def _btrfsimages_local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
+        def _images_local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
             run_log.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
@@ -166,7 +166,7 @@ class DistroTestMixin:
 
         with mock.patch("moncic.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
             with mock.patch("moncic.btrfs.Subvolume.local_run", new=_subvolume_local_run):
-                with mock.patch("moncic.imagestorage.BtrfsImages.local_run", new=_btrfsimages_local_run):
+                with mock.patch("moncic.imagestorage.Images.local_run", new=_images_local_run):
                     with mock.patch("moncic.system.System.local_run", new=_system_local_run):
                         with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_system_local_run):
                             with mock.patch("moncic.system.MaintenanceSystem._update_cachedir", new=_update_cachedir):
