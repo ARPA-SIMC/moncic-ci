@@ -23,10 +23,27 @@ class Subvolume:
     def __init__(self, system_config: SystemConfig, mconfig: MoncicConfig):
         self.log = system_config.logger
         self.system_config = system_config
+        self.mconfig = mconfig
         self.path = system_config.path
         self.compression = system_config.compression
         if self.compression is None:
             self.compression = mconfig.compression
+
+    def replace_subvolume(self, path: str):
+        """
+        Replace the given subvolume with this one.
+
+        This and the destination subvolumes need to be on the same filesystem.
+        """
+        # We can do this because we stay on the same directory, which should
+        # only be writable by root
+        stash_path = path + ".tmp"
+        os.rename(path, stash_path)
+        os.rename(self.path, path)
+        self.path = path
+        old = Subvolume(self.system_config, self.mconfig)
+        old.path = stash_path
+        old.remove()
 
     def local_run(self, cmd: List[str]) -> subprocess.CompletedProcess:
         """

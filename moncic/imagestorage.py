@@ -177,14 +177,7 @@ class BtrfsImages(Images):
             else:
                 system_config.logger.info("Committing maintenance changes")
                 # Swap and remove
-                # FIXME: a full swap is weird, we could just remove the .tmp
-                # version, but that would mean insantiating a new System and a
-                # new Subvolume. If we disentangle Subvolume from System, we
-                # can them simplify here
-                os.rename(path, path + ".tmp")
-                os.rename(work_path, path)
-                os.rename(path + ".tmp", work_path)
-                subvolume.remove()
+                subvolume.replace_subvolume(path)
 
     def get_distro_tarball(self, distro_name: str) -> Optional[str]:
         """
