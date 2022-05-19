@@ -19,8 +19,8 @@ from typing import List, Optional, Callable, NamedTuple, TextIO, TYPE_CHECKING
 
 from . import setns
 if TYPE_CHECKING:
-    from .system import System
     from .container import NspawnContainer
+    from .system import SystemConfig
 
 
 class UserConfig(NamedTuple):
@@ -147,9 +147,9 @@ class Runner:
     """
     Run commands in a system
     """
-    def __init__(self, system: System, config: RunConfig):
+    def __init__(self, logger: logging.Logger, config: RunConfig):
         super().__init__()
-        self.system = system
+        self.log = logger
         self.config = config
         self.stdout: List[bytes] = []
         self.stderr: List[bytes] = []
@@ -160,7 +160,7 @@ class Runner:
             if not line:
                 break
             self.stdout.append(line)
-            self.system.log.info("stdout: %s", line.decode(errors="replace").rstrip())
+            self.log.info("stdout: %s", line.decode(errors="replace").rstrip())
 
     async def read_stderr(self, reader: asyncio.StreamReader):
         while True:
@@ -168,7 +168,7 @@ class Runner:
             if not line:
                 break
             self.stderr.append(line)
-            self.system.log.info("stderr: %s", line.decode(errors="replace").rstrip())
+            self.log.info("stderr: %s", line.decode(errors="replace").rstrip())
 
     async def read_log(self, reader: asyncio.StreamReader):
         while True:
@@ -178,15 +178,15 @@ class Runner:
             record_args = json.loads(line)
             message = record_args.pop("msg")
             record = logging.LogRecord(
-                    name=self.system.log.name,
+                    name=self.log.name,
                     msg="%s", args=(message,),
                     exc_info=None, **record_args)
-            self.system.log.handle(record)
+            self.log.handle(record)
 
 
 class AsyncioRunner(Runner):
-    def __init__(self, system: System, config: RunConfig, cmd: List[str]):
-        super().__init__(system, config)
+    def __init__(self, logger: logging.Logger, config: RunConfig, cmd: List[str]):
+        super().__init__(logger, config)
         self.cmd = cmd
 
     def execute(self):
@@ -231,7 +231,7 @@ class LocalRunner(AsyncioRunner):
         if self.config.interactive:
             raise NotImplementedError("support for interactive config in LocalRunner is not yet implemented")
 
-        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
+        self.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
 
         kwargs = {}
         if self.config.cwd is not None:
@@ -249,6 +249,24 @@ class LocalRunner(AsyncioRunner):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 **kwargs)
+
+    @classmethod
+    def run(
+            cls,
+            logger: logging.Logger,
+            cmd: List[str],
+            config: Optional[RunConfig] = None,
+            system_config: Optional[SystemConfig] = None):
+        """
+        Run a one-off command
+        """
+        if config is None:
+            config = RunConfig()
+        if system_config and os.path.exists(system_config.path) and config.cwd is None:
+            config.cwd = system_config.path
+
+        runner = LocalRunner(logger, config, cmd)
+        return runner.execute()
 
 
 class JSONStreamHandler(logging.Handler):
@@ -273,7 +291,7 @@ class JSONStreamHandler(logging.Handler):
 class SetnsCallableRunner(Runner):
     def __init__(
             self, run: NspawnContainer, config: RunConfig, func: Callable[[], Optional[int]]):
-        super().__init__(run.system, config)
+        super().__init__(run.system.log, config)
         self.run = run
         self.leader_pid = int(run.properties["Leader"])
         self.func = func
@@ -316,7 +334,7 @@ class SetnsCallableRunner(Runner):
 
     def execute(self) -> subprocess.CompletedProcess:
         func_name = self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__
-        self.system.log.info("Running %s", func_name)
+        self.log.info("Running %s", func_name)
 
         catch_output = not self.config.interactive
 

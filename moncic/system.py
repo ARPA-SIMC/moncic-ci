@@ -121,6 +121,13 @@ class SystemConfig:
 
         return cls(**conf)
 
+    @property
+    def logger(self):
+        """
+        Return a logger for this system
+        """
+        return logging.getLogger(f"system.{self.name}")
+
 
 class System:
     """
@@ -133,7 +140,7 @@ class System:
     def __init__(self, images: Images, config: SystemConfig, path: Optional[str] = None):
         self.images = images
         self.config = config
-        self.log = logging.getLogger(f"system.{self.name}")
+        self.log = config.logger
         if path is None:
             self.path = self.config.path
         else:
@@ -168,22 +175,6 @@ class System:
         """
         return os.path.exists(self.path)
 
-    def get_distro_tarball(self) -> Optional[str]:
-        """
-        Return the path to a tarball that can be used to bootstrap a chroot for
-        this system.
-
-        Return None if no such tarball is present
-        """
-        distro_name = self.config.distro
-        if distro_name is None:
-            raise RuntimeError("get_distro_tarball called on a system that is bootstrapped by snapshotting")
-        for ext in ('.tar.gz', '.tar.xz', '.tar'):
-            tarball_path = os.path.join(self.images.imagedir, distro_name + ext)
-            if os.path.exists(tarball_path):
-                return tarball_path
-        return None
-
     def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
@@ -192,13 +183,7 @@ class System:
         """
         # Import here to avoid dependency loops
         from .runner import LocalRunner
-        if config is None:
-            config = RunConfig()
-        if os.path.exists(self.path) and config.cwd is None:
-            config.cwd = self.path
-
-        runner = LocalRunner(self, config, cmd)
-        return runner.execute()
+        return LocalRunner.run(self.log, cmd, config, self.config)
 
     def _update_container(self, container: Container):
         """
@@ -266,26 +251,6 @@ class MaintenanceSystem(System):
         # Force ephemeral to False in maintenance systems
         config.ephemeral = False
         return config
-
-    def bootstrap(self):
-        """
-        Create a system that is missing from disk
-        """
-        # Import here to avoid an import loop
-        from .btrfs import Subvolume
-        if self.config.extends is not None:
-            with self.images.system(self.config.extends) as parent:
-                subvolume = Subvolume(self)
-                subvolume.snapshot(parent.path)
-        else:
-            tarball_path = self.get_distro_tarball()
-            subvolume = Subvolume(self)
-            with subvolume.create():
-                if tarball_path is not None:
-                    # Shortcut in case we have a chroot in a tarball
-                    self.local_run(["tar", "-C", self.path, "-axf", tarball_path])
-                else:
-                    self.distro.bootstrap(self)
 
     def update(self):
         """

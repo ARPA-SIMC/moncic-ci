@@ -1,25 +1,13 @@
 from __future__ import annotations
-import contextlib
 import os
 import re
-import tempfile
 import unittest
-from typing import Generator
 
-from moncic.unittest import DistroTestMixin, MockMaintenanceSystem, make_moncic
-from moncic.moncic import MoncicConfig
-from moncic.system import SystemConfig
+from moncic.unittest import DistroTestMixin, make_moncic
 from moncic.container import UserConfig
 
 
-class Bootstrap(DistroTestMixin, unittest.TestCase):
-    @contextlib.contextmanager
-    def config(self) -> Generator[MoncicConfig]:
-        with tempfile.TemporaryDirectory() as imagedir:
-            yield MoncicConfig(
-                    imagedir=imagedir,
-                    imageconfdirs=[])
-
+class BootstrapTestMixin(DistroTestMixin):
     def test_tarball(self):
         with self.config() as mconfig:
             # Create a mock tarball for fedora34
@@ -30,19 +18,17 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("distro: fedora34", file=fd)
 
-            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(mconfig, testcase=self)
-            with moncic.images() as images:
-                system = MockMaintenanceSystem(images, config)
-                system.attach_testcase(self)
+            with self.mock() as run_log:
+                moncic = make_moncic(mconfig)
+                with moncic.images() as images:
+                    images.bootstrap_system("test")
+                    with images.system("test") as system:
+                        path = system.path
 
-                system.bootstrap()
-
-        log = system.run_log
-
-        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
-        log.assertPopFirst(f"tar -C {system.path} -axf {tar_path}")
-        log.assertLogEmpty()
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')
+        run_log.assertPopFirst(f"tar -C {path}.new -axf {tar_path}")
+        run_log.assertLogEmpty()
 
     def test_forward_user(self):
         user = UserConfig.from_sudoer()
@@ -52,17 +38,16 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
                 print(f"forward_user: {user.user_name}", file=fd)
 
-            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            system = MockMaintenanceSystem(make_moncic(mconfig, testcase=self), config)
-            system.attach_testcase(self)
-            system.update()
+            with self.mock() as run_log:
+                moncic = make_moncic(mconfig)
+                with moncic.images() as images:
+                    with images.maintenance_system("test") as system:
+                        system.update()
 
-        log = system.run_log
-
-        log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
-        log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        log.assertPopFirst("cachedir_tag:")
-        log.assertLogEmpty()
+        run_log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
+        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
+        run_log.assertPopFirst("cachedir_tag:")
+        run_log.assertLogEmpty()
 
     def test_snapshot_bootstrap(self):
         with self.config() as mconfig:
@@ -73,18 +58,18 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
             with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("extends: rocky8", file=fd)
 
-            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(mconfig, testcase=self)
-            with moncic.images() as images:
-                system = MockMaintenanceSystem(images, config)
-                system.attach_testcase(self)
+            with self.mock() as run_log:
+                moncic = make_moncic(mconfig)
+                with moncic.images() as images:
+                    images.bootstrap_system("test")
+                    with images.system("test") as system:
+                        path = system.path
 
-                system.bootstrap()
-
-        log = system.run_log
-
-        log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {system.path}')
-        log.assertLogEmpty()
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {path}.new')
+        else:
+            run_log.assertPopFirst(f'cp --reflink=auto -a {parent_dir} {path}.new')
+        run_log.assertLogEmpty()
 
     def test_snapshot_update(self):
         with self.config() as mconfig:
@@ -101,21 +86,22 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("maintscript: echo test", file=fd)
             os.mkdir(test_dir)
 
-            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(mconfig, testcase=self)
-            with moncic.images() as images:
-                system = MockMaintenanceSystem(images, config)
-                system.attach_testcase(self)
+            with self.mock() as run_log:
+                moncic = make_moncic(mconfig)
+                with moncic.images() as images:
+                    with images.maintenance_system("test") as system:
+                        system.update()
+                        path = system.path[:-4]
 
-                system.update()
-
-        log = system.run_log
-
-        log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        log.assertPopFirst("script:#!/bin/sh\necho base")
-        log.assertPopFirst("script:#!/bin/sh\necho test")
-        log.assertPopFirst("cachedir_tag:")
-        log.assertLogEmpty()
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
+        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
+        run_log.assertPopFirst("script:#!/bin/sh\necho base")
+        run_log.assertPopFirst("script:#!/bin/sh\necho test")
+        run_log.assertPopFirst("cachedir_tag:")
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f"'<replace>' {path}.new {path}")
+        run_log.assertLogEmpty()
 
     def test_compression(self):
         with self.config() as mconfig:
@@ -123,18 +109,24 @@ class Bootstrap(DistroTestMixin, unittest.TestCase):
                 print("distro: fedora34", file=fd)
                 print("compression: zstd:9", file=fd)
 
-            config = SystemConfig.load(mconfig, mconfig.imagedir, "test")
-            moncic = make_moncic(mconfig, testcase=self)
-            with moncic.images() as images:
-                system = MockMaintenanceSystem(images, config)
-                system.attach_testcase(self)
+            with self.mock() as run_log:
+                moncic = make_moncic(mconfig)
+                with moncic.images() as images:
+                    images.bootstrap_system("test")
+                    with images.system("test") as system:
+                        path = system.path
 
-                system.bootstrap()
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')
+            run_log.assertPopFirst(f'btrfs -q property set {path}.new compression zstd:9')
+        run_log.assertPopFirst(re.compile('/usr/bin/dnf -c .+'))
+        run_log.assertPopFirst("/usr/bin/rpmdb --rebuilddb")
+        run_log.assertLogEmpty()
 
-        log = system.run_log
 
-        log.assertPopFirst(f'btrfs -q subvolume create {system.path}')
-        log.assertPopFirst(f'btrfs -q property set {system.path} compression zstd:9')
-        log.assertPopFirst(re.compile('/usr/bin/dnf -c .+'))
-        log.assertPopFirst("/usr/bin/rpmdb --rebuilddb")
-        log.assertLogEmpty()
+class BtrfsBootstrapTest(BootstrapTestMixin, unittest.TestCase):
+    DEFAULT_FILESYSTEM_TYPE = "btrfs"
+
+
+class PlainBootstrapTest(BootstrapTestMixin, unittest.TestCase):
+    DEFAULT_FILESYSTEM_TYPE = "tmpfs"

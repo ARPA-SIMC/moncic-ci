@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import contextlib
 import fcntl
 import logging
@@ -6,10 +7,11 @@ import os
 import re
 import struct
 import subprocess
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
-    from .system import MaintenanceSystem
+    from .moncic import MoncicConfig
+    from .system import SystemConfig
 
 log = logging.getLogger(__name__)
 
@@ -18,9 +20,38 @@ class Subvolume:
     """
     Low-level functions to access and maintain a btrfs subvolume
     """
-    def __init__(self, system: MaintenanceSystem):
-        self.system = system
-        self.path = self.system.path
+    def __init__(self, system_config: SystemConfig, mconfig: MoncicConfig):
+        self.log = system_config.logger
+        self.system_config = system_config
+        self.mconfig = mconfig
+        self.path = system_config.path
+        self.compression = system_config.compression
+        if self.compression is None:
+            self.compression = mconfig.compression
+
+    def replace_subvolume(self, path: str):
+        """
+        Replace the given subvolume with this one.
+
+        This and the destination subvolumes need to be on the same filesystem.
+        """
+        # We can do this because we stay on the same directory, which should
+        # only be writable by root
+        stash_path = path + ".tmp"
+        os.rename(path, stash_path)
+        os.rename(self.path, path)
+        self.path = path
+        old = Subvolume(self.system_config, self.mconfig)
+        old.path = stash_path
+        old.remove()
+
+    def local_run(self, cmd: List[str]) -> subprocess.CompletedProcess:
+        """
+        Run a command on the host system.
+        """
+        # Import here to avoid dependency loops
+        from .runner import LocalRunner
+        return LocalRunner.run(self.log, cmd, system_config=self.system_config)
 
     @contextlib.contextmanager
     def create(self):
@@ -32,14 +63,10 @@ class Subvolume:
             raise RuntimeError(f"{self.path!r} already exists")
 
         # See if there is a compression level configured that we should apply
-        compression = self.system.config.compression
-        if compression is None:
-            compression = self.system.images.moncic.config.compression
-
-        self.system.local_run(["btrfs", "-q", "subvolume", "create", self.path])
+        self.local_run(["btrfs", "-q", "subvolume", "create", self.path])
         try:
-            if compression is not None:
-                self.system.local_run(["btrfs", "-q", "property", "set", self.path, "compression", compression])
+            if self.compression is not None:
+                self.local_run(["btrfs", "-q", "property", "set", self.path, "compression", self.compression])
             yield
         except BaseException:
             # Catch BaseException instead of Exception to also cleanup in case
@@ -57,7 +84,7 @@ class Subvolume:
         if os.path.exists(self.path):
             raise RuntimeError(f"{self.path!r} already exists")
 
-        self.system.local_run(["btrfs", "-q", "subvolume", "snapshot", source_path, self.path])
+        self.local_run(["btrfs", "-q", "subvolume", "snapshot", source_path, self.path])
 
     def remove(self):
         """
@@ -81,10 +108,10 @@ class Subvolume:
         # Delete in reverse order
         for subvolid, subvolpath in to_delete[::-1]:
             log.info("removing btrfs subvolume %r", subvolpath)
-            self.system.local_run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, self.path])
+            self.local_run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, self.path])
 
         # Delete the subvolume itself
-        self.system.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
+        self.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
 
 
 FIDEDUPERANGE = 0xc0189436

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 import subprocess
 import unittest
@@ -32,9 +33,7 @@ maintscript: |
     # Prevent the default system update
     /bin/true
 """)
-            with cls.images.maintenance_system(test_image_name) as system:
-                if not system.is_bootstrapped():
-                    system.bootstrap()
+            cls.images.bootstrap_system(test_image_name)
 
     @classmethod
     def tearDownClass(cls):
@@ -83,17 +82,18 @@ maintscript: |
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
             with self.assertRaises(subprocess.CalledProcessError) as e:
-                with self.images.maintenance_system(test_image_name) as system:
-                    # Check that we are working on a temporary snapshot
-                    self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
+                with self.assertLogs(level=logging.WARNING):
+                    with self.images.maintenance_system(test_image_name) as system:
+                        # Check that we are working on a temporary snapshot
+                        self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
 
-                    with system.create_container() as container:
-                        def test_function():
-                            with open("/root/token", "wt") as out:
-                                out.write("test_transactional_updates")
-                            return 1  # Error!
+                        with system.create_container() as container:
+                            def test_function():
+                                with open("/root/token", "wt") as out:
+                                    out.write("test_transactional_updates")
+                                return 1  # Error!
 
-                        container.run_callable(test_function)
+                            container.run_callable(test_function)
 
             self.assertEqual(e.exception.returncode, 1)
 
