@@ -1,3 +1,7 @@
+# Version 0.5
+
+* Fixed bootstrapping on non-btrfs filesystems (#44)
+
 # Version 0.4
 
 * Allow to store image configuration separately from images (#33)

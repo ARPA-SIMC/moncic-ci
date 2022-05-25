@@ -1,10 +1,10 @@
-%global releaseno 4
+%global releaseno 1
 # Note: define _srcarchivename in Travis build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
 
 Name:           moncic-ci
-Version:        0.4
+Version:        0.5
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -59,6 +59,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Wed May 25 2022 Daniele Branchini <dbranchini@arpae.it> - 0.5-1
+- Fixed bootstrapping on non-btrfs filesystems (#44)
+
 * Fri May 13 2022 Daniele Branchini <dbranchini@arpae.it> - 0.4-4
 - Arpa builder search SPECS both in */SPECS and ./ (#42)
 
