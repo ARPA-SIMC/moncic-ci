@@ -212,6 +212,7 @@ class NspawnContainer(ContainerBase):
             f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
+            "--resolv-conf=replace-host",
         ]
         if self.config.workdir is not None:
             workdir = os.path.abspath(self.config.workdir)
