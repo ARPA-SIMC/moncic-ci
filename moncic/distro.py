@@ -366,8 +366,12 @@ class RpmDistro(Distro):
             system_rpmdb = os.path.join(installroot, "var", "lib", "rpm")
             if os.path.isdir(private_rpmdb):
                 log.info("Moving %r to %r", private_rpmdb, system_rpmdb)
-                if os.path.isdir(system_rpmdb):
-                    shutil.rmtree(system_rpmdb)
+                if os.path.islink(system_rpmdb):
+                    system_rpmdb = os.path.realpath(system_rpmdb)
+                    if installroot not in os.path.commonprefix((system_rpmdb, installroot)):
+                        raise RuntimeError(f"/var/lib/rpm in installed system points to {system_rpmdb}"
+                                           " which is outside installroot")
+                shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
             with system.create_container(config=ContainerConfig(ephemeral=False)) as container:
                 container.run(["/usr/bin/rpmdb", "--rebuilddb"])
