@@ -1,3 +1,7 @@
+# Version 0.6
+
+* Fixed network issues with systemd-resolved based images (Fedora 36)
+
 # Version 0.5
 
 * Fixed bootstrapping on non-btrfs filesystems (#44)

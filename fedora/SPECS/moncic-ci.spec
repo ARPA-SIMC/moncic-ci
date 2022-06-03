@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.5
+Version:        0.6
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -59,6 +59,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Fri Jun  3 2022 Daniele Branchini <dbranchini@arpae.it> - 0.6-1
+- Fixed network issues with systemd-resolved based images (Fedora 36)
+
 * Wed May 25 2022 Daniele Branchini <dbranchini@arpae.it> - 0.5-1
 - Fixed bootstrapping on non-btrfs filesystems (#44)
 
