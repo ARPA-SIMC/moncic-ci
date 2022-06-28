@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import stat
+import subprocess
 import tempfile
 from typing import Optional, Type, List, Dict, Iterable, NamedTuple, TYPE_CHECKING
 
@@ -14,6 +15,8 @@ from .container import ContainerConfig
 from .utils import atomic_writer
 if TYPE_CHECKING:
     from .system import System
+
+import requests
 
 log = logging.getLogger(__name__)
 
@@ -462,15 +465,28 @@ class DebianDistro(Distro):
         return res
 
     def bootstrap(self, system: System):
-        installroot = os.path.abspath(system.path)
-        cmd = [
-            "debootstrap", "--include=dbus,systemd", "--variant=minbase", self.suite, installroot, self.mirror
-        ]
-        # If eatmydata is available, we can use it to make deboostrap significantly faster
-        eatmydata = shutil.which("eatmydata")
-        if eatmydata is not None:
-            cmd.insert(0, eatmydata)
-        system.local_run(cmd)
+        with contextlib.ExitStack() as stack:
+            installroot = os.path.abspath(system.path)
+            cmd = ["debootstrap", "--include=dbus,systemd", "--variant=minbase"]
+
+            # TODO: use version to fetch the key, to make this generic
+            # TODO: add requests and gpg to dependencies
+            if self.suite == "jessie":
+                tmpfile = stack.enter_context(tempfile.NamedTemporaryFile(suffix=".gpg"))
+                res = requests.get("https://ftp-master.debian.org/keys/release-8.asc")
+                res.raise_for_status()
+                subprocess.run(
+                        ["gpg", "--import", "--no-default-keyring", "--keyring", tmpfile.name],
+                        input=res.content,
+                        check=True)
+                cmd.append(f"--keyring={tmpfile.name}")
+
+            cmd += [self.suite, installroot, self.mirror]
+            # If eatmydata is available, we can use it to make deboostrap significantly faster
+            eatmydata = shutil.which("eatmydata")
+            if eatmydata is not None:
+                cmd.insert(0, eatmydata)
+            system.local_run(cmd)
 
     def get_update_script(self) -> List[List[str]]:
         """
