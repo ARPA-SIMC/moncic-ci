@@ -37,10 +37,6 @@ The only keyword currently supported is:
 * `compression`: [btrfs compression attribute](https://btrfs.wiki.kernel.org/index.php/Compression)
   to set on OS image subvolumes when they are created. The value is the same as
   can be set by `btrfs property set compression`. By default, nothing is set.
-* `trim_image_file`: if set to True, automatically run fstrim on the image file
-  after regular maintenance. If set to False, do not do that. By default,
-  Moncic-CI will run fstrim if it can detect that the image file is on a SSD.
-  This is only relevant when [using a file to store OS images](btrfs-on-file.md).
 * `auto_sudo`: Automatically reexec with sudo if permissions are needed.
   Default: true
 * `tmpfs`: Use a tmpfs overlay for ephemeral containers instead of btrfs

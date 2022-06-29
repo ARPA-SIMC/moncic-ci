@@ -27,10 +27,6 @@ class MoncicConfig:
     # created. The value is the same as can be set by `btrfs property set
     # compression`. Default: nothing is set
     compression: Optional[str] = None
-    # If set to True, automatically run fstrim on the image file after regular
-    # maintenance. If set to False, do not do that. By default, Moncic-CI will
-    # run fstrim if it can detect that the image file is on a SSD
-    trim_image_file: Optional[bool] = None
     # Automatically reexec with sudo if permissions are needed
     auto_sudo: bool = True
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots

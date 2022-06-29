@@ -67,13 +67,8 @@ For running the test suite of local code on a different OS, see [Testing on anot
 ## Technology
 
 Moncic-CI uses [systemd-nspawn](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
-as a backend, and a [btrfs](https://btrfs.wiki.kernel.org/index.php/Main_Page)
-filesystem for storage and fast snapshotting.
-
-The btrfs storage can be just a normal directory for systems that already use
-btrfs or can easily setup a btrfs partition. Otherwise, with a small
-performance penalty, Moncic-CI can [store OS images in a
-file](doc/btrfs-on-file.md) by managing a btrfs filesystem inside it.
+as a backend. When using a [btrfs](https://btrfs.wiki.kernel.org/index.php/Main_Page)
+filesystem it can optionally use its features to reduce disk usage.
 
 
 ## Distributions supported
@@ -112,7 +107,6 @@ ubuntu:jammy       jammy, ubuntu:22.04
 
 * [Security considerations](doc/security.md)
 * [Image bootstrapping and maintenance](doc/image-maintenance.md)
-* [OS images in a file](doc/btrfs-on-file.md)
 
 ## Reference documentation
 

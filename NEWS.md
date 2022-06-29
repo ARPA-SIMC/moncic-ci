@@ -1,3 +1,7 @@
+# Version UNRELEASED
+
+* Removed support for a btrfs filesystem in a file (#41)
+
 # Version 0.6
 
 * Fixed network issues with systemd-resolved based images (Fedora 36)

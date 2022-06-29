@@ -7,14 +7,12 @@ import os
 import shutil
 import stat
 import subprocess
-import tempfile
 from collections import defaultdict
 from typing import TYPE_CHECKING, ContextManager, Generator, List, Optional
 
 from .btrfs import Subvolume, do_dedupe, is_btrfs
 from .distro import DistroFamily
 from .system import MaintenanceSystem, System, SystemConfig
-from .utils import is_on_rotational, pause_automounting
 from .runner import LocalRunner
 
 if TYPE_CHECKING:
@@ -311,22 +309,6 @@ class BtrfsImages(Images):
         log.info("%d total bytes are currently deduplicated", total_saved)
 
 
-class ImagesInFile(BtrfsImages):
-    """
-    Images stored in a file
-    """
-    def __init__(self, storage: "FileImageStorage", imagedir: str):
-        super().__init__(storage.moncic, imagedir)
-        self.storage = storage
-
-    def deduplicate(self):
-        super().deduplicate()
-
-        if self.storage.should_trim():
-            log.info("%s: trimming unused storage", self.storage.imagefile)
-            subprocess.run(["fstrim", self.imagedir], check=True)
-
-
 class ImageStorage:
     """
     Interface for handling image storage
@@ -358,7 +340,7 @@ class ImageStorage:
             else:
                 return PlainImageStorage(moncic, path)
         else:
-            return FileImageStorage(moncic, path)
+            raise RuntimeError(f"images path {path!r} does not point to a directory")
 
     @classmethod
     def create_default(cls, moncic: Moncic) -> "ImageStorage":
@@ -392,41 +374,6 @@ class BtrfsImageStorage(ImageStorage):
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
         yield BtrfsImages(self.moncic, self.imagedir)
-
-
-class FileImageStorage(ImageStorage):
-    """
-    Store images in a btrfs filesystem on a file
-    """
-    def __init__(self, moncic: Moncic, imagefile: str):
-        super().__init__(moncic)
-        self.imagefile = imagefile
-
-    @contextlib.contextmanager
-    def images(self) -> Generator[Images, None, None]:
-        with tempfile.TemporaryDirectory() as imagedir:
-            with pause_automounting(self.imagefile):
-                subprocess.run(["mount", self.imagefile, imagedir], check=True)
-
-                try:
-                    yield ImagesInFile(self, imagedir)
-                finally:
-                    subprocess.run(["umount", imagedir], check=True)
-
-    def should_trim(self):
-        """
-        Run fstrim on the image file if requested by config or if we can see
-        that the image file is on a SSD
-        """
-        do_trim = self.moncic.config.trim_image_file
-        if do_trim is None:
-            rot = is_on_rotational(self.imagefile)
-            if rot or rot is None:
-                return False
-        elif not do_trim:
-            return False
-
-        return True
 
 
 class PlainMachineImageStorage(PlainImageStorage):
