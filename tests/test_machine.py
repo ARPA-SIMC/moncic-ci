@@ -173,7 +173,7 @@ class RunTestCase:
                 self.assertEqual(res.stderr, b"")
 
                 res = container.run(["/usr/bin/pwd"])
-                self.assertEqual(res.stdout.decode(), f"/tmp/{os.path.basename(workdir)}\n")
+                self.assertEqual(res.stdout.decode(), f"/media/{os.path.basename(workdir)}\n")
                 self.assertEqual(res.stderr, b"")
 
     def test_run_callable_logging(self):

@@ -67,7 +67,7 @@ class ContainerConfig:
         if res.cwd is None:
             if self.workdir is not None:
                 name = os.path.basename(self.workdir)
-                res.cwd = f"/tmp/{name}"
+                res.cwd = f"/media/{name}"
             elif res.user is not None and res.user.user_id != 0:
                 res.cwd = f"/home/{res.user.user_name}"
             else:
@@ -219,7 +219,7 @@ class NspawnContainer(ContainerBase):
             name = os.path.basename(workdir)
             if name.startswith("."):
                 raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            cmd.append(f"--bind={escape_bind_ro(workdir)}:/tmp/{escape_bind_ro(name)}")
+            cmd.append(f"--bind={escape_bind_ro(workdir)}:/media/{escape_bind_ro(name)}")
         if self.config.bind:
             for pathspec in self.config.bind:
                 cmd.append("--bind=" + pathspec)
