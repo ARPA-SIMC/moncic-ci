@@ -193,7 +193,7 @@ class Debian(Builder):
         #    - or export a local apt repo readonly
 
         # Disable reindexing of manpages during installation of build-dependencies
-        run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n")
+        run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
 
         # Check if debian/files already exists
         clean_debian_files = os.path.join("debian", "files")
