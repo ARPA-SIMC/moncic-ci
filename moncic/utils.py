@@ -129,5 +129,6 @@ def cd(path: str):
     cwd = os.getcwd()
     try:
         os.chdir(path)
+        yield
     finally:
         os.chdir(cwd)

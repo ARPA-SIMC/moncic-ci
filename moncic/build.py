@@ -217,8 +217,9 @@ class Debian(Builder):
 
         # Move to a temporary directory
         with tempfile.TemporaryDirectory() as workdir:
+            dsc_fname = os.path.abspath(os.path.join("..", srcinfo.dsc_fname))
             with cd(workdir):
-                run(["dpkg-source", "-x", srcinfo.dsc_fname])
+                run(["dpkg-source", "-x", dsc_fname])
 
                 # Find the newly created build directory
                 for de in os.scandir("."):
@@ -232,8 +233,10 @@ class Debian(Builder):
                     # Install build dependencies
                     env = dict(os.environ)
                     env.update(DEBIAN_FRONTEND="noninteractive")
-                    run(["apt", "--assume-yes", "--quiet", "--show-upgraded",
-                         "-o", 'Dpkg::Options::="--force-confnew"',
+                    run(["apt-get", "--assume-yes", "--quiet", "--show-upgraded",
+                         # The space after -o is odd but required, and I could
+                         # not find a better working syntax
+                         '-o Dpkg::Options::="--force-confnew"',
                          "build-dep", "./"], env=env)
 
                     # TODO: Disconnect from network namespace here
