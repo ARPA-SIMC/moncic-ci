@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Enrico Zini <enrico@debian.org>
 Build-Depends: debhelper (>= 13), dh-python,
                python3-all, python3-setuptools, python3-yaml, python3-requests,
-               btrfs-progs
+               btrfs-progs, dnf
 Standards-Version: 4.2.0
 
 Package: moncic-ci
