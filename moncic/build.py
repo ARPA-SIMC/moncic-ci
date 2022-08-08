@@ -20,8 +20,24 @@ log = logging.getLogger(__name__)
 
 
 def run(cmd, check=True, **kwargs):
+    """
+    subprocess.run wrapper that has check=True by default and logs the commands
+    run
+    """
     log.info("Run: %s", " ".join(shlex.quote(c) for c in cmd))
     return subprocess.run(cmd, check=check, **kwargs)
+
+
+def link_or_copy(src: str, dstdir: str):
+    """
+    Try to make a hardlink of src inside directory dstdir.
+
+    If hardlinking is not possible, copy it
+    """
+    try:
+        os.link(src, os.path.join(dstdir, os.path.basename(src)))
+    except OSError:
+        shutil.copy2(src, dstdir)
 
 
 class Builder:
@@ -83,6 +99,13 @@ class Builder:
         The return value will be used as the return code of the child process.
         """
         raise NotImplementedError(f"{self.__class__}.build not implemented")
+
+    def collect_artifacts(self, destdir: str):
+        """
+        Copy build artifacts to the given directory
+        """
+        # Do nothing by default
+        pass
 
 
 @Builder.register
@@ -151,6 +174,7 @@ class SourceInfo(NamedTuple):
     version: str
     dsc_fname: str
     tar_fname: str
+    changes_fname: str
 
 
 def get_source_info() -> SourceInfo:
@@ -171,12 +195,40 @@ def get_source_info() -> SourceInfo:
     if not pkg_srcname or not pkg_version:
         raise RuntimeError("Unable to determine source package name or source package version")
 
+    res = run(["dpkg", "--print-architecture"], capture_output=True, text=True)
+    arch = res.stdout.strip()
+
     pkg_version_dsc = pkg_version.split(":", 1)[1] if ":" in pkg_version else pkg_version
     dsc_fname = f"{pkg_srcname}_{pkg_version_dsc}.dsc"
+    changes_fname = f"{pkg_srcname}_{pkg_version_dsc}_{arch}.changes"
     pkg_version_tar = pkg_version_dsc.split("-", 1)[0] if "-" in pkg_version_dsc else pkg_version_dsc
     tar_fname = f"{pkg_srcname}_{pkg_version_tar}.orig.tar.gz"
 
-    return SourceInfo(pkg_srcname, pkg_version, dsc_fname, tar_fname)
+    return SourceInfo(pkg_srcname, pkg_version, dsc_fname, tar_fname, changes_fname)
+
+
+def get_file_list(path: str) -> List[str]:
+    """
+    Read a .dsc or .changes file and return the list of files it references
+    """
+    res: List[str] = []
+    is_changes = path.endswith(".changes")
+    with open(path, "rt") as fd:
+        in_files_section = False
+        for line in fd:
+            if in_files_section:
+                if not line[0].isspace():
+                    in_files_section = False
+                else:
+                    if is_changes:
+                        checksum, size, section, priority, fname = line.strip().split(None, 4)
+                    else:
+                        checksum, size, fname = line.strip().split(None, 2)
+                    res.append(fname)
+            else:
+                if line.startswith("Files:"):
+                    in_files_section = True
+    return res
 
 
 @Builder.register
@@ -221,9 +273,14 @@ class Debian(Builder):
 
         # Move to a temporary directory
         with tempfile.TemporaryDirectory() as workdir:
-            dsc_fname = os.path.abspath(os.path.join("..", srcinfo.dsc_fname))
+            # Copy .dsc and its assets to the work directory
+            dsc_fname = os.path.join("..", srcinfo.dsc_fname)
+            shutil.copy2(dsc_fname, workdir)
+            for fname in get_file_list(dsc_fname):
+                shutil.copy2(os.path.join("..", fname), workdir)
+
             with cd(workdir):
-                run(["dpkg-source", "-x", dsc_fname])
+                run(["dpkg-source", "-x", srcinfo.dsc_fname])
 
                 # Find the newly created build directory
                 for de in os.scandir("."):
@@ -243,9 +300,26 @@ class Debian(Builder):
                          '-o Dpkg::Options::="--force-confnew"',
                          "build-dep", "./"], env=env)
 
-                    # TODO: Disconnect from network namespace here
-
                     # Build
-                    run(["dpkg-buildpackage", "--no-sign"])
+                    # Use unshare to disable networking
+                    run(["unshare", "-n", "--", "dpkg-buildpackage", "--no-sign"])
 
-                    # TODO: collect artifacts
+                # Collect artifacts
+                artifacts_dir = "/srv/artifacts"
+                if os.path.isdir(artifacts_dir):
+                    shutil.rmtree(artifacts_dir)
+                os.makedirs(artifacts_dir)
+
+                def collect(path: str):
+                    log.info("Found artifact %s", path)
+                    link_or_copy(path, artifacts_dir)
+
+                collect(srcinfo.changes_fname)
+                for fname in get_file_list(srcinfo.changes_fname):
+                    collect(fname)
+
+    def collect_artifacts(self, container: Container, destdir: str):
+        for de in os.scandir(os.path.join(container.get_root(), "srv", "artifacts")):
+            if de.is_file():
+                log.info("Copying %s to %s", de.name, destdir)
+                link_or_copy(de.path, destdir)
