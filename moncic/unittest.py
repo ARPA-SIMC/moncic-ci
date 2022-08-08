@@ -73,6 +73,25 @@ class MockRunLog:
     def append_cachedir(self):
         self.log.append(("cachedir_tag:", {}))
 
+    def assertPopFirstOptional(self, cmd: Union[str, re.Pattern], **kwargs):
+        actual_cmd, actual_kwargs = self.log[0]
+
+        skip = False
+        if isinstance(cmd, str):
+            if not actual_cmd.startswith(cmd.split()[0]):
+                skip = True
+            else:
+                self.testcase.assertEqual(actual_cmd, cmd)
+        else:
+            if not cmd.search(actual_cmd):
+                skip = True
+            else:
+                self.testcase.assertRegex(actual_cmd, cmd)
+
+        if not skip:
+            self.log.pop(0)
+            self.testcase.assertEqual(actual_kwargs, kwargs)
+
     def assertPopFirst(self, cmd: Union[str, re.Pattern], **kwargs):
         actual_cmd, actual_kwargs = self.log.pop(0)
 
@@ -112,7 +131,7 @@ def workdir(filesystem_type: Optional[str] = None):
                 yield imagedir
             else:
                 with tempfile.NamedTemporaryFile() as backing:
-                    backing.truncate(100*1024*1024)
+                    backing.truncate(1024*1024*1024)
                     subprocess.run(["mkfs.btrfs", backing.name], check=True)
                     with privs.root():
                         subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir], check=True)

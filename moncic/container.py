@@ -92,6 +92,12 @@ class Container(ContextManager, Protocol):
         """
         ...
 
+    def get_root(self) -> str:
+        """
+        Return the path to the root directory of this container
+        """
+        ...
+
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run the given command inside the running system.
@@ -172,6 +178,9 @@ class NspawnContainer(ContainerBase):
         super().__init__(*args, **kw)
         # machinectl properties of the running machine
         self.properties = None
+
+    def get_root(self) -> str:
+        return self.properties["RootDirectory"]
 
     def _run_nspawn(self, cmd: List[str]):
         """
