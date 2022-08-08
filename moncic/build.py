@@ -192,6 +192,9 @@ class Debian(Builder):
         # - inject dependency packages in a private apt repo if required
         #    - or export a local apt repo readonly
 
+        # Disable reindexing of manpages during installation of build-dependencies
+        run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n")
+
         # Check if debian/files already exists
         clean_debian_files = os.path.join("debian", "files")
         if os.path.exists(clean_debian_files):
