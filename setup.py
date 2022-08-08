@@ -49,7 +49,7 @@ setup(
     # It does not make muc sense to run pip install without installing also
     # coloredlogs and texttable, although moncic-ci is able to work without
     # them
-    install_requires=["pyyaml", "coloredlogs", "texttable"],
+    install_requires=["pyyaml", "coloredlogs", "texttable", "requests"],
     packages=['moncic'],
     scripts=['monci'],
     classifiers=[
