@@ -237,7 +237,7 @@ class Debian(Builder):
                     # Install build dependencies
                     env = dict(os.environ)
                     env.update(DEBIAN_FRONTEND="noninteractive")
-                    run(["apt-get", "--assume-yes", "--quiet", "--show-upgraded",
+                    run(["eatmydata", "apt-get", "--assume-yes", "--quiet", "--show-upgraded",
                          # The space after -o is odd but required, and I could
                          # not find a better working syntax
                          '-o Dpkg::Options::="--force-confnew"',
