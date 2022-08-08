@@ -16,7 +16,7 @@ class Centos8(DistroTestMixin, unittest.TestCase):
                 with images.system("test") as system:
                     path = system.path
 
-        run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')
+        run_log.assertPopFirstOptional(f'btrfs -q subvolume create {path}.new')
         run_log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
             rf' --installroot={path}\.new --releasever=8 install bash rootfiles dbus dnf'))
