@@ -119,3 +119,15 @@ def is_on_rotational(pathname: str) -> Optional[bool]:
             return fd.read().strip() == "1"
     except FileNotFoundError:
         return None
+
+
+@contextlib.contextmanager
+def cd(path: str):
+    """
+    chdir to path for the duration of this context manager
+    """
+    cwd = os.getcwd()
+    try:
+        os.chdir(path)
+    finally:
+        os.chdir(cwd)
