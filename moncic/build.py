@@ -204,6 +204,7 @@ class Debian(Builder):
         srcinfo = get_source_info()
 
         # Build upstream tarball if missing
+        # FIXME: this is a hack, that prevents building new debian versions
         if not os.path.exists(os.path.join("..", srcinfo.tar_fname)):
             run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
 

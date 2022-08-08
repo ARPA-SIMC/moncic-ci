@@ -112,7 +112,7 @@ def workdir(filesystem_type: Optional[str] = None):
                 yield imagedir
             else:
                 with tempfile.NamedTemporaryFile() as backing:
-                    backing.truncate(100*1024*1024)
+                    backing.truncate(1024*1024*1024)
                     subprocess.run(["mkfs.btrfs", backing.name], check=True)
                     with privs.root():
                         subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir], check=True)
