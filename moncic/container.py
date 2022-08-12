@@ -5,6 +5,7 @@ import errno
 import grp
 import logging
 import os
+import re
 import pwd
 import shlex
 import signal
@@ -22,6 +23,98 @@ if TYPE_CHECKING:
     from .system import System
 
 log = logging.getLogger(__name__)
+
+re_split_bind = re.compile(r"(?<!\\):")
+
+
+@dataclasses.dataclass
+class BindConfig:
+    """
+    Configuration of one bind mount requested on the container
+    """
+    # Directory in the host system to be bind mounted in the container
+    #
+    # The source path may optionally be prefixed with a "+" character. If
+    # so, the source path is taken relative to the image's root directory.
+    # This permits setting up bind mounts within the container image.
+    #
+    # The source path may be specified as empty string, in which case a
+    # temporary directory below the host's /var/tmp/ directory is used.
+    # It is automatically removed when the container is shut down.
+    source: str
+
+    # Directory inside the container where the directory gets bind mounted
+    destination: str
+
+    # Type of bind mount:
+    #
+    # * ``ro``
+    # * ``rw``
+    bind_type: str = "rw"
+
+    # Mount options for nspawn
+    #
+    # Mount options are comma-separated.  rbind and norbind control whether
+    # to create a recursive or a regular bind mount. Defaults to "rbind".
+    #
+    # idmap and noidmap control if the bind mount should use filesystem id
+    # mappings. Using this option requires support by the source filesystem
+    # for id mappings. Defaults to "noidmap".
+    mount_options: List[str] = dataclasses.field(default_factory=list)
+
+    def to_nspawn(self) -> str:
+        """
+        Return the nspawn --bind* option for this bind
+        """
+        if self.bind_type in ("ro",):
+            option = "--bind-ro="
+        elif self.bind_type in ("rw",):
+            option = "--bind="
+        else:
+            raise ValueError(f"{self.bind_type!r}: invalid bind type")
+
+        if self.mount_options:
+            return option + ":".join((
+                escape_bind_ro(self.source),
+                escape_bind_ro(self.destination),
+                ",".join(self.mount_options)))
+        else:
+            if self.source == self.destination:
+                return option + escape_bind_ro(self.source)
+            else:
+                return option + (escape_bind_ro(self.source) + ":" +
+                                 escape_bind_ro(self.destination))
+
+    @classmethod
+    def from_nspawn(cls, entry: str, bind_type: str) -> "BindConfig":
+        """
+        Create a BindConfig from an nspawn --bind/--bind-ro option
+        """
+        # Backslash escapes are interpreted, so "\:" may be used to embed colons in either path.
+        #
+        parts = re_split_bind.split(entry)
+        if len(parts) == 1:
+            # a path argument — in which case the specified path will be
+            # mounted from the host to the same path in the container
+            path = parts[0].replace(r"\:", ":")
+            return cls(path, path, bind_type)
+        elif len(parts) == 2:
+            # a colon-separated pair of paths — in which case the first
+            # specified path is the source in the host, and the second path is
+            # the destination in the container
+            return cls(
+                    parts[0].replace(r"\:", ":"),
+                    parts[1].replace(r"\:", ":"),
+                    bind_type)
+        elif len(parts) == 3:
+            # a colon-separated triple of source path, destination path and mount options
+            return cls(
+                    parts[0].replace(r"\:", ":"),
+                    parts[1].replace(r"\:", ":"),
+                    bind_type,
+                    parts[2].split(','))
+        else:
+            raise ValueError(f"{entry!r}: unparsable bind option")
 
 
 @dataclasses.dataclass
@@ -41,11 +134,8 @@ class ContainerConfig:
     # working directory
     workdir: Optional[str] = None
 
-    # systemd-nspawn --bind pathspecs to bind read-write
-    bind: List[str] = dataclasses.field(default_factory=list)
-
-    # systemd-nspawn --bind_ro pathspecs to bind read-only
-    bind_ro: List[str] = dataclasses.field(default_factory=list)
+    # List of bind mounts requested on the container
+    binds: List[BindConfig] = dataclasses.field(default_factory=list)
 
     # If set to True: if workdir is None, make sure the current user exists in
     # the container. Else, make sure the owner of workdir exists in the
@@ -178,6 +268,8 @@ class NspawnContainer(ContainerBase):
         super().__init__(*args, **kw)
         # machinectl properties of the running machine
         self.properties = None
+        # Bind mounts used by this container
+        self.binds: List[BindConfig] = []
 
     def get_root(self) -> str:
         return self.properties["RootDirectory"]
@@ -228,13 +320,11 @@ class NspawnContainer(ContainerBase):
             name = os.path.basename(workdir)
             if name.startswith("."):
                 raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            cmd.append(f"--bind={escape_bind_ro(workdir)}:/media/{escape_bind_ro(name)}")
-        if self.config.bind:
-            for pathspec in self.config.bind:
-                cmd.append("--bind=" + pathspec)
-        if self.config.bind_ro:
-            for pathspec in self.config.bind_ro:
-                cmd.append("--bind-ro=" + pathspec)
+            self.binds.append(BindConfig(workdir, "/media/" + name))
+            cmd.append(self.binds[-1].to_nspawn())
+        for bind_config in self.config.binds:
+            self.binds.append(bind_config)
+            cmd.append(bind_config.to_nspawn())
         if self.config.ephemeral:
             if self.config.tmpfs:
                 cmd.append("--volatile=overlay")

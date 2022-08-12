@@ -18,7 +18,7 @@ except ModuleNotFoundError:
     Texttable = None
 
 from .cli import Command, Fail
-from .container import ContainerConfig, RunConfig, UserConfig
+from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from .build import Builder
 from .moncic import Moncic, MoncicConfig
 from .distro import DistroFamily
@@ -200,9 +200,11 @@ class ImageActionCommand(MoncicCommand):
                         config.forward_user = True
 
                     if self.args.bind:
-                        config.bind = self.args.bind
+                        for entry in self.args.bind:
+                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="rw"))
                     if self.args.bind_ro:
-                        config.bind_ro = self.args.bind_ro
+                        for entry in self.args.bind_ro:
+                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="ro"))
 
                     with system.create_container(config=config) as container:
                         yield container
