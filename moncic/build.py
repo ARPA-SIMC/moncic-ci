@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Type
 
 from .container import ContainerConfig
 from .distro import DnfDistro, YumDistro
+from .runner import UserConfig
 from .utils import cd
 
 if TYPE_CHECKING:
@@ -30,16 +31,20 @@ def run(cmd, check=True, **kwargs):
     return subprocess.run(cmd, check=check, **kwargs)
 
 
-def link_or_copy(src: str, dstdir: str):
+def link_or_copy(src: str, dstdir: str, user: Optional[UserConfig] = None):
     """
     Try to make a hardlink of src inside directory dstdir.
 
     If hardlinking is not possible, copy it
     """
+    dest = os.path.join(dstdir, os.path.basename(src))
     try:
-        os.link(src, os.path.join(dstdir, os.path.basename(src)))
+        os.link(src, dest)
     except OSError:
-        shutil.copy2(src, dstdir)
+        shutil.copy2(src, dest)
+
+    if user is not None:
+        os.chown(dest, user.user_id, user.group_id)
 
 
 class Builder:
@@ -334,7 +339,8 @@ class Debian(Builder):
                     collect(fname)
 
     def collect_artifacts(self, container: Container, destdir: str):
+        user = UserConfig.from_sudoer()
         for de in os.scandir(os.path.join(container.get_root(), "srv", "artifacts")):
             if de.is_file():
                 log.info("Copying %s to %s", de.name, destdir)
-                link_or_copy(de.path, destdir)
+                link_or_copy(de.path, destdir, user=user)
