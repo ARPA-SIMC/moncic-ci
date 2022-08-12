@@ -125,15 +125,12 @@ class CI(MoncicCommand):
         with self.moncic.images() as images:
             with images.system(self.args.system) as system:
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    container = system.create_container(config=ContainerConfig(workdir=srcdir))
                     if self.args.build_style:
-                        builder = Builder.create(self.args.build_style, container)
+                        builder = Builder.create(self.args.build_style, system, srcdir)
                     else:
-                        builder = Builder.detect(container)
-                    with container:
-                        res = container.run_callable(builder.build)
-                        builder.collect_artifacts(container, self.args.artifacts)
-                    return res.returncode
+                        builder = Builder.detect(system, srcdir)
+
+                    return builder.build(self.args.artifacts)
 
 
 class ImageActionCommand(MoncicCommand):

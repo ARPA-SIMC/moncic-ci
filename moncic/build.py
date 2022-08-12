@@ -10,10 +10,12 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Type
 
+from .container import ContainerConfig
 from .distro import DnfDistro, YumDistro
 from .utils import cd
 
 if TYPE_CHECKING:
+    from .container import System
     from .container import Container
 
 log = logging.getLogger(__name__)
@@ -60,18 +62,16 @@ class Builder:
         return list(cls.builders.keys())
 
     @classmethod
-    def create(cls, name: str, run: Container) -> "Builder":
+    def create(cls, name: str, system: System, srcdir: str) -> "Builder":
         builder_cls = cls.builders[name]
-        return builder_cls(run)
+        return builder_cls(system, srcdir)
 
     @classmethod
-    def detect(cls, run: Container) -> "Builder":
-        if run.config.workdir is None:
-            raise ValueError("Running system has no workdir defined")
+    def detect(cls, system: System, srcdir: str) -> "Builder":
         for builder_cls in reversed(cls.builders.values()):
-            if builder_cls.builds(run.config.workdir):
-                return builder_cls(run)
-        raise RuntimeError(f"No suitable builder found for {run.config.workdir!r}")
+            if builder_cls.builds(srcdir):
+                return builder_cls(system, srcdir)
+        raise RuntimeError(f"No suitable builder found for {srcdir!r}")
 
     @classmethod
     def builds(cls, srcdir: str) -> bool:
@@ -80,13 +80,26 @@ class Builder:
         """
         raise NotImplementedError(f"{cls}.builds not implemented")
 
-    def __init__(self, run: Container):
+    def __init__(self, system: System, srcdir: str):
         """
         The constructor is run in the host system
         """
-        self.run = run
+        self.system = system
+        self.srcdir = srcdir
 
-    def build(self) -> Optional[int]:
+    def build(self, artifacts_dir: Optional[str] = None) -> int:
+        """
+        Run the build, store the artifacts in the given directory if requested,
+        return the returncode of the build process
+        """
+        container = self.system.create_container(config=ContainerConfig(workdir=self.srcdir))
+        with container:
+            res = container.run_callable(self.build_in_container)
+            if artifacts_dir:
+                self.collect_artifacts(container, artifacts_dir)
+        return res.returncode
+
+    def build_in_container(self) -> Optional[int]:
         """
         Run the build in a child process.
 
@@ -110,11 +123,11 @@ class Builder:
 
 @Builder.register
 class ARPA(Builder):
-    def __init__(self, run: Container):
-        super().__init__(run)
-        if isinstance(run.system.distro, YumDistro):
+    def __init__(self, system: System):
+        super().__init__(system)
+        if isinstance(system.distro, YumDistro):
             self.builddep = ["yum-builddep"]
-        elif isinstance(run.system.distro, DnfDistro):
+        elif isinstance(system.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {run.system.distro.name}")
@@ -128,7 +141,7 @@ class ARPA(Builder):
         except FileNotFoundError:
             return False
 
-    def build(self) -> Optional[int]:
+    def build_in_container(self) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
@@ -239,7 +252,7 @@ class Debian(Builder):
             return True
         return False
 
-    def build(self) -> Optional[int]:
+    def build_in_container(self) -> Optional[int]:
         # TODO:
         # - inject dependency packages in a private apt repo if required
         #    - or export a local apt repo readonly
