@@ -93,7 +93,7 @@ class Builder:
         return the returncode of the build process
         """
         container_config = ContainerConfig()
-        container_config.configure_workdir(self.srcdir)
+        container_config.configure_workdir(self.srcdir, bind_type="volatile")
         container = self.system.create_container(config=container_config)
         with container:
             res = container.run_callable(self.build_in_container)
