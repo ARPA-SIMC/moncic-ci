@@ -426,17 +426,19 @@ class NspawnContainer(ContainerBase):
 
         # Set up volatile mounts
         if any(bind.bind_type == "volatile" for bind in self.active_binds):
-            self.run_callable(self._bind_volatile_mounts)
+            self.run_callable(self._bind_volatile_mounts, config=RunConfig(user=UserConfig.root()))
 
     def _bind_volatile_mounts(self):
         """
-        Run in the container to finish setting up volatile binds
+        Finish setting up volatile binds in the container
         """
         volatile_root = "/run/volatile"
         os.makedirs(volatile_root, exist_ok=True)
 
         for bind in self.active_binds:
             if bind.bind_type == "volatile":
+                st = os.stat(bind.destination)
+
                 m = hashlib.sha1()
                 m.update(bind.destination.encode())
                 basename = m.hexdigest()
@@ -444,13 +446,19 @@ class NspawnContainer(ContainerBase):
                 # Create the overlay workspace on tmpfs in /run
                 workdir = os.path.join(volatile_root, basename)
                 os.makedirs(workdir, exist_ok=True)
-                os.makedirs(os.path.join(workdir, "upper"), exist_ok=True)
-                os.makedirs(os.path.join(workdir, "work"), exist_ok=True)
+
+                overlay_upper = os.path.join(workdir, "upper")
+                os.makedirs(overlay_upper, exist_ok=True)
+                os.chown(overlay_upper, st.st_uid, st.st_gid)
+
+                overlay_work = os.path.join(workdir, "work")
+                os.makedirs(overlay_work, exist_ok=True)
+                os.chown(overlay_work, st.st_uid, st.st_gid)
 
                 cmd = ["mount", "-t", "overlay", "overlay",
-                       f"-olowerdir={bind.destination},upperdir={workdir}/upper,workdir={workdir}/work",
+                       f"-olowerdir={bind.destination},upperdir={overlay_upper},workdir={overlay_work}",
                        bind.destination]
-                # logging.debug("Volatile setup command: %r", cmd)
+                logging.debug("Volatile setup command: %r", cmd)
                 subprocess.run(cmd, check=True)
 
     def _stop(self):
