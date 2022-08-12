@@ -5,16 +5,16 @@ import errno
 import grp
 import logging
 import os
-import re
 import pwd
+import re
 import shlex
 import signal
 import subprocess
 import tempfile
 import time
 import uuid
-from typing import (TYPE_CHECKING, Callable, ContextManager, List, NoReturn,
-                    Optional, Protocol)
+from typing import (TYPE_CHECKING, Callable, ContextManager, Iterator, List,
+                    NoReturn, Optional, Protocol)
 
 from .nspawn import escape_bind_ro
 from .runner import RunConfig, SetnsCallableRunner, UserConfig
@@ -188,6 +188,12 @@ class Container(ContextManager, Protocol):
         """
         ...
 
+    def binds(self) -> Iterator[BindConfig]:
+        """
+        Iterate the bind mounts active on this container
+        """
+        ...
+
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run the given command inside the running system.
@@ -269,10 +275,13 @@ class NspawnContainer(ContainerBase):
         # machinectl properties of the running machine
         self.properties = None
         # Bind mounts used by this container
-        self.binds: List[BindConfig] = []
+        self.active_binds: List[BindConfig] = []
 
     def get_root(self) -> str:
         return self.properties["RootDirectory"]
+
+    def binds(self) -> Iterator[BindConfig]:
+        yield from self.active_binds
 
     def _run_nspawn(self, cmd: List[str]):
         """
@@ -320,10 +329,10 @@ class NspawnContainer(ContainerBase):
             name = os.path.basename(workdir)
             if name.startswith("."):
                 raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            self.binds.append(BindConfig(workdir, "/media/" + name))
-            cmd.append(self.binds[-1].to_nspawn())
+            self.active_binds.append(BindConfig(workdir, "/media/" + name))
+            cmd.append(self.active_binds[-1].to_nspawn())
         for bind_config in self.config.binds:
-            self.binds.append(bind_config)
+            self.active_binds.append(bind_config)
             cmd.append(bind_config.to_nspawn())
         if self.config.ephemeral:
             if self.config.tmpfs:

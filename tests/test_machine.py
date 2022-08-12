@@ -176,6 +176,13 @@ class RunTestCase:
                 self.assertEqual(res.stdout.decode(), f"/media/{os.path.basename(workdir)}\n")
                 self.assertEqual(res.stderr, b"")
 
+                binds = list(container.binds())
+                self.assertEqual(len(binds), 1)
+                self.assertEqual(binds[0].source, workdir)
+                self.assertEqual(binds[0].destination, "/media/" + os.path.basename(workdir))
+                self.assertEqual(binds[0].bind_type, "rw")
+                self.assertEqual(binds[0].mount_options, [])
+
     def test_run_callable_logging(self):
         def test_log():
             logging.debug("debug")
