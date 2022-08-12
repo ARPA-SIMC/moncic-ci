@@ -190,14 +190,14 @@ class ImageActionCommand(MoncicCommand):
 
                 with checkout(system, self.args.clone) as workdir:
                     workdir = workdir if workdir is not None else self.args.workdir
-                    if workdir is not None:
-                        workdir = os.path.abspath(workdir)
 
                     config = ContainerConfig(
-                            ephemeral=not self.args.maintenance,
-                            workdir=workdir)
-                    if workdir is not None or self.args.user:
-                        config.forward_user = True
+                            ephemeral=not self.args.maintenance)
+
+                    if workdir is not None:
+                        config.configure_workdir(workdir)
+                    elif self.args.user:
+                        config.forward_user = UserConfig.from_sudoer()
 
                     if self.args.bind:
                         for entry in self.args.bind:

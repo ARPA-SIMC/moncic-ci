@@ -92,7 +92,9 @@ class Builder:
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
         """
-        container = self.system.create_container(config=ContainerConfig(workdir=self.srcdir))
+        container_config = ContainerConfig()
+        container_config.configure_workdir(self.srcdir)
+        container = self.system.create_container(config=container_config)
         with container:
             res = container.run_callable(self.build_in_container)
             if artifacts_dir:
