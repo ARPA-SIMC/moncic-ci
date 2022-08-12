@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import errno
 import grp
+import hashlib
 import logging
 import os
 import pwd
@@ -66,7 +67,7 @@ class BindConfig:
         """
         Return the nspawn --bind* option for this bind
         """
-        if self.bind_type in ("ro",):
+        if self.bind_type in ("ro", "volatile"):
             option = "--bind-ro="
         elif self.bind_type in ("rw",):
             option = "--bind="
@@ -412,6 +413,35 @@ class NspawnContainer(ContainerBase):
 
         # We do not need to delete the user if it was created, because we
         # enforce that forward_user is only used on ephemeral containers
+
+        # Set up volatile mounts
+        if any(bind.bind_type == "volatile" for bind in self.active_binds):
+            self.run_callable(self._bind_volatile_mounts)
+
+    def _bind_volatile_mounts(self):
+        """
+        Run in the container to finish setting up volatile binds
+        """
+        volatile_root = "/run/volatile"
+        os.makedirs(volatile_root, exist_ok=True)
+
+        for bind in self.active_binds:
+            if bind.bind_type == "volatile":
+                m = hashlib.sha1()
+                m.update(bind.destination.encode())
+                basename = m.hexdigest()
+
+                # Create the overlay workspace on tmpfs in /run
+                workdir = os.path.join(volatile_root, basename)
+                os.makedirs(workdir, exist_ok=True)
+                os.makedirs(os.path.join(workdir, "upper"), exist_ok=True)
+                os.makedirs(os.path.join(workdir, "work"), exist_ok=True)
+
+                cmd = ["mount", "-t", "overlay", "overlay",
+                       f"-olowerdir={bind.destination},upperdir={workdir}/upper,workdir={workdir}/work",
+                       bind.destination]
+                # logging.debug("Volatile setup command: %r", cmd)
+                subprocess.run(cmd, check=True)
 
     def _stop(self):
         # See https://github.com/systemd/systemd/issues/6458

@@ -219,6 +219,24 @@ class RunTestCase:
                 self.assertEqual(binds[0].bind_type, "ro")
                 self.assertEqual(binds[0].mount_options, [])
 
+    def test_bind_mount_volatile(self):
+        with tempfile.TemporaryDirectory() as workdir:
+            # By default, things are run as root
+            container_config = ContainerConfig()
+            container_config.binds.append(
+                    BindConfig(source=workdir, destination="/media/workdir", bind_type="volatile"))
+            with self.container(config=container_config) as container:
+                container.run(["/bin/touch", "/media/workdir/test"])
+                container.run(["/bin/test", "-e", "/media/workdir/test"])
+                self.assertFalse(os.path.exists(os.path.join(workdir, "test")))
+
+                binds = list(container.binds())
+                self.assertEqual(len(binds), 1)
+                self.assertEqual(binds[0].source, workdir)
+                self.assertEqual(binds[0].destination, "/media/workdir")
+                self.assertEqual(binds[0].bind_type, "volatile")
+                self.assertEqual(binds[0].mount_options, [])
+
     def test_run_callable_logging(self):
         def test_log():
             logging.debug("debug")
