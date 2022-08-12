@@ -4,6 +4,8 @@
 * Prototype `Builder` for building Debian packages (#47)
 * Added option `--bind-volatile`, working as `--bind-ro` plus a temporary
   writable overlay (#50)
+* Added option `--workdir-volatile` working as `--workdir` but with a volatile
+  mount
 
 # Version 0.6
 

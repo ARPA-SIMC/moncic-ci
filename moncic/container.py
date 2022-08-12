@@ -148,7 +148,7 @@ class ContainerConfig:
         """
         pass
 
-    def configure_workdir(self, workdir: str):
+    def configure_workdir(self, workdir: str, bind_type="rw"):
         """
         Configure a working directory, bind mounted into the container, set as
         the container working directory, with its user forwarded in the container
@@ -158,7 +158,7 @@ class ContainerConfig:
         self.binds.append(BindConfig(
             source=workdir,
             destination=mountpoint,
-            bind_type="rw",
+            bind_type=bind_type,
             cwd=True,
         ))
         self.forward_user = UserConfig.from_file(workdir)

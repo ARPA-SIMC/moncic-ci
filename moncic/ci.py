@@ -145,7 +145,10 @@ class ImageActionCommand(MoncicCommand):
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
                             "-w", "--workdir",
-                            help="bind mount (writable) the given directory in /root")
+                            help="bind mount (writable) the given directory as working directory")
+        git_workdir.add_argument(
+                            "-W", "--workdir-volatile",
+                            help="bind mount (volatile) the given directory as working directory")
         git_workdir.add_argument(
                             "--clone", metavar="repository",
                             help="checkout the given repository (local or remote) in the chroot")
@@ -189,13 +192,19 @@ class ImageActionCommand(MoncicCommand):
                     raise Fail(f"{system.name!r} has not been bootstrapped")
 
                 with checkout(system, self.args.clone) as workdir:
-                    workdir = workdir if workdir is not None else self.args.workdir
+                    if workdir is None:
+                        if self.args.workdir:
+                            workdir = self.args.workdir
+                            workdir_bind_type = "rw"
+                        elif self.args.workdir_volatile:
+                            workdir = self.args.workdir_volatile
+                            workdir_bind_type = "volatile"
 
                     config = ContainerConfig(
                             ephemeral=not self.args.maintenance)
 
                     if workdir is not None:
-                        config.configure_workdir(workdir)
+                        config.configure_workdir(workdir, bind_type=workdir_bind_type)
                     elif self.args.user:
                         config.forward_user = UserConfig.from_sudoer()
 
