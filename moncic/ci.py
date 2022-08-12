@@ -125,15 +125,12 @@ class CI(MoncicCommand):
         with self.moncic.images() as images:
             with images.system(self.args.system) as system:
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    container = system.create_container(config=ContainerConfig(workdir=srcdir))
                     if self.args.build_style:
-                        builder = Builder.create(self.args.build_style, container)
+                        builder = Builder.create(self.args.build_style, system, srcdir)
                     else:
-                        builder = Builder.detect(container)
-                    with container:
-                        res = container.run_callable(builder.build)
-                        builder.collect_artifacts(container, self.args.artifacts)
-                    return res.returncode
+                        builder = Builder.detect(system, srcdir)
+
+                    return builder.build(self.args.artifacts)
 
 
 class ImageActionCommand(MoncicCommand):
@@ -148,7 +145,10 @@ class ImageActionCommand(MoncicCommand):
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
                             "-w", "--workdir",
-                            help="bind mount (writable) the given directory in /root")
+                            help="bind mount (writable) the given directory as working directory")
+        git_workdir.add_argument(
+                            "-W", "--workdir-volatile",
+                            help="bind mount (volatile) the given directory as working directory")
         git_workdir.add_argument(
                             "--clone", metavar="repository",
                             help="checkout the given repository (local or remote) in the chroot")
@@ -192,15 +192,21 @@ class ImageActionCommand(MoncicCommand):
                     raise Fail(f"{system.name!r} has not been bootstrapped")
 
                 with checkout(system, self.args.clone) as workdir:
-                    workdir = workdir if workdir is not None else self.args.workdir
-                    if workdir is not None:
-                        workdir = os.path.abspath(workdir)
+                    if workdir is None:
+                        if self.args.workdir:
+                            workdir = self.args.workdir
+                            workdir_bind_type = "rw"
+                        elif self.args.workdir_volatile:
+                            workdir = self.args.workdir_volatile
+                            workdir_bind_type = "volatile"
 
                     config = ContainerConfig(
-                            ephemeral=not self.args.maintenance,
-                            workdir=workdir)
-                    if workdir is not None or self.args.user:
-                        config.forward_user = True
+                            ephemeral=not self.args.maintenance)
+
+                    if workdir is not None:
+                        config.configure_workdir(workdir, bind_type=workdir_bind_type)
+                    elif self.args.user:
+                        config.forward_user = UserConfig.from_sudoer()
 
                     if self.args.bind:
                         for entry in self.args.bind:

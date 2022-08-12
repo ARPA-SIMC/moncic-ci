@@ -141,7 +141,7 @@ class RunTestCase:
                     res = container.run_callable(get_user, config=RunConfig(user=user))
                 self.assertRegex(e.exception.stderr.decode(), "RuntimeError: container has no user 1000 'enrico'")
 
-            container_config = ContainerConfig(forward_user=True)
+            container_config = ContainerConfig(forward_user=user)
             with system.create_container(config=container_config) as container:
                 res = container.run_callable(get_user)
                 u = UserConfig(*json.loads(res.stdout))
@@ -162,7 +162,8 @@ class RunTestCase:
 
         with tempfile.TemporaryDirectory() as workdir:
             # By default, things are run as root
-            container_config = ContainerConfig(workdir=workdir, forward_user=True)
+            container_config = ContainerConfig()
+            container_config.configure_workdir(workdir)
             with self.container(config=container_config) as container:
                 res = container.run(["/usr/bin/id", "-u"])
                 self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")

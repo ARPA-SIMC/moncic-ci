@@ -63,6 +63,10 @@ class BindConfig:
     # for id mappings. Defaults to "noidmap".
     mount_options: List[str] = dataclasses.field(default_factory=list)
 
+    # If true, use this as the default working directory when running code or
+    # programs in the container
+    cwd: bool = False
+
     def to_nspawn(self) -> str:
         """
         Return the nspawn --bind* option for this bind
@@ -131,17 +135,12 @@ class ContainerConfig:
     # Leave to None to use system or container defaults.
     tmpfs: Optional[bool] = None
 
-    # Bind mount this directory in the running system and use it as default
-    # working directory
-    workdir: Optional[str] = None
-
     # List of bind mounts requested on the container
     binds: List[BindConfig] = dataclasses.field(default_factory=list)
 
-    # If set to True: if workdir is None, make sure the current user exists in
-    # the container. Else, make sure the owner of workdir exists in the
-    # container. Cannot be used when ephemeral is False
-    forward_user: bool = False
+    # Make sure this user exists in the container.
+    # Cannot be used when ephemeral is False
+    forward_user: Optional[UserConfig] = None
 
     def check(self):
         """
@@ -149,23 +148,45 @@ class ContainerConfig:
         """
         pass
 
+    def configure_workdir(self, workdir: str, bind_type="rw"):
+        """
+        Configure a working directory, bind mounted into the container, set as
+        the container working directory, with its user forwarded in the container
+        """
+        workdir = os.path.abspath(workdir)
+        mountpoint = os.path.join("/media", os.path.basename(workdir))
+        self.binds.append(BindConfig(
+            source=workdir,
+            destination=mountpoint,
+            bind_type=bind_type,
+            cwd=True,
+        ))
+        self.forward_user = UserConfig.from_file(workdir)
+
     def run_config(self, run_config: Optional[RunConfig] = None) -> RunConfig:
         if run_config is None:
             res = RunConfig()
         else:
             res = run_config
 
+        # Check if there is a bind with cwd=True
+        for bind in self.binds:
+            if bind.cwd:
+                home_bind = bind
+                break
+        else:
+            home_bind = None
+
         if res.cwd is None:
-            if self.workdir is not None:
-                name = os.path.basename(self.workdir)
-                res.cwd = f"/media/{name}"
+            if home_bind:
+                res.cwd = home_bind.destination
             elif res.user is not None and res.user.user_id != 0:
                 res.cwd = f"/home/{res.user.user_name}"
             else:
                 res.cwd = "/root"
 
-        if self.workdir is not None and res.user is None:
-            res.user = UserConfig.from_file(self.workdir)
+        if res.user is None and home_bind:
+            res.user = UserConfig.from_file(home_bind.source)
 
         return res
 
@@ -325,13 +346,6 @@ class NspawnContainer(ContainerBase):
             "--notify-ready=yes",
             "--resolv-conf=replace-host",
         ]
-        if self.config.workdir is not None:
-            workdir = os.path.abspath(self.config.workdir)
-            name = os.path.basename(workdir)
-            if name.startswith("."):
-                raise RuntimeError(f"Repository directory name {name!r} cannot start with a dot")
-            self.active_binds.append(BindConfig(workdir, "/media/" + name))
-            cmd.append(self.active_binds[-1].to_nspawn())
         for bind_config in self.config.binds:
             self.active_binds.append(bind_config)
             cmd.append(bind_config.to_nspawn())
@@ -405,28 +419,26 @@ class NspawnContainer(ContainerBase):
 
         # Do user forwarding if requested
         if self.config.forward_user:
-            if self.config.workdir is None:
-                user = UserConfig.from_sudoer()
-            else:
-                user = UserConfig.from_file(self.config.workdir)
-            self.forward_user(user)
+            self.forward_user(self.config.forward_user)
 
         # We do not need to delete the user if it was created, because we
         # enforce that forward_user is only used on ephemeral containers
 
         # Set up volatile mounts
         if any(bind.bind_type == "volatile" for bind in self.active_binds):
-            self.run_callable(self._bind_volatile_mounts)
+            self.run_callable(self._bind_volatile_mounts, config=RunConfig(user=UserConfig.root()))
 
     def _bind_volatile_mounts(self):
         """
-        Run in the container to finish setting up volatile binds
+        Finish setting up volatile binds in the container
         """
         volatile_root = "/run/volatile"
         os.makedirs(volatile_root, exist_ok=True)
 
         for bind in self.active_binds:
             if bind.bind_type == "volatile":
+                st = os.stat(bind.destination)
+
                 m = hashlib.sha1()
                 m.update(bind.destination.encode())
                 basename = m.hexdigest()
@@ -434,13 +446,19 @@ class NspawnContainer(ContainerBase):
                 # Create the overlay workspace on tmpfs in /run
                 workdir = os.path.join(volatile_root, basename)
                 os.makedirs(workdir, exist_ok=True)
-                os.makedirs(os.path.join(workdir, "upper"), exist_ok=True)
-                os.makedirs(os.path.join(workdir, "work"), exist_ok=True)
+
+                overlay_upper = os.path.join(workdir, "upper")
+                os.makedirs(overlay_upper, exist_ok=True)
+                os.chown(overlay_upper, st.st_uid, st.st_gid)
+
+                overlay_work = os.path.join(workdir, "work")
+                os.makedirs(overlay_work, exist_ok=True)
+                os.chown(overlay_work, st.st_uid, st.st_gid)
 
                 cmd = ["mount", "-t", "overlay", "overlay",
-                       f"-olowerdir={bind.destination},upperdir={workdir}/upper,workdir={workdir}/work",
+                       f"-olowerdir={bind.destination},upperdir={overlay_upper},workdir={overlay_work}",
                        bind.destination]
-                # logging.debug("Volatile setup command: %r", cmd)
+                logging.debug("Volatile setup command: %r", cmd)
                 subprocess.run(cmd, check=True)
 
     def _stop(self):
