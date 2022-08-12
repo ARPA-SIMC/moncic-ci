@@ -2,6 +2,8 @@
 
 * Removed support for a btrfs filesystem in a file (#41)
 * Prototype `Builder` for building Debian packages (#47)
+* Added option `--bind-volatile`, working as `--bind-ro` plus a temporary
+  writable overlay (#50)
 
 # Version 0.6
 

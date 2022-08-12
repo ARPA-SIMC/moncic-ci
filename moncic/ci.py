@@ -18,7 +18,7 @@ except ModuleNotFoundError:
     Texttable = None
 
 from .cli import Command, Fail
-from .container import ContainerConfig, RunConfig, UserConfig
+from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from .build import Builder
 from .moncic import Moncic, MoncicConfig
 from .distro import DistroFamily
@@ -159,6 +159,9 @@ class ImageActionCommand(MoncicCommand):
         parser.add_argument("--bind-ro", action="append",
                             help="option passed to systemd-nspawn as is (see man systemd-nspawn)"
                                  " can be given multiple times")
+        parser.add_argument("--bind-volatile", action="append",
+                            help="same as --bind-ro, but it adds a volatile overlay to make the directory writable"
+                                 " in the container. Can be given multiple times")
 
         parser.add_argument("-u", "--user", action="store_true",
                             help="create a shell as the current user before sudo"
@@ -200,9 +203,14 @@ class ImageActionCommand(MoncicCommand):
                         config.forward_user = True
 
                     if self.args.bind:
-                        config.bind = self.args.bind
+                        for entry in self.args.bind:
+                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="rw"))
                     if self.args.bind_ro:
-                        config.bind_ro = self.args.bind_ro
+                        for entry in self.args.bind_ro:
+                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="ro"))
+                    if self.args.bind_volatile:
+                        for entry in self.args.bind_volatile:
+                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="volatile"))
 
                     with system.create_container(config=config) as container:
                         yield container

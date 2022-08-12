@@ -13,7 +13,7 @@ import unittest
 from typing import Generator, Optional
 
 from moncic.system import System
-from moncic.container import Container, ContainerConfig, RunConfig, UserConfig
+from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
 from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 
@@ -175,6 +175,67 @@ class RunTestCase:
                 res = container.run(["/usr/bin/pwd"])
                 self.assertEqual(res.stdout.decode(), f"/media/{os.path.basename(workdir)}\n")
                 self.assertEqual(res.stderr, b"")
+
+                binds = list(container.binds())
+                self.assertEqual(len(binds), 1)
+                self.assertEqual(binds[0].source, workdir)
+                self.assertEqual(binds[0].destination, "/media/" + os.path.basename(workdir))
+                self.assertEqual(binds[0].bind_type, "rw")
+                self.assertEqual(binds[0].mount_options, [])
+
+    def test_bind_mount_rw(self):
+        with tempfile.TemporaryDirectory() as workdir:
+            # By default, things are run as root
+            container_config = ContainerConfig()
+            container_config.binds.append(BindConfig(source=workdir, destination="/media/workdir", bind_type="rw"))
+            with self.container(config=container_config) as container:
+                container.run(["/bin/touch", "/media/workdir/test"])
+                container.run(["/bin/test", "-e", "/media/workdir/test"])
+                self.assertTrue(os.path.exists(os.path.join(workdir, "test")))
+
+                binds = list(container.binds())
+                self.assertEqual(len(binds), 1)
+                self.assertEqual(binds[0].source, workdir)
+                self.assertEqual(binds[0].destination, "/media/workdir")
+                self.assertEqual(binds[0].bind_type, "rw")
+                self.assertEqual(binds[0].mount_options, [])
+
+    def test_bind_mount_ro(self):
+        with tempfile.TemporaryDirectory() as workdir:
+            # By default, things are run as root
+            container_config = ContainerConfig()
+            container_config.binds.append(BindConfig(source=workdir, destination="/media/workdir", bind_type="ro"))
+            with self.container(config=container_config) as container:
+                res = container.run(["/bin/touch", "/media/workdir/test"], config=RunConfig(check=False))
+                self.assertEqual(res.returncode, 1)
+
+                container.run(["/bin/test", "!", "-e", "/media/workdir/test"])
+                self.assertFalse(os.path.exists(os.path.join(workdir, "test")))
+
+                binds = list(container.binds())
+                self.assertEqual(len(binds), 1)
+                self.assertEqual(binds[0].source, workdir)
+                self.assertEqual(binds[0].destination, "/media/workdir")
+                self.assertEqual(binds[0].bind_type, "ro")
+                self.assertEqual(binds[0].mount_options, [])
+
+    def test_bind_mount_volatile(self):
+        with tempfile.TemporaryDirectory() as workdir:
+            # By default, things are run as root
+            container_config = ContainerConfig()
+            container_config.binds.append(
+                    BindConfig(source=workdir, destination="/media/workdir", bind_type="volatile"))
+            with self.container(config=container_config) as container:
+                container.run(["/bin/touch", "/media/workdir/test"])
+                container.run(["/bin/test", "-e", "/media/workdir/test"])
+                self.assertFalse(os.path.exists(os.path.join(workdir, "test")))
+
+                binds = list(container.binds())
+                self.assertEqual(len(binds), 1)
+                self.assertEqual(binds[0].source, workdir)
+                self.assertEqual(binds[0].destination, "/media/workdir")
+                self.assertEqual(binds[0].bind_type, "volatile")
+                self.assertEqual(binds[0].mount_options, [])
 
     def test_run_callable_logging(self):
         def test_log():
