@@ -303,12 +303,13 @@ class Debian(Builder):
                 run(["dpkg-source", "-x", srcinfo.dsc_fname])
 
                 # Find the newly created build directory
-                for de in os.scandir("."):
-                    if de.is_dir():
-                        builddir = de.path
-                        break
-                else:
-                    builddir = None
+                with os.scandir(".") as it:
+                    for de in it:
+                        if de.is_dir():
+                            builddir = de.path
+                            break
+                    else:
+                        builddir = None
 
                 with cd(builddir):
                     # Install build dependencies
@@ -340,7 +341,8 @@ class Debian(Builder):
 
     def collect_artifacts(self, container: Container, destdir: str):
         user = UserConfig.from_sudoer()
-        for de in os.scandir(os.path.join(container.get_root(), "srv", "artifacts")):
-            if de.is_file():
-                log.info("Copying %s to %s", de.name, destdir)
-                link_or_copy(de.path, destdir, user=user)
+        with os.scandir(os.path.join(container.get_root(), "srv", "artifacts")) as it:
+            for de in it:
+                if de.is_file():
+                    log.info("Copying %s to %s", de.name, destdir)
+                    link_or_copy(de.path, destdir, user=user)

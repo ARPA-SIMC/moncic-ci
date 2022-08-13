@@ -36,14 +36,15 @@ class Images:
         List the names of images found in image directories
         """
         res = set()
-        for entry in os.scandir(self.imagedir):
-            if entry.name.startswith("."):
-                continue
+        with os.scandir(self.imagedir) as it:
+            for entry in it:
+                if entry.name.startswith("."):
+                    continue
 
-            if entry.is_dir():
-                res.add(entry.name)
-            elif entry.name.endswith(".yaml"):
-                res.add(entry.name[:-5])
+                if entry.is_dir():
+                    res.add(entry.name)
+                elif entry.name.endswith(".yaml"):
+                    res.add(entry.name[:-5])
         return sorted(res)
 
     def local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
@@ -276,21 +277,22 @@ class BtrfsImages(Images):
         imagedir = self.imagedir
 
         by_name_size = defaultdict(list)
-        for entry in os.scandir(imagedir):
-            if entry.name.startswith("."):
-                continue
-            if not entry.is_dir():
-                continue
+        with os.scandir(imagedir) as it:
+            for entry in it:
+                if entry.name.startswith("."):
+                    continue
+                if not entry.is_dir():
+                    continue
 
-            path = os.path.join(imagedir, entry.name)
-            for (dirpath, dirnames, filenames, dirfd) in os.fwalk(path):
-                relpath = os.path.relpath(dirpath, path)
-                for fn in filenames:
-                    st = os.lstat(fn, dir_fd=dirfd)
-                    if not stat.S_ISREG(st.st_mode):
-                        continue
-                    size = st.st_size
-                    by_name_size[(os.path.join(relpath, fn), size)].append(entry.name)
+                path = os.path.join(imagedir, entry.name)
+                for (dirpath, dirnames, filenames, dirfd) in os.fwalk(path):
+                    relpath = os.path.relpath(dirpath, path)
+                    for fn in filenames:
+                        st = os.lstat(fn, dir_fd=dirfd)
+                        if not stat.S_ISREG(st.st_mode):
+                            continue
+                        size = st.st_size
+                        by_name_size[(os.path.join(relpath, fn), size)].append(entry.name)
 
         total_saved = 0
         for (name, size), images in by_name_size.items():
