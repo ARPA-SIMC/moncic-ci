@@ -19,11 +19,23 @@ class TestDebCache(unittest.TestCase):
         with tempfile.TemporaryDirectory() as workdir:
             make_deb(workdir, "a", 1000, 1)
             make_deb(workdir, "b", 2000, 2)
-            cache = DebCache(workdir, 5000)
-            with cache.apt_archives() as aptdir:
-                self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
-                self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
-                make_deb(aptdir, "c", 1000, 3)
-            self.assertTrue(os.path.exists(os.path.join(workdir, "a.deb")))
-            self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))
-            self.assertTrue(os.path.exists(os.path.join(workdir, "c.deb")))
+            with DebCache(workdir, 5000) as cache:
+                with cache.apt_archives() as aptdir:
+                    self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
+                    self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
+                    make_deb(aptdir, "c", 1000, 3)
+                self.assertTrue(os.path.exists(os.path.join(workdir, "a.deb")))
+                self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))
+                self.assertTrue(os.path.exists(os.path.join(workdir, "c.deb")))
+
+    def test_cache_limit(self):
+        with tempfile.TemporaryDirectory() as workdir:
+            make_deb(workdir, "a", 1000, 1)
+            make_deb(workdir, "b", 2000, 2)
+            with DebCache(workdir, 4000) as cache:
+                with cache.apt_archives() as aptdir:
+                    self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
+                    self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
+                    make_deb(aptdir, "c", 1500, 3)
+                self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))
+                self.assertTrue(os.path.exists(os.path.join(workdir, "c.deb")))
