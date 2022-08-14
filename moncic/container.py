@@ -458,7 +458,7 @@ class NspawnContainer(ContainerBase):
                 cmd = ["mount", "-t", "overlay", "overlay",
                        f"-olowerdir={bind.destination},upperdir={overlay_upper},workdir={overlay_work}",
                        bind.destination]
-                logging.debug("Volatile setup command: %r", cmd)
+                # logging.debug("Volatile setup command: %r", cmd)
                 subprocess.run(cmd, check=True)
 
     def _stop(self):
