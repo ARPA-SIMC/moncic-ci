@@ -88,11 +88,11 @@ class MoncicCommand(Command):
             else:
                 config = MoncicConfig.load()
 
-        if self.args.imagedir:
-            config.imagedir = self.args.imagedir
+            if self.args.imagedir:
+                config.imagedir = self.args.imagedir
 
-        # Instantiate Moncic
-        self.moncic = Moncic(config=config, privs=privs)
+            # Instantiate Moncic
+            self.moncic = Moncic(config=config, privs=privs)
 
         # Do the rest as root
         self.moncic.privs.regain()
