@@ -225,6 +225,9 @@ class System:
             else:
                 config.tmpfs = self.images.moncic.config.tmpfs
 
+        # Allow distro-specific setup
+        self.distro.container_config_hook(self, config)
+
         # Force ephemeral to True in plain systems
         config.ephemeral = True
 

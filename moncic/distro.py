@@ -279,6 +279,13 @@ class Distro:
         """
         return []
 
+    def container_config_hook(self, system: System, config: ContainerConfig):
+        """
+        Hook to allow distro-specific container setup
+        """
+        # Do nothing by default
+        pass
+
     def bootstrap(self, system: System) -> None:
         """
         Boostrap a fresh system inside the given directory
