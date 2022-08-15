@@ -31,6 +31,8 @@ class MoncicConfig:
     auto_sudo: bool = True
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
+    # Directory where .deb files are cached between invocations
+    debcachedir: str = "~/.cache/moncic-ci/debs"
 
     def __post_init__(self):
         # Allow to use ~ in config files
@@ -41,6 +43,8 @@ class MoncicConfig:
             self.imageconfdirs = [self.xdg_local_config_dir()]
         else:
             self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
+
+        self.debcachedir = os.path.expanduser(self.debcachedir)
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:
