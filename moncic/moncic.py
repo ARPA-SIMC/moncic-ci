@@ -36,6 +36,8 @@ class MoncicConfig:
     # Directory where extra packages, if present, are added to package sources
     # in containers
     extra_packagages_dir: Optional[str] = None
+    # Directory where build artifacts will be stored
+    build_artifacts_dir: Optional[str] = None
 
     def __post_init__(self):
         # Allow to use ~ in config files

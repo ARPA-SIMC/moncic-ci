@@ -91,14 +91,20 @@ class MoncicCommand(Command):
             else:
                 config = MoncicConfig.load()
 
-            if self.args.imagedir:
-                config.imagedir = self.args.imagedir
+            self.setup_moncic_config(config)
 
             # Instantiate Moncic
             self.moncic = Moncic(config=config, privs=privs)
 
         # Do the rest as root
         self.moncic.privs.regain()
+
+    def setup_moncic_config(self, config: MoncicConfig):
+        """
+        Customize configuration before a Moncic object is instantiated
+        """
+        if self.args.imagedir:
+            config.imagedir = self.args.imagedir
 
 
 class CI(MoncicCommand):
@@ -124,6 +130,11 @@ class CI(MoncicCommand):
                             help="path or url of the repository to build. Default: the current directory")
         return parser
 
+    def setup_moncic_config(self, config: MoncicConfig):
+        super().setup_moncic_config(config)
+        if self.args.artifacts:
+            config.build_artifacts_dir = self.args.artifacts
+
     def run(self):
         with self.moncic.session() as session:
             images = session.images()
@@ -134,7 +145,7 @@ class CI(MoncicCommand):
                     else:
                         builder = Builder.detect(system, srcdir)
 
-                    return builder.build(self.args.artifacts)
+                    return builder.build()
 
 
 class ImageActionCommand(MoncicCommand):

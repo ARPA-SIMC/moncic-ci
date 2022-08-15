@@ -7,6 +7,8 @@
 * Added option `--workdir-volatile` working as `--workdir` but with a volatile
   mount (#50)
 * Use volatile mounts for CI (#51)
+* Added config option `build_artifacts_dir` giving a default to `monci ci
+  --artifacts`
 
 # Version 0.6
 
