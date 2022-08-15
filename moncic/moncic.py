@@ -32,7 +32,10 @@ class MoncicConfig:
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
     # Directory where .deb files are cached between invocations
-    debcachedir: str = "~/.cache/moncic-ci/debs"
+    debcachedir: Optional[str] = "~/.cache/moncic-ci/debs"
+    # Directory where extra packages, if present, are added to package sources
+    # in containers
+    extra_packagages_dir: Optional[str] = None
 
     def __post_init__(self):
         # Allow to use ~ in config files

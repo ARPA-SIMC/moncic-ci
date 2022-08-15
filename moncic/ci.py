@@ -74,6 +74,9 @@ class MoncicCommand(Command):
                             help="path to the Moncic-CI config file to use. By default,"
                                  " look in a number of well-known locations, see"
                                  " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md")
+        parser.add_argument("--extra-packages-dir", action="store",
+                            help="directory where extra packages, if presemt, are added to package sources"
+                                 " in containers")
         return parser
 
     def __init__(self, args):
