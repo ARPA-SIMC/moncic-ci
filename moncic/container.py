@@ -514,7 +514,7 @@ class NspawnContainer(ContainerBase):
 
     def _bind_setup(self):
         """
-        Finish setting up volatile binds in the container
+        Run setup scripts from binds
         """
         for bind in self.active_binds:
             if bind.setup:
@@ -522,7 +522,7 @@ class NspawnContainer(ContainerBase):
 
     def _bind_teardown(self):
         """
-        Run cleanup script from binds
+        Run teardown scripts from binds
         """
         for bind in self.active_binds:
             if bind.teardown:

@@ -5,6 +5,8 @@ import os
 import tempfile
 from typing import Dict, Generator, NamedTuple, Optional
 
+from .runner import UserConfig
+
 
 class FileInfo(NamedTuple):
     size: int
@@ -31,6 +33,7 @@ class DebCache:
         # Information about .deb files present in cache
         self.debs: Dict[str, FileInfo] = {}
         self.src_dir_fd: Optional[int] = None
+        self.cache_user = UserConfig.from_sudoer()
 
     def __enter__(self):
         os.makedirs(self.cache_dir, exist_ok=True)
@@ -73,6 +76,8 @@ class DebCache:
                             st = de.stat()
                             self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
                             os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
+                            os.chown(
+                                de.name, 0, 0, dir_fd=dst_dir_fd)
 
                 yield aptdir
 
@@ -83,4 +88,7 @@ class DebCache:
                             st = de.stat()
                             if de.name not in self.debs:
                                 os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
+                            os.chown(
+                                de.name, self.cache_user.user_id, self.cache_user.group_id,
+                                dir_fd=self.src_dir_fd)
                             self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
