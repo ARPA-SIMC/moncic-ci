@@ -468,7 +468,7 @@ class DebianDistro(Distro):
 
     def container_config_hook(self, system: System, config: ContainerConfig):
         super().container_config_hook(system, config)
-        if system.images.session.moncic.config.debcachedir is not None:
+        if system.images.session.moncic.config.deb_cache_dir is not None:
             config.binds.append(BindConfig.create(
                 system.images.session.apt_archives(),
                 "/var/cache/apt/archives",

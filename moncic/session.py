@@ -47,7 +47,7 @@ class Session(contextlib.ExitStack):
         Return the DebCache object to manage an apt package cache
         """
         if self._deb_cache is None:
-            self._deb_cache = self.enter_context(DebCache(self.moncic.config.debcachedir))
+            self._deb_cache = self.enter_context(DebCache(self.moncic.config.deb_cache_dir))
         return self._deb_cache
 
     def apt_archives(self) -> str:

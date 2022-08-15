@@ -32,7 +32,7 @@ class MoncicConfig:
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
     # Directory where .deb files are cached between invocations
-    debcachedir: Optional[str] = "~/.cache/moncic-ci/debs"
+    deb_cache_dir: Optional[str] = "~/.cache/moncic-ci/debs"
     # Directory where extra packages, if present, are added to package sources
     # in containers
     extra_packagages_dir: Optional[str] = None
@@ -49,10 +49,10 @@ class MoncicConfig:
         else:
             self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
 
-        if self.debcachedir:
-            self.debcachedir = os.path.expanduser(self.debcachedir)
+        if self.deb_cache_dir:
+            self.deb_cache_dir = os.path.expanduser(self.deb_cache_dir)
         else:
-            self.debcachedir = None
+            self.deb_cache_dir = None
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:

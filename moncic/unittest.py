@@ -155,7 +155,7 @@ class DistroTestMixin:
             yield MoncicConfig(
                     imagedir=imagedir,
                     imageconfdirs=[],
-                    debcachedir=None)
+                    deb_cache_dir=None)
 
     @contextlib.contextmanager
     def _mock_system(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog]:
