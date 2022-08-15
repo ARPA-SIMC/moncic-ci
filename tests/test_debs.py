@@ -4,6 +4,7 @@ import os
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 from moncic.deb import DebCache
 
@@ -20,10 +21,11 @@ class TestDebCache(unittest.TestCase):
             make_deb(workdir, "a", 1000, 1)
             make_deb(workdir, "b", 2000, 2)
             with DebCache(workdir, 5000) as cache:
-                with cache.apt_archives() as aptdir:
-                    self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
-                    self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
-                    make_deb(aptdir, "c", 1000, 3)
+                with mock.patch("os.chown"):
+                    with cache.apt_archives() as aptdir:
+                        self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
+                        self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
+                        make_deb(aptdir, "c", 1000, 3)
                 self.assertTrue(os.path.exists(os.path.join(workdir, "a.deb")))
                 self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))
                 self.assertTrue(os.path.exists(os.path.join(workdir, "c.deb")))
@@ -33,9 +35,10 @@ class TestDebCache(unittest.TestCase):
             make_deb(workdir, "a", 1000, 1)
             make_deb(workdir, "b", 2000, 2)
             with DebCache(workdir, 4000) as cache:
-                with cache.apt_archives() as aptdir:
-                    self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
-                    self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
-                    make_deb(aptdir, "c", 1500, 3)
+                with mock.patch("os.chown"):
+                    with cache.apt_archives() as aptdir:
+                        self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
+                        self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
+                        make_deb(aptdir, "c", 1500, 3)
                 self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))
                 self.assertTrue(os.path.exists(os.path.join(workdir, "c.deb")))

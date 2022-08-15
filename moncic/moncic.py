@@ -49,7 +49,10 @@ class MoncicConfig:
         else:
             self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
 
-        self.debcachedir = os.path.expanduser(self.debcachedir)
+        if self.debcachedir:
+            self.debcachedir = os.path.expanduser(self.debcachedir)
+        else:
+            self.debcachedir = None
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:
