@@ -13,6 +13,17 @@ from .privs import ProcessPrivs
 log = logging.getLogger(__name__)
 
 
+def expand_path(path: Optional[str]) -> Optional[str]:
+    """
+    Process a path in the configuration, expanding ~ and making it absolute.
+
+    If path is None or empty, return None
+    """
+    if not path:
+        return None
+    return os.path.abspath(os.path.expanduser(path))
+
+
 @dataclasses.dataclass
 class MoncicConfig:
     """
@@ -32,27 +43,26 @@ class MoncicConfig:
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
     # Directory where .deb files are cached between invocations
-    debcachedir: Optional[str] = "~/.cache/moncic-ci/debs"
+    deb_cache_dir: Optional[str] = "~/.cache/moncic-ci/debs"
     # Directory where extra packages, if present, are added to package sources
     # in containers
-    extra_packagages_dir: Optional[str] = None
+    extra_packages_dir: Optional[str] = None
     # Directory where build artifacts will be stored
     build_artifacts_dir: Optional[str] = None
 
     def __post_init__(self):
         # Allow to use ~ in config files
-        self.imagedir = os.path.expanduser(self.imagedir)
+        self.imagedir = expand_path(self.imagedir)
 
         # Use ~ in imageconfdirs, and default to [$XDG_CONFIG_HOME/moncic-ci]
         if not self.imageconfdirs:
             self.imageconfdirs = [self.xdg_local_config_dir()]
         else:
-            self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
+            self.imageconfdirs = [expand_path(path) for path in self.imageconfdirs]
 
-        if self.debcachedir:
-            self.debcachedir = os.path.expanduser(self.debcachedir)
-        else:
-            self.debcachedir = None
+        self.deb_cache_dir = expand_path(self.deb_cache_dir)
+        self.extra_packages_dir = expand_path(self.extra_packages_dir)
+        self.build_artifacts_dir = expand_path(self.build_artifacts_dir)
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:

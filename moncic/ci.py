@@ -20,7 +20,7 @@ except ModuleNotFoundError:
 from .cli import Command, Fail
 from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from .build import Builder
-from .moncic import Moncic, MoncicConfig
+from .moncic import Moncic, MoncicConfig, expand_path
 from .distro import DistroFamily
 from .privs import ProcessPrivs
 
@@ -104,7 +104,10 @@ class MoncicCommand(Command):
         Customize configuration before a Moncic object is instantiated
         """
         if self.args.imagedir:
-            config.imagedir = self.args.imagedir
+            config.imagedir = expand_path(self.args.imagedir)
+
+        if self.args.extra_packages_dir:
+            config.extra_packages_dir = expand_path(self.args.extra_packages_dir)
 
 
 class CI(MoncicCommand):

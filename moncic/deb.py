@@ -2,27 +2,17 @@ from __future__ import annotations
 
 import contextlib
 import os
+import shutil
 import tempfile
-from typing import Dict, Generator, NamedTuple, Optional
+from typing import Dict, Generator, List, NamedTuple, Optional
 
 from .runner import UserConfig
+from .utils import dirfd
 
 
 class FileInfo(NamedTuple):
     size: int
     atime_ns: int
-
-
-@contextlib.contextmanager
-def dirfd(path: str) -> Generator[int, None, None]:
-    """
-    Open a directory as a file descriptor
-    """
-    fileno = os.open(path, os.O_RDONLY)
-    try:
-        yield fileno
-    finally:
-        os.close(fileno)
 
 
 class DebCache:
@@ -92,3 +82,23 @@ class DebCache:
                                 de.name, self.cache_user.user_id, self.cache_user.group_id,
                                 dir_fd=self.src_dir_fd)
                             self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+
+
+def apt_get_cmd(*args) -> List[str]:
+    """
+    Build an apt-get command
+    """
+    res = []
+
+    eatmydata = shutil.which("eatmydata")
+    if eatmydata:
+        res.append(eatmydata)
+
+    res += ["apt-get", "--assume-yes", "--quiet", "--show-upgraded",
+            # The space after -o is odd but required, and I could
+            # not find a better working syntax
+            '-o Dpkg::Options::="--force-confnew"']
+
+    res.extend(args)
+
+    return res

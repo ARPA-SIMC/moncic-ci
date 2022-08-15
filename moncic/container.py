@@ -19,6 +19,7 @@ from typing import (TYPE_CHECKING, Callable, ContextManager, Iterator, List,
 
 from .nspawn import escape_bind_ro
 from .runner import RunConfig, SetnsCallableRunner, UserConfig
+from .deb import apt_get_cmd
 
 if TYPE_CHECKING:
     from .system import System
@@ -107,6 +108,8 @@ class BindConfig:
         * ``rw``: read-write
         * ``volatile``: readonly with an tempfs volatile overlay
         * ``aptcache``: shared /var/cache/apt/archives mount
+        * ``aptpackages``: create a local mirror with the packages in the
+                           source directory, and add it to apt's sources
         """
         if bind_type == "volatile":
             kw["bind_type"] = "ro"
@@ -115,6 +118,10 @@ class BindConfig:
             kw["bind_type"] = "rw"
             kw.setdefault("setup", BindConfig.bind_hook_setup_aptcache)
             kw.setdefault("teardown", BindConfig.bind_hook_teardown_aptcache)
+        elif bind_type == "aptpackages":
+            kw["bind_type"] = "ro"
+            kw.setdefault("setup", BindConfig.bind_hook_setup_aptpackages)
+            kw.setdefault("teardown", BindConfig.bind_hook_teardown_aptpackages)
         else:
             kw["bind_type"] = bind_type
 
@@ -200,6 +207,29 @@ class BindConfig:
     def bind_hook_teardown_aptcache(cls, bind_config: "BindConfig"):
         try:
             os.unlink("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads")
+        except FileNotFoundError:
+            pass
+
+    @classmethod
+    def bind_hook_setup_aptpackages(cls, bind_config: "BindConfig"):
+        mirror_dir = os.path.dirname(bind_config.destination)
+        with open(os.path.join(mirror_dir, "Packages"), "wb") as fd:
+            subprocess.run(
+                    ["apt-ftparchive", "packages", os.path.basename(bind_config.destination)],
+                    cwd=mirror_dir, stdout=fd, check=True)
+
+        with open("/etc/apt/sources.list.d/tmp-moncic-ci.list", "wt") as fd:
+            print(f"deb [trusted=yes] file://{mirror_dir} ./", file=fd)
+
+        # env = dict(os.environ)
+        # env.update(DEBIAN_FRONTEND="noninteractive")
+        subprocess.run(apt_get_cmd("update"))
+        # subprocess.run(apt_get_cmd("full-upgrade"), env=env)
+
+    @classmethod
+    def bind_hook_teardown_aptpackages(cls, bind_config: "BindConfig"):
+        try:
+            os.unlink("/etc/apt/sources.list.d/tmp-moncic-ci.list")
         except FileNotFoundError:
             pass
 

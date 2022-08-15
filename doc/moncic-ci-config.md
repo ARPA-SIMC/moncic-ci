@@ -41,7 +41,7 @@ The only keyword currently supported is:
   Default: true
 * `tmpfs`: Use a tmpfs overlay for ephemeral containers instead of btrfs
   snapshots. Default: false, or true if OS images are not on btrfs
-* `debcachedir: str` Directory where `.deb` files are cached between
+* `deb_cache_dir: str` Directory where `.deb` files are cached between
   invocations. Default: `~/.cache/moncic-ci/debs`
 * `extra_packages_dir`: Directory where extra packages, if present, are added
   to package sources in containers. Default: None
