@@ -474,15 +474,21 @@ class DebianDistro(Distro):
                 "/var/cache/apt/archives",
                 "aptcache"))
 
+        if system.images.session.moncic.config.extra_packages_dir:
+            config.binds.append(BindConfig.create(
+                system.images.session.extra_packages_dir(),
+                "/srv/moncic-ci/mirror/packages",
+                "aptpackages"))
+
     def get_base_packages(self) -> List[str]:
         res = super().get_base_packages()
-        res += ["bash", "dbus", "systemd"]
+        res += ["bash", "dbus", "systemd", "apt-utils", "eatmydata"]
         return res
 
     def bootstrap(self, system: System):
         with contextlib.ExitStack() as stack:
             installroot = os.path.abspath(system.path)
-            cmd = ["debootstrap", "--include=dbus,systemd", "--variant=minbase"]
+            cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
 
             # TODO: use version to fetch the key, to make this generic
             # TODO: add requests and gpg to dependencies
@@ -509,7 +515,11 @@ class DebianDistro(Distro):
         """
         return [
             ["/usr/bin/apt-get", "update"],
-            ["/usr/bin/apt-get", "-y", "upgrade"],
+            ["/usr/bin/apt-get", "--assume-yes", "--quiet", "--show-upgraded",
+             # The space after -o is odd but required, and I could
+             # not find a better working syntax
+             '-o Dpkg::Options::="--force-confnew"',
+             "full-upgrade"],
         ]
 
 

@@ -11,6 +11,8 @@
   --artifacts` to collect build artifacts in a directory (#10)
 * Added option `debcachedir` to point to a directory where downloaded `.deb`
   files can be cached across container runs (#52)
+* Added option `extra_packages_dir` and `--extra-packages-dir` to provide extra
+  packages as dependencies for builds (#49)
 
 # Version 0.6
 

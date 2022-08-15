@@ -157,6 +157,7 @@ def extra_packages_dir(path: str) -> Generator[str, None, None]:
         # Hard link all .deb files into the temporary mirror directory
         with dirfd(path) as src_dir_fd:
             with dirfd(mirrordir) as dst_dir_fd:
+                os.chmod(dst_dir_fd, 0o755)
                 with os.scandir(src_dir_fd) as it:
                     for de in it:
                         if de.name.endswith(".deb") or de.name.endswith(".rpm"):

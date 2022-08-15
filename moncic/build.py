@@ -11,13 +11,13 @@ import tempfile
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Type
 
 from .container import ContainerConfig
+from .deb import apt_get_cmd
 from .distro import DnfDistro, YumDistro
 from .runner import UserConfig
 from .utils import cd
 
 if TYPE_CHECKING:
-    from .container import System
-    from .container import Container
+    from .container import Container, System
 
 log = logging.getLogger(__name__)
 
@@ -316,11 +316,7 @@ class Debian(Builder):
                     # Install build dependencies
                     env = dict(os.environ)
                     env.update(DEBIAN_FRONTEND="noninteractive")
-                    run(["eatmydata", "apt-get", "--assume-yes", "--quiet", "--show-upgraded",
-                         # The space after -o is odd but required, and I could
-                         # not find a better working syntax
-                         '-o Dpkg::Options::="--force-confnew"',
-                         "build-dep", "./"], env=env)
+                    run(apt_get_cmd("build-dep", "./"), env=env)
 
                     # Build
                     # Use unshare to disable networking
