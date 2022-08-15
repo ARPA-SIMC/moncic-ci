@@ -472,7 +472,7 @@ class DebianDistro(Distro):
             config.binds.append(BindConfig.create(
                 system.images.session.apt_archives(),
                 "/var/cache/apt/archives",
-                "rw"))
+                "aptcache"))
 
     def get_base_packages(self) -> List[str]:
         res = super().get_base_packages()

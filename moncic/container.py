@@ -106,10 +106,15 @@ class BindConfig:
         * ``ro``: read only
         * ``rw``: read-write
         * ``volatile``: readonly with an tempfs volatile overlay
+        * ``aptcache``: shared /var/cache/apt/archives mount
         """
         if bind_type == "volatile":
             kw["bind_type"] = "ro"
             kw.setdefault("setup", BindConfig.bind_hook_setup_volatile)
+        elif bind_type == "aptcache":
+            kw["bind_type"] = "rw"
+            kw.setdefault("setup", BindConfig.bind_hook_setup_aptcache)
+            kw.setdefault("teardown", BindConfig.bind_hook_teardown_aptcache)
         else:
             kw["bind_type"] = bind_type
 
@@ -179,6 +184,18 @@ class BindConfig:
                bind_config.destination]
         # logging.debug("Volatile setup command: %r", cmd)
         subprocess.run(cmd, check=True)
+
+    @classmethod
+    def bind_hook_setup_aptcache(cls, bind_config: "BindConfig"):
+        with open("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads", "wt") as fd:
+            print('Binary::apt::APT::Keep-Downloaded-Packages "1";', file=fd)
+
+    @classmethod
+    def bind_hook_teardown_aptcache(cls, bind_config: "BindConfig"):
+        try:
+            os.unlink("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads")
+        except FileNotFoundError:
+            pass
 
 
 @dataclasses.dataclass
@@ -497,7 +514,19 @@ class NspawnContainer(ContainerBase):
             if bind.setup:
                 bind.setup(bind)
 
+    def _bind_teardown(self):
+        """
+        Run cleanup script from binds
+        """
+        for bind in self.active_binds:
+            if bind.teardown:
+                bind.teardown(bind)
+
     def _stop(self):
+        # Run teardown script frombinds
+        if any(bind.teardown for bind in self.active_binds):
+            self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
+
         # See https://github.com/systemd/systemd/issues/6458
         leader_pid = int(self.properties["Leader"])
         os.kill(leader_pid, signal.SIGRTMIN + 4)
