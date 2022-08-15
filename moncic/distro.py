@@ -11,7 +11,7 @@ import tempfile
 from typing import Optional, Type, List, Dict, Iterable, NamedTuple, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
-from .container import ContainerConfig
+from .container import BindConfig, ContainerConfig
 from .utils import atomic_writer
 if TYPE_CHECKING:
     from .system import System
@@ -279,6 +279,13 @@ class Distro:
         """
         return []
 
+    def container_config_hook(self, system: System, config: ContainerConfig):
+        """
+        Hook to allow distro-specific container setup
+        """
+        # Do nothing by default
+        pass
+
     def bootstrap(self, system: System) -> None:
         """
         Boostrap a fresh system inside the given directory
@@ -458,6 +465,14 @@ class DebianDistro(Distro):
         super().__init__(name)
         self.mirror = mirror
         self.suite = suite
+
+    def container_config_hook(self, system: System, config: ContainerConfig):
+        super().container_config_hook(system, config)
+        if system.images.session.moncic.config.debcachedir is not None:
+            config.binds.append(BindConfig.create(
+                system.images.session.apt_archives(),
+                "/var/cache/apt/archives",
+                "aptcache"))
 
     def get_base_packages(self) -> List[str]:
         res = super().get_base_packages()

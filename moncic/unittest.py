@@ -154,7 +154,8 @@ class DistroTestMixin:
         with workdir(filesystem_type=filesystem_type) as imagedir:
             yield MoncicConfig(
                     imagedir=imagedir,
-                    imageconfdirs=[])
+                    imageconfdirs=[],
+                    debcachedir=None)
 
     @contextlib.contextmanager
     def _mock_system(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog]:
@@ -260,8 +261,8 @@ class DistroTestMixin:
                 return SystemConfig(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
 
             with mock.patch("moncic.system.SystemConfig.load", new=_load):
-                with moncic.images() as images:
-                    yield images
+                with moncic.session() as session:
+                    yield session.images()
 
     @contextlib.contextmanager
     def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:

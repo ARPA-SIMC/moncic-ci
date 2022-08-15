@@ -7,6 +7,10 @@
 * Added option `--workdir-volatile` working as `--workdir` but with a volatile
   mount (#50)
 * Use volatile mounts for CI (#51)
+* Added config option `build_artifacts_dir` and command line option `monci ci
+  --artifacts` to collect build artifacts in a directory (#10)
+* Added option `debcachedir` to point to a directory where downloaded `.deb`
+  files can be cached across container runs (#52)
 
 # Version 0.6
 

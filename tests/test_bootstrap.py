@@ -20,7 +20,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log:
                 moncic = make_moncic(mconfig)
-                with moncic.images() as images:
+                with moncic.session() as session:
+                    images = session.images()
                     images.bootstrap_system("test")
                     with images.system("test") as system:
                         path = system.path
@@ -40,7 +41,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log:
                 moncic = make_moncic(mconfig)
-                with moncic.images() as images:
+                with moncic.session() as session:
+                    images = session.images()
                     with images.maintenance_system("test") as system:
                         system.update()
 
@@ -60,7 +62,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log:
                 moncic = make_moncic(mconfig)
-                with moncic.images() as images:
+                with moncic.session() as session:
+                    images = session.images()
                     images.bootstrap_system("test")
                     with images.system("test") as system:
                         path = system.path
@@ -88,7 +91,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log:
                 moncic = make_moncic(mconfig)
-                with moncic.images() as images:
+                with moncic.session() as session:
+                    images = session.images()
                     with images.maintenance_system("test") as system:
                         system.update()
                         path = system.path[:-4]
@@ -111,7 +115,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log:
                 moncic = make_moncic(mconfig)
-                with moncic.images() as images:
+                with moncic.session() as session:
+                    images = session.images()
                     images.bootstrap_system("test")
                     with images.system("test") as system:
                         path = system.path

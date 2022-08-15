@@ -7,7 +7,7 @@ from typing import ContextManager, Optional, List
 
 import yaml
 
-from . import imagestorage
+from .session import Session
 from .privs import ProcessPrivs
 
 log = logging.getLogger(__name__)
@@ -31,6 +31,13 @@ class MoncicConfig:
     auto_sudo: bool = True
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
+    # Directory where .deb files are cached between invocations
+    debcachedir: Optional[str] = "~/.cache/moncic-ci/debs"
+    # Directory where extra packages, if present, are added to package sources
+    # in containers
+    extra_packagages_dir: Optional[str] = None
+    # Directory where build artifacts will be stored
+    build_artifacts_dir: Optional[str] = None
 
     def __post_init__(self):
         # Allow to use ~ in config files
@@ -41,6 +48,11 @@ class MoncicConfig:
             self.imageconfdirs = [self.xdg_local_config_dir()]
         else:
             self.imageconfdirs = [os.path.expanduser(path) for path in self.imageconfdirs]
+
+        if self.debcachedir:
+            self.debcachedir = os.path.expanduser(self.debcachedir)
+        else:
+            self.debcachedir = None
 
     @classmethod
     def find_git_dir(cls) -> Optional[str]:
@@ -133,22 +145,9 @@ class Moncic:
         self.config = config
         self.privs.auto_sudo = self.config.auto_sudo
 
-        # Storage for OS images
-        self.image_storage: imagestorage.ImageStorage
-        if self.config.imagedir is None:
-            self.image_storage = imagestorage.ImageStorage.create_default(self)
-        else:
-            self.image_storage = imagestorage.ImageStorage.create(self, self.config.imagedir)
-
         # Detect systemd's version
         res = subprocess.run(["systemctl", "--version"], check=True, capture_output=True, text=True)
         self.systemd_version = int(res.stdout.splitlines()[0].split()[1])
 
-    def images(self) -> ContextManager[imagestorage.Images]:
-        return self.image_storage.images()
-
-    def set_imagedir(self, imagedir: str):
-        """
-        Set the image directory, overriding the one from config
-        """
-        self.image_storage = imagestorage.ImageStorage.create(self, imagedir)
+    def session(self) -> ContextManager[Session]:
+        return Session(self)

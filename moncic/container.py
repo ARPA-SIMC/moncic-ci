@@ -67,11 +67,17 @@ class BindConfig:
     # programs in the container
     cwd: bool = False
 
+    # Setup hook to be run at container startup inside the container
+    setup: Optional[Callable[["BindConfig"], None]] = None
+
+    # Setup hook to be run before container shutdown inside the container
+    teardown: Optional[Callable[["BindConfig"], None]] = None
+
     def to_nspawn(self) -> str:
         """
         Return the nspawn --bind* option for this bind
         """
-        if self.bind_type in ("ro", "volatile"):
+        if self.bind_type in ("ro",):
             option = "--bind-ro="
         elif self.bind_type in ("rw",):
             option = "--bind="
@@ -91,9 +97,35 @@ class BindConfig:
                                  escape_bind_ro(self.destination))
 
     @classmethod
+    def create(cls, source: str, destination: str, bind_type: str, **kw) -> "BindConfig":
+        """
+        Create a BindConfig.
+
+        ``bind_type`` has extra values over BindConfig.bind_type and can be:
+
+        * ``ro``: read only
+        * ``rw``: read-write
+        * ``volatile``: readonly with an tempfs volatile overlay
+        * ``aptcache``: shared /var/cache/apt/archives mount
+        """
+        if bind_type == "volatile":
+            kw["bind_type"] = "ro"
+            kw.setdefault("setup", BindConfig.bind_hook_setup_volatile)
+        elif bind_type == "aptcache":
+            kw["bind_type"] = "rw"
+            kw.setdefault("setup", BindConfig.bind_hook_setup_aptcache)
+            kw.setdefault("teardown", BindConfig.bind_hook_teardown_aptcache)
+        else:
+            kw["bind_type"] = bind_type
+
+        return cls(source=source, destination=destination, **kw)
+
+    @classmethod
     def from_nspawn(cls, entry: str, bind_type: str) -> "BindConfig":
         """
-        Create a BindConfig from an nspawn --bind/--bind-ro option
+        Create a BindConfig from an nspawn --bind/--bind-ro option.
+
+        ``bind_type`` is passed verbatim to BindConfig.create
         """
         # Backslash escapes are interpreted, so "\:" may be used to embed colons in either path.
         #
@@ -102,24 +134,74 @@ class BindConfig:
             # a path argument — in which case the specified path will be
             # mounted from the host to the same path in the container
             path = parts[0].replace(r"\:", ":")
-            return cls(path, path, bind_type)
+            return cls.create(path, path, bind_type)
         elif len(parts) == 2:
             # a colon-separated pair of paths — in which case the first
             # specified path is the source in the host, and the second path is
             # the destination in the container
-            return cls(
+            return cls.create(
                     parts[0].replace(r"\:", ":"),
                     parts[1].replace(r"\:", ":"),
                     bind_type)
         elif len(parts) == 3:
             # a colon-separated triple of source path, destination path and mount options
-            return cls(
+            return cls.create(
                     parts[0].replace(r"\:", ":"),
                     parts[1].replace(r"\:", ":"),
                     bind_type,
-                    parts[2].split(','))
+                    mount_options=parts[2].split(','))
         else:
             raise ValueError(f"{entry!r}: unparsable bind option")
+
+    @classmethod
+    def bind_hook_setup_volatile(cls, bind_config: "BindConfig"):
+        """
+        Finish setting up volatile binds in the container
+        """
+        volatile_root = "/run/volatile"
+        os.makedirs(volatile_root, exist_ok=True)
+
+        st = os.stat(bind_config.destination)
+
+        m = hashlib.sha1()
+        m.update(bind_config.destination.encode())
+        basename = m.hexdigest()
+
+        # Create the overlay workspace on tmpfs in /run
+        workdir = os.path.join(volatile_root, basename)
+        os.makedirs(workdir, exist_ok=True)
+
+        overlay_upper = os.path.join(workdir, "upper")
+        os.makedirs(overlay_upper, exist_ok=True)
+        os.chown(overlay_upper, st.st_uid, st.st_gid)
+
+        overlay_work = os.path.join(workdir, "work")
+        os.makedirs(overlay_work, exist_ok=True)
+        os.chown(overlay_work, st.st_uid, st.st_gid)
+
+        cmd = ["mount", "-t", "overlay", "overlay",
+               f"-olowerdir={bind_config.destination},upperdir={overlay_upper},workdir={overlay_work}",
+               bind_config.destination]
+        # logging.debug("Volatile setup command: %r", cmd)
+        subprocess.run(cmd, check=True)
+
+    @classmethod
+    def bind_hook_setup_aptcache(cls, bind_config: "BindConfig"):
+        with open("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads", "wt") as fd:
+            print('Binary::apt::APT::Keep-Downloaded-Packages "1";', file=fd)
+        try:
+            apt_user = pwd.getpwnam("_apt")
+        except KeyError:
+            apt_user = None
+        if apt_user:
+            os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
+
+    @classmethod
+    def bind_hook_teardown_aptcache(cls, bind_config: "BindConfig"):
+        try:
+            os.unlink("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads")
+        except FileNotFoundError:
+            pass
 
 
 @dataclasses.dataclass
@@ -151,11 +233,13 @@ class ContainerConfig:
     def configure_workdir(self, workdir: str, bind_type="rw"):
         """
         Configure a working directory, bind mounted into the container, set as
-        the container working directory, with its user forwarded in the container
+        the container working directory, with its user forwarded in the container.
+
+        ``bind_type`` is passed verbatim to BindConfig.create
         """
         workdir = os.path.abspath(workdir)
         mountpoint = os.path.join("/media", os.path.basename(workdir))
-        self.binds.append(BindConfig(
+        self.binds.append(BindConfig.create(
             source=workdir,
             destination=mountpoint,
             bind_type=bind_type,
@@ -270,7 +354,7 @@ class ContainerBase:
     def _start(self):
         raise NotImplementedError(f"{self.__class__}._start not implemented")
 
-    def _stop(self) -> ContextManager:
+    def _stop(self):
         raise NotImplementedError(f"{self.__class__}._stop not implemented")
 
     def __enter__(self):
@@ -359,7 +443,7 @@ class NspawnContainer(ContainerBase):
                 cmd.append("--read-only")
             else:
                 cmd.append("--ephemeral")
-        if self.system.images.moncic.systemd_version >= 250:
+        if self.system.images.session.moncic.systemd_version >= 250:
             cmd.append("--suppress-sync=yes")
         return cmd
 
@@ -425,43 +509,30 @@ class NspawnContainer(ContainerBase):
         # enforce that forward_user is only used on ephemeral containers
 
         # Set up volatile mounts
-        if any(bind.bind_type == "volatile" for bind in self.active_binds):
-            self.run_callable(self._bind_volatile_mounts, config=RunConfig(user=UserConfig.root()))
+        if any(bind.setup for bind in self.active_binds):
+            self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root()))
 
-    def _bind_volatile_mounts(self):
+    def _bind_setup(self):
         """
-        Finish setting up volatile binds in the container
+        Run setup scripts from binds
         """
-        volatile_root = "/run/volatile"
-        os.makedirs(volatile_root, exist_ok=True)
-
         for bind in self.active_binds:
-            if bind.bind_type == "volatile":
-                st = os.stat(bind.destination)
+            if bind.setup:
+                bind.setup(bind)
 
-                m = hashlib.sha1()
-                m.update(bind.destination.encode())
-                basename = m.hexdigest()
-
-                # Create the overlay workspace on tmpfs in /run
-                workdir = os.path.join(volatile_root, basename)
-                os.makedirs(workdir, exist_ok=True)
-
-                overlay_upper = os.path.join(workdir, "upper")
-                os.makedirs(overlay_upper, exist_ok=True)
-                os.chown(overlay_upper, st.st_uid, st.st_gid)
-
-                overlay_work = os.path.join(workdir, "work")
-                os.makedirs(overlay_work, exist_ok=True)
-                os.chown(overlay_work, st.st_uid, st.st_gid)
-
-                cmd = ["mount", "-t", "overlay", "overlay",
-                       f"-olowerdir={bind.destination},upperdir={overlay_upper},workdir={overlay_work}",
-                       bind.destination]
-                logging.debug("Volatile setup command: %r", cmd)
-                subprocess.run(cmd, check=True)
+    def _bind_teardown(self):
+        """
+        Run teardown scripts from binds
+        """
+        for bind in self.active_binds:
+            if bind.teardown:
+                bind.teardown(bind)
 
     def _stop(self):
+        # Run teardown script frombinds
+        if any(bind.teardown for bind in self.active_binds):
+            self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
+
         # See https://github.com/systemd/systemd/issues/6458
         leader_pid = int(self.properties["Leader"])
         os.kill(leader_pid, signal.SIGRTMIN + 4)

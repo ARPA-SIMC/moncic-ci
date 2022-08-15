@@ -74,6 +74,9 @@ class MoncicCommand(Command):
                             help="path to the Moncic-CI config file to use. By default,"
                                  " look in a number of well-known locations, see"
                                  " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md")
+        parser.add_argument("--extra-packages-dir", action="store",
+                            help="directory where extra packages, if presemt, are added to package sources"
+                                 " in containers")
         return parser
 
     def __init__(self, args):
@@ -88,14 +91,20 @@ class MoncicCommand(Command):
             else:
                 config = MoncicConfig.load()
 
-        if self.args.imagedir:
-            config.imagedir = self.args.imagedir
+            self.setup_moncic_config(config)
 
-        # Instantiate Moncic
-        self.moncic = Moncic(config=config, privs=privs)
+            # Instantiate Moncic
+            self.moncic = Moncic(config=config, privs=privs)
 
         # Do the rest as root
         self.moncic.privs.regain()
+
+    def setup_moncic_config(self, config: MoncicConfig):
+        """
+        Customize configuration before a Moncic object is instantiated
+        """
+        if self.args.imagedir:
+            config.imagedir = self.args.imagedir
 
 
 class CI(MoncicCommand):
@@ -121,8 +130,14 @@ class CI(MoncicCommand):
                             help="path or url of the repository to build. Default: the current directory")
         return parser
 
+    def setup_moncic_config(self, config: MoncicConfig):
+        super().setup_moncic_config(config)
+        if self.args.artifacts:
+            config.build_artifacts_dir = self.args.artifacts
+
     def run(self):
-        with self.moncic.images() as images:
+        with self.moncic.session() as session:
+            images = session.images()
             with images.system(self.args.system) as system:
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
                     if self.args.build_style:
@@ -130,7 +145,7 @@ class CI(MoncicCommand):
                     else:
                         builder = Builder.detect(system, srcdir)
 
-                    return builder.build(self.args.artifacts)
+                    return builder.build()
 
 
 class ImageActionCommand(MoncicCommand):
@@ -181,7 +196,8 @@ class ImageActionCommand(MoncicCommand):
 
     @contextlib.contextmanager
     def container(self):
-        with self.moncic.images() as images:
+        with self.moncic.session() as session:
+            images = session.images()
             if self.args.maintenance:
                 make_system = images.maintenance_system
             else:
@@ -290,7 +306,9 @@ class Bootstrap(MoncicCommand):
         return parser
 
     def run(self):
-        with self.moncic.images() as images:
+        with self.moncic.session() as session:
+            images = session.images()
+
             if not self.args.systems:
                 systems = images.list_images()
             else:
@@ -329,7 +347,8 @@ class Update(MoncicCommand):
         return parser
 
     def run(self):
-        with self.moncic.images() as images:
+        with self.moncic.session() as session:
+            images = session.images()
             if not self.args.systems:
                 systems = images.list_images()
             else:
@@ -370,7 +389,8 @@ class Remove(MoncicCommand):
         return parser
 
     def run(self):
-        with self.moncic.images() as images:
+        with self.moncic.session() as session:
+            images = session.images()
             for name in self.args.systems:
                 images.remove_system(name)
 
@@ -435,7 +455,8 @@ class Images(MoncicCommand):
                     TextColumn("Boostrapped"),
                     TextColumn("Path"))
 
-        with self.moncic.images() as images:
+        with self.moncic.session() as session:
+            images = session.images()
             for name in images.list_images():
                 with images.system(name) as system:
                     output.add_row((name, system.distro.name, "yes" if system.is_bootstrapped() else "no", system.path))
@@ -473,5 +494,5 @@ class Dedup(MoncicCommand):
     Deduplicate disk usage in image directories
     """
     def run(self):
-        with self.moncic.images() as images:
-            images.deduplicate()
+        with self.moncic.session() as session:
+            session.images().deduplicate()
