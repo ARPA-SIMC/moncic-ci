@@ -18,7 +18,7 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
 
         run_log.assertPopFirstOptional(f'btrfs -q subvolume create {path}.new')
         run_log.assertPopFirst(re.compile(
-            rf"(/usr/bin/eatmydata )?debootstrap --include=dbus,systemd"
+            rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata"
             rf" --variant=minbase bullseye {path}.new http://deb.debian.org/debian"))
         run_log.assertLogEmpty()
 
@@ -30,6 +30,8 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
                 system.update()
 
         run_log.assertPopFirst('/usr/bin/apt-get update')
-        run_log.assertPopFirst('/usr/bin/apt-get -y upgrade')
+        run_log.assertPopFirst(
+                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+                " full-upgrade")
         run_log.assertPopFirst("cachedir_tag:")
         run_log.assertLogEmpty()
