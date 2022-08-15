@@ -260,8 +260,8 @@ class DistroTestMixin:
                 return SystemConfig(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
 
             with mock.patch("moncic.system.SystemConfig.load", new=_load):
-                with moncic.images() as images:
-                    yield images
+                with moncic.session() as session:
+                    yield session.images()
 
     @contextlib.contextmanager
     def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:

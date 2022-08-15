@@ -25,7 +25,7 @@ class RunTestCase:
         super().setUpClass()
         cls.cls_exit_stack = contextlib.ExitStack()
         cls.moncic = make_moncic()
-        cls.images = cls.cls_exit_stack.enter_context(cls.moncic.images())
+        cls.session = cls.cls_exit_stack.enter_context(cls.moncic.session())
 
     @classmethod
     def tearDownClass(cls):
@@ -38,9 +38,9 @@ class RunTestCase:
     @contextlib.contextmanager
     def system(self) -> Generator[System, None, None]:
         with privs.root():
-            if self.distro_name not in self.images.list_images():
+            if self.distro_name not in self.session.images().list_images():
                 raise unittest.SkipTest(f"Image {self.distro_name} not available")
-            with self.images.system(self.distro_name) as system:
+            with self.session.images().system(self.distro_name) as system:
                 if not os.path.exists(system.path):
                     raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
                 yield system

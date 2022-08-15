@@ -7,7 +7,7 @@ from typing import ContextManager, Optional, List
 
 import yaml
 
-from . import imagestorage
+from .session import Session
 from .privs import ProcessPrivs
 
 log = logging.getLogger(__name__)
@@ -137,22 +137,9 @@ class Moncic:
         self.config = config
         self.privs.auto_sudo = self.config.auto_sudo
 
-        # Storage for OS images
-        self.image_storage: imagestorage.ImageStorage
-        if self.config.imagedir is None:
-            self.image_storage = imagestorage.ImageStorage.create_default(self)
-        else:
-            self.image_storage = imagestorage.ImageStorage.create(self, self.config.imagedir)
-
         # Detect systemd's version
         res = subprocess.run(["systemctl", "--version"], check=True, capture_output=True, text=True)
         self.systemd_version = int(res.stdout.splitlines()[0].split()[1])
 
-    def images(self) -> ContextManager[imagestorage.Images]:
-        return self.image_storage.images()
-
-    def set_imagedir(self, imagedir: str):
-        """
-        Set the image directory, overriding the one from config
-        """
-        self.image_storage = imagestorage.ImageStorage.create(self, imagedir)
+    def session(self) -> ContextManager[Session]:
+        return Session(self)

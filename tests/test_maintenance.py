@@ -20,7 +20,8 @@ class TestMaintenance(unittest.TestCase):
         super().setUpClass()
         cls.cls_exit_stack = contextlib.ExitStack()
         cls.moncic = make_moncic()
-        cls.images = cls.cls_exit_stack.enter_context(cls.moncic.images())
+        cls.session = cls.cls_exit_stack.enter_context(cls.moncic.session())
+        cls.images = cls.session.images()
         cls.test_image_config_file = os.path.join(cls.images.imagedir, test_image_name) + ".yaml"
         # Bootstrap a snapshot of base_image_name to use as our playground
         with privs.root():

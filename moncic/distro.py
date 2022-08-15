@@ -468,7 +468,7 @@ class DebianDistro(Distro):
 
     def container_config_hook(self, system: System, config: ContainerConfig):
         super().container_config_hook(system, config)
-        if system.images.moncic.config.debcachedir is not None:
+        if system.images.session.moncic.config.debcachedir is not None:
             config.share_apt_cache = True
 
     def get_base_packages(self) -> List[str]:

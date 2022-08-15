@@ -17,6 +17,7 @@ from .runner import LocalRunner
 
 if TYPE_CHECKING:
     from .moncic import Moncic
+    from .session import Session
 
 log = logging.getLogger("images")
 
@@ -27,8 +28,8 @@ class Images:
     """
     Image storage made available as a directory in the file system
     """
-    def __init__(self, moncic: Moncic, imagedir: str):
-        self.moncic = moncic
+    def __init__(self, session: Session, imagedir: str):
+        self.session = session
         self.imagedir = imagedir
 
     def list_images(self) -> List[str]:
@@ -108,7 +109,7 @@ class Images:
         from .system import SystemConfig
         res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
-            config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+            config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
             if config.extends is not None:
                 res.add(config.name, config.extends)
             else:
@@ -126,7 +127,7 @@ class PlainImages(Images):
     """
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
@@ -134,14 +135,14 @@ class PlainImages(Images):
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
         yield MaintenanceSystem(self, system_config)
 
     def bootstrap_system(self, name: str):
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         if os.path.exists(system_config.path):
             return
 
@@ -185,12 +186,12 @@ class BtrfsImages(Images):
     """
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         yield System(self, system_config)
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         path = os.path.join(self.imagedir, name)
         work_path = path + ".new"
         if os.path.exists(work_path):
@@ -209,7 +210,7 @@ class BtrfsImages(Images):
                     os.rename(work_path, path)
         else:
             # Update
-            subvolume = Subvolume(system_config, self.moncic.config)
+            subvolume = Subvolume(system_config, self.session.moncic.config)
             # Create work_path as a snapshot of path
             subvolume.snapshot(path)
             try:
@@ -224,7 +225,7 @@ class BtrfsImages(Images):
                 subvolume.replace_subvolume(path)
 
     def bootstrap_system(self, name: str):
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, name)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         if os.path.exists(system_config.path):
             return
 
@@ -237,11 +238,11 @@ class BtrfsImages(Images):
         try:
             if system_config.extends is not None:
                 with self.system(system_config.extends) as parent:
-                    subvolume = Subvolume(system_config, self.moncic.config)
+                    subvolume = Subvolume(system_config, self.session.moncic.config)
                     subvolume.snapshot(parent.path)
             else:
                 tarball_path = self.get_distro_tarball(system_config.distro)
-                subvolume = Subvolume(system_config, self.moncic.config)
+                subvolume = Subvolume(system_config, self.session.moncic.config)
                 with subvolume.create():
                     if tarball_path is not None:
                         # Shortcut in case we have a chroot in a tarball
@@ -262,8 +263,8 @@ class BtrfsImages(Images):
         path = os.path.join(self.imagedir, name)
         if not os.path.exists(path):
             return
-        system_config = SystemConfig.load(self.moncic.config, self.imagedir, path)
-        subvolume = Subvolume(system_config, self.moncic.config)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, path)
+        subvolume = Subvolume(system_config, self.session.moncic.config)
         subvolume.remove()
 
     def deduplicate(self):
@@ -315,8 +316,8 @@ class ImageStorage:
     """
     Interface for handling image storage
     """
-    def __init__(self, moncic: Moncic):
-        self.moncic = moncic
+    def __init__(self, session: Session):
+        self.session = session
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
@@ -362,7 +363,7 @@ class PlainImageStorage(ImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
-        yield PlainImages(self.moncic, self.imagedir)
+        yield PlainImages(self.session, self.imagedir)
 
 
 class BtrfsImageStorage(ImageStorage):
@@ -375,7 +376,7 @@ class BtrfsImageStorage(ImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
-        yield BtrfsImages(self.moncic, self.imagedir)
+        yield BtrfsImages(self.session, self.imagedir)
 
 
 class PlainMachineImageStorage(PlainImageStorage):
@@ -388,7 +389,7 @@ class PlainMachineImageStorage(PlainImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
-        yield Images(self.moncic, self.imagedir)
+        yield Images(self.session, self.imagedir)
 
 
 class BtrfsMachineImageStorage(BtrfsImageStorage):
@@ -401,4 +402,4 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
-        yield BtrfsImages(self.moncic, self.imagedir)
+        yield BtrfsImages(self.session, self.imagedir)

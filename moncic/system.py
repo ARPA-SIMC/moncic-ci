@@ -216,14 +216,14 @@ class System:
             if self.config.tmpfs is not None:
                 config.tmpfs = self.config.tmpfs
             else:
-                config.tmpfs = self.images.moncic.config.tmpfs
+                config.tmpfs = self.images.session.moncic.config.tmpfs
         elif config.ephemeral and config.tmpfs is None:
             # Make a copy to prevent changing the caller's config
             config = dataclasses.replace(config)
             if self.config.tmpfs is not None:
                 config.tmpfs = self.config.tmpfs
             else:
-                config.tmpfs = self.images.moncic.config.tmpfs
+                config.tmpfs = self.images.session.moncic.config.tmpfs
 
         # Allow distro-specific setup
         self.distro.container_config_hook(self, config)
