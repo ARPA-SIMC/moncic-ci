@@ -6,23 +6,12 @@ import tempfile
 from typing import Dict, Generator, NamedTuple, Optional
 
 from .runner import UserConfig
+from .utils import dirfd
 
 
 class FileInfo(NamedTuple):
     size: int
     atime_ns: int
-
-
-@contextlib.contextmanager
-def dirfd(path: str) -> Generator[int, None, None]:
-    """
-    Open a directory as a file descriptor
-    """
-    fileno = os.open(path, os.O_RDONLY)
-    try:
-        yield fileno
-    finally:
-        os.close(fileno)
 
 
 class DebCache:

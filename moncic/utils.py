@@ -1,12 +1,13 @@
 from __future__ import annotations
-from typing import Sequence, Optional
-import logging
+
 import contextlib
-import subprocess
-import shlex
+import logging
 import os
 import re
+import shlex
+import subprocess
 import tempfile
+from typing import Generator, Optional, Sequence
 
 log = logging.getLogger(__name__)
 
@@ -132,3 +133,34 @@ def cd(path: str):
         yield
     finally:
         os.chdir(cwd)
+
+
+@contextlib.contextmanager
+def dirfd(path: str) -> Generator[int, None, None]:
+    """
+    Open a directory as a file descriptor
+    """
+    fileno = os.open(path, os.O_RDONLY)
+    try:
+        yield fileno
+    finally:
+        os.close(fileno)
+
+
+@contextlib.contextmanager
+def extra_packages_dir(path: str) -> Generator[str, None, None]:
+    """
+    Create a temporarya directory where all packages found in path are
+    hardlinked
+    """
+    with tempfile.TemporaryDirectory(dir=path) as mirrordir:
+        # Hard link all .deb files into the temporary mirror directory
+        with dirfd(path) as src_dir_fd:
+            with dirfd(mirrordir) as dst_dir_fd:
+                with os.scandir(src_dir_fd) as it:
+                    for de in it:
+                        if de.name.endswith(".deb") or de.name.endswith(".rpm"):
+                            os.link(de.name, de.name, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+        # We cannot create a mirror now, since apt-ftparchive may not be
+        # present outside the container
+        yield mirrordir
