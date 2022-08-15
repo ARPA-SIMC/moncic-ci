@@ -142,10 +142,6 @@ class ContainerConfig:
     # Cannot be used when ephemeral is False
     forward_user: Optional[UserConfig] = None
 
-    # For Debian containers, set to True to share the apt cache between
-    # invocations
-    share_apt_cache = False
-
     def check(self):
         """
         Raise exceptions if options are used inconsistently

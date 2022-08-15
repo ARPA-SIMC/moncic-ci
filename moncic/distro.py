@@ -11,7 +11,7 @@ import tempfile
 from typing import Optional, Type, List, Dict, Iterable, NamedTuple, TYPE_CHECKING
 
 from .osrelease import parse_osrelase
-from .container import ContainerConfig
+from .container import BindConfig, ContainerConfig
 from .utils import atomic_writer
 if TYPE_CHECKING:
     from .system import System
@@ -469,7 +469,10 @@ class DebianDistro(Distro):
     def container_config_hook(self, system: System, config: ContainerConfig):
         super().container_config_hook(system, config)
         if system.images.session.moncic.config.debcachedir is not None:
-            config.share_apt_cache = True
+            config.binds.append(BindConfig(
+                system.images.session.apt_archives(),
+                "/var/cache/apt/archives",
+                "rw"))
 
     def get_base_packages(self) -> List[str]:
         res = super().get_base_packages()
