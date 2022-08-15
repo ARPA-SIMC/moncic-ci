@@ -189,6 +189,12 @@ class BindConfig:
     def bind_hook_setup_aptcache(cls, bind_config: "BindConfig"):
         with open("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads", "wt") as fd:
             print('Binary::apt::APT::Keep-Downloaded-Packages "1";', file=fd)
+        try:
+            apt_user = pwd.getpwnam("_apt")
+        except KeyError:
+            apt_user = None
+        if apt_user:
+            os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
 
     @classmethod
     def bind_hook_teardown_aptcache(cls, bind_config: "BindConfig"):
