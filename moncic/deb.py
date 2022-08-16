@@ -69,19 +69,20 @@ class DebCache:
                             os.chown(
                                 de.name, 0, 0, dir_fd=dst_dir_fd)
 
-                yield aptdir
-
-                # Hardlink new debs to cache dir
-                with os.scandir(dst_dir_fd) as it:
-                    for de in it:
-                        if de.name.endswith(".deb"):
-                            st = de.stat()
-                            if de.name not in self.debs:
-                                os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
-                            os.chown(
-                                de.name, self.cache_user.user_id, self.cache_user.group_id,
-                                dir_fd=self.src_dir_fd)
-                            self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+                try:
+                    yield aptdir
+                finally:
+                    # Hardlink new debs to cache dir
+                    with os.scandir(dst_dir_fd) as it:
+                        for de in it:
+                            if de.name.endswith(".deb"):
+                                st = de.stat()
+                                if de.name not in self.debs:
+                                    os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
+                                os.chown(
+                                    de.name, self.cache_user.user_id, self.cache_user.group_id,
+                                    dir_fd=self.src_dir_fd)
+                                self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
 
 
 def apt_get_cmd(*args) -> List[str]:
