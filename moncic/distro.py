@@ -414,6 +414,12 @@ class Centos7(YumDistro):
     baseurl = "{mirror}/centos/7/os/$basearch"
     version = 7
 
+    def bootstrap(self, system: System):
+        super().bootstrap(system)
+        installroot = os.path.abspath(system.path)
+        with open(os.path.join(installroot, "etc", "yum", "vars", "releasever"), "wt") as fd:
+            print("7", file=fd)
+
 
 class Centos8(DnfDistro):
     mirror = "https://vault.centos.org"
