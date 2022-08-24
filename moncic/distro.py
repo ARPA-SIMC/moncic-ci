@@ -417,7 +417,9 @@ class Centos7(YumDistro):
     def bootstrap(self, system: System):
         super().bootstrap(system)
         installroot = os.path.abspath(system.path)
-        with open(os.path.join(installroot, "etc", "yum", "vars", "releasever"), "wt") as fd:
+        varsdir = os.path.join(installroot, "etc", "yum", "vars")
+        os.makedirs(varsdir, exist_ok=True)
+        with open(os.path.join(varsdir, "releasever"), "wt") as fd:
             print("7", file=fd)
 
 
