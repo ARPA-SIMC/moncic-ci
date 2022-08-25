@@ -329,7 +329,9 @@ class Debian(Builder):
                 env.update(DEBIAN_FRONTEND="noninteractive")
                 run(apt_get_cmd("build-dep", "./"), env=env)
 
-                # Build dependencies are installed, we don't need internet anymore
+                # Build dependencies are installed, we don't need internet
+                # anymore: Debian packages are required to build without
+                # network access
                 setns.unshare(setns.CLONE_NEWNET)
 
                 # But we do need a working loopback
