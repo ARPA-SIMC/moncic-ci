@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import glob
 import itertools
 import logging
@@ -7,7 +8,6 @@ import os
 import shlex
 import shutil
 import subprocess
-import tempfile
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Type
 
 from .container import ContainerConfig
@@ -102,8 +102,12 @@ class Builder:
         container_config.configure_workdir(self.srcdir, bind_type="volatile")
         container = self.system.create_container(config=container_config)
         with container:
+            container_root = container.get_root()
+            os.makedirs(os.path.join(container_root, "srv", "moncic-ci", "build"), exist_ok=True)
             try:
-                res = container.run_callable(self.build_in_container)
+                res = container.run_callable(
+                        functools.partial(self.build_in_container, workdir="/srv/moncic-ci/build"),
+                )
                 if artifacts_dir:
                     self.collect_artifacts(container, artifacts_dir)
             finally:
@@ -111,10 +115,11 @@ class Builder:
                     run_config = container_config.run_config()
                     run_config.interactive = True
                     run_config.check = False
+                    run_config.cwd = "/srv/moncic-ci/build"
                     container.run_shell(config=run_config)
         return res.returncode
 
-    def build_in_container(self) -> Optional[int]:
+    def build_in_container(self, workdir: str) -> Optional[int]:
         """
         Run the build in a child process.
 
@@ -156,7 +161,7 @@ class ARPA(Builder):
         except FileNotFoundError:
             return False
 
-    def build_in_container(self) -> Optional[int]:
+    def build_in_container(self, workdir: str) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
@@ -267,7 +272,7 @@ class Debian(Builder):
             return True
         return False
 
-    def build_in_container(self) -> Optional[int]:
+    def build_in_container(self, workdir: str) -> Optional[int]:
         # TODO:
         # - inject dependency packages in a private apt repo if required
         #    - or export a local apt repo readonly
@@ -299,49 +304,48 @@ class Debian(Builder):
             except FileNotFoundError:
                 pass
 
-        # Move to a temporary directory
-        with tempfile.TemporaryDirectory() as workdir:
-            # Copy .dsc and its assets to the work directory
-            dsc_fname = os.path.join("..", srcinfo.dsc_fname)
-            shutil.copy2(dsc_fname, workdir)
-            for fname in get_file_list(dsc_fname):
-                shutil.copy2(os.path.join("..", fname), workdir)
+        # Copy .dsc and its assets to the work directory
+        dsc_fname = os.path.join("..", srcinfo.dsc_fname)
+        shutil.copy2(dsc_fname, workdir)
+        for fname in get_file_list(dsc_fname):
+            shutil.copy2(os.path.join("..", fname), workdir)
 
-            with cd(workdir):
-                run(["dpkg-source", "-x", srcinfo.dsc_fname])
+        with cd(workdir):
+            run(["dpkg-source", "-x", srcinfo.dsc_fname])
 
-                # Find the newly created build directory
-                with os.scandir(".") as it:
-                    for de in it:
-                        if de.is_dir():
-                            builddir = de.path
-                            break
-                    else:
-                        builddir = None
+            # Find the newly created build directory
+            with os.scandir(".") as it:
+                for de in it:
+                    if de.is_dir():
+                        builddir = de.path
+                        break
+                else:
+                    builddir = None
 
-                with cd(builddir):
-                    # Install build dependencies
-                    env = dict(os.environ)
-                    env.update(DEBIAN_FRONTEND="noninteractive")
-                    run(apt_get_cmd("build-dep", "./"), env=env)
+            with cd(builddir):
+                logging.error("BUILDDIR %s", builddir)
+                # Install build dependencies
+                env = dict(os.environ)
+                env.update(DEBIAN_FRONTEND="noninteractive")
+                run(apt_get_cmd("build-dep", "./"), env=env)
 
-                    # Build
-                    # Use unshare to disable networking
-                    run(["unshare", "-n", "--", "dpkg-buildpackage", "--no-sign"])
+                # Build
+                # Use unshare to disable networking
+                run(["unshare", "-n", "--", "dpkg-buildpackage", "--no-sign"])
 
-                # Collect artifacts
-                artifacts_dir = "/srv/artifacts"
-                if os.path.isdir(artifacts_dir):
-                    shutil.rmtree(artifacts_dir)
-                os.makedirs(artifacts_dir)
+            # Collect artifacts
+            artifacts_dir = "/srv/artifacts"
+            if os.path.isdir(artifacts_dir):
+                shutil.rmtree(artifacts_dir)
+            os.makedirs(artifacts_dir)
 
-                def collect(path: str):
-                    log.info("Found artifact %s", path)
-                    link_or_copy(path, artifacts_dir)
+            def collect(path: str):
+                log.info("Found artifact %s", path)
+                link_or_copy(path, artifacts_dir)
 
-                collect(srcinfo.changes_fname)
-                for fname in get_file_list(srcinfo.changes_fname):
-                    collect(fname)
+            collect(srcinfo.changes_fname)
+            for fname in get_file_list(srcinfo.changes_fname):
+                collect(fname)
 
     def collect_artifacts(self, container: Container, destdir: str):
         user = UserConfig.from_sudoer()
