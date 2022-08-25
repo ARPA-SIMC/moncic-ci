@@ -39,8 +39,10 @@ def setns(fd: int, flags: int = 0) -> int:
     """
     global libc
     if libc is None:
-        libc = ctypes.CDLL('libc.so.6')
-    return libc.setns(fd, flags)
+        libc = ctypes.CDLL('libc.so.6', use_errno=True)
+    if (libc.setns(fd, flags) == -1):
+        errno = ctypes.get_errno()
+        raise OSError(ctypes.get_errno(), os.strerror(errno))
 
 
 def unshare(flags: int = 0) -> int:
@@ -49,8 +51,10 @@ def unshare(flags: int = 0) -> int:
     """
     global libc
     if libc is None:
-        libc = ctypes.CDLL('libc.so.6')
-    return libc.unshare(flags)
+        libc = ctypes.CDLL('libc.so.6', use_errno=True)
+    if (libc.unshare(flags) == -1):
+        errno = ctypes.get_errno()
+        raise OSError(ctypes.get_errno(), os.strerror(errno))
 
 
 def nsenter(leader_pid: int, cgroup=True, ipc=True, net=True, mnt=True, pid=True, time=True, user=True, uts=True):
