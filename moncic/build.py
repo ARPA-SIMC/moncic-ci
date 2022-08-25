@@ -109,6 +109,7 @@ class Builder:
             finally:
                 if shell:
                     run_config = container_config.run_config()
+                    run_config.interactive = True
                     run_config.check = False
                     container.run_shell(config=run_config)
         return res.returncode
