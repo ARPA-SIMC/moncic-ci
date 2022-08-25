@@ -333,7 +333,7 @@ class Debian(Builder):
                 setns.unshare(setns.CLONE_NEWNET)
 
                 # But we do need a working loopback
-                run(["ip", "link", "dev", "lo", "set", "up"])
+                run(["ip", "link", "set", "dev", "lo", "up"])
 
                 # Build
                 # Use unshare to disable networking
