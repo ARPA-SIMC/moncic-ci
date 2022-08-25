@@ -102,13 +102,15 @@ class Builder:
         container_config.configure_workdir(self.srcdir, bind_type="volatile")
         container = self.system.create_container(config=container_config)
         with container:
-            res = container.run_callable(self.build_in_container)
-            if artifacts_dir:
-                self.collect_artifacts(container, artifacts_dir)
-            if shell:
-                run_config = container_config.run_config()
-                run_config.check = False
-                container.run_shell(config=run_config)
+            try:
+                res = container.run_callable(self.build_in_container)
+                if artifacts_dir:
+                    self.collect_artifacts(container, artifacts_dir)
+            finally:
+                if shell:
+                    run_config = container_config.run_config()
+                    run_config.check = False
+                    container.run_shell(config=run_config)
         return res.returncode
 
     def build_in_container(self) -> Optional[int]:
