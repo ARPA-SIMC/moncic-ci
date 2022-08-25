@@ -15,6 +15,7 @@ from .deb import apt_get_cmd
 from .distro import DnfDistro, YumDistro
 from .runner import UserConfig
 from .utils import cd
+from . import setns
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -323,15 +324,20 @@ class Debian(Builder):
                     builddir = None
 
             with cd(builddir):
-                logging.error("BUILDDIR %s", builddir)
                 # Install build dependencies
                 env = dict(os.environ)
                 env.update(DEBIAN_FRONTEND="noninteractive")
                 run(apt_get_cmd("build-dep", "./"), env=env)
 
+                # Build dependencies are installed, we don't need internet anymore
+                setns.unshare(setns.CLONE_NEWNET)
+
+                # But we do need a working loopback
+                run(["ip", "link", "dev", "lo", "set", "up"])
+
                 # Build
                 # Use unshare to disable networking
-                run(["unshare", "-n", "--", "dpkg-buildpackage", "--no-sign"])
+                run(["dpkg-buildpackage", "--no-sign"])
 
             # Collect artifacts
             artifacts_dir = "/srv/artifacts"
