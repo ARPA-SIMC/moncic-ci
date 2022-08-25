@@ -375,7 +375,10 @@ class SetnsCallableRunner(Runner):
                 importlib.reload(logging)
                 logging.getLogger().addHandler(JSONStreamHandler(stream=open(log_w, "wt"), level=logging.DEBUG))
                 logging.getLogger().setLevel(logging.DEBUG)
-                setns.nsenter(self.leader_pid)
+                setns.nsenter(
+                        self.leader_pid,
+                        # We don't use a private user namespace in containers
+                        user=False)
 
                 user = self.set_user()
                 env["USER"] = user.user_name
