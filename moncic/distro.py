@@ -277,7 +277,7 @@ class Distro:
         Return the list of packages that are expected to be installed on a
         freshly bootstrapped system
         """
-        return []
+        return ["iproute2"]
 
     def container_config_hook(self, system: System, config: ContainerConfig):
         """
@@ -394,7 +394,8 @@ class YumDistro(RpmDistro):
     def get_update_script(self):
         res = super().get_update_script()
         return res + [
-            ["/usr/bin/yum", "upgrade", "-q", "-y"]
+            ["/usr/bin/yum", "upgrade", "-q", "-y"],
+            ["/usr/bin/yum", "install", "-q", "-y"] + self.get_base_packages(),
         ]
 
 
@@ -405,7 +406,8 @@ class DnfDistro(RpmDistro):
     def get_update_script(self):
         res = super().get_update_script()
         return res + [
-            ["/usr/bin/dnf", "upgrade", "-q", "-y"]
+            ["/usr/bin/dnf", "upgrade", "-q", "-y"],
+            ["/usr/bin/dnf", "install", "-q", "-y"] + self.get_base_packages(),
         ]
 
 
@@ -521,13 +523,15 @@ class DebianDistro(Distro):
         """
         Get the sequence of commands to use for regular update/maintenance
         """
+        apt_install_cmd = [
+                "/usr/bin/apt-get", "--assume-yes", "--quiet", "--show-upgraded",
+                # The space after -o is odd but required, and I could
+                # not find a better working syntax
+                '-o Dpkg::Options::="--force-confnew"']
         return [
             ["/usr/bin/apt-get", "update"],
-            ["/usr/bin/apt-get", "--assume-yes", "--quiet", "--show-upgraded",
-             # The space after -o is odd but required, and I could
-             # not find a better working syntax
-             '-o Dpkg::Options::="--force-confnew"',
-             "full-upgrade"],
+            apt_install_cmd + ["full-upgrade"],
+            apt_install_cmd + ["install"] + self.get_base_packages(),
         ]
 
 
