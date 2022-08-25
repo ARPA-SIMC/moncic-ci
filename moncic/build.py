@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 import glob
 import itertools
 import logging
@@ -107,8 +106,8 @@ class Builder:
             os.makedirs(os.path.join(container_root, "srv", "moncic-ci", "build"), exist_ok=True)
             try:
                 res = container.run_callable(
-                        functools.partial(self.build_in_container, workdir="/srv/moncic-ci/build"),
-                )
+                        self.build_in_container,
+                        kwargs={"workdir": "/srv/moncic-ci/build"})
                 if artifacts_dir:
                     self.collect_artifacts(container, artifacts_dir)
             finally:

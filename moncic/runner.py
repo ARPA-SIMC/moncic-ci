@@ -3,6 +3,7 @@ Infrastructure for running commands (in local or running systems) and logging
 their output
 """
 from __future__ import annotations
+
 import asyncio
 import dataclasses
 import grp
@@ -15,9 +16,11 @@ import shlex
 import shutil
 import subprocess
 import traceback
-from typing import List, Optional, Callable, NamedTuple, TextIO, TYPE_CHECKING
+from typing import (TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple,
+                    Optional, TextIO, Tuple)
 
 from . import setns
+
 if TYPE_CHECKING:
     from .container import NspawnContainer
     from .system import SystemConfig
@@ -290,11 +293,14 @@ class JSONStreamHandler(logging.Handler):
 
 class SetnsCallableRunner(Runner):
     def __init__(
-            self, run: NspawnContainer, config: RunConfig, func: Callable[[], Optional[int]]):
+            self, run: NspawnContainer, config: RunConfig, func: Callable[[], Optional[int]],
+            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None):
         super().__init__(run.system.log, config)
         self.run = run
         self.leader_pid = int(run.properties["Leader"])
         self.func = func
+        self.args = args
+        self.kwargs = kwargs
 
     async def make_reader(self, fd: int):
         loop = asyncio.get_running_loop()
@@ -401,7 +407,7 @@ class SetnsCallableRunner(Runner):
                 pid = os.fork()
                 if pid == 0:
                     try:
-                        res = self.func()
+                        res = self.func(*self.args, **({} if self.kwargs is None else self.kwargs))
                         os._exit(res if res is not None else 0)
                     except Exception:
                         traceback.print_exc()

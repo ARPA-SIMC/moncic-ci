@@ -15,8 +15,8 @@ import subprocess
 import tempfile
 import time
 import uuid
-from typing import (TYPE_CHECKING, Callable, ContextManager, Iterator, List,
-                    NoReturn, Optional, Protocol)
+from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict, Iterator, List,
+                    NoReturn, Optional, Protocol, Tuple)
 
 from .nspawn import escape_bind_ro
 from .runner import RunConfig, SetnsCallableRunner, UserConfig
@@ -357,7 +357,9 @@ class Container(ContextManager, Protocol):
         ...
 
     def run_callable(
-            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
+            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None,
+            ) -> subprocess.CompletedProcess:
         """
         Run the given callable in a separate process inside the running
         system. Returns the process exit status.
@@ -646,7 +648,9 @@ class NspawnContainer(ContainerBase):
         return self.run_callable(script_runner, config)
 
     def run_callable(
-            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
+            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None,
+            ) -> subprocess.CompletedProcess:
         run_config = self.config.run_config(config)
-        runner = SetnsCallableRunner(self, run_config, func)
+        runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
         return runner.execute()
