@@ -11,6 +11,7 @@ Summary:        Continuous integration tool and development helper
 License:        GPLv2+
 URL:            https://github.com/ARPA-SIMC/moncic-ci
 Source0:        https://github.com/ARPA-SIMC/%{name}/archive/v%{version}-%{releaseno}.tar.gz#/%{srcarchivename}.tar.gz
+BuildArch:      noarch
 
 BuildRequires:  python3
 BuildRequires:  python3-setuptools
