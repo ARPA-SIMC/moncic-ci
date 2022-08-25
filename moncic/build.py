@@ -127,7 +127,7 @@ class Builder:
         """
         raise NotImplementedError(f"{self.__class__}.build not implemented")
 
-    def collect_artifacts(self, destdir: str):
+    def collect_artifacts(self, container: Container, destdir: str):
         """
         Copy build artifacts to the given directory
         """
