@@ -195,6 +195,19 @@ class ARPA(Builder):
 
         return None
 
+    def collect_artifacts(self, container: Container, destdir: str):
+        user = UserConfig.from_sudoer()
+        patterns = (
+            "RPMS/*/*.rpm",
+            "SRPMS/*.rpm",
+        )
+        basedir = os.path.join(container.get_root(), "root/rpmbuild")
+        for pattern in patterns:
+            for file in glob.glob(os.path.join(basedir, pattern)):
+                filename = os.path.basename(file)
+                log.info("Copying %s to %s", filename, destdir)
+                link_or_copy(file, destdir, user=user)
+
 
 class SourceInfo(NamedTuple):
     srcname: str
