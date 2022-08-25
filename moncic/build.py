@@ -131,8 +131,8 @@ class Builder:
 
 @Builder.register
 class ARPA(Builder):
-    def __init__(self, system: System):
-        super().__init__(system)
+    def __init__(self, system: System, srcdir: str):
+        super().__init__(system, srcdir)
         if isinstance(system.distro, YumDistro):
             self.builddep = ["yum-builddep"]
         elif isinstance(system.distro, DnfDistro):
