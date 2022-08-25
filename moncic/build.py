@@ -92,7 +92,7 @@ class Builder:
         self.system = system
         self.srcdir = srcdir
 
-    def build(self) -> int:
+    def build(self, shell: bool = False) -> int:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
@@ -105,6 +105,10 @@ class Builder:
             res = container.run_callable(self.build_in_container)
             if artifacts_dir:
                 self.collect_artifacts(container, artifacts_dir)
+            if shell:
+                run_config = container_config.run_config()
+                run_config.check = False
+                container.run_shell(config=run_config)
         return res.returncode
 
     def build_in_container(self) -> Optional[int]:

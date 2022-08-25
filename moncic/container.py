@@ -9,6 +9,7 @@ import os
 import pwd
 import re
 import shlex
+import shutil
 import signal
 import subprocess
 import tempfile
@@ -363,6 +364,12 @@ class Container(ContextManager, Protocol):
         """
         ...
 
+    def run_shell(self, config: Optional[RunConfig]):
+        """
+        Open a shell in the container
+        """
+        ...
+
 
 class ContainerBase:
     """
@@ -400,6 +407,27 @@ class ContainerBase:
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.started:
             self._stop()
+
+    def run_shell(self, config: Optional[RunConfig]):
+        shell_candidates = []
+        if "SHELL" in os.environ:
+            shell_candidates.append(os.environ["SHELL"])
+            shell_candidates.append(os.path.basename(os.environ["SHELL"]))
+        shell_candidates.extend(("bash", "sh"))
+
+        def find_shell():
+            """
+            lookup for a valid shell in the container
+            """
+            for cand in shell_candidates:
+                pathname = shutil.which(cand)
+                if pathname is not None:
+                    print(pathname)
+                    return
+            raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
+
+        res = self.run_callable(find_shell)
+        return self.run([res.stdout.strip().decode(), "--login"], config=config)
 
 
 class NspawnContainer(ContainerBase):

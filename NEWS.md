@@ -13,6 +13,8 @@
   files can be cached across container runs (#52)
 * Added option `extra_packages_dir` and `--extra-packages-dir` to provide extra
   packages as dependencies for builds (#49)
+* Added `echo 7 > /etc/yum/vars/releasever` to Centos7 bootstrap
+* Added `monci ci --shell` to open a shell in the container after the build
 
 # Version 0.6
 

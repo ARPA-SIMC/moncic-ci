@@ -129,6 +129,8 @@ class CI(MoncicCommand):
                             help="name of the procedure used to run the CI. Default: 'travis'")
         parser.add_argument("-a", "--artifacts", metavar="dir", action="store", default="..",
                             help="directory where build artifacts will be stored")
+        parser.add_argument("--shell", action="store_true",
+                            help="open a shell after the build")
         parser.add_argument("repo", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
         return parser
@@ -148,7 +150,7 @@ class CI(MoncicCommand):
                     else:
                         builder = Builder.detect(system, srcdir)
 
-                    return builder.build()
+                    return builder.build(shell=self.args.shell)
 
 
 class ImageActionCommand(MoncicCommand):
@@ -247,29 +249,11 @@ class Shell(ImageActionCommand):
     """
 
     def run(self):
-        shell_candidates = []
-        if "SHELL" in os.environ:
-            shell_candidates.append(os.environ["SHELL"])
-            shell_candidates.append(os.path.basename(os.environ["SHELL"]))
-        shell_candidates.extend(("bash", "sh"))
-
-        def find_shell():
-            """
-            lookup for a valid shell in the container
-            """
-            for cand in shell_candidates:
-                pathname = shutil.which(cand)
-                if pathname is not None:
-                    print(pathname)
-                    return
-            raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
-
         run_config = self.get_run_config()
         run_config.check = False
 
         with self.container() as container:
-            res = container.run_callable(find_shell)
-            res = container.run([res.stdout.strip().decode(), "--login"], config=run_config)
+            res = container.run_shell(config=run_config)
         return res.returncode
 
 
