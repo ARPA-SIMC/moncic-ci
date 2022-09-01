@@ -277,7 +277,7 @@ class Distro:
         Return the list of packages that are expected to be installed on a
         freshly bootstrapped system
         """
-        return ["iproute2"]
+        return ["bash", "dbus"]
 
     def container_config_hook(self, system: System, config: ContainerConfig):
         """
@@ -327,7 +327,7 @@ class RpmDistro(Distro):
 
     def get_base_packages(self) -> List[str]:
         res = super().get_base_packages()
-        res += ["bash", "rootfiles", "dbus"]
+        res += ["rootfiles", "iproute"]
         return res
 
     @contextlib.contextmanager
@@ -492,7 +492,7 @@ class DebianDistro(Distro):
 
     def get_base_packages(self) -> List[str]:
         res = super().get_base_packages()
-        res += ["bash", "dbus", "systemd", "apt-utils", "eatmydata"]
+        res += ["systemd", "apt-utils", "eatmydata", "iproute2"]
         return res
 
     def bootstrap(self, system: System):
