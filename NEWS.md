@@ -1,4 +1,4 @@
-# Version UNRELEASED
+# Version 0.7
 
 * Removed support for a btrfs filesystem in a file (#41)
 * Prototype `Builder` for building Debian packages (#47)

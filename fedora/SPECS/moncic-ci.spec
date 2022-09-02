@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.6
+Version:        0.7
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -60,6 +60,23 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Fri Sep  2 2022 Daniele Branchini <dbranchini@arpae.it> - 0.7-1
+- Removed support for a btrfs filesystem in a file (#41)
+- Prototype `Builder` for building Debian packages (#47)
+- Added option `--bind-volatile`, working as `--bind-ro` plus a temporary
+  writable overlay (#50)
+- Added option `--workdir-volatile` working as `--workdir` but with a volatile
+  mount (#50)
+- Use volatile mounts for CI (#51)
+- Added config option `build_artifacts_dir` and command line option `monci ci
+  --artifacts` to collect build artifacts in a directory (#10)
+- Added option `debcachedir` to point to a directory where downloaded `.deb`
+  files can be cached across container runs (#52)
+- Added option `extra_packages_dir` and `--extra-packages-dir` to provide extra
+  packages as dependencies for builds (#49)
+- Added `echo 7 > /etc/yum/vars/releasever` to Centos7 bootstrap
+- Added `monci ci --shell` to open a shell in the container after the build
+
 * Fri Jun  3 2022 Daniele Branchini <dbranchini@arpae.it> - 0.6-1
 - Fixed network issues with systemd-resolved based images (Fedora 36)
 
