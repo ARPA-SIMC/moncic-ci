@@ -1,42 +1,11 @@
 #!/usr/bin/env python3
 # coding: utf-8
 
-import ast
 from setuptools import setup
-from typing import Optional
-
-# Read VERSION from monci executable
-version = None
-
-
-def read_version(fname: str) -> Optional[str]:
-    version = None
-    with open(fname, "rt") as fd:
-        tree = ast.parse(fd.read(), fname)
-        for stm in tree.body:
-            if version is not None:
-                break
-            if not isinstance(stm, ast.Assign):
-                continue
-            for target in stm.targets:
-                if not isinstance(target, ast.Name):
-                    continue
-                if target.id != "VERSION":
-                    continue
-                if isinstance(stm.value, ast.Constant):
-                    version = stm.value.value
-                    break
-                elif isinstance(stm.value, ast.Str):
-                    version = stm.value.s
-                    break
-    if version is None:
-        raise RuntimeError(f"VERSION not found in {fname}")
-    return version
 
 
 setup(
     name='moncic-ci',
-    version=read_version("monci"),
     python_requires=">= 3.8",
     description="CI tool",
     long_description=open("README.md").read(),
