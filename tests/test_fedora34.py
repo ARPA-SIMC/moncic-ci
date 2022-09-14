@@ -19,7 +19,7 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
         run_log.assertPopFirstOptional(f'btrfs -q subvolume create {path}.new')
         run_log.assertPopFirst(re.compile(
             rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-            rf' --installroot={path}\.new --releasever=34 install iproute2 bash rootfiles dbus dnf'))
+            rf' --installroot={path}\.new --releasever=34 install bash dbus rootfiles iproute dnf'))
         run_log.assertPopFirst('/usr/bin/rpmdb --rebuilddb')
         run_log.assertLogEmpty()
 
@@ -31,6 +31,6 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
                 system.update()
 
         run_log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
-        run_log.assertPopFirst('/usr/bin/dnf install -q -y iproute2 bash rootfiles dbus dnf')
+        run_log.assertPopFirst('/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf')
         run_log.assertPopFirst("cachedir_tag:")
         run_log.assertLogEmpty()

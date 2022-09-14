@@ -18,7 +18,7 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
 
         run_log.assertPopFirstOptional(f'btrfs -q subvolume create {path}.new')
         run_log.assertPopFirst(re.compile(
-            rf"(/usr/bin/eatmydata )?debootstrap --include=iproute2,bash,dbus,systemd,apt-utils,eatmydata"
+            rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
             rf" --variant=minbase bullseye {path}.new http://deb.debian.org/debian"))
         run_log.assertLogEmpty()
 
@@ -35,6 +35,6 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
                 " full-upgrade")
         run_log.assertPopFirst(
                 "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " install iproute2 bash dbus systemd apt-utils eatmydata")
+                " install bash dbus systemd apt-utils eatmydata iproute2")
         run_log.assertPopFirst("cachedir_tag:")
         run_log.assertLogEmpty()
