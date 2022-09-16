@@ -230,7 +230,7 @@ class Fedora(DistroFamily):
 
 @DistroFamily.register
 class Rocky(DistroFamily):
-    VERSIONS = (8,)
+    VERSIONS = (8, 9)
     SHORTCUTS = {
         f"rocky{version}": f"rocky:{version}"
         for version in VERSIONS
