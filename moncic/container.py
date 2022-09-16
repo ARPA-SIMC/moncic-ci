@@ -410,6 +410,15 @@ class ContainerBase:
         if self.started:
             self._stop()
 
+    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        raise NotImplementedError(f"{self.__class__}._run not implemented")
+
+    def run_callable(
+            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
+            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None,
+            ) -> subprocess.CompletedProcess:
+        raise NotImplementedError(f"{self.__class__}._run_callable not implemented")
+
     def run_shell(self, config: Optional[RunConfig]):
         shell_candidates = []
         if "SHELL" in os.environ:
