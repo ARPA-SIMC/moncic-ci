@@ -127,7 +127,7 @@ class CI(MoncicCommand):
                             help="name or path of the system used to build")
         parser.add_argument("-b", "--build-style", action="store", default="travis",
                             help="name of the procedure used to run the CI. Default: 'travis'")
-        parser.add_argument("-a", "--artifacts", metavar="dir", action="store", default="..",
+        parser.add_argument("-a", "--artifacts", metavar="dir", action="store",
                             help="directory where build artifacts will be stored")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
