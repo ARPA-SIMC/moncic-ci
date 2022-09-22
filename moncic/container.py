@@ -261,7 +261,7 @@ class ContainerConfig:
         """
         pass
 
-    def configure_workdir(self, workdir: str, bind_type="rw"):
+    def configure_workdir(self, workdir: str, bind_type="rw", mountpoint="/media"):
         """
         Configure a working directory, bind mounted into the container, set as
         the container working directory, with its user forwarded in the container.
@@ -269,7 +269,7 @@ class ContainerConfig:
         ``bind_type`` is passed verbatim to BindConfig.create
         """
         workdir = os.path.abspath(workdir)
-        mountpoint = os.path.join("/media", os.path.basename(workdir))
+        mountpoint = os.path.join(mountpoint, os.path.basename(workdir))
         self.binds.append(BindConfig.create(
             source=workdir,
             destination=mountpoint,

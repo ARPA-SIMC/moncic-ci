@@ -7,6 +7,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import tempfile
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Type
 
 from .container import ContainerConfig
@@ -91,6 +92,7 @@ class Builder:
         """
         self.system = system
         self.srcdir = srcdir
+        self.user = UserConfig.from_sudoer()
 
     def build(self, shell: bool = False) -> int:
         """
@@ -99,14 +101,17 @@ class Builder:
         """
         artifacts_dir = self.system.images.session.moncic.config.build_artifacts_dir
         container_config = ContainerConfig()
-        container_config.configure_workdir(self.srcdir, bind_type="volatile")
+        container_config.configure_workdir(self.srcdir, bind_type="volatile", mountpoint="/srv/moncic-ci/source")
         container = self.system.create_container(config=container_config)
         with container:
             container_root = container.get_root()
             os.makedirs(os.path.join(container_root, "srv", "moncic-ci", "build"), exist_ok=True)
+            build_config = container_config.run_config()
+            build_config.user = UserConfig.root()
             try:
                 res = container.run_callable(
                         self.build_in_container,
+                        build_config,
                         kwargs={"workdir": "/srv/moncic-ci/build"})
                 if artifacts_dir:
                     self.collect_artifacts(container, artifacts_dir)
@@ -115,6 +120,7 @@ class Builder:
                     run_config = container_config.run_config()
                     run_config.interactive = True
                     run_config.check = False
+                    run_config.user = UserConfig.root()
                     run_config.cwd = "/srv/moncic-ci/build"
                     container.run_shell(config=run_config)
         return res.returncode
@@ -285,21 +291,11 @@ class Debian(Builder):
             return True
         return False
 
-    def build_in_container(self, workdir: str) -> Optional[int]:
-        # TODO:
-        # - inject dependency packages in a private apt repo if required
-        #    - or export a local apt repo readonly
-
-        # Disable reindexing of manpages during installation of build-dependencies
-        run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
-
+    def build_source_plain(self, srcinfo: SourceInfo, workdir: str):
         # Check if debian/files already exists
         clean_debian_files = os.path.join("debian", "files")
         if os.path.exists(clean_debian_files):
             clean_debian_files = None
-
-        # Build source package
-        srcinfo = get_source_info()
 
         # Build upstream tarball if missing
         # FIXME: this is a hack, that prevents building new debian versions
@@ -322,6 +318,34 @@ class Debian(Builder):
         shutil.copy2(dsc_fname, workdir)
         for fname in get_file_list(dsc_fname):
             shutil.copy2(os.path.join("..", fname), workdir)
+
+    def build_source_gbp(self, srcinfo: SourceInfo, workdir: str):
+        with self.system.images.session.moncic.privs.user():
+            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
+                fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
+                fd.flush()
+            run(["gbp", "buildpackage", "--git-ignore-new",
+                 "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
+                 "--no-pre-clean"])
+
+    def build_in_container(self, workdir: str) -> Optional[int]:
+        # TODO:
+        # - inject dependency packages in a private apt repo if required
+        #    - or export a local apt repo readonly
+
+        os.chown("/srv/moncic-ci/source", self.user.user_id, self.user.group_id)
+        os.chown(workdir, self.user.user_id, self.user.group_id)
+
+        # Disable reindexing of manpages during installation of build-dependencies
+        run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
+
+        # Build source package
+        srcinfo = get_source_info()
+
+        if os.path.exists("debian/gbp.conf"):
+            self.build_source_gbp(srcinfo, workdir)
+        else:
+            self.build_source_plain(srcinfo, workdir)
 
         with cd(workdir):
             run(["dpkg-source", "-x", srcinfo.dsc_fname])
