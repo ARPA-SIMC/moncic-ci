@@ -7,7 +7,6 @@ import os
 import shlex
 import shutil
 import subprocess
-import tempfile
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Type
 
 from .container import ContainerConfig
