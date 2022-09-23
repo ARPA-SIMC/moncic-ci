@@ -16,7 +16,6 @@ from .system import MaintenanceSystem, System, SystemConfig
 from .runner import LocalRunner
 
 if TYPE_CHECKING:
-    from .moncic import Moncic
     from .session import Session
 
 log = logging.getLogger("images")
@@ -328,37 +327,37 @@ class ImageStorage:
         raise NotImplementedError(f"{self.__class__.__name__}.imagedir is not implemented")
 
     @classmethod
-    def create(cls, moncic: Moncic, path: str) -> "ImageStorage":
+    def create(cls, session: Session, path: str) -> "ImageStorage":
         """
         Instantiate the right ImageStorage for a path
         """
         if path == MACHINECTL_PATH:
             if is_btrfs(path):
-                return BtrfsMachineImageStorage(moncic)
+                return BtrfsMachineImageStorage(session)
             else:
-                return PlainMachineImageStorage(moncic)
+                return PlainMachineImageStorage(session)
         elif os.path.isdir(path):
             if is_btrfs(path):
-                return BtrfsImageStorage(moncic, path)
+                return BtrfsImageStorage(session, path)
             else:
-                return PlainImageStorage(moncic, path)
+                return PlainImageStorage(session, path)
         else:
             raise RuntimeError(f"images path {path!r} does not point to a directory")
 
     @classmethod
-    def create_default(cls, moncic: Moncic) -> "ImageStorage":
+    def create_default(cls, session: Session) -> "ImageStorage":
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        return cls.create(moncic, MACHINECTL_PATH)
+        return cls.create(session, MACHINECTL_PATH)
 
 
 class PlainImageStorage(ImageStorage):
     """
     Store images in a non-btrfs directory
     """
-    def __init__(self, moncic: Moncic, imagedir: str):
-        super().__init__(moncic)
+    def __init__(self, session: Session, imagedir: str):
+        super().__init__(session)
         self.imagedir = imagedir
 
     @contextlib.contextmanager
@@ -370,8 +369,8 @@ class BtrfsImageStorage(ImageStorage):
     """
     Store images in a btrfs directory
     """
-    def __init__(self, moncic: Moncic, imagedir: str):
-        super().__init__(moncic)
+    def __init__(self, session: Session, imagedir: str):
+        super().__init__(session)
         self.imagedir = imagedir
 
     @contextlib.contextmanager
@@ -384,8 +383,8 @@ class PlainMachineImageStorage(PlainImageStorage):
     Store images in /var/lib/machines in a way that is compatibile with
     machinectl
     """
-    def __init__(self, moncic: Moncic):
-        super().__init__(moncic, MACHINECTL_PATH)
+    def __init__(self, session: Session):
+        super().__init__(session, MACHINECTL_PATH)
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
@@ -397,8 +396,8 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
     Store images in /var/lib/machines in a way that is compatibile with
     machinectl
     """
-    def __init__(self, moncic: Moncic):
-        super().__init__(moncic, MACHINECTL_PATH)
+    def __init__(self, session: Session):
+        super().__init__(session, MACHINECTL_PATH)
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
