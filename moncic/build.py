@@ -7,6 +7,7 @@ import os
 import shlex
 import shutil
 import subprocess
+import tempfile
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Type
 
 from .container import ContainerConfig
@@ -291,32 +292,24 @@ class Debian(Builder):
         return False
 
     def build_source_plain(self, srcinfo: SourceInfo, workdir: str):
-        # Check if debian/files already exists
-        clean_debian_files = os.path.join("debian", "files")
-        if os.path.exists(clean_debian_files):
-            clean_debian_files = None
+        with self.system.images.session.moncic.privs.user():
+            with tempfile.TemporaryDirectory(dir=workdir) as clean_src:
+                # Make a clean clone to avoid building from a dirty working
+                # directory
+                run(["git", "clone", ".", clean_src])
 
-        # Build upstream tarball if missing
-        # FIXME: this is a hack, that prevents building new debian versions
-        if not os.path.exists(os.path.join("..", srcinfo.tar_fname)):
-            run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
+                with cd(clean_src):
+                    # Build upstream tarball
+                    # FIXME: this is a hack, that prevents building new debian versions
+                    #        from the same upstream tarball
+                    run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
 
-        # Uses --no-pre-clean to avoid requiring build-deps to be installed at
-        # this stage
-        run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"])
+                    # Uses --no-pre-clean to avoid requiring build-deps to be installed at
+                    # this stage
+                    run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"])
 
-        # Clean debian/files if it was created by dpkg-buildpackage
-        if clean_debian_files:
-            try:
-                os.remove(clean_debian_files)
-            except FileNotFoundError:
-                pass
-
-        # Copy .dsc and its assets to the work directory
-        dsc_fname = os.path.join("..", srcinfo.dsc_fname)
-        shutil.copy2(dsc_fname, workdir)
-        for fname in get_file_list(dsc_fname):
-            shutil.copy2(os.path.join("..", fname), workdir)
+                    # No need to copy .dsc and its assets to the work
+                    # directory, since we're building on a temporary subdir inside it
 
     def build_source_gbp(self, srcinfo: SourceInfo, workdir: str):
         with self.system.images.session.moncic.privs.user():
