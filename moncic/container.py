@@ -521,13 +521,13 @@ class NspawnContainer(ContainerBase):
         Ensure the system has a matching user and group
         """
         def forward():
-            res = subprocess.run(["id", "-u", str(user.user_id)], capture_output=True, check=True)
-            has_user = int(res.stdout.strip()) == user.user_id
+            res = subprocess.run(["id", "-u", str(user.user_id)], capture_output=True, check=False)
+            has_user = res.returncode == 0 and int(res.stdout.strip()) == user.user_id
             if not has_user and not allow_maint and not self.config.ephemeral:
                 raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
 
-            res = subprocess.run(["id", "-g", str(user.user_id)], capture_output=True, check=True)
-            has_group = int(res.stdout.strip()) == user.group_id
+            res = subprocess.run(["id", "-g", str(user.user_id)], capture_output=True, check=False)
+            has_group = res.returncode == 0 and int(res.stdout.strip()) == user.group_id
             if not has_group and not allow_maint and not self.config.ephemeral:
                 raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
