@@ -63,6 +63,7 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
                 names = os.listdir(workdir)
                 if len(names) != 1:
                     raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+                system.images.session.moncic.privs.regain()
                 yield os.path.join(workdir, names[0])
 
 
