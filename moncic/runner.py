@@ -98,6 +98,7 @@ class UserConfig(NamedTuple):
         if self.user_id == 0 and self.group_id == 0:
             return
 
+        # TODO: do not use pwd and grp, as they may be cached from the host system
         try:
             pw = pwd.getpwuid(self.user_id)
         except KeyError:

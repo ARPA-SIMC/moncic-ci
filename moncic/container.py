@@ -521,21 +521,15 @@ class NspawnContainer(ContainerBase):
         Ensure the system has a matching user and group
         """
         def forward():
-            try:
-                res = subprocess.run(["id", "-u", str(user.user_id)], capture_output=True, check=True)
-                has_user = int(res.stdout.strip()) == user.user_id
-            except KeyError:
-                has_user = False
-                if not allow_maint and not self.config.ephemeral:
-                    raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
+            res = subprocess.run(["id", "-u", str(user.user_id)], capture_output=True, check=True)
+            has_user = int(res.stdout.strip()) == user.user_id
+            if not has_user and not allow_maint and not self.config.ephemeral:
+                raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
 
-            try:
-                res = subprocess.run(["id", "-g", str(user.user_id)], capture_output=True, check=True)
-                has_group = int(res.stdout.strip()) == user.group_id
-            except KeyError:
-                has_group = False
-                if not allow_maint and not self.config.ephemeral:
-                    raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
+            res = subprocess.run(["id", "-g", str(user.user_id)], capture_output=True, check=True)
+            has_group = int(res.stdout.strip()) == user.group_id
+            if not has_group and not allow_maint and not self.config.ephemeral:
+                raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
             if not has_user and not has_group:
                 subprocess.run([
