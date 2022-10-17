@@ -63,8 +63,18 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
                 names = os.listdir(workdir)
                 if len(names) != 1:
                     raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+
+                repo_path = os.path.join(workdir, names[0])
+
+                # Make local version of master or main branches
+                gitrepo = git.Repo(repo_path)
+                remote = gitrepo.remotes["origin"]
+                for ref in remote.refs:
+                    if ref.name in ("origin/master", "origin/main"):
+                        gitrepo.create_head(ref.name[7:], ref)
+
                 system.images.session.moncic.privs.regain()
-                yield os.path.join(workdir, names[0])
+                yield repo_path
 
 
 class MoncicCommand(Command):
