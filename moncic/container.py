@@ -522,20 +522,22 @@ class NspawnContainer(ContainerBase):
         """
         def forward():
             try:
-                pw = pwd.getpwuid(user.user_id)
+                res = subprocess.run(["id", "-u", str(user.user_id)], capture_output=True, check=True)
+                has_user = int(res.stdout.strip()) == user.user_id
             except KeyError:
-                pw = None
+                has_user = False
                 if not allow_maint and not self.config.ephemeral:
                     raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
 
             try:
-                gr = grp.getgrgid(user.group_id)
+                res = subprocess.run(["id", "-g", str(user.user_id)], capture_output=True, check=True)
+                has_group = int(res.stdout.strip()) == user.group_id
             except KeyError:
-                gr = None
+                has_group = False
                 if not allow_maint and not self.config.ephemeral:
                     raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
-            if pw is None and gr is None:
+            if not has_user and not has_group:
                 subprocess.run([
                     "groupadd",
                     "--gid", str(user.group_id),
