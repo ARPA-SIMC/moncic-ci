@@ -52,17 +52,18 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
                 yield os.path.abspath(parsed.path)
                 return
 
-        with tempfile.TemporaryDirectory() as workdir:
-            # Git checkout in a temporary directory
-            cmd = ["git", "clone", os.path.abspath(repo)]
-            if branch is not None:
-                cmd += ["--branch", branch]
-            system.local_run(cmd, config=RunConfig(cwd=workdir))
-            # Look for the directory that git created
-            names = os.listdir(workdir)
-            if len(names) != 1:
-                raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
-            yield os.path.join(workdir, names[0])
+        with system.images.session.moncic.privs.user():
+            with tempfile.TemporaryDirectory() as workdir:
+                # Git checkout in a temporary directory
+                cmd = ["git", "clone", os.path.abspath(repo)]
+                if branch is not None:
+                    cmd += ["--branch", branch]
+                system.local_run(cmd, config=RunConfig(cwd=workdir))
+                # Look for the directory that git created
+                names = os.listdir(workdir)
+                if len(names) != 1:
+                    raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+                yield os.path.join(workdir, names[0])
 
 
 class MoncicCommand(Command):
