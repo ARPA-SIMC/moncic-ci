@@ -4,15 +4,16 @@ import logging
 import os
 import shutil
 import tempfile
+from configparser import ConfigParser
 from typing import TYPE_CHECKING, List, NamedTuple, Optional
 
 import git
 
+from . import setns
+from .build import Builder, link_or_copy, run
 from .deb import apt_get_cmd
 from .runner import UserConfig
 from .utils import cd
-from . import setns
-from .build import Builder, run, link_or_copy
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -199,6 +200,35 @@ class DebianGBP(Debian):
     Build Debian packages using git-buildpackage
     """
     @classmethod
+    def read_upstream_branch(cls) -> Optional[str]:
+        """
+        Read the upstream branch from gbp.conf
+
+        Return None if gbp.conf does not exists or it does not specify an upstream branch
+        """
+        cfg = ConfigParser()
+        cfg.read([os.path.join("debian", "gbp.conf")])
+        return cfg.get("DEFAULT", "upstream-branch", fallback=None)
+
+    @classmethod
+    def ensure_local_branch_exists(cls, branch: str):
+        """
+        Make sure the upstream branch exists as a local branch.
+
+        Cloning a repository only creates one local branch for the active
+        branch, and all other branches remain as origin/*
+
+        This methods creates a local branch for the given origin/ branch
+        """
+        # Make a local branch for the upstream branch in gbp.conf, if it
+        # does not already exist
+        gitrepo = git.Repo(".")
+        if branch not in gitrepo.branches:
+            remote = gitrepo.remotes["origin"]
+            remote_branch = remote.refs[branch]
+            gitrepo.create_head(branch, remote_branch)
+
+    @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         repo = git.Repo(srcdir)
         if repo.head.commit.hexsha in [t.commit.hexsha for t in repo.tags]:
@@ -222,13 +252,11 @@ class DebianGBPRelease(DebianGBP):
     Build Debian packages using git-buildpackage and its configuration in the
     current branch
     """
-    # TODO: use only when building a tag?
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
     def build_source(self, workdir: str) -> SourceInfo:
-        # TODO: make a non-origin branch for the upstream branch in gbp.conf
         with self.system.images.session.moncic.privs.user():
             with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
                 fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
@@ -237,7 +265,7 @@ class DebianGBPRelease(DebianGBP):
                  "--git-upstream-tree=tag", "-d", "-S", "--no-sign",
                  "--no-pre-clean"])
 
-        return get_source_info()
+            return get_source_info()
 
 
 class DebianGBPCIFromUpstream(DebianGBP):
@@ -267,24 +295,31 @@ class DebianGBPCIFromUpstream(DebianGBP):
 
 class DebianGBPCIAutoUpstream(DebianGBP):
     """
-    Build Debian packges using the current directory as upstream, and the
-    packaging branch inferred from the System distribution
+    Build Debian packges using the current directory as the packagingbranch,
+    and the upstream branch as configured in gbp.conf
     """
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
     def build_source(self, workdir: str):
-        # TODO: find the right debian branch
-        # TODO: make a temporary merge of active_branch on the debian branch
-        # TODO: override gbp using --git-upstream-branch=<active_branch>
-        raise NotImplementedError("issue #63")
-        # with self.system.images.session.moncic.privs.user():
-        #     with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-        #         fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
-        #         fd.flush()
-        #     run(["gbp", "buildpackage", "--git-ignore-new",
-        #          "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
-        #          "--no-pre-clean"])
+        with self.system.images.session.moncic.privs.user():
+            # Read the upstream branch to use from gbp.conf
+            upstream_branch = self.read_upstream_branch()
+            if upstream_branch is None:
+                raise RuntimeError("Cannot read upstream branch from debian/gbp.conf")
 
-        # return get_source_info()
+            self.ensure_local_branch_exists(upstream_branch)
+
+            # Merge the upstream branch into the debian branch
+            run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
+                 "user.name=Moncic-CI", "merge", upstream_branch])
+
+            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
+                fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
+                fd.flush()
+            run(["gbp", "buildpackage", "--git-ignore-new",
+                 "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
+                 "--no-pre-clean"])
+
+            return get_source_info()

@@ -67,17 +67,6 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
 
                 repo_path = os.path.join(workdir, names[0])
 
-                # Make local version of master or main branches
-                # TODO: this is a hack in that the possible upstream branch
-                #       list is hardcoded. On the other hand, it's hard to
-                #       figure out what gbp would need. Perhaps gbp.conf can be
-                #       parsed if present?
-                gitrepo = git.Repo(repo_path)
-                remote = gitrepo.remotes["origin"]
-                for ref in remote.refs:
-                    if ref.name in ("origin/master", "origin/main"):
-                        gitrepo.create_head(ref.name[7:], ref)
-
                 system.images.session.moncic.privs.regain()
                 yield repo_path
 
