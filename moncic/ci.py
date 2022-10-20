@@ -22,6 +22,7 @@ import git
 from .cli import Command, Fail
 from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from .build import Builder
+from . import build_arpa, build_debian  # noqa: import them so they are registered as builders
 from .moncic import Moncic, MoncicConfig, expand_path
 from .distro import DistroFamily
 from .privs import ProcessPrivs
@@ -55,7 +56,7 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
         with system.images.session.moncic.privs.user():
             with tempfile.TemporaryDirectory() as workdir:
                 # Git checkout in a temporary directory
-                cmd = ["git", "clone", os.path.abspath(repo)]
+                cmd = ["git", "-c", "advice.detachedHead=false", "clone", os.path.abspath(repo)]
                 if branch is not None:
                     cmd += ["--branch", branch]
                 system.local_run(cmd, config=RunConfig(cwd=workdir))
@@ -65,17 +66,6 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
                     raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
 
                 repo_path = os.path.join(workdir, names[0])
-
-                # Make local version of master or main branches
-                # TODO: this is a hack in that the possible upstream branch
-                #       list is hardcoded. On the other hand, it's hard to
-                #       figure out what gbp would need. Perhaps gbp.conf can be
-                #       parsed if present?
-                gitrepo = git.Repo(repo_path)
-                remote = gitrepo.remotes["origin"]
-                for ref in remote.refs:
-                    if ref.name in ("origin/master", "origin/main"):
-                        gitrepo.create_head(ref.name[7:], ref)
 
                 system.images.session.moncic.privs.regain()
                 yield repo_path
@@ -96,7 +86,7 @@ class MoncicCommand(Command):
                                  " look in a number of well-known locations, see"
                                  " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md")
         parser.add_argument("--extra-packages-dir", action="store",
-                            help="directory where extra packages, if presemt, are added to package sources"
+                            help="directory where extra packages, if present, are added to package sources"
                                  " in containers")
         return parser
 
@@ -170,6 +160,7 @@ class CI(MoncicCommand):
                         builder = Builder.create(self.args.build_style, system, srcdir)
                     else:
                         builder = Builder.detect(system, srcdir)
+                    log.info("Build using builder %r", builder.__class__.__name__)
 
                     return builder.build(shell=self.args.shell)
 
