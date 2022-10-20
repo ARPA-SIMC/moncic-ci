@@ -162,6 +162,7 @@ class Debian(Builder):
                     link_or_copy(de.path, destdir, user=user)
 
 
+@Builder.register
 class DebianPlain(Debian):
     """
     Build debian packages using the debian/ directory in the current branch
@@ -195,6 +196,7 @@ class DebianPlain(Debian):
         return srcinfo
 
 
+@Builder.register
 class DebianGBP(Debian):
     """
     Build Debian packages using git-buildpackage
@@ -247,6 +249,7 @@ class DebianGBP(Debian):
                 return DebianGBPTestUpstream.create(system, srcdir)
 
 
+@Builder.register
 class DebianGBPRelease(DebianGBP):
     """
     Build Debian packages using git-buildpackage and its configuration in the
@@ -268,6 +271,7 @@ class DebianGBPRelease(DebianGBP):
             return get_source_info()
 
 
+@Builder.register
 class DebianGBPTestUpstream(DebianGBP):
     """
     Build Debian packges using the current directory as upstream, and the
@@ -305,6 +309,7 @@ class DebianGBPTestUpstream(DebianGBP):
         return get_source_info()
 
 
+@Builder.register
 class DebianGBPTestDebian(DebianGBP):
     """
     Build Debian packges using the current directory as the packagingbranch,
