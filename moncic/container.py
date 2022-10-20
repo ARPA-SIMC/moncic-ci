@@ -357,7 +357,7 @@ class Container(ContextManager, Protocol):
         ...
 
     def run_callable(
-            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
+            self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
             ) -> subprocess.CompletedProcess:
         """
@@ -414,7 +414,7 @@ class ContainerBase:
         raise NotImplementedError(f"{self.__class__}._run not implemented")
 
     def run_callable(
-            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
+            self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
             ) -> subprocess.CompletedProcess:
         raise NotImplementedError(f"{self.__class__}._run_callable not implemented")
@@ -653,7 +653,7 @@ class NspawnContainer(ContainerBase):
         return self.run_callable(script_runner, config)
 
     def run_callable(
-            self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
+            self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
             ) -> subprocess.CompletedProcess:
         run_config = self.config.run_config(config)
