@@ -13,7 +13,7 @@ from . import setns
 from .build import Builder, run, link_or_copy
 
 if TYPE_CHECKING:
-    from .container import Container
+    from .container import Container, System
 
 log = logging.getLogger(__name__)
 
@@ -83,39 +83,14 @@ def get_file_list(path: str) -> List[str]:
 @Builder.register
 class Debian(Builder):
     @classmethod
-    def builds(cls, srcdir: str) -> bool:
-        if os.path.isdir(os.path.join(srcdir, "debian")):
-            return True
-        return False
+    def create(cls, system: System, srcdir: str) -> Builder:
+        if (os.path.isdir(os.path.join(srcdir, "debian")) and not
+                os.path.exists(os.path.join(srcdir, "debian", "gbp.conf"))):
+            return DebianPlain.create(system, srcdir)
+        return DebianGBP.create(system, srcdir)
 
-    def build_source_plain(self, srcinfo: SourceInfo, workdir: str):
-        with self.system.images.session.moncic.privs.user():
-            with tempfile.TemporaryDirectory(dir=workdir) as clean_src:
-                # Make a clean clone to avoid building from a dirty working
-                # directory
-                run(["git", "clone", ".", clean_src])
-
-                with cd(clean_src):
-                    # Build upstream tarball
-                    # FIXME: this is a hack, that prevents building new debian versions
-                    #        from the same upstream tarball
-                    run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
-
-                    # Uses --no-pre-clean to avoid requiring build-deps to be installed at
-                    # this stage
-                    run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"])
-
-                    # No need to copy .dsc and its assets to the work
-                    # directory, since we're building on a temporary subdir inside it
-
-    def build_source_gbp(self, srcinfo: SourceInfo, workdir: str):
-        with self.system.images.session.moncic.privs.user():
-            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-                fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
-                fd.flush()
-            run(["gbp", "buildpackage", "--git-ignore-new",
-                 "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
-                 "--no-pre-clean"])
+    def build_source(self, srcinfo: SourceInfo, workdir: str):
+        raise NotImplementedError(f"{self.__class__.__name__} not implemented")
 
     def build_in_container(self, workdir: str) -> Optional[int]:
         # TODO:
@@ -187,3 +162,64 @@ class Debian(Builder):
                 if de.is_file():
                     log.info("Copying %s to %s", de.name, destdir)
                     link_or_copy(de.path, destdir, user=user)
+
+
+class DebianPlain(Debian):
+    @classmethod
+    def create(cls, system: System, srcdir: str) -> Builder:
+        return cls(system, srcdir)
+
+    def build_source_plain(self, srcinfo: SourceInfo, workdir: str):
+        with self.system.images.session.moncic.privs.user():
+            with tempfile.TemporaryDirectory(dir=workdir) as clean_src:
+                # Make a clean clone to avoid building from a dirty working
+                # directory
+                run(["git", "clone", ".", clean_src])
+
+                with cd(clean_src):
+                    # Build upstream tarball
+                    # FIXME: this is a hack, that prevents building new debian versions
+                    #        from the same upstream tarball
+                    run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
+
+                    # Uses --no-pre-clean to avoid requiring build-deps to be installed at
+                    # this stage
+                    run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"])
+
+                    # No need to copy .dsc and its assets to the work
+                    # directory, since we're building on a temporary subdir inside it
+
+
+class DebianGBP(Debian):
+    @classmethod
+    def create(cls, system: System, srcdir: str) -> Builder:
+        if os.path.isdir(os.path.join(srcdir, "debian")):
+            # Build release
+            return DebianGBPRelease.create(system, srcdir)
+        else:
+            # Build CI
+            return DebianGBPCI.create(system, srcdir)
+
+
+class DebianGBPRelease(DebianGBP):
+    @classmethod
+    def create(cls, system: System, srcdir: str) -> Builder:
+        return cls(system, srcdir)
+
+    def build_source_gbp(self, srcinfo: SourceInfo, workdir: str):
+        with self.system.images.session.moncic.privs.user():
+            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
+                fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
+                fd.flush()
+            run(["gbp", "buildpackage", "--git-ignore-new",
+                 "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
+                 "--no-pre-clean"])
+
+
+class DebianGBPCI(DebianGBP):
+    @classmethod
+    def create(cls, system: System, srcdir: str) -> Builder:
+        return cls(system, srcdir)
+
+    def build_source_gbp(self, srcinfo: SourceInfo, workdir: str):
+        raise NotImplementedError("issue #63")

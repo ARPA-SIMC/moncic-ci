@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Type
 
 from .container import ContainerConfig
 from .runner import UserConfig
+from . import distro
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -67,17 +68,12 @@ class Builder:
 
     @classmethod
     def detect(cls, system: System, srcdir: str) -> "Builder":
-        for builder_cls in reversed(cls.builders.values()):
-            if builder_cls.builds(srcdir):
-                return builder_cls(system, srcdir)
-        raise RuntimeError(f"No suitable builder found for {srcdir!r}")
-
-    @classmethod
-    def builds(cls, srcdir: str) -> bool:
-        """
-        Check if the builder understands this source directory
-        """
-        raise NotImplementedError(f"{cls}.builds not implemented")
+        if isinstance(system.distro, distro.DebianDistro):
+            cls.builders["debian"].create(system, srcdir)
+        elif isinstance(system.distro, distro.RpmDistro):
+            cls.builders["rpm"].create(system, srcdir)
+        else:
+            raise NotImplementedError(f"No suitable builder found for distribution {system.distro!r}")
 
     def __init__(self, system: System, srcdir: str):
         """

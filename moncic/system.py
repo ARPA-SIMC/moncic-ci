@@ -1,13 +1,15 @@
 from __future__ import annotations
+
 import dataclasses
 import logging
 import os
-from typing import List, Optional, TYPE_CHECKING
+from functools import cached_property
+from typing import TYPE_CHECKING, List, Optional
 
 import yaml
 
-from .distro import DistroFamily
 from .container import ContainerConfig, RunConfig, UserConfig
+from .distro import DistroFamily
 
 if TYPE_CHECKING:
     import subprocess
@@ -156,7 +158,7 @@ class System:
     def name(self) -> str:
         return self.config.name
 
-    @property
+    @cached_property
     def distro(self) -> Distro:
         """
         Return the distribution this system is based on

@@ -18,7 +18,22 @@ log = logging.getLogger(__name__)
 
 
 @Builder.register
-class ARPA(Builder):
+class RPM(Builder):
+    @classmethod
+    def create(cls, system: System, srcdir: str) -> Builder:
+        travis_yml = os.path.join(srcdir, ".travis.yml")
+        try:
+            with open(travis_yml, "rt") as fd:
+                if 'simc/stable' in fd.read():
+                    return ARPA.create(system, srcdir)
+        except FileNotFoundError:
+            pass
+
+        raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
+
+
+@Builder.register
+class ARPA(RPM):
     def __init__(self, system: System, srcdir: str):
         super().__init__(system, srcdir)
         if isinstance(system.distro, YumDistro):
@@ -29,13 +44,8 @@ class ARPA(Builder):
             raise RuntimeError(f"Unsupported distro: {run.system.distro.name}")
 
     @classmethod
-    def builds(cls, srcdir: str) -> bool:
-        travis_yml = os.path.join(srcdir, ".travis.yml")
-        try:
-            with open(travis_yml, "rt") as fd:
-                return 'simc/stable' in fd.read()
-        except FileNotFoundError:
-            return False
+    def create(cls, system: System, srcdir: str) -> Builder:
+        return cls(system, srcdir)
 
     def build_in_container(self, workdir: str) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
