@@ -358,7 +358,7 @@ class Container(ContextManager, Protocol):
 
     def run_callable(
             self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
-            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None,
+            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
             ) -> subprocess.CompletedProcess:
         """
         Run the given callable in a separate process inside the running
