@@ -237,14 +237,14 @@ class DebianGBP(Debian):
                 return DebianGBPRelease.create(system, srcdir)
             else:
                 # There is no debian/directory, the current branch is upstream
-                return DebianGBPCIFromUpstream.create(system, srcdir)
+                return DebianGBPTestUpstream.create(system, srcdir)
         else:
             if os.path.isdir(os.path.join(srcdir, "debian")):
                 # There is a debian/ directory, find upstream from gbp.conf
-                return DebianGBPCIAutoUpstream.create(system, srcdir)
+                return DebianGBPTestDebian.create(system, srcdir)
             else:
                 # There is no debian/directory, the current branch is upstream
-                return DebianGBPCIFromUpstream.create(system, srcdir)
+                return DebianGBPTestUpstream.create(system, srcdir)
 
 
 class DebianGBPRelease(DebianGBP):
@@ -268,7 +268,7 @@ class DebianGBPRelease(DebianGBP):
             return get_source_info()
 
 
-class DebianGBPCIFromUpstream(DebianGBP):
+class DebianGBPTestUpstream(DebianGBP):
     """
     Build Debian packges using the current directory as upstream, and the
     packaging branch inferred from the System distribution
@@ -293,7 +293,7 @@ class DebianGBPCIFromUpstream(DebianGBP):
         # return get_source_info()
 
 
-class DebianGBPCIAutoUpstream(DebianGBP):
+class DebianGBPTestDebian(DebianGBP):
     """
     Build Debian packges using the current directory as the packagingbranch,
     and the upstream branch as configured in gbp.conf

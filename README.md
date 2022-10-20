@@ -63,6 +63,8 @@ For creating OS images with a custom setup, see [Custom OS images](doc/custom-os
 
 For running the test suite of local code on a different OS, see [Testing on another distro](doc/testing-on-another-distro.md).
 
+For building Debian packages, see [Building Debian packages](doc/build-debian.md).
+
 ## Technology
 
 Moncic-CI uses [systemd-nspawn](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
