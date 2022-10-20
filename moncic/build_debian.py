@@ -278,19 +278,31 @@ class DebianGBPTestUpstream(DebianGBP):
         return cls(system, srcdir)
 
     def build_source(self, workdir: str):
-        # TODO: find the right debian branch
-        # TODO: make a temporary merge of active_branch on the debian branch
-        # TODO: override gbp using --git-upstream-branch=<active_branch>
-        raise NotImplementedError("issue #63")
-        # with self.system.images.session.moncic.privs.user():
-        #     with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-        #         fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
-        #         fd.flush()
-        #     run(["gbp", "buildpackage", "--git-ignore-new",
-        #          "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
-        #          "--no-pre-clean"])
+        # find the right debian branch
+        branch = self.system.distro.get_gbp_branch()
+        repo = git.Repo(".")
+        origin = repo.remotes["origin"]
+        if branch not in origin.refs:
+            raise RuntimeError(f"Packaging branch {branch!r} not found for distribution '{self.system.distro}'")
 
-        # return get_source_info()
+        # Make a temporary merge of active_branch on the debian branch
+        active_branch = repo.active_branch.name
+        if active_branch is None:
+            log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
+            run(["git", "checkout", "-b", "moncic-ci"])
+            active_branch = "moncic-ci"
+        run(["git", "checkout", branch])
+        run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
+             "user.name=Moncic-CI", "merge", active_branch])
+
+        with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
+            fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
+            fd.flush()
+        run(["gbp", "buildpackage", "--git-ignore-new",
+             "--git-upstream-tree=branch", "--git-upstream-branch=" + active_branch,
+             "-d", "-S", "--no-sign", "--no-pre-clean"])
+
+        return get_source_info()
 
 
 class DebianGBPTestDebian(DebianGBP):

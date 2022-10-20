@@ -67,22 +67,20 @@ release version of a package.
 
 ## `DebianGBPTestUpstream` strategy
 
-<!-- TODO
-        if repo.head.commit.hexsha in [t.commit.hexsha for t in repo.tags]:
-            if os.path.isdir(os.path.join(srcdir, "debian")):
-                # If branch to build is a tag, build a release from it
-                return DebianGBPRelease.create(system, srcdir)
-            else:
-                # There is no debian/directory, the current branch is upstream
-                return DebianGBPTestUpstream.create(system, srcdir)
-        else:
-            if os.path.isdir(os.path.join(srcdir, "debian")):
-                # There is a debian/ directory, find upstream from gbp.conf
-                return DebianGBPTestDebian.create(system, srcdir)
-            else:
-                # There is no debian/directory, the current branch is upstream
-                return DebianGBPTestUpstream.create(system, srcdir)
--->
+This is autoselected if either:
+
+* the git commit being built is a git tag but does not contain a `debian/`
+  directory (i.e. testing packaging of a tagged upstream branch)
+* the git commit being built is not a git tag, and does not contain a `debian/`
+  directory (i.e. testing packaging of an upstream branch)
+
+This strategy will look up a packaging branch corresponding to the distribution
+used by the current build image (for example, `debian/bullseye` when running on
+a Debian 11 image, or `ubuntu/jammy` when running on an Ubuntu 22.04 image.
+
+It will then check it out, merge the branch being built on it, and build the
+resulting package.
+
 
 ## `DebianGBPTestDebian` strategy
 

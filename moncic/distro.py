@@ -495,6 +495,13 @@ class DebianDistro(Distro):
         res += ["systemd", "apt-utils", "eatmydata", "iproute2"]
         return res
 
+    def get_gbp_branch(self) -> str:
+        """
+        Return the default git-buildpackage debian-branch name for this
+        distribution
+        """
+        return "debian/" + self.suite
+
     def bootstrap(self, system: System):
         with contextlib.ExitStack() as stack:
             installroot = os.path.abspath(system.path)
@@ -541,3 +548,10 @@ class UbuntuDistro(DebianDistro):
     """
     def __init__(self, name: str, suite: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"):
         super().__init__(name, suite, mirror=mirror)
+
+    def get_gbp_branch(self) -> str:
+        """
+        Return the default git-buildpackage debian-branch name for this
+        distribution
+        """
+        return "ubuntu/" + self.suite
