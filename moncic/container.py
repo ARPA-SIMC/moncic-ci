@@ -415,7 +415,7 @@ class ContainerBase:
 
     def run_callable(
             self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
-            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None,
+            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
             ) -> subprocess.CompletedProcess:
         raise NotImplementedError(f"{self.__class__}._run_callable not implemented")
 
