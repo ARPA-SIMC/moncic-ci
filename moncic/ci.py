@@ -22,6 +22,7 @@ import git
 from .cli import Command, Fail
 from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from .build import Builder
+from . import build_arpa, build_debian  # noqa: import them so they are registered as builders
 from .moncic import Moncic, MoncicConfig, expand_path
 from .distro import DistroFamily
 from .privs import ProcessPrivs
