@@ -654,7 +654,7 @@ class NspawnContainer(ContainerBase):
 
     def run_callable(
             self, func: Callable[[], Optional[int]], config: Optional[RunConfig] = None,
-            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None,
+            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
             ) -> subprocess.CompletedProcess:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
