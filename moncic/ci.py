@@ -56,7 +56,7 @@ def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] =
         with system.images.session.moncic.privs.user():
             with tempfile.TemporaryDirectory() as workdir:
                 # Git checkout in a temporary directory
-                cmd = ["git", "clone", os.path.abspath(repo)]
+                cmd = ["git", "-c", "advice.detachedHead=false", "clone", os.path.abspath(repo)]
                 if branch is not None:
                     cmd += ["--branch", branch]
                 system.local_run(cmd, config=RunConfig(cwd=workdir))
