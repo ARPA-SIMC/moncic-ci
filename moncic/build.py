@@ -63,7 +63,7 @@ class Builder:
 
     @classmethod
     def create(cls, name: str, system: System, srcdir: str) -> "Builder":
-        builder_cls = cls.builders[name]
+        builder_cls = cls.builders[name.lower()]
         return builder_cls.create(system, srcdir)
 
     @classmethod
