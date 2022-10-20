@@ -33,7 +33,7 @@ CLONE_INTO_CGROUP = 0x200000000     # Clone into a specific cgroup given the rig
 CLONE_NEWTIME = 0x00000080          # New time namespace
 
 
-def setns(fd: int, flags: int = 0) -> int:
+def setns(fd: int, flags: int = 0):
     """
     Wrapper for the libc setns syscall
     """
@@ -45,7 +45,7 @@ def setns(fd: int, flags: int = 0) -> int:
         raise OSError(ctypes.get_errno(), os.strerror(errno))
 
 
-def unshare(flags: int = 0) -> int:
+def unshare(flags: int = 0):
     """
     Wrapper for the libc unshare syscall
     """
