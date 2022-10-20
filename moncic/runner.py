@@ -295,7 +295,7 @@ class JSONStreamHandler(logging.Handler):
 class SetnsCallableRunner(Runner):
     def __init__(
             self, run: NspawnContainer, config: RunConfig, func: Callable[[], Optional[int]],
-            args: Tuple[Any] = (), kwargs: Optional[Dict[str, any]] = None):
+            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None):
         super().__init__(run.system.log, config)
         self.run = run
         self.leader_pid = int(run.properties["Leader"])
