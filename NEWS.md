@@ -1,3 +1,8 @@
+# Version UNRELEASED
+
+* Expanded Debian build profiles to cover various `git-buildpackage`-related
+  strategies. See [Building Debian Packages](doc/build-debian.md) (#63, #64)
+
 # Version 0.7
 
 * Removed support for a btrfs filesystem in a file (#41)
