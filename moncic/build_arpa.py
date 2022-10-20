@@ -34,6 +34,10 @@ class RPM(Builder):
 
 @Builder.register
 class ARPA(RPM):
+    """
+    ARPA/SIMC builder, building RPM styles using the logic previously
+    configured for travis
+    """
     def __init__(self, system: System, srcdir: str):
         super().__init__(system, srcdir)
         if isinstance(system.distro, YumDistro):

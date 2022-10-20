@@ -171,7 +171,7 @@ class CI(MoncicCommand):
                         builder = Builder.create(self.args.build_style, system, srcdir)
                     else:
                         builder = Builder.detect(system, srcdir)
-                    log.info("Build using builder %r", builder.__class__)
+                    log.info("Build using builder %r", builder.__class__.__name__)
 
                     return builder.build(shell=self.args.shell)
 

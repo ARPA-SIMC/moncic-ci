@@ -165,6 +165,9 @@ class Debian(Builder):
 
 
 class DebianPlain(Debian):
+    """
+    Build debian packages using the debian/ directory in the current branch
+    """
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
@@ -191,6 +194,9 @@ class DebianPlain(Debian):
 
 
 class DebianGBP(Debian):
+    """
+    Build Debian packages using git-buildpackage
+    """
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         if os.path.isdir(os.path.join(srcdir, "debian")):
@@ -202,11 +208,16 @@ class DebianGBP(Debian):
 
 
 class DebianGBPRelease(DebianGBP):
+    """
+    Build Debian packages using git-buildpackage and its configuration in the
+    current branch
+    """
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
     def build_source_gbp(self, srcinfo: SourceInfo, workdir: str):
+        # TODO: make a non-origin branch for the upstream branch in gbp.conf
         with self.system.images.session.moncic.privs.user():
             with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
                 fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
@@ -217,9 +228,16 @@ class DebianGBPRelease(DebianGBP):
 
 
 class DebianGBPCI(DebianGBP):
+    """
+    Build Debian packges using the current directory as upstream, and the
+    packaging branch inferred from the System distribution
+    """
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
     def build_source_gbp(self, srcinfo: SourceInfo, workdir: str):
+        # TODO: find the right debian branch
+        # TODO: make a temporary merge of active_branch on the debian branch
+        # TODO: override gbp using --git-upstream-branch=<active_branch>
         raise NotImplementedError("issue #63")
