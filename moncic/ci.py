@@ -158,7 +158,7 @@ class CI(MoncicCommand):
             with images.system(self.args.system) as system:
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
                     if self.args.build_style:
-                        builder = Builder.create(self.args.build_style, system, srcdir)
+                        builder = Builder.create_builder(self.args.build_style, system, srcdir)
                     else:
                         builder = Builder.detect(system, srcdir)
                     log.info("Build using builder %r", builder.__class__.__name__)
