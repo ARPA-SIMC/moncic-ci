@@ -73,9 +73,9 @@ class Builder:
     @classmethod
     def detect(cls, system: System, srcdir: str) -> "Builder":
         if isinstance(system.distro, distro.DebianDistro):
-            cls.builders["debian"].create(system, srcdir)
+            return cls.builders["debian"].create(system, srcdir)
         elif isinstance(system.distro, distro.RpmDistro):
-            cls.builders["rpm"].create(system, srcdir)
+            return cls.builders["rpm"].create(system, srcdir)
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {system.distro!r}")
 
