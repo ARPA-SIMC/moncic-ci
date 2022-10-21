@@ -62,9 +62,13 @@ class Builder:
         return list(cls.builders.keys())
 
     @classmethod
-    def create(cls, name: str, system: System, srcdir: str) -> "Builder":
+    def create_builder(cls, name: str, system: System, srcdir: str) -> "Builder":
         builder_cls = cls.builders[name.lower()]
         return builder_cls.create(system, srcdir)
+
+    @classmethod
+    def create(cls, system: System, srcdir: str) -> "Builder":
+        raise NotImplementedError(f"The builder {cls} cannot be instantiated")
 
     @classmethod
     def detect(cls, system: System, srcdir: str) -> "Builder":
