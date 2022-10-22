@@ -42,9 +42,11 @@ This will build the source package using `dpkg-buildpackage -S --no-sign --no-pr
 This is autoselected if the `debian/` directory exists, but there is no
 `debian/gbp.conf`.
 
-Currently, the upstream tarball is always generated using `git archive -f …
-HEAD`, as a quick hack that should be replaced by reusing an upstream tarball
-if it already exists.
+An upstream `orig.tar.gz` tarball is searched on `..` and on the artifacts
+directory configured with `--artifacts`, and used if found.
+
+If no existing upstream tarball is found, one is generated using
+`git archive HEAD . ":(exclude)debian"`, as a last-resort measure.
 
 
 ## `DebianGBP` strategy

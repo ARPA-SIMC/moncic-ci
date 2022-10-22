@@ -90,6 +90,21 @@ class Builder:
         # User to use for the build
         self.user = UserConfig.from_sudoer()
 
+    def setup_container_host(self, container: Container):
+        """
+        Set up the container before starting the build.
+
+        This is run on the host system before starting the build
+        """
+        container_root = container.get_root()
+
+        # Set user permissions on source and build directories
+        srcdir = os.path.join(container_root, "srv", "moncic-ci", "source")
+        os.chown(srcdir, self.user.user_id, self.user.group_id)
+        builddir = os.path.join(container_root, "srv", "moncic-ci", "build")
+        os.makedirs(builddir, exist_ok=True)
+        os.chown(builddir, self.user.user_id, self.user.group_id)
+
     def build(self, shell: bool = False) -> int:
         """
         Run the build, store the artifacts in the given directory if requested,
@@ -103,14 +118,7 @@ class Builder:
         container_config.configure_workdir(self.srcdir, bind_type="volatile", mountpoint="/srv/moncic-ci/source")
         container = self.system.create_container(config=container_config)
         with container:
-            container_root = container.get_root()
-
-            # Set user permissions on source and build directories
-            srcdir = os.path.join(container_root, "srv", "moncic-ci", "source")
-            os.chown(srcdir, self.user.user_id, self.user.group_id)
-            builddir = os.path.join(container_root, "srv", "moncic-ci", "build")
-            os.makedirs(builddir, exist_ok=True)
-            os.chown(builddir, self.user.user_id, self.user.group_id)
+            self.setup_container_host(container)
 
             build_config = container_config.run_config()
             build_config.user = UserConfig.root()

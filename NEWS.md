@@ -5,6 +5,8 @@
 * Default for `ci --build-style` is autodetect
 * Fixed a typo that broke DebianPlain builds
 * Allow relative paths in `ci --artifacts`
+* Reuse an existing tarball if one is found above the source directory, or in
+  the artifacts directory (#48)
 
 # Version 0.7
 

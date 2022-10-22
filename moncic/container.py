@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import errno
-import grp
 import hashlib
 import logging
 import os

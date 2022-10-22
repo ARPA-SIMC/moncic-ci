@@ -28,28 +28,29 @@ class SourceInfo(NamedTuple):
     tar_fname: str
 
 
-def get_source_info() -> SourceInfo:
+def get_source_info(path=".") -> SourceInfo:
     """
     Return the file name of the .dsc file that would be created by the debian
     source package in the current directory
     """
-    # Taken from debspawn
-    pkg_srcname = None
-    pkg_version = None
-    res = run(["dpkg-parsechangelog"], capture_output=True, text=True)
-    for line in res.stdout.splitlines():
-        if line.startswith('Source: '):
-            pkg_srcname = line[8:].strip()
-        elif line.startswith('Version: '):
-            pkg_version = line[9:].strip()
+    with cd(path):
+        # Taken from debspawn
+        pkg_srcname = None
+        pkg_version = None
+        res = run(["dpkg-parsechangelog"], capture_output=True, text=True)
+        for line in res.stdout.splitlines():
+            if line.startswith('Source: '):
+                pkg_srcname = line[8:].strip()
+            elif line.startswith('Version: '):
+                pkg_version = line[9:].strip()
 
-    if not pkg_srcname or not pkg_version:
-        raise RuntimeError("Unable to determine source package name or source package version")
+        if not pkg_srcname or not pkg_version:
+            raise RuntimeError("Unable to determine source package name or source package version")
 
-    pkg_version_dsc = pkg_version.split(":", 1)[1] if ":" in pkg_version else pkg_version
-    dsc_fname = f"{pkg_srcname}_{pkg_version_dsc}.dsc"
-    pkg_version_tar = pkg_version_dsc.split("-", 1)[0] if "-" in pkg_version_dsc else pkg_version_dsc
-    tar_fname = f"{pkg_srcname}_{pkg_version_tar}.orig.tar.gz"
+        pkg_version_dsc = pkg_version.split(":", 1)[1] if ":" in pkg_version else pkg_version
+        dsc_fname = f"{pkg_srcname}_{pkg_version_dsc}.dsc"
+        pkg_version_tar = pkg_version_dsc.split("-", 1)[0] if "-" in pkg_version_dsc else pkg_version_dsc
+        tar_fname = f"{pkg_srcname}_{pkg_version_tar}.orig.tar.gz"
 
     return SourceInfo(pkg_srcname, pkg_version, dsc_fname, tar_fname)
 
@@ -97,7 +98,7 @@ class Debian(Builder):
         """
         raise NotImplementedError(f"{self.__class__.__name__} not implemented")
 
-    def setup_container(self):
+    def setup_container_guest(self):
         """
         Set up the build environment in the container
         """
@@ -107,7 +108,7 @@ class Debian(Builder):
         run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
 
     def build_in_container(self) -> Optional[int]:
-        self.setup_container()
+        self.setup_container_guest()
 
         # Build source package
         with self.system.images.session.moncic.privs.user():
@@ -177,6 +178,44 @@ class DebianPlain(Debian):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
+    def setup_container_host(self, container: Container):
+        super().setup_container_host(container)
+
+        srcinfo = get_source_info(self.srcdir)
+
+        tarball_search_dirs = [os.path.join(self.srcdir, "..")]
+        if (artifacts_dir := self.system.images.session.moncic.config.build_artifacts_dir):
+            tarball_search_dirs.append(artifacts_dir)
+
+        found = None
+        for path in tarball_search_dirs:
+            with os.scandir(path) as it:
+                for de in it:
+                    if de.name == srcinfo.tar_fname:
+                        found = de.path
+                        break
+            if found:
+                log.info("Found existing source tarball %s", found)
+                container_root = container.get_root()
+                link_or_copy(found, os.path.join(container_root, "srv", "moncic-ci", "source"))
+                break
+
+    def build_orig_tarball(self, srcinfo: SourceInfo):
+        """
+        Make sure srcinfo.tar_fname exists.
+
+        This function is run from a clean source directory
+        """
+        dest_tarball = os.path.join("..", srcinfo.tar_fname)
+        if os.path.exists(orig_tarball := os.path.join("/srv", "moncic-ci", "source", srcinfo.tar_fname)):
+            link_or_copy(orig_tarball, "..")
+            return
+
+        # This is a last-resort measure, trying to build an approximation of an
+        # upstream tarball when none was found
+        log.info("Building tarball from source directory")
+        run(["git", "archive", f"--output={dest_tarball}", "HEAD", ".", ":(exclude)debian"])
+
     def build_source(self) -> SourceInfo:
         srcinfo = get_source_info()
 
@@ -186,10 +225,7 @@ class DebianPlain(Debian):
             run(["git", "clone", ".", clean_src])
 
             with cd(clean_src):
-                # Build upstream tarball
-                # FIXME: this is a hack, that prevents building new debian versions
-                #        from the same upstream tarball
-                run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
+                self.build_orig_tarball(srcinfo)
 
                 # Uses --no-pre-clean to avoid requiring build-deps to be installed at
                 # this stage
