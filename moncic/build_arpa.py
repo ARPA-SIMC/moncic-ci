@@ -51,6 +51,12 @@ class ARPA(RPM):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
+    def setup_container_guest(self):
+        super().setup_container_guest()
+        # Reinstantiate the module logger
+        global log
+        log = logging.getLogger(__name__)
+
     def build_in_container(self) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged

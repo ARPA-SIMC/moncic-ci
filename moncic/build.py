@@ -116,6 +116,14 @@ class Builder:
         log_file = os.path.join(container_root, "srv", "moncic-ci", "buildlog")
         self.log_capture_start(log_file)
 
+    def setup_container_guest(self):
+        """
+        Set up the build environment in the container
+        """
+        # Reinstantiate the module logger
+        global log
+        log = logging.getLogger(__name__)
+
     def log_capture_start(self, log_file: str):
         self.buildlog_file = open(log_file, "wt")
         self.buildlog_handler = logging.StreamHandler(self.buildlog_file)

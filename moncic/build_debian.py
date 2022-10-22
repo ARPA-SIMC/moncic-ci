@@ -103,9 +103,11 @@ class Debian(Builder):
         raise NotImplementedError(f"{self.__class__.__name__} not implemented")
 
     def setup_container_guest(self):
-        """
-        Set up the build environment in the container
-        """
+        super().setup_container_guest()
+        # Reinstantiate the module logger
+        global log
+        log = logging.getLogger(__name__)
+
         # TODO: run apt update if the apt index is older than some threshold
 
         # Disable reindexing of manpages during installation of build-dependencies
