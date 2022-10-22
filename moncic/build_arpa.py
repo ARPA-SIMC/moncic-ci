@@ -57,7 +57,7 @@ class ARPA(RPM):
         global log
         log = logging.getLogger(__name__)
 
-    def build_in_container(self) -> Optional[int]:
+    def build_in_container(self, source_only: bool = False) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
@@ -87,7 +87,11 @@ class ARPA(RPM):
                  "-o", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
             run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
             run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", specs[0]])
-            run(["rpmbuild", "-ba", "--define", f"srcarchivename {pkgname}", specs[0]])
+            if self.source_only:
+                build_arg = "-br"
+            else:
+                build_arg = "-ba"
+            run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", specs[0]])
         else:
             # Convenzione SIMC per i repo con solo rpm
             for f in glob.glob("*.patch"):

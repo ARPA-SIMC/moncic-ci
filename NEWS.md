@@ -8,6 +8,7 @@
 * Reuse an existing tarball if one is found above the source directory, or in
   the artifacts directory (#48)
 * Save a build log among output artifacts (#67)
+* Added `ci --source-only` to do source-only builds
 
 # Version 0.7
 

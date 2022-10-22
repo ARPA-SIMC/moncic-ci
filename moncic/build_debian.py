@@ -113,13 +113,36 @@ class Debian(Builder):
         # Disable reindexing of manpages during installation of build-dependencies
         run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
 
-    def build_in_container(self) -> Optional[int]:
+    def build_in_container(self, source_only: bool = False) -> Optional[int]:
         self.setup_container_guest()
 
         # Build source package
         with self.system.images.session.moncic.privs.user():
             self.build_source()
 
+        if not source_only:
+            self.build_binary()
+
+        # Collect artifacts
+        artifacts_dir = "/srv/artifacts"
+        if os.path.isdir(artifacts_dir):
+            shutil.rmtree(artifacts_dir)
+        os.makedirs(artifacts_dir)
+
+        def collect(path: str):
+            log.info("Found artifact %s", path)
+            link_or_copy(path, artifacts_dir)
+
+        for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
+            with os.scandir(path) as it:
+                for de in it:
+                    if de.is_file():
+                        collect(de.path)
+
+    def build_binary(self):
+        """
+        Build binary packages
+        """
         with cd("/srv/moncic-ci/build"):
             run(["dpkg-source", "-x", self.srcinfo.dsc_fname])
 
@@ -149,22 +172,6 @@ class Debian(Builder):
                 # Build
                 # Use unshare to disable networking
                 run(["dpkg-buildpackage", "--no-sign"])
-
-            # Collect artifacts
-            artifacts_dir = "/srv/artifacts"
-            if os.path.isdir(artifacts_dir):
-                shutil.rmtree(artifacts_dir)
-            os.makedirs(artifacts_dir)
-
-            def collect(path: str):
-                log.info("Found artifact %s", path)
-                link_or_copy(path, artifacts_dir)
-
-            for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
-                with os.scandir(path) as it:
-                    for de in it:
-                        if de.is_file():
-                            collect(de.path)
 
     def collect_artifacts(self, container: Container, destdir: str):
         container_root = container.get_root()

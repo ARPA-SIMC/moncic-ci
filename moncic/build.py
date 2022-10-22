@@ -140,7 +140,7 @@ class Builder:
             self.buildlog_file.close()
             self.buildlog_file = None
 
-    def build(self, shell: bool = False) -> int:
+    def build(self, shell: bool = False, source_only: bool = False) -> int:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
@@ -164,15 +164,18 @@ class Builder:
                 log.debug("container:%s = %r", field.name, getattr(container_config, field.name))
 
             try:
-                build_config = container_config.run_config()
-                build_config.user = UserConfig.root()
-                # Log build config
-                for field in dataclasses.fields(build_config):
-                    log.debug("run:%s = %r", field.name, getattr(build_config, field.name))
+                # Build run config
+                run_config = container_config.run_config()
+                run_config.user = UserConfig.root()
+                # Log run config
+                for field in dataclasses.fields(run_config):
+                    log.debug("run:%s = %r", field.name, getattr(run_config, field.name))
+
                 try:
                     res = container.run_callable(
                             self.build_in_container,
-                            build_config)
+                            run_config,
+                            kwargs={"source_only": source_only})
                     if artifacts_dir:
                         self.collect_artifacts(container, artifacts_dir)
                 finally:
@@ -187,7 +190,7 @@ class Builder:
                 self.log_capture_end()
         return res.returncode
 
-    def build_in_container(self) -> Optional[int]:
+    def build_in_container(self, source_only: bool = False) -> Optional[int]:
         """
         Run the build in a child process.
 

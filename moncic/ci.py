@@ -145,6 +145,8 @@ class CI(MoncicCommand):
                             help="name of the procedure used to run the CI. Default: autodetect")
         parser.add_argument("-a", "--artifacts", metavar="dir", action="store",
                             help="directory where build artifacts will be stored")
+        parser.add_argument("--source-only", action="store_true",
+                            help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
         parser.add_argument("repo", nargs="?", default=".",
@@ -167,7 +169,7 @@ class CI(MoncicCommand):
                         builder = Builder.detect(system, srcdir)
                     log.info("Build using builder %r", builder.__class__.__name__)
 
-                    return builder.build(shell=self.args.shell)
+                    return builder.build(shell=self.args.shell, source_only=self.args.source_only)
 
 
 class ImageActionCommand(MoncicCommand):
