@@ -7,6 +7,7 @@
 * Allow relative paths in `ci --artifacts`
 * Reuse an existing tarball if one is found above the source directory, or in
   the artifacts directory (#48)
+* Save a build log among output artifacts (#67)
 
 # Version 0.7
 
