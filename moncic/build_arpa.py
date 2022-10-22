@@ -51,7 +51,7 @@ class ARPA(RPM):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
-    def build_in_container(self, workdir: str) -> Optional[int]:
+    def build_in_container(self) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]

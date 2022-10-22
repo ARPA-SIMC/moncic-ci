@@ -83,8 +83,11 @@ class Builder:
         """
         The constructor is run in the host system
         """
+        # System used for the build
         self.system = system
+        # Directory where sources are found in the host system
         self.srcdir = srcdir
+        # User to use for the build
         self.user = UserConfig.from_sudoer()
 
     def build(self, shell: bool = False) -> int:
@@ -94,18 +97,27 @@ class Builder:
         """
         artifacts_dir = self.system.images.session.moncic.config.build_artifacts_dir
         container_config = ContainerConfig()
+        # Mount the source directory as /srv/moncic-ci/source/<name>
+        # Set it as the default current directory in the container
+        # Mounted volatile to prevent changes to it
         container_config.configure_workdir(self.srcdir, bind_type="volatile", mountpoint="/srv/moncic-ci/source")
         container = self.system.create_container(config=container_config)
         with container:
             container_root = container.get_root()
-            os.makedirs(os.path.join(container_root, "srv", "moncic-ci", "build"), exist_ok=True)
+
+            # Set user permissions on source and build directories
+            srcdir = os.path.join(container_root, "srv", "moncic-ci", "source")
+            os.chown(srcdir, self.user.user_id, self.user.group_id)
+            builddir = os.path.join(container_root, "srv", "moncic-ci", "build")
+            os.makedirs(builddir, exist_ok=True)
+            os.chown(builddir, self.user.user_id, self.user.group_id)
+
             build_config = container_config.run_config()
             build_config.user = UserConfig.root()
             try:
                 res = container.run_callable(
                         self.build_in_container,
-                        build_config,
-                        kwargs={"workdir": "/srv/moncic-ci/build"})
+                        build_config)
                 if artifacts_dir:
                     self.collect_artifacts(container, artifacts_dir)
             finally:
@@ -118,13 +130,13 @@ class Builder:
                     container.run_shell(config=run_config)
         return res.returncode
 
-    def build_in_container(self, workdir: str) -> Optional[int]:
+    def build_in_container(self) -> Optional[int]:
         """
         Run the build in a child process.
 
         The function will be callsed inside the running system.
 
-        The current directory will be set to the source directory.
+        The current directory will be set to the source directory in /srv/moncic-ci/source/<name>.
 
         Standard output and standard error are logged.
 

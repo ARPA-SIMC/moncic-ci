@@ -93,23 +93,32 @@ class Debian(Builder):
         return DebianGBP.create(system, srcdir)
 
     def build_source(self, workdir: str) -> SourceInfo:
+        """
+        Build the Debian source package from /srv/moncic-ci/source/<name>
+
+        The results will be left in /srv/moncic-ci.
+
+        This function is run as the build user
+        """
         raise NotImplementedError(f"{self.__class__.__name__} not implemented")
 
-    def build_in_container(self, workdir: str) -> Optional[int]:
-        # TODO:
-        # - inject dependency packages in a private apt repo if required
-        #    - or export a local apt repo readonly
-
-        os.chown("/srv/moncic-ci/source", self.user.user_id, self.user.group_id)
-        os.chown(workdir, self.user.user_id, self.user.group_id)
+    def setup_container(self):
+        """
+        Set up the build environment in the container
+        """
+        # TODO: run apt update if the apt index is older than some threshold
 
         # Disable reindexing of manpages during installation of build-dependencies
         run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
 
-        # Build source package
-        srcinfo = self.build_source(workdir)
+    def build_in_container(self) -> Optional[int]:
+        self.setup_container()
 
-        with cd(workdir):
+        # Build source package
+        with self.system.images.session.moncic.privs.user():
+            srcinfo = self.build_source()
+
+        with cd("/srv/moncic-ci/build"):
             run(["dpkg-source", "-x", srcinfo.dsc_fname])
 
             # Find the newly created build directory
@@ -149,9 +158,11 @@ class Debian(Builder):
                 log.info("Found artifact %s", path)
                 link_or_copy(path, artifacts_dir)
 
-            collect(srcinfo.changes_fname)
-            for fname in get_file_list(srcinfo.changes_fname):
-                collect(fname)
+            for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
+                with os.scandir(path) as it:
+                    for de in it:
+                        if de.is_file():
+                            collect(de.path)
 
     def collect_artifacts(self, container: Container, destdir: str):
         user = UserConfig.from_sudoer()
@@ -171,27 +182,26 @@ class DebianPlain(Debian):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
-    def build_source(self, workdir: str) -> SourceInfo:
+    def build_source(self) -> SourceInfo:
         srcinfo = get_source_info()
 
-        with self.system.images.session.moncic.privs.user():
-            with tempfile.TemporaryDirectory(dir=workdir) as clean_src:
-                # Make a clean clone to avoid building from a dirty working
-                # directory
-                run(["git", "clone", ".", clean_src])
+        with tempfile.TemporaryDirectory(dir="/srv/moncic-ci/build") as clean_src:
+            # Make a clean clone to avoid potentially building from a dirty
+            # working directory
+            run(["git", "clone", ".", clean_src])
 
-                with cd(clean_src):
-                    # Build upstream tarball
-                    # FIXME: this is a hack, that prevents building new debian versions
-                    #        from the same upstream tarball
-                    run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
+            with cd(clean_src):
+                # Build upstream tarball
+                # FIXME: this is a hack, that prevents building new debian versions
+                #        from the same upstream tarball
+                run(["git", "archive", f"--output=../{srcinfo.tar_fname}", "HEAD"])
 
-                    # Uses --no-pre-clean to avoid requiring build-deps to be installed at
-                    # this stage
-                    run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"])
+                # Uses --no-pre-clean to avoid requiring build-deps to be installed at
+                # this stage
+                run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"])
 
-                    # No need to copy .dsc and its assets to the work
-                    # directory, since we're building on a temporary subdir inside it
+                # No need to copy .dsc and its assets to the work
+                # directory, since we're building on a temporary subdir inside it
 
         return srcinfo
 
@@ -248,6 +258,14 @@ class DebianGBP(Debian):
                 # There is no debian/directory, the current branch is upstream
                 return DebianGBPTestUpstream.create(system, srcdir)
 
+    def setup_build(self):
+        """
+        Set up git-buildpackage before the build
+        """
+        with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
+            fd.write("[DEFAULT]\nexport-dir=/srv/moncic-ci/build\n")
+            fd.flush()
+
 
 @Builder.register
 class DebianGBPRelease(DebianGBP):
@@ -259,16 +277,13 @@ class DebianGBPRelease(DebianGBP):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
-    def build_source(self, workdir: str) -> SourceInfo:
-        with self.system.images.session.moncic.privs.user():
-            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-                fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
-                fd.flush()
-            run(["gbp", "buildpackage", "--git-ignore-new",
-                 "--git-upstream-tree=tag", "-d", "-S", "--no-sign",
-                 "--no-pre-clean"])
+    def build_source(self) -> SourceInfo:
+        self.setup_build()
+        run(["gbp", "buildpackage", "--git-ignore-new",
+             "--git-upstream-tree=tag", "-d", "-S", "--no-sign",
+             "--no-pre-clean"])
 
-            return get_source_info()
+        return get_source_info()
 
 
 @Builder.register
@@ -281,7 +296,7 @@ class DebianGBPTestUpstream(DebianGBP):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
-    def build_source(self, workdir: str):
+    def build_source(self):
         # find the right debian branch
         branch = self.system.distro.get_gbp_branch()
         repo = git.Repo(".")
@@ -299,9 +314,7 @@ class DebianGBPTestUpstream(DebianGBP):
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
              "user.name=Moncic-CI", "merge", active_branch])
 
-        with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-            fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
-            fd.flush()
+        self.setup_build()
         run(["gbp", "buildpackage", "--git-ignore-new",
              "--git-upstream-tree=branch", "--git-upstream-branch=" + active_branch,
              "-d", "-S", "--no-sign", "--no-pre-clean"])
@@ -319,24 +332,21 @@ class DebianGBPTestDebian(DebianGBP):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
-    def build_source(self, workdir: str):
-        with self.system.images.session.moncic.privs.user():
-            # Read the upstream branch to use from gbp.conf
-            upstream_branch = self.read_upstream_branch()
-            if upstream_branch is None:
-                raise RuntimeError("Cannot read upstream branch from debian/gbp.conf")
+    def build_source(self):
+        # Read the upstream branch to use from gbp.conf
+        upstream_branch = self.read_upstream_branch()
+        if upstream_branch is None:
+            raise RuntimeError("Cannot read upstream branch from debian/gbp.conf")
 
-            self.ensure_local_branch_exists(upstream_branch)
+        self.ensure_local_branch_exists(upstream_branch)
 
-            # Merge the upstream branch into the debian branch
-            run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-                 "user.name=Moncic-CI", "merge", upstream_branch])
+        # Merge the upstream branch into the debian branch
+        run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
+             "user.name=Moncic-CI", "merge", upstream_branch])
 
-            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-                fd.write(f"[DEFAULT]\nexport-dir={workdir}\n")
-                fd.flush()
-            run(["gbp", "buildpackage", "--git-ignore-new",
-                 "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
-                 "--no-pre-clean"])
+        self.setup_build()
+        run(["gbp", "buildpackage", "--git-ignore-new",
+             "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
+             "--no-pre-clean"])
 
-            return get_source_info()
+        return get_source_info()
