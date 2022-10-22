@@ -150,7 +150,7 @@ class CI(MoncicCommand):
     def setup_moncic_config(self, config: MoncicConfig):
         super().setup_moncic_config(config)
         if self.args.artifacts:
-            config.build_artifacts_dir = self.args.artifacts
+            config.build_artifacts_dir = os.path.abspath(self.args.artifacts)
 
     def run(self):
         with self.moncic.session() as session:
