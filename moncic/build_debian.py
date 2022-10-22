@@ -88,7 +88,11 @@ class Debian(Builder):
             return DebianPlain.create(system, srcdir)
         return DebianGBP.create(system, srcdir)
 
-    def build_source(self, workdir: str) -> SourceInfo:
+    def __init__(self, system: System, srcdir: str):
+        super().__init__(system, srcdir)
+        self.srcinfo = get_source_info(srcdir)
+
+    def build_source(self, workdir: str):
         """
         Build the Debian source package from /srv/moncic-ci/source/<name>
 
@@ -112,10 +116,10 @@ class Debian(Builder):
 
         # Build source package
         with self.system.images.session.moncic.privs.user():
-            srcinfo = self.build_source()
+            self.build_source()
 
         with cd("/srv/moncic-ci/build"):
-            run(["dpkg-source", "-x", srcinfo.dsc_fname])
+            run(["dpkg-source", "-x", self.srcinfo.dsc_fname])
 
             # Find the newly created build directory
             with os.scandir(".") as it:
@@ -161,12 +165,21 @@ class Debian(Builder):
                             collect(de.path)
 
     def collect_artifacts(self, container: Container, destdir: str):
+        container_root = container.get_root()
         user = UserConfig.from_sudoer()
-        with os.scandir(os.path.join(container.get_root(), "srv", "artifacts")) as it:
+        with os.scandir(os.path.join(container_root, "srv", "artifacts")) as it:
             for de in it:
                 if de.is_file():
                     log.info("Copying %s to %s", de.name, destdir)
                     link_or_copy(de.path, destdir, user=user)
+
+        if os.path.exists(logfile := os.path.join(container_root, "srv", "moncic-ci", "buildlog")):
+            self.log_capture_end()
+            build_log_name = f"{self.srcinfo.srcname}_{self.srcinfo.version}.buildlog"
+            link_or_copy(
+                    logfile, destdir, user=user,
+                    filename=build_log_name)
+            log.info("Saving build log to %s/%s", destdir, build_log_name)
 
 
 @Builder.register
@@ -181,8 +194,6 @@ class DebianPlain(Debian):
     def setup_container_host(self, container: Container):
         super().setup_container_host(container)
 
-        srcinfo = get_source_info(self.srcdir)
-
         tarball_search_dirs = [os.path.join(self.srcdir, "..")]
         if (artifacts_dir := self.system.images.session.moncic.config.build_artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
@@ -191,7 +202,7 @@ class DebianPlain(Debian):
         for path in tarball_search_dirs:
             with os.scandir(path) as it:
                 for de in it:
-                    if de.name == srcinfo.tar_fname:
+                    if de.name == self.srcinfo.tar_fname:
                         found = de.path
                         break
             if found:
@@ -200,14 +211,14 @@ class DebianPlain(Debian):
                 link_or_copy(found, os.path.join(container_root, "srv", "moncic-ci", "source"))
                 break
 
-    def build_orig_tarball(self, srcinfo: SourceInfo):
+    def build_orig_tarball(self):
         """
         Make sure srcinfo.tar_fname exists.
 
         This function is run from a clean source directory
         """
-        dest_tarball = os.path.join("..", srcinfo.tar_fname)
-        if os.path.exists(orig_tarball := os.path.join("/srv", "moncic-ci", "source", srcinfo.tar_fname)):
+        dest_tarball = os.path.join("..", self.srcinfo.tar_fname)
+        if os.path.exists(orig_tarball := os.path.join("/srv", "moncic-ci", "source", self.srcinfo.tar_fname)):
             link_or_copy(orig_tarball, "..")
             return
 
@@ -216,16 +227,14 @@ class DebianPlain(Debian):
         log.info("Building tarball from source directory")
         run(["git", "archive", f"--output={dest_tarball}", "HEAD", ".", ":(exclude)debian"])
 
-    def build_source(self) -> SourceInfo:
-        srcinfo = get_source_info()
-
+    def build_source(self):
         with tempfile.TemporaryDirectory(dir="/srv/moncic-ci/build") as clean_src:
             # Make a clean clone to avoid potentially building from a dirty
             # working directory
             run(["git", "clone", ".", clean_src])
 
             with cd(clean_src):
-                self.build_orig_tarball(srcinfo)
+                self.build_orig_tarball()
 
                 # Uses --no-pre-clean to avoid requiring build-deps to be installed at
                 # this stage
@@ -233,8 +242,6 @@ class DebianPlain(Debian):
 
                 # No need to copy .dsc and its assets to the work
                 # directory, since we're building on a temporary subdir inside it
-
-        return srcinfo
 
 
 @Builder.register
@@ -308,13 +315,11 @@ class DebianGBPRelease(DebianGBP):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
-    def build_source(self) -> SourceInfo:
+    def build_source(self):
         self.setup_build()
         run(["gbp", "buildpackage", "--git-ignore-new",
              "--git-upstream-tree=tag", "-d", "-S", "--no-sign",
              "--no-pre-clean"])
-
-        return get_source_info()
 
 
 @Builder.register
@@ -350,13 +355,13 @@ class DebianGBPTestUpstream(DebianGBP):
              "--git-upstream-tree=branch", "--git-upstream-branch=" + active_branch,
              "-d", "-S", "--no-sign", "--no-pre-clean"])
 
-        return get_source_info()
+        self.srcinfo = get_source_info()
 
 
 @Builder.register
 class DebianGBPTestDebian(DebianGBP):
     """
-    Build Debian packges using the current directory as the packagingbranch,
+    Build Debian packges using the current directory as the packaging branch,
     and the upstream branch as configured in gbp.conf
     """
     @classmethod
@@ -379,5 +384,3 @@ class DebianGBPTestDebian(DebianGBP):
         run(["gbp", "buildpackage", "--git-ignore-new",
              "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
              "--no-pre-clean"])
-
-        return get_source_info()
