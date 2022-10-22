@@ -44,32 +44,36 @@ def sh(*cmd):
 def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] = None):
     if repo is None:
         yield None
-    else:
+        return
+
+    with system.images.session.moncic.privs.user():
         # If repo points to a local path, use its absolute path
         parsed = urllib.parse.urlparse(repo)
-        if parsed.scheme in ('', 'file'):
+        if parsed.scheme not in ('', 'file'):
+            repo_abspath = repo
+        else:
+            repo_abspath = os.path.abspath(parsed.path)
             gitrepo = git.Repo(parsed.path)
             if gitrepo.active_branch == branch:
-                yield os.path.abspath(parsed.path)
+                system.images.session.moncic.privs.regain()
+                yield repo_abspath
                 return
 
-        with system.images.session.moncic.privs.user():
-            with tempfile.TemporaryDirectory() as workdir:
-                repo_abspath = os.path.abspath(parsed.path) if parsed.scheme in ('', 'file') else repo
-                # Git checkout in a temporary directory
-                cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]
-                if branch is not None:
-                    cmd += ["--branch", branch]
-                system.local_run(cmd, config=RunConfig(cwd=workdir))
-                # Look for the directory that git created
-                names = os.listdir(workdir)
-                if len(names) != 1:
-                    raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+        with tempfile.TemporaryDirectory() as workdir:
+            # Git checkout in a temporary directory
+            cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]
+            if branch is not None:
+                cmd += ["--branch", branch]
+            system.local_run(cmd, config=RunConfig(cwd=workdir))
+            # Look for the directory that git created
+            names = os.listdir(workdir)
+            if len(names) != 1:
+                raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
 
-                repo_path = os.path.join(workdir, names[0])
+            repo_path = os.path.join(workdir, names[0])
 
-                system.images.session.moncic.privs.regain()
-                yield repo_path
+            system.images.session.moncic.privs.regain()
+            yield repo_path
 
 
 class MoncicCommand(Command):

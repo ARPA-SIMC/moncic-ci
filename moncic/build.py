@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import dataclasses
 import logging
 import os
 import shlex
 import shutil
 import subprocess
-from typing import TYPE_CHECKING, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 
 from .container import ContainerConfig
 from .runner import UserConfig
@@ -26,13 +27,15 @@ def run(cmd, check=True, **kwargs):
     return subprocess.run(cmd, check=check, **kwargs)
 
 
-def link_or_copy(src: str, dstdir: str, user: Optional[UserConfig] = None):
+def link_or_copy(src: str, dstdir: str, filename: Optional[str] = None, user: Optional[UserConfig] = None):
     """
     Try to make a hardlink of src inside directory dstdir.
 
     If hardlinking is not possible, copy it
     """
-    dest = os.path.join(dstdir, os.path.basename(src))
+    if filename is None:
+        filename = os.path.basename(src)
+    dest = os.path.join(dstdir, filename)
     try:
         os.link(src, dest)
     except OSError:
@@ -89,6 +92,10 @@ class Builder:
         self.srcdir = srcdir
         # User to use for the build
         self.user = UserConfig.from_sudoer()
+        # Build log file
+        self.buildlog_file: Optional[TextIO] = None
+        # Log handler used to capture build output
+        self.buildlog_handler: Optional[logging.Handler] = None
 
     def setup_container_host(self, container: Container):
         """
@@ -105,6 +112,34 @@ class Builder:
         os.makedirs(builddir, exist_ok=True)
         os.chown(builddir, self.user.user_id, self.user.group_id)
 
+        # Capture build log
+        log_file = os.path.join(container_root, "srv", "moncic-ci", "buildlog")
+        self.log_capture_start(log_file)
+
+    def setup_container_guest(self):
+        """
+        Set up the build environment in the container
+        """
+        # Reinstantiate the module logger
+        global log
+        log = logging.getLogger(__name__)
+
+    def log_capture_start(self, log_file: str):
+        self.buildlog_file = open(log_file, "wt")
+        self.buildlog_handler = logging.StreamHandler(self.buildlog_file)
+        self.buildlog_handler.setLevel(logging.DEBUG)
+        self.buildlog_handler.setFormatter(
+                logging.Formatter("%(asctime)-19.19s %(levelname)s %(message)s"))
+        logging.getLogger().addHandler(self.buildlog_handler)
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    def log_capture_end(self):
+        if self.buildlog_handler is not None:
+            logging.getLogger().removeHandler(self.buildlog_handler)
+            self.buildlog_handler = None
+            self.buildlog_file.close()
+            self.buildlog_file = None
+
     def build(self, shell: bool = False) -> int:
         """
         Run the build, store the artifacts in the given directory if requested,
@@ -120,22 +155,36 @@ class Builder:
         with container:
             self.setup_container_host(container)
 
-            build_config = container_config.run_config()
-            build_config.user = UserConfig.root()
+            # Log moncic config
+            moncic_config = self.system.images.session.moncic.config
+            for field in dataclasses.fields(moncic_config):
+                log.debug("moncic:%s = %r", field.name, getattr(moncic_config, field.name))
+            # Log container config
+            for field in dataclasses.fields(container_config):
+                log.debug("container:%s = %r", field.name, getattr(container_config, field.name))
+
             try:
-                res = container.run_callable(
-                        self.build_in_container,
-                        build_config)
-                if artifacts_dir:
-                    self.collect_artifacts(container, artifacts_dir)
+                build_config = container_config.run_config()
+                build_config.user = UserConfig.root()
+                # Log build config
+                for field in dataclasses.fields(build_config):
+                    log.debug("run:%s = %r", field.name, getattr(build_config, field.name))
+                try:
+                    res = container.run_callable(
+                            self.build_in_container,
+                            build_config)
+                    if artifacts_dir:
+                        self.collect_artifacts(container, artifacts_dir)
+                finally:
+                    if shell:
+                        run_config = container_config.run_config()
+                        run_config.interactive = True
+                        run_config.check = False
+                        run_config.user = UserConfig.root()
+                        run_config.cwd = "/srv/moncic-ci/build"
+                        container.run_shell(config=run_config)
             finally:
-                if shell:
-                    run_config = container_config.run_config()
-                    run_config.interactive = True
-                    run_config.check = False
-                    run_config.user = UserConfig.root()
-                    run_config.cwd = "/srv/moncic-ci/build"
-                    container.run_shell(config=run_config)
+                self.log_capture_end()
         return res.returncode
 
     def build_in_container(self) -> Optional[int]:
