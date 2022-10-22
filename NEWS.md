@@ -2,6 +2,8 @@
 
 * Expanded Debian build profiles to cover various `git-buildpackage`-related
   strategies. See [Building Debian Packages](doc/build-debian.md) (#63, #64)
+* Default for `ci --build-style` is autodetect
+* Fixed a typo that broke DebianPlain builds
 
 # Version 0.7
 

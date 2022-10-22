@@ -171,7 +171,7 @@ class DebianPlain(Debian):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
-    def build_source(self, srcinfo: SourceInfo, workdir: str) -> SourceInfo:
+    def build_source(self, workdir: str) -> SourceInfo:
         srcinfo = get_source_info()
 
         with self.system.images.session.moncic.privs.user():
