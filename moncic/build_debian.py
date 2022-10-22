@@ -26,7 +26,6 @@ class SourceInfo(NamedTuple):
     version: str
     dsc_fname: str
     tar_fname: str
-    changes_fname: str
 
 
 def get_source_info() -> SourceInfo:
@@ -47,16 +46,12 @@ def get_source_info() -> SourceInfo:
     if not pkg_srcname or not pkg_version:
         raise RuntimeError("Unable to determine source package name or source package version")
 
-    res = run(["dpkg", "--print-architecture"], capture_output=True, text=True)
-    arch = res.stdout.strip()
-
     pkg_version_dsc = pkg_version.split(":", 1)[1] if ":" in pkg_version else pkg_version
     dsc_fname = f"{pkg_srcname}_{pkg_version_dsc}.dsc"
-    changes_fname = f"{pkg_srcname}_{pkg_version_dsc}_{arch}.changes"
     pkg_version_tar = pkg_version_dsc.split("-", 1)[0] if "-" in pkg_version_dsc else pkg_version_dsc
     tar_fname = f"{pkg_srcname}_{pkg_version_tar}.orig.tar.gz"
 
-    return SourceInfo(pkg_srcname, pkg_version, dsc_fname, tar_fname, changes_fname)
+    return SourceInfo(pkg_srcname, pkg_version, dsc_fname, tar_fname)
 
 
 def get_file_list(path: str) -> List[str]:
