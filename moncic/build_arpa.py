@@ -87,7 +87,7 @@ class ARPA(RPM):
                  "-o", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
             run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
             run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", specs[0]])
-            if self.source_only:
+            if source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"
