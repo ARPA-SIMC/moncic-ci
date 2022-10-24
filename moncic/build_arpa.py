@@ -45,7 +45,7 @@ class ARPA(RPM):
         elif isinstance(system.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
-            raise RuntimeError(f"Unsupported distro: {run.system.distro.name}")
+            raise RuntimeError(f"Unsupported distro: {system.distro.name}")
 
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
