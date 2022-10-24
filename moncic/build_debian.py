@@ -92,7 +92,7 @@ class Debian(Builder):
         super().__init__(system, srcdir)
         self.srcinfo = get_source_info(srcdir)
 
-    def build_source(self, workdir: str):
+    def build_source(self):
         """
         Build the Debian source package from /srv/moncic-ci/source/<name>
 
