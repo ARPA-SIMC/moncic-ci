@@ -139,6 +139,8 @@ class Debian(Builder):
                     if de.is_file():
                         collect(de.path)
 
+        return None
+
     def build_binary(self):
         """
         Build binary packages
