@@ -119,8 +119,8 @@ class MoncicCommand(Command):
         """
         Customize configuration before a Moncic object is instantiated
         """
-        if self.args.imagedir:
-            config.imagedir = expand_path(self.args.imagedir)
+        if (imagedir := expand_path(self.args.imagedir)):
+            config.imagedir = imagedir
 
         if self.args.extra_packages_dir:
             config.extra_packages_dir = expand_path(self.args.extra_packages_dir)
