@@ -14,7 +14,7 @@ from . import setns
 from .build import Builder, link_or_copy
 from .deb import apt_get_cmd
 from .runner import UserConfig
-from .utils import cd, run
+from .utils import cd, run, guest_only, host_only
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -29,6 +29,7 @@ class SourceInfo(NamedTuple):
     tar_fname: str
 
 
+@guest_only
 def get_source_info(path=".") -> SourceInfo:
     """
     Return the file name of the .dsc file that would be created by the debian
@@ -93,6 +94,7 @@ class Debian(Builder):
         super().__init__(system, srcdir)
         self.srcinfo = get_source_info(srcdir)
 
+    @guest_only
     def build_source(self):
         """
         Build the Debian source package from /srv/moncic-ci/source/<name>
@@ -103,6 +105,7 @@ class Debian(Builder):
         """
         raise NotImplementedError(f"{self.__class__.__name__} not implemented")
 
+    @guest_only
     def setup_container_guest(self):
         super().setup_container_guest()
         # Reinstantiate the module logger
@@ -114,6 +117,7 @@ class Debian(Builder):
         # Disable reindexing of manpages during installation of build-dependencies
         run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
 
+    @guest_only
     def build_in_container(self, source_only: bool = False) -> Optional[int]:
         self.setup_container_guest()
 
@@ -142,6 +146,7 @@ class Debian(Builder):
 
         return None
 
+    @guest_only
     def build_binary(self):
         """
         Build binary packages
@@ -176,6 +181,7 @@ class Debian(Builder):
                 # Use unshare to disable networking
                 run(["dpkg-buildpackage", "--no-sign"])
 
+    @host_only
     def collect_artifacts(self, container: Container, destdir: str):
         container_root = container.get_root()
         user = UserConfig.from_sudoer()
@@ -203,6 +209,7 @@ class DebianPlain(Debian):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
+    @host_only
     def setup_container_host(self, container: Container):
         super().setup_container_host(container)
 
@@ -223,6 +230,7 @@ class DebianPlain(Debian):
                 link_or_copy(found, os.path.join(container_root, "srv", "moncic-ci", "source"))
                 break
 
+    @guest_only
     def build_orig_tarball(self):
         """
         Make sure srcinfo.tar_fname exists.
@@ -239,6 +247,7 @@ class DebianPlain(Debian):
         log.info("Building tarball from source directory")
         run(["git", "archive", f"--output={dest_tarball}", "HEAD", ".", ":(exclude)debian"])
 
+    @guest_only
     def build_source(self):
         with tempfile.TemporaryDirectory(dir="/srv/moncic-ci/build") as clean_src:
             # Make a clean clone to avoid potentially building from a dirty
@@ -310,13 +319,14 @@ class DebianGBP(Debian):
                 # There is no debian/directory, the current branch is upstream
                 return DebianGBPTestUpstream.create(system, srcdir)
 
-    def setup_build(self):
-        """
-        Set up git-buildpackage before the build
-        """
-        with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-            fd.write("[DEFAULT]\nexport-dir=/srv/moncic-ci/build\n")
-            fd.flush()
+    @guest_only
+    def setup_container_guest(self):
+        super().setup_container_guest()
+        # Set up git-buildpackage before the build
+        with self.system.images.session.moncic.privs.user():
+            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
+                fd.write("[DEFAULT]\nexport-dir=/srv/moncic-ci/build\n")
+                fd.flush()
 
 
 @Builder.register
@@ -330,7 +340,6 @@ class DebianGBPRelease(DebianGBP):
         return cls(system, srcdir)
 
     def build_source(self):
-        self.setup_build()
         run(["gbp", "buildpackage", "--git-ignore-new",
              "--git-upstream-tree=tag", "-d", "-S", "--no-sign",
              "--no-pre-clean"])
@@ -346,6 +355,7 @@ class DebianGBPTestUpstream(DebianGBP):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
+    @guest_only
     def build_source(self):
         # find the right debian branch
         branch = self.system.distro.get_gbp_branch()
@@ -364,7 +374,6 @@ class DebianGBPTestUpstream(DebianGBP):
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
              "user.name=Moncic-CI", "merge", active_branch])
 
-        self.setup_build()
         run(["gbp", "buildpackage", "--git-ignore-new",
              "--git-upstream-tree=branch", "--git-upstream-branch=" + active_branch,
              "-d", "-S", "--no-sign", "--no-pre-clean"])
@@ -382,6 +391,7 @@ class DebianGBPTestDebian(DebianGBP):
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
 
+    @guest_only
     def build_source(self):
         # Read the upstream branch to use from gbp.conf
         upstream_branch = self.read_upstream_branch()
@@ -394,7 +404,6 @@ class DebianGBPTestDebian(DebianGBP):
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
              "user.name=Moncic-CI", "merge", upstream_branch])
 
-        self.setup_build()
         run(["gbp", "buildpackage", "--git-ignore-new",
              "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
              "--no-pre-clean"])

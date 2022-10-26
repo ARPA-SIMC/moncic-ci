@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Optional
 from .distro import DnfDistro, YumDistro
 from .runner import UserConfig
 from .build import Builder, link_or_copy
-from .utils import run
+from .utils import run, guest_only, host_only
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -71,6 +71,7 @@ class ARPA(RPM):
 
         return os.path.relpath(specs[0], start=srcdir)
 
+    @guest_only
     def setup_container_guest(self):
         super().setup_container_guest()
 
@@ -78,6 +79,7 @@ class ARPA(RPM):
         global log
         log = logging.getLogger(__name__)
 
+    @guest_only
     def build_in_container(self, source_only: bool = False) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged
@@ -117,6 +119,7 @@ class ARPA(RPM):
 
         return None
 
+    @host_only
     def collect_artifacts(self, container: Container, destdir: str):
         container_root = container.get_root()
 

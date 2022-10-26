@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 
 from .container import ContainerConfig
 from .runner import UserConfig
+from .utils import guest_only, host_only
 from . import distro, utils
 
 if TYPE_CHECKING:
@@ -86,6 +87,7 @@ class Builder:
         # Log handler used to capture build output
         self.buildlog_handler: Optional[logging.Handler] = None
 
+    @host_only
     def setup_container_host(self, container: Container):
         """
         Set up the container before starting the build.
@@ -105,6 +107,7 @@ class Builder:
         log_file = os.path.join(container_root, "srv", "moncic-ci", "buildlog")
         self.log_capture_start(log_file)
 
+    @guest_only
     def setup_container_guest(self):
         """
         Set up the build environment in the container
@@ -115,6 +118,7 @@ class Builder:
 
         utils.fix_logging_on_guest()
 
+    @host_only
     def log_capture_start(self, log_file: str):
         self.buildlog_file = open(log_file, "wt")
         self.buildlog_handler = logging.StreamHandler(self.buildlog_file)
@@ -124,6 +128,7 @@ class Builder:
         logging.getLogger().addHandler(self.buildlog_handler)
         logging.getLogger().setLevel(logging.DEBUG)
 
+    @host_only
     def log_capture_end(self):
         if self.buildlog_handler is not None:
             logging.getLogger().removeHandler(self.buildlog_handler)
@@ -131,6 +136,7 @@ class Builder:
             self.buildlog_file.close()
             self.buildlog_file = None
 
+    @host_only
     def build(self, shell: bool = False, source_only: bool = False) -> int:
         """
         Run the build, store the artifacts in the given directory if requested,
@@ -181,6 +187,7 @@ class Builder:
                 self.log_capture_end()
         return res.returncode
 
+    @guest_only
     def build_in_container(self, source_only: bool = False) -> Optional[int]:
         """
         Run the build in a child process.
@@ -195,6 +202,7 @@ class Builder:
         """
         raise NotImplementedError(f"{self.__class__}.build not implemented")
 
+    @host_only
     def collect_artifacts(self, container: Container, destdir: str):
         """
         Copy build artifacts to the given directory
