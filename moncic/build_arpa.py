@@ -97,8 +97,10 @@ class ARPA(RPM):
                 for root, dirs, fnames in os.walk("fedora/SOURCES"):
                     for fn in fnames:
                         shutil.copy(os.path.join(root, fn), "/root/rpmbuild/SOURCES/")
-            run(["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD",
-                 "-o", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
+            with open(f"/root/rpmbuild/SOURCES/{pkgname}.tar", "wb") as fd:
+                with self.system.images.session.moncic.privs.user():
+                    run(["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD"],
+                        stdout=fd)
             run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
             run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", self.specfile])
             if source_only:
