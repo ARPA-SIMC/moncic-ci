@@ -386,7 +386,11 @@ class DebianGBPTestUpstream(DebianGBP):
         if branch not in origin.refs:
             raise RuntimeError(f"Packaging branch {branch!r} not found for distribution '{self.system.distro}'")
 
+        # TODO: find common ancestor between current and packaging, and merge
+        #       packaging branch from that?
+
         # Make a temporary merge of active_branch on the debian branch
+        log.info("merge packaging branch %s for test build", branch)
         active_branch = repo.active_branch.name
         if active_branch is None:
             log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
@@ -423,6 +427,7 @@ class DebianGBPTestDebian(DebianGBP):
         self.ensure_local_branch_exists(upstream_branch)
 
         # Merge the upstream branch into the debian branch
+        log.info("merge upstream branch %s into build branch", upstream_branch)
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
              "user.name=Moncic-CI", "merge", upstream_branch])
 
