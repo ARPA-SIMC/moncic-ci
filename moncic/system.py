@@ -191,23 +191,23 @@ class System:
         """
         Run update machinery on a container
         """
+        # Forward users if needed
+        for u in self.config.forward_users:
+            container.forward_user(UserConfig.from_user(u), allow_maint=True)
+
         # Base maintenance
         if self.config.extends is not None:
             # Chain to the parent's maintenance
             with self.images.system(self.config.extends) as parent:
                 parent._update_container(container)
-
-        # Forward users if needed
-        for u in self.config.forward_users:
-            container.forward_user(UserConfig.from_user(u), allow_maint=True)
+        else:
+            # Run the default standard distro maintenance
+            for cmd in self.distro.get_update_script():
+                container.run(cmd)
 
         if self.config.maintscript is not None:
             # Run maintscripts configured for this system
             container.run_script(self.config.maintscript)
-        else:
-            # Or run the default standard distro maintenance
-            for cmd in self.distro.get_update_script():
-                container.run(cmd)
 
     def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
         """

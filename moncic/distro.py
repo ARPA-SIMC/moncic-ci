@@ -406,6 +406,7 @@ class DnfDistro(RpmDistro):
     def get_update_script(self):
         res = super().get_update_script()
         return res + [
+            ["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"],
             ["/usr/bin/dnf", "upgrade", "-q", "-y"],
             ["/usr/bin/dnf", "install", "-q", "-y"] + self.get_base_packages(),
         ]

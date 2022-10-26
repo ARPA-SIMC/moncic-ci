@@ -30,6 +30,7 @@ class Centos8(DistroTestMixin, unittest.TestCase):
             with self.make_system(distro) as system:
                 system.update()
 
+        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
         run_log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
         run_log.assertPopFirst('/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf')
         run_log.assertPopFirst("cachedir_tag:")
