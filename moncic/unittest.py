@@ -8,8 +8,8 @@ import re
 import shlex
 import subprocess
 import tempfile
-from typing import (TYPE_CHECKING, Any, Callable, Dict, Generator, List,
-                    Optional, Union)
+from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
+                    Generator, List, Optional, Union)
 from unittest import SkipTest, mock
 
 from moncic.btrfs import is_btrfs
@@ -19,6 +19,7 @@ from moncic.privs import ProcessPrivs
 from moncic.system import MaintenanceSystem, SystemConfig
 
 if TYPE_CHECKING:
+    from moncic import imagestorage
     from moncic.distro import Distro
 
 TEST_CHROOTS = ["centos7", "centos8", "rocky8", "fedora32", "fedora34", "fedora36", "buster", "bookworm", "bullseye"]
@@ -147,7 +148,7 @@ class DistroTestMixin:
     TestCase mixin with extra common utility infrastructure to test Moncic-CI
     """
     @contextlib.contextmanager
-    def config(self, filesystem_type: Optional[str] = None) -> Generator[MoncicConfig]:
+    def config(self, filesystem_type: Optional[str] = None) -> Generator[MoncicConfig, None, None]:
         if filesystem_type is None:
             filesystem_type = getattr(self, "DEFAULT_FILESYSTEM_TYPE", None)
 
@@ -158,31 +159,34 @@ class DistroTestMixin:
                     deb_cache_dir=None)
 
     @contextlib.contextmanager
-    def _mock_system(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog]:
+    def _mock_system(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog, None, None]:
         """
         Mock System objects to log operations instead of running them
         """
+        rlog: MockRunLog
         if run_log is None:
-            run_log = MockRunLog(self)
+            rlog = MockRunLog(self)
+        else:
+            rlog = run_log
 
         def _subvolume_replace_subvolume(self, path: str):
-            run_log.append(["<replace>", self.path, path], {})
+            rlog.append(["<replace>", self.path, path], {})
             self.path = path
 
         def _subvolume_local_run(self, cmd: List[str]) -> subprocess.CompletedProcess:
-            run_log.append(cmd, {})
+            rlog.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
         def _images_local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
-            run_log.append(cmd, {})
+            rlog.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
         def _system_local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-            run_log.append(cmd, {})
+            rlog.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b'', b'')
 
         def _update_cachedir(self):
-            run_log.append_cachedir()
+            rlog.append_cachedir()
 
         with mock.patch("moncic.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
             with mock.patch("moncic.btrfs.Subvolume.local_run", new=_subvolume_local_run):
@@ -190,15 +194,18 @@ class DistroTestMixin:
                     with mock.patch("moncic.system.System.local_run", new=_system_local_run):
                         with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_system_local_run):
                             with mock.patch("moncic.system.MaintenanceSystem._update_cachedir", new=_update_cachedir):
-                                yield run_log
+                                yield rlog
 
     @contextlib.contextmanager
-    def _mock_container(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog]:
+    def _mock_container(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog, None, None]:
         """
         Mock System objects to log operations instead of running them
         """
+        rlog: MockRunLog
         if run_log is None:
-            run_log = MockRunLog(self)
+            rlog = MockRunLog(self)
+        else:
+            rlog = run_log
 
         def _start(self):
             self.started = True
@@ -207,20 +214,20 @@ class DistroTestMixin:
             self.started = False
 
         def _forward_user(self, user: UserConfig, allow_maint: bool = False):
-            run_log.append_forward_user(user)
+            rlog.append_forward_user(user)
 
         def _run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-            run_log.append(command, {})
+            rlog.append(command, {})
             return subprocess.CompletedProcess(command, 0, b'', b'')
 
         def _run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-            run_log.append_script(body)
+            rlog.append_script(body)
             return subprocess.CompletedProcess(["script"], 0, b'', b'')
 
         def _run_callable(
                 self, func: Callable[[], Optional[int]],
                 config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
-            run_log.append_callable(func)
+            rlog.append_callable(func)
             return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
 
         with mock.patch("moncic.container.NspawnContainer._start", new=_start):
@@ -229,20 +236,22 @@ class DistroTestMixin:
                     with mock.patch("moncic.container.NspawnContainer.run", new=_run):
                         with mock.patch("moncic.container.NspawnContainer.run_script", new=_run_script):
                             with mock.patch("moncic.container.NspawnContainer.run_callable", new=_run_callable):
-                                yield run_log
+                                yield rlog
 
     @contextlib.contextmanager
-    def mock(self, system: bool = True, container: bool = True) -> Generator[MockRunLog]:
+    def mock(self, system: bool = True, container: bool = True) -> Generator[MockRunLog, None, None]:
         """
         Mock System or Container objects
         """
         run_log = MockRunLog(self)
 
+        msys: ContextManager[MockRunLog]
         if system:
             msys = self._mock_system(run_log)
         else:
             msys = contextlib.nullcontext(run_log)
 
+        mcont: ContextManager[MockRunLog]
         if container:
             mcont = self._mock_container(run_log)
         else:
@@ -253,7 +262,7 @@ class DistroTestMixin:
                 yield run_log
 
     @contextlib.contextmanager
-    def make_images(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
+    def make_images(self, distro: Distro) -> Generator[imagestorage.Images, None, None]:
         with self.config() as mconfig:
             moncic = make_moncic(mconfig)
 
