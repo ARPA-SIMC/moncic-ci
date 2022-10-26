@@ -271,7 +271,7 @@ class DistroTestMixin:
 
             with mock.patch("moncic.system.SystemConfig.load", new=_load):
                 with moncic.session() as session:
-                    yield session.images()
+                    yield session.images
 
     @contextlib.contextmanager
     def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:

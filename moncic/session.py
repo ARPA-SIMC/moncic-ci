@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import contextlib
-from typing import Optional, TYPE_CHECKING
+from functools import cached_property
+from typing import TYPE_CHECKING, Optional
 
 from . import imagestorage
 from .deb import DebCache
@@ -26,9 +27,6 @@ class Session(contextlib.ExitStack):
         else:
             self.image_storage = imagestorage.ImageStorage.create(self, self.moncic.config.imagedir)
 
-        # Images contained in the image storage
-        self._images: Optional[imagestorage.Images] = None
-
         # Debian packages cache
         self._deb_cache: Optional[DebCache] = None
 
@@ -38,13 +36,12 @@ class Session(contextlib.ExitStack):
         # Directory with packages to be exported to containers
         self._extra_packages_dir: Optional[str] = None
 
+    @cached_property
     def images(self) -> imagestorage.Images:
         """
         Return the Images storage
         """
-        if self._images is None:
-            self._images = self.enter_context(self.image_storage.images())
-        return self._images
+        return self.enter_context(self.image_storage.images())
 
     def debcache(self) -> DebCache:
         """
