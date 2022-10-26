@@ -185,15 +185,20 @@ class Debian(Builder):
     def collect_artifacts(self, container: Container, destdir: str):
         container_root = container.get_root()
         user = UserConfig.from_sudoer()
+        build_log_name: Optional[str] = None
         with os.scandir(os.path.join(container_root, "srv", "artifacts")) as it:
             for de in it:
                 if de.is_file():
+                    if de.name.endswith("_source.changes"):
+                        build_log_name = de.name[:-15] + ".buildlog"
                     log.info("Copying %s to %s", de.name, destdir)
                     link_or_copy(de.path, destdir, user=user)
 
+        if build_log_name is None:
+            build_log_name = os.path.basename(self.srcdir) + ".buildlog"
+
         if os.path.exists(logfile := os.path.join(container_root, "srv", "moncic-ci", "buildlog")):
             self.log_capture_end()
-            build_log_name = f"{self.srcinfo.srcname}_{self.srcinfo.version}.buildlog"
             link_or_copy(
                     logfile, destdir, user=user,
                     filename=build_log_name)
