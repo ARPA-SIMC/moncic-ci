@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import logging
 import os
 import re
@@ -10,6 +11,23 @@ import tempfile
 from typing import Generator, Optional, Sequence
 
 log = logging.getLogger(__name__)
+
+
+# Set to True when running in the guest system
+in_guest = False
+
+
+def guest_only(f):
+    """
+    Mark a function to be run only in guest systems
+    """
+    @functools.wraps(f)
+    def wrapper(*args, **kw):
+        global in_guest
+        if not in_guest:
+            raise RuntimeError(f"{f.__name__} called when in host system")
+        return f(*args, **kw)
+    return wrapper
 
 
 def fix_logging_on_guest():
