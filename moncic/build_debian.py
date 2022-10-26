@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import subprocess
 import shutil
 import tempfile
 from configparser import ConfigParser
@@ -37,7 +38,7 @@ def get_source_info(path=".") -> SourceInfo:
         # Taken from debspawn
         pkg_srcname = None
         pkg_version = None
-        res = run(["dpkg-parsechangelog"], capture_output=True, text=True)
+        res = run(["dpkg-parsechangelog"], stdout=subprocess.PIPE, text=True)
         for line in res.stdout.splitlines():
             if line.startswith('Source: '):
                 pkg_srcname = line[8:].strip()
