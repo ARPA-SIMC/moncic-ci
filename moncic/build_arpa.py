@@ -47,9 +47,28 @@ class ARPA(RPM):
         else:
             raise RuntimeError(f"Unsupported distro: {system.distro.name}")
 
+        self.specfile = self.locate_specfile(srcdir)
+
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
+
+    def locate_specfile(self, srcdir: str) -> str:
+        """
+        Locate the specfile in the given source directory.
+
+        Return its path relative to srcdir
+        """
+        spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
+        specs = list(itertools.chain.from_iterable(glob.glob(os.path.join(srcdir, g)) for g in spec_globs))
+
+        if not specs:
+            raise RuntimeError("Spec file not found")
+
+        if len(specs) > 1:
+            raise RuntimeError(f"{len(specs)} .spec files found")
+
+        return os.path.relpath(specs[0], start=srcdir)
 
     def setup_container_guest(self):
         super().setup_container_guest()
@@ -60,24 +79,16 @@ class ARPA(RPM):
     def build_in_container(self, source_only: bool = False) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged
-        spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
-        specs = list(itertools.chain.from_iterable(glob.glob(g) for g in spec_globs))
-
-        if not specs:
-            raise RuntimeError("Spec file not found")
-
-        if len(specs) > 1:
-            raise RuntimeError(f"{len(specs)} .spec files found")
 
         # Install build dependencies
-        run(self.builddep + ["-q", "-y", specs[0]])
+        run(self.builddep + ["-q", "-y", self.specfile])
 
-        pkgname = os.path.basename(specs[0])[:-5]
+        pkgname = os.path.basename(self.specfile)[:-5]
 
         for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"):
             os.makedirs(f"/root/rpmbuild/{name}")
 
-        if specs[0].startswith("fedora/SPECS/"):
+        if self.specfile.startswith("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
             if os.path.isdir("fedora/SOURCES"):
                 for root, dirs, fnames in os.walk("fedora/SOURCES"):
@@ -86,30 +97,44 @@ class ARPA(RPM):
             run(["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD",
                  "-o", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
             run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
-            run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", specs[0]])
+            run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", self.specfile])
             if source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"
-            run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", specs[0]])
+            run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", self.specfile])
         else:
             # Convenzione SIMC per i repo con solo rpm
             for f in glob.glob("*.patch"):
                 shutil.copy(f, "/root/rpmbuild/SOURCES/")
-            run(["spectool", "-g", "-R", specs[0]])
-            run(["rpmbuild", "-ba", specs[0]])
+            run(["spectool", "-g", "-R", self.specfile])
+            run(["rpmbuild", "-ba", self.specfile])
 
         return None
 
     def collect_artifacts(self, container: Container, destdir: str):
+        container_root = container.get_root()
+
         user = UserConfig.from_sudoer()
         patterns = (
             "RPMS/*/*.rpm",
             "SRPMS/*.rpm",
         )
-        basedir = os.path.join(container.get_root(), "root/rpmbuild")
+        basedir = os.path.join(container_root, "root/rpmbuild")
         for pattern in patterns:
             for file in glob.glob(os.path.join(basedir, pattern)):
                 filename = os.path.basename(file)
                 log.info("Copying %s to %s", filename, destdir)
                 link_or_copy(file, destdir, user=user)
+
+        if os.path.exists(logfile := os.path.join(container_root, "srv", "moncic-ci", "buildlog")):
+            res = run(
+                    ["rpmspec", "--query", "--srpm", "--queryformat=%{name}.%{version}.%{release}", self.specfile],
+                    capture_output=True, text=True)
+            build_log_name = res.stdout.strip() + ".buildlog"
+
+            self.log_capture_end()
+            link_or_copy(
+                    logfile, destdir, user=user,
+                    filename=build_log_name)
+            log.info("Saving build log to %s/%s", destdir, build_log_name)

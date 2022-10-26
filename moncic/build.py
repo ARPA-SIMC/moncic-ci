@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def run(cmd, check=True, **kwargs):
+def run(cmd, check=True, **kwargs) -> subprocess.CompletedProcess:
     """
     subprocess.run wrapper that has check=True by default and logs the commands
     run
