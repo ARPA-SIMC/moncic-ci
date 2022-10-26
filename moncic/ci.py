@@ -14,8 +14,9 @@ import urllib.parse
 
 try:
     from texttable import Texttable
+    HAVE_TEXTTABLE = True
 except ModuleNotFoundError:
-    Texttable = None
+    HAVE_TEXTTABLE = False
 
 import git
 
@@ -451,7 +452,7 @@ class Images(MoncicCommand):
         return parser
 
     def run(self):
-        if self.args.csv or Texttable is None:
+        if self.args.csv or not HAVE_TEXTTABLE:
             output = CSVOutput(sys.stdout)
         else:
             output = TableOutput(
@@ -481,7 +482,7 @@ class Distros(MoncicCommand):
         return parser
 
     def run(self):
-        if self.args.csv or Texttable is None:
+        if self.args.csv or not HAVE_TEXTTABLE:
             output = CSVOutput(sys.stdout)
         else:
             output = TableOutput(
