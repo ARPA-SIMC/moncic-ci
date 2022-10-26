@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import shutil
 import tempfile
@@ -92,7 +93,9 @@ class Debian(Builder):
 
     def __init__(self, system: System, srcdir: str):
         super().__init__(system, srcdir)
-        self.srcinfo = get_source_info(srcdir)
+        # This is only set in guest systems, and after self.build_source() has
+        # been called
+        self.srcinfo: Optional[SourceInfo] = None
 
     @guest_only
     def build_source(self):
@@ -210,6 +213,8 @@ class DebianPlain(Debian):
     """
     Build debian packages using the debian/ directory in the current branch
     """
+    re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>[^)-]+)(?:[^)]+)?\)")
+
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         return cls(system, srcdir)
@@ -222,11 +227,19 @@ class DebianPlain(Debian):
         if (artifacts_dir := self.system.images.session.moncic.config.build_artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 
+        with open(os.path.join(self.srcdir, "debian", "changelog"), "rt") as fd:
+            if (mo := self.re_debchangelog_head.match(next(fd))):
+                src_name = mo.group("name")
+                tar_version = mo.group("tar_version")
+                tar_fname = f"{src_name}_{tar_version}.orig.tar.gz"
+            else:
+                raise RuntimeError("Unparsable debian/changelog")
+
         found = None
         for path in tarball_search_dirs:
             with os.scandir(path) as it:
                 for de in it:
-                    if de.name == self.srcinfo.tar_fname:
+                    if de.name == tar_fname:
                         found = de.path
                         break
             if found:
@@ -260,6 +273,8 @@ class DebianPlain(Debian):
             run(["git", "clone", ".", clean_src])
 
             with cd(clean_src):
+                self.srcinfo = get_source_info()
+
                 self.build_orig_tarball()
 
                 # Uses --no-pre-clean to avoid requiring build-deps to be installed at
@@ -349,6 +364,8 @@ class DebianGBPRelease(DebianGBP):
              "--git-upstream-tree=tag", "-d", "-S", "--no-sign",
              "--no-pre-clean"])
 
+        self.srcinfo = get_source_info()
+
 
 @Builder.register
 class DebianGBPTestUpstream(DebianGBP):
@@ -412,3 +429,5 @@ class DebianGBPTestDebian(DebianGBP):
         run(["gbp", "buildpackage", "--git-ignore-new",
              "--git-upstream-tree=branch", "-d", "-S", "--no-sign",
              "--no-pre-clean"])
+
+        self.srcinfo = get_source_info()
