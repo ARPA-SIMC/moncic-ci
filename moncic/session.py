@@ -27,12 +27,6 @@ class Session(contextlib.ExitStack):
         else:
             self.image_storage = imagestorage.ImageStorage.create(self, self.moncic.config.imagedir)
 
-        # Debian packages cache
-        self._deb_cache: Optional[DebCache] = None
-
-        # /var/cache/apt/archives to be shared by Debian containers
-        self._apt_archives: Optional[str] = None
-
     @cached_property
     def images(self) -> imagestorage.Images:
         """
@@ -40,22 +34,26 @@ class Session(contextlib.ExitStack):
         """
         return self.enter_context(self.image_storage.images())
 
-    def debcache(self) -> DebCache:
+    @cached_property
+    def debcache(self) -> Optional[DebCache]:
         """
         Return the DebCache object to manage an apt package cache
         """
-        if self._deb_cache is None:
-            self._deb_cache = self.enter_context(DebCache(self.moncic.config.deb_cache_dir))
-        return self._deb_cache
+        if (path := self.moncic.config.deb_cache_dir):
+            return self.enter_context(DebCache(path))
+        else:
+            return None
 
-    def apt_archives(self) -> str:
+    @cached_property
+    def apt_archives(self) -> Optional[str]:
         """
         Return the path of a directory that can be bind-mounted as
         /var/cache/apt/archives in Debian containers
         """
-        if self._apt_archives is None:
-            self._apt_archives = self.enter_context(self.debcache().apt_archives())
-        return self._apt_archives
+        if (debcache := self.debcache):
+            return self.enter_context(debcache.apt_archives())
+        else:
+            return None
 
     @cached_property
     def extra_packages_dir(self) -> Optional[str]:

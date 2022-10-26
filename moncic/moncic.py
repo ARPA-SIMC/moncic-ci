@@ -43,7 +43,7 @@ class MoncicConfig:
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
     # Directory where .deb files are cached between invocations
-    deb_cache_dir: str = "~/.cache/moncic-ci/debs"
+    deb_cache_dir: Optional[str] = "~/.cache/moncic-ci/debs"
     # Directory where extra packages, if present, are added to package sources
     # in containers
     extra_packages_dir: Optional[str] = None
