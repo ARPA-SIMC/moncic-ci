@@ -485,7 +485,7 @@ class DebianDistro(Distro):
                 "/var/cache/apt/archives",
                 "aptcache"))
 
-        if (extra_packages_dir := system.images.session.extra_packages_dir()):
+        if (extra_packages_dir := system.images.session.extra_packages_dir):
             config.binds.append(BindConfig.create(
                 extra_packages_dir,
                 "/srv/moncic-ci/mirror/packages",

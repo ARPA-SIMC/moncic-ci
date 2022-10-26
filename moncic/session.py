@@ -33,9 +33,6 @@ class Session(contextlib.ExitStack):
         # /var/cache/apt/archives to be shared by Debian containers
         self._apt_archives: Optional[str] = None
 
-        # Directory with packages to be exported to containers
-        self._extra_packages_dir: Optional[str] = None
-
     @cached_property
     def images(self) -> imagestorage.Images:
         """
@@ -60,12 +57,13 @@ class Session(contextlib.ExitStack):
             self._apt_archives = self.enter_context(self.debcache().apt_archives())
         return self._apt_archives
 
+    @cached_property
     def extra_packages_dir(self) -> Optional[str]:
         """
         Return the path of a directory with extra packages to add as a source
         to containers
         """
-        if self._extra_packages_dir is None:
-            if (path := self.moncic.config.extra_packages_dir):
-                self._extra_packages_dir = self.enter_context(extra_packages_dir(path))
-        return self._extra_packages_dir
+        if (path := self.moncic.config.extra_packages_dir):
+            return self.enter_context(extra_packages_dir(path))
+        else:
+            return None
