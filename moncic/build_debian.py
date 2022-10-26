@@ -6,7 +6,7 @@ import subprocess
 import shutil
 import tempfile
 from configparser import ConfigParser
-from typing import TYPE_CHECKING, List, NamedTuple, Optional
+from typing import TYPE_CHECKING, List, NamedTuple, Optional, cast
 
 import git
 
@@ -285,7 +285,9 @@ class DebianGBP(Debian):
         # Make a local branch for the upstream branch in gbp.conf, if it
         # does not already exist
         gitrepo = git.Repo(".")
-        if branch not in gitrepo.branches:
+        # Not sure how to fit the type of gitrepo.branches here, but it behaves
+        # like a list of strings
+        if branch not in cast(list[str], gitrepo.branches):
             remote = gitrepo.remotes["origin"]
             remote_branch = remote.refs[branch]
             gitrepo.create_head(branch, remote_branch)
