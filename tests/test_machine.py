@@ -271,13 +271,14 @@ class RunTestCase:
         self.maxDiff = None
 
         with self.container() as container:
-            with self.assertLogs() as lg:
+            with self.assertLogs(level=logging.DEBUG) as lg:
                 res = container.run_callable(test_log)
             self.assertEqual(res.stdout, b"")
             self.assertEqual(res.stderr, b"")
 
             logname = container.system.log.name
-            self.assertEqual(lg.output, [
+            output = [line for line in lg.output if 'asyncio' not in line]
+            self.assertEqual(output, [
                 f"INFO:{logname}:Running test_log",
                 f"DEBUG:{logname}:debug",
                 f"INFO:{logname}:info",
