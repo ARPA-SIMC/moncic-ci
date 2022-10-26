@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING, List, NamedTuple, Optional
 import git
 
 from . import setns
-from .build import Builder, link_or_copy, run
+from .build import Builder, link_or_copy
 from .deb import apt_get_cmd
 from .runner import UserConfig
-from .utils import cd
+from .utils import cd, run
 
 if TYPE_CHECKING:
     from .container import Container, System

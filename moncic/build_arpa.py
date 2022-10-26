@@ -9,7 +9,8 @@ from typing import TYPE_CHECKING, Optional
 
 from .distro import DnfDistro, YumDistro
 from .runner import UserConfig
-from .build import Builder, run, link_or_copy
+from .build import Builder, link_or_copy
+from .utils import run
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -72,6 +73,7 @@ class ARPA(RPM):
 
     def setup_container_guest(self):
         super().setup_container_guest()
+
         # Reinstantiate the module logger
         global log
         log = logging.getLogger(__name__)
@@ -79,6 +81,7 @@ class ARPA(RPM):
     def build_in_container(self, source_only: bool = False) -> Optional[int]:
         # This is executed as a process in the running system; stdout and
         # stderr are logged
+        self.setup_container_guest()
 
         # Install build dependencies
         run(self.builddep + ["-q", "-y", self.specfile])

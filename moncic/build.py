@@ -3,28 +3,17 @@ from __future__ import annotations
 import dataclasses
 import logging
 import os
-import shlex
 import shutil
-import subprocess
 from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 
 from .container import ContainerConfig
 from .runner import UserConfig
-from . import distro
+from . import distro, utils
 
 if TYPE_CHECKING:
     from .container import Container, System
 
 log = logging.getLogger(__name__)
-
-
-def run(cmd, check=True, **kwargs) -> subprocess.CompletedProcess:
-    """
-    subprocess.run wrapper that has check=True by default and logs the commands
-    run
-    """
-    log.info("Run: %s", " ".join(shlex.quote(c) for c in cmd))
-    return subprocess.run(cmd, check=check, **kwargs)
 
 
 def link_or_copy(src: str, dstdir: str, filename: Optional[str] = None, user: Optional[UserConfig] = None):
@@ -123,6 +112,8 @@ class Builder:
         # Reinstantiate the module logger
         global log
         log = logging.getLogger(__name__)
+
+        utils.fix_logging_on_guest()
 
     def log_capture_start(self, log_file: str):
         self.buildlog_file = open(log_file, "wt")
