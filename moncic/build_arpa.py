@@ -126,18 +126,19 @@ class ARPA(RPM):
             "SRPMS/*.rpm",
         )
         basedir = os.path.join(container_root, "root/rpmbuild")
+        build_log_name: Optional[str] = None
         for pattern in patterns:
             for file in glob.glob(os.path.join(basedir, pattern)):
                 filename = os.path.basename(file)
+                if filename.endswith(".src.rpm"):
+                    build_log_name = filename[:-8] + ".buildlog"
                 log.info("Copying %s to %s", filename, destdir)
                 link_or_copy(file, destdir, user=user)
 
-        if os.path.exists(logfile := os.path.join(container_root, "srv", "moncic-ci", "buildlog")):
-            res = run(
-                    ["rpmspec", "--query", "--srpm", "--queryformat=%{name}.%{version}.%{release}", self.specfile],
-                    capture_output=True, text=True)
-            build_log_name = res.stdout.strip() + ".buildlog"
+        if build_log_name is None:
+            build_log_name = os.path.basename(self.specfile)[:-5] + ".buildlog"
 
+        if os.path.exists(logfile := os.path.join(container_root, "srv", "moncic-ci", "buildlog")):
             self.log_capture_end()
             link_or_copy(
                     logfile, destdir, user=user,
