@@ -159,6 +159,17 @@ class Analyzer:
         return versions
 
     @cached_property
+    def upstream_version(self) -> Optional[str]:
+        """
+        Return the upstream version, if it can be univocally determined, else
+        None
+        """
+        upstream_version = self.same_values(self.version_from_sources)
+        if upstream_version is None:
+            self.warning("Cannot univocally determine upstream version")
+        return upstream_version
+
+    @cached_property
     def version_from_debian_branches(self) -> Dict[str, str]:
         """
         Get the debian version from Debian branches
@@ -188,3 +199,49 @@ class Analyzer:
             self.warning(f"Versions mismatch: {'; '.join(descs)}")
 
         return versions
+
+    @cached_property
+    def version_from_arpa_specfile(self) -> Optional[str]:
+        """
+        Get the version from ARPA's specfile
+        """
+        re_version = re.compile(r"\s*Version:\s+(\S+)")
+
+        branch = self.repo.references[self.main_branch]
+        try:
+            specs_tree = branch.commit.tree["fedora"]["SPECS"]
+        except KeyError:
+            return None
+
+        specs: List[git.objects.blob] = []
+        for blob in specs_tree.blobs:
+            if blob.name.endswith(".spec"):
+                specs.append(blob)
+
+        if not specs:
+            self.warning(f"No specfile found in {self.main_branch}:fedora/SPECS")
+            return None
+
+        if len(specs) > 1:
+            self.warning(f"Multiple specfiles found in {self.main_branch}:fedora/SPECS:"
+                         f" {', '.join(s.name for s in specs)}")
+            return None
+
+        for line in specs[0].data_stream.read().decode().splitlines():
+            if (mo := re_version.match(line)):
+                return mo.group(1)
+
+        return None
+
+    @classmethod
+    def same_values(cls, versions: Dict[str, str]) -> Optional[str]:
+        """
+        If all the dict's entries have the same value, return that value.
+
+        Else, return None
+        """
+        res = set(versions.values())
+        if len(res) == 1:
+            return next(iter(res))
+        else:
+            return None

@@ -35,8 +35,12 @@ class RPM(Builder):
 
     @classmethod
     def analyze(cls, analyzer: Analyzer):
-        main_branch_name = analyzer.main_branch
-        # TODO: check that spec version is in sync with upstream
+        # Check that spec version is in sync with upstream
+        upstream_version = Analyzer.same_values(analyzer.version_from_sources)
+        spec_version = analyzer.version_from_arpa_specfile
+        if upstream_version and upstream_version != spec_version:
+            analyzer.warning(f"Upstream version {upstream_version!r} is different than specfile {spec_version!r}")
+
         # TODO: check that upstream tag exists
 
 

@@ -210,34 +210,25 @@ class Debian(Builder):
 
     @classmethod
     def analyze(cls, analyzer: Analyzer):
-        main_branch_name = analyzer.main_branch
-        print(analyzer.debian_packaging_branches)
-        print(analyzer.version_from_sources)
-        print(analyzer.version_from_debian_branches)
-
-        def same_values(versions: Dict[str, str]) -> Optional[str]:
-            res = set(versions.values())
-            if len(res) == 1:
-                return next(iter(res))
-            else:
-                return None
-
-        upstream_version = same_values(analyzer.version_from_sources)
-        debian_version = same_values(analyzer.version_from_debian_branches)
+        upstream_version = analyzer.upstream_version
+        debian_version = Analyzer.same_values(analyzer.version_from_debian_branches)
 
         # Check that debian/changelog versions are in sync with upstream
         if upstream_version is not None and debian_version is not None:
             if upstream_version not in debian_version:
                 analyzer.warning(f"Debian version {debian_version!r} is out of sync"
                                  f" with upstream version {upstream_version!r}")
-        else:
-            if upstream_version is None:
-                analyzer.warning("Cannot univocally determine upstream version")
-            if debian_version is None:
-                analyzer.warning("Cannot univocally determine debian version")
+            # if debian_version is None:
+            #     analyzer.warning("Cannot univocally determine debian version")
+
+        # Check upstream merge status of the various debian branches
+        upstream_branch = analyzer.repo.references[analyzer.main_branch]
+        for name, branch_name in analyzer.debian_packaging_branches.items():
+            debian_branch = analyzer.repo.references[branch_name]
+            if not analyzer.repo.is_ancestor(upstream_branch, debian_branch):
+                analyzer.warning(f"Upstream branch {analyzer.main_branch!r} is not merged in {name!r}")
 
         # TODO: check tags present for one distro but not for the other
-        # TODO: check upstream merge status of the various debian branches
         # TODO: check that upstream tag exists if debian/changelog is not UNRELEASED
 
 
