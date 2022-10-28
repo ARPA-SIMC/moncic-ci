@@ -4,7 +4,7 @@ import argparse
 import logging
 import moncic
 from moncic.cli import run
-from moncic.ci import CI, Bootstrap, Shell, Update, Remove, Images, Distros, Run, Dedup
+from moncic import ci
 
 
 log = logging.getLogger(__name__)
@@ -15,15 +15,16 @@ def main():
     parser.add_argument("--version", action="version", version=moncic.__version__)
     subparsers = parser.add_subparsers(help="sub-command help", dest="command", required=True)
 
-    CI.make_subparser(subparsers)
-    Images.make_subparser(subparsers)
-    Distros.make_subparser(subparsers)
-    Bootstrap.make_subparser(subparsers)
-    Update.make_subparser(subparsers)
-    Remove.make_subparser(subparsers)
-    Shell.make_subparser(subparsers)
-    Run.make_subparser(subparsers)
-    Dedup.make_subparser(subparsers)
+    ci.CI.make_subparser(subparsers)
+    ci.Images.make_subparser(subparsers)
+    ci.Distros.make_subparser(subparsers)
+    ci.Bootstrap.make_subparser(subparsers)
+    ci.Update.make_subparser(subparsers)
+    ci.Remove.make_subparser(subparsers)
+    ci.Shell.make_subparser(subparsers)
+    ci.Run.make_subparser(subparsers)
+    ci.Dedup.make_subparser(subparsers)
+    ci.Analyze.make_subparser(subparsers)
 
     args = parser.parse_args()
     handler = args.command(args)

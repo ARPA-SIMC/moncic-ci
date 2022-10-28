@@ -503,3 +503,20 @@ class Dedup(MoncicCommand):
     def run(self):
         with self.moncic.session() as session:
             session.images.deduplicate()
+
+
+class Analyze(Command):
+    """
+    Run consistency checks on a source directory using all available build
+    styles
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("repo", nargs="?", default=".",
+                            help="path or url of the repository to build. Default: the current directory")
+        return parser
+
+    def run(self):
+        Builder.analyze(self.args.repo)

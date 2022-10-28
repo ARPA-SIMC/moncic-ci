@@ -32,6 +32,10 @@ class RPM(Builder):
 
         raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
 
+    @classmethod
+    def analyze(cls, path: str):
+        pass
+
 
 @Builder.register
 class ARPA(RPM):

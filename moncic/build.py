@@ -209,3 +209,12 @@ class Builder:
         """
         # Do nothing by default
         pass
+
+    @classmethod
+    def analyze(cls, path: str):
+        """
+        Run consistency checks on the given source directory, using all
+        available build styles
+        """
+        cls.builders["debian"].analyze(path)
+        cls.builders["rpm"].analyze(path)

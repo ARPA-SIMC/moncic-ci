@@ -207,6 +207,10 @@ class Debian(Builder):
                     filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)
 
+    @classmethod
+    def analyze(cls, path: str):
+        pass
+
 
 @Builder.register
 class DebianPlain(Debian):
