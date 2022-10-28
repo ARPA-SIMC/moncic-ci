@@ -11,6 +11,8 @@
 * Added `ci --source-only` to do source-only builds
 * Changes in `monci ci` command line: `-s` is now short for `--build-style`,
   and the system name is given as first argument (#73)
+* Added experimental `monci analyze` that runs consistency checks on source
+  directories
 
 # Version 0.7
 
