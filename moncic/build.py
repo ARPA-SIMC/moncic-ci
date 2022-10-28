@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 from .container import ContainerConfig
 from .runner import UserConfig
 from .utils import guest_only, host_only
+from .analyze import Analyzer
 from . import distro, utils
 
 if TYPE_CHECKING:
@@ -211,10 +212,11 @@ class Builder:
         pass
 
     @classmethod
-    def analyze(cls, path: str):
+    def analyze(cls, analyzer: Analyzer):
         """
         Run consistency checks on the given source directory, using all
         available build styles
         """
-        cls.builders["debian"].analyze(path)
-        cls.builders["rpm"].analyze(path)
+        cls.builders["debian"].analyze(analyzer)
+        cls.builders["rpm"].analyze(analyzer)
+        # TODO: check that NEWS.md version matches upstream version

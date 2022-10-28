@@ -11,6 +11,7 @@ from .distro import DnfDistro, YumDistro
 from .runner import UserConfig
 from .build import Builder, link_or_copy
 from .utils import run, guest_only, host_only
+from .analyze import Analyzer
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -33,8 +34,10 @@ class RPM(Builder):
         raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
 
     @classmethod
-    def analyze(cls, path: str):
-        pass
+    def analyze(cls, analyzer: Analyzer):
+        main_branch_name = analyzer.main_branch
+        # TODO: check that spec version is in sync with upstream
+        # TODO: check that upstream tag exists
 
 
 @Builder.register

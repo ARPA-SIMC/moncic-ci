@@ -27,6 +27,7 @@ from . import build_arpa, build_debian  # noqa: import them so they are register
 from .moncic import Moncic, MoncicConfig, expand_path
 from .distro import DistroFamily
 from .privs import ProcessPrivs
+from .analyze import Analyzer
 
 if TYPE_CHECKING:
     from .system import System
@@ -519,4 +520,5 @@ class Analyze(Command):
         return parser
 
     def run(self):
-        Builder.analyze(self.args.repo)
+        analyzer = Analyzer(self.args.repo)
+        Builder.analyze(analyzer)
