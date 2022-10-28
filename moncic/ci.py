@@ -140,9 +140,7 @@ class CI(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--system", action="store",
-                            help="name or path of the system used to build")
-        parser.add_argument("-b", "--build-style", action="store",
+        parser.add_argument("-s", "--build-style", action="store",
                             help="name of the procedure used to run the CI. Default: autodetect")
         parser.add_argument("-a", "--artifacts", metavar="dir", action="store",
                             help="directory where build artifacts will be stored")
@@ -150,6 +148,8 @@ class CI(MoncicCommand):
                             help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
+        parser.add_argument("system", action="store",
+                            help="name or path of the system used to build")
         parser.add_argument("repo", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
         return parser

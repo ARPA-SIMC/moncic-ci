@@ -9,6 +9,8 @@
   the artifacts directory (#48)
 * Save a build log among output artifacts (#67)
 * Added `ci --source-only` to do source-only builds
+* Changes in `monci ci` command line: `-s` is now short for `--build-style`,
+  and the system name is given as first argument (#73)
 
 # Version 0.7
 
