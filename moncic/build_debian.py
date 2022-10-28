@@ -7,7 +7,7 @@ import subprocess
 import shutil
 import tempfile
 from configparser import ConfigParser
-from typing import TYPE_CHECKING, List, NamedTuple, Optional, cast
+from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, cast
 
 import git
 
@@ -16,6 +16,7 @@ from .build import Builder, link_or_copy
 from .deb import apt_get_cmd
 from .runner import UserConfig
 from .utils import cd, run, guest_only, host_only
+from .analyze import Analyzer
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -206,6 +207,29 @@ class Debian(Builder):
                     logfile, destdir, user=user,
                     filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)
+
+    @classmethod
+    def analyze(cls, analyzer: Analyzer):
+        upstream_version = analyzer.upstream_version
+        debian_version = Analyzer.same_values(analyzer.version_from_debian_branches)
+
+        # Check that debian/changelog versions are in sync with upstream
+        if upstream_version is not None and debian_version is not None:
+            if upstream_version not in debian_version:
+                analyzer.warning(f"Debian version {debian_version!r} is out of sync"
+                                 f" with upstream version {upstream_version!r}")
+            # if debian_version is None:
+            #     analyzer.warning("Cannot univocally determine debian version")
+
+        # Check upstream merge status of the various debian branches
+        upstream_branch = analyzer.repo.references[analyzer.main_branch]
+        for name, branch_name in analyzer.debian_packaging_branches.items():
+            debian_branch = analyzer.repo.references[branch_name]
+            if not analyzer.repo.is_ancestor(upstream_branch, debian_branch):
+                analyzer.warning(f"Upstream branch {analyzer.main_branch!r} is not merged in {name!r}")
+
+        # TODO: check tags present for one distro but not for the other
+        # TODO: check that upstream tag exists if debian/changelog is not UNRELEASED
 
 
 @Builder.register

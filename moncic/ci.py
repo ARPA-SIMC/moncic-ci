@@ -27,6 +27,7 @@ from . import build_arpa, build_debian  # noqa: import them so they are register
 from .moncic import Moncic, MoncicConfig, expand_path
 from .distro import DistroFamily
 from .privs import ProcessPrivs
+from .analyze import Analyzer
 
 if TYPE_CHECKING:
     from .system import System
@@ -503,3 +504,21 @@ class Dedup(MoncicCommand):
     def run(self):
         with self.moncic.session() as session:
             session.images.deduplicate()
+
+
+class Analyze(Command):
+    """
+    Run consistency checks on a source directory using all available build
+    styles
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("repo", nargs="?", default=".",
+                            help="path or url of the repository to build. Default: the current directory")
+        return parser
+
+    def run(self):
+        analyzer = Analyzer(self.args.repo)
+        Builder.analyze(analyzer)
