@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 def main():
     parser = argparse.ArgumentParser(description="CI tool")
     parser.add_argument("--version", action="version", version=moncic.__version__)
-    subparsers = parser.add_subparsers(help="sub-command help", dest="command", required=True)
+    subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
 
     ci.CI.make_subparser(subparsers)
     ci.Images.make_subparser(subparsers)
@@ -27,7 +27,7 @@ def main():
     ci.Analyze.make_subparser(subparsers)
 
     args = parser.parse_args()
-    handler = args.command(args)
+    handler = args.handler(args)
     return handler.run()
 
 

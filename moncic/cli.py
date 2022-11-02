@@ -64,7 +64,7 @@ class Command:
             cls.NAME,
             help=_get_first_docstring_line(cls),
         )
-        parser.set_defaults(command=cls)
+        parser.set_defaults(handler=cls)
         parser.add_argument(
             "-v",
             "--verbose",
