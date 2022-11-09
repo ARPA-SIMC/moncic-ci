@@ -22,6 +22,7 @@ except ModuleNotFoundError:
     HAVE_TEXTTABLE = False
 
 import git
+import ruamel.yaml
 import yaml
 
 from . import (  # noqa: import them so they are registered as builders
@@ -227,6 +228,7 @@ class Image(MoncicCommand):
                               allow_unicode=True, explicit_start=True,
                               sort_keys=False, Dumper=yaml.CDumper)
 
+            log.info("%s: bootstrapping image", self.args.name)
             try:
                 session.images.bootstrap_system(self.args.name)
             except Exception:
@@ -239,7 +241,33 @@ class Image(MoncicCommand):
         self.create({"distro": self.args.distro})
 
     def do_setup(self):
-        raise NotImplementedError("setup")
+        with self.moncic.session() as session:
+            with self.moncic.privs.user():
+                if path := session.images.find_config(self.args.name):
+                    # Use ruamel.yaml to preserve comments
+                    ryaml = ruamel.yaml.YAML(typ="rt")
+                    with open(path, "rt") as fd:
+                        data = ryaml.load(fd)
+                        st = os.fstat(fd.fileno())
+                        mode = stat.S_IMODE(st.st_mode)
+
+                    if maintscript := data.get("maintscript"):
+                        maintscript += "\n" + " ".join(shlex.quote(c) for c in self.args.setup)
+                    else:
+                        maintscript = " ".join(shlex.quote(c) for c in self.args.setup)
+                    data["maintscript"] = ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
+
+                    with atomic_writer(path, "wt", chmod=mode) as out:
+                        ryaml.dump(data, out)
+                else:
+                    raise Fail(f"{self.args.name}: configuration does not exist")
+
+            with session.images.maintenance_system(self.args.name) as system:
+                log.info("%s: updating image", self.args.name)
+                try:
+                    system.update()
+                except Exception:
+                    log.error("%s: cannot update image", self.args.name, exc_info=True)
 
     def do_edit(self):
         with self.moncic.session() as session:
@@ -418,7 +446,7 @@ class Bootstrap(MoncicCommand):
                     return 5
 
                 with images.maintenance_system(name) as system:
-                    log.info("%s: updating subvolume", name)
+                    log.info("%s: updating image", name)
                     try:
                         system.update()
                     except Exception:
@@ -453,7 +481,7 @@ class Update(MoncicCommand):
                     if not os.path.exists(system.path):
                         continue
 
-                    log.info("%s: updating subvolume", name)
+                    log.info("%s: updating image", name)
                     try:
                         system.update()
                         count_ok += 1
