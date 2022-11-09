@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import contextlib
 import csv
@@ -10,8 +11,9 @@ import stat
 import subprocess
 import sys
 import tempfile
-from typing import Optional, Sequence, Any, TextIO, NamedTuple, TYPE_CHECKING, Dict
 import urllib.parse
+from typing import (TYPE_CHECKING, Any, Dict, NamedTuple, Optional, Sequence,
+                    TextIO)
 
 try:
     from texttable import Texttable
@@ -22,14 +24,15 @@ except ModuleNotFoundError:
 import git
 import yaml
 
+from . import (  # noqa: import them so they are registered as builders
+    build_arpa, build_debian)
+from .analyze import Analyzer
+from .build import Builder
 from .cli import Command, Fail
 from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
-from .build import Builder
-from . import build_arpa, build_debian  # noqa: import them so they are registered as builders
-from .moncic import Moncic, MoncicConfig, expand_path
 from .distro import DistroFamily
+from .moncic import Moncic, MoncicConfig, expand_path
 from .privs import ProcessPrivs
-from .analyze import Analyzer
 from .utils import atomic_writer, edit_yaml
 
 if TYPE_CHECKING:
