@@ -65,6 +65,8 @@ For running the test suite of local code on a different OS, see [Testing on anot
 
 For building Debian packages, see [Building Debian packages](doc/build-debian.md).
 
+For a helping hand in testing, see [Reproducible test sessions](doc/reproducible-testing.md).
+
 ## Technology
 
 Moncic-CI uses [systemd-nspawn](https://www.freedesktop.org/software/systemd/man/systemd-nspawn.html)
