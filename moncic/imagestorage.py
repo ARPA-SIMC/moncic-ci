@@ -276,10 +276,7 @@ class BtrfsImages(Images):
                 os.rename(work_path, path)
 
     def remove_system(self, name: str):
-        path = os.path.join(self.imagedir, name)
-        if not os.path.exists(path):
-            return
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, path)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         subvolume = Subvolume(system_config, self.session.moncic.config)
         subvolume.remove()
 

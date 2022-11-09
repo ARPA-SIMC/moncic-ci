@@ -69,7 +69,7 @@ class SystemConfig:
         return None
 
     @classmethod
-    def load(cls, mconfig: MoncicConfig, imagedir: str, name: str):
+    def load(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> "SystemConfig":
         """
         Load the configuration from the given path setup.
 
