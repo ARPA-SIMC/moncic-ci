@@ -10,7 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
-from typing import Optional, Sequence, Any, TextIO, NamedTuple, TYPE_CHECKING
+from typing import Optional, Sequence, Any, TextIO, NamedTuple, TYPE_CHECKING, Dict
 import urllib.parse
 
 try:
@@ -20,6 +20,7 @@ except ModuleNotFoundError:
     HAVE_TEXTTABLE = False
 
 import git
+import yaml
 
 from .cli import Command, Fail
 from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
@@ -209,11 +210,30 @@ class Image(MoncicCommand):
         else:
             raise NotImplementedError("cannot determine what to do")
 
+    def create(self, contents: Dict[str, Any]):
+        """
+        Create a configuration with the given contents
+        """
+        with self.moncic.session() as session:
+            with self.moncic.privs.user():
+                if path := session.images.find_config(self.args.name):
+                    raise Fail(f"{self.args.name}: configuration already exists in {path}")
+                path = os.path.join(self.moncic.config.imageconfdirs[0], f"{self.args.name}.yaml")
+                with atomic_writer(path, "wt", use_umask=True) as fd:
+                    yaml.dump(contents, stream=fd, default_flow_style=False,
+                              allow_unicode=True, explicit_start=True,
+                              sort_keys=False, Dumper=yaml.CDumper)
+
+            try:
+                session.images.bootstrap_system(self.args.name)
+            except Exception:
+                log.error("%s: cannot create image", self.args.name, exc_info=True)
+
     def do_extends(self):
-        raise NotImplementedError("extends")
+        self.create({"extends": self.args.extends})
 
     def do_distro(self):
-        raise NotImplementedError("distro")
+        self.create({"distro": self.args.distro})
 
     def do_setup(self):
         raise NotImplementedError("setup")
