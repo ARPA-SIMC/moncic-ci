@@ -394,6 +394,8 @@ class Remove(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("systems", nargs="+",
                             help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
+        parser.add_argument("--purge", "-P", action="store_true",
+                            help="also remove the image configuration file")
         return parser
 
     def run(self):
@@ -401,6 +403,8 @@ class Remove(MoncicCommand):
             images = session.images
             for name in self.args.systems:
                 images.remove_system(name)
+                if self.args.purge:
+                    images.remove_config(name)
 
 
 class RowOutput:

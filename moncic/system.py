@@ -56,6 +56,19 @@ class SystemConfig:
     tmpfs: Optional[bool] = None
 
     @classmethod
+    def find_config(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> Optional[str]:
+        """
+        Find the configuration file for the given image
+        """
+        for path in [imagedir] + mconfig.imageconfdirs:
+            conf_pathname = os.path.join(path, name) + ".yaml"
+            log.debug("%s: look for configuration on %s", name, conf_pathname)
+            if os.path.exists(conf_pathname):
+                log.debug("%s: configuration found at %s", name, conf_pathname)
+                return conf_pathname
+        return None
+
+    @classmethod
     def load(cls, mconfig: MoncicConfig, imagedir: str, name: str):
         """
         Load the configuration from the given path setup.
@@ -67,19 +80,11 @@ class SystemConfig:
         Otherwise, configuration is inferred from the basename of the path,
         which is assumed to be a distribution name.
         """
-        for path in [imagedir] + mconfig.imageconfdirs:
-            conf_pathname = os.path.join(path, name)
-            log.debug("%s: look for configuration on %s", name, conf_pathname)
-            try:
-                with open(f"{conf_pathname}.yaml", "rt") as fd:
-                    conf = yaml.load(fd, Loader=yaml.CLoader)
-                log.debug("%s: configuration found at %s", name, conf_pathname)
-                break
-            except FileNotFoundError:
-                pass
+        if conf_pathname := cls.find_config(mconfig, imagedir, name):
+            with open(conf_pathname, "rt") as fd:
+                conf = yaml.load(fd, Loader=yaml.CLoader)
         else:
             conf = None
-            conf_pathname = None
 
         image_pathname = os.path.abspath(os.path.join(imagedir, name))
         log.debug("%s: image pathname: %s", name, image_pathname)
@@ -118,7 +123,7 @@ class SystemConfig:
         allowed_names = {f.name for f in dataclasses.fields(SystemConfig)}
         if unsupported_names := conf.keys() - allowed_names:
             for name in unsupported_names:
-                log.debug("%s: ignoring unsupported configuration: %r", path, name)
+                log.debug("%s: ignoring unsupported configuration: %r", conf_pathname, name)
                 del conf[name]
 
         return cls(**conf)

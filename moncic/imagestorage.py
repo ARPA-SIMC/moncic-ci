@@ -96,6 +96,16 @@ class Images:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.remove_system is not implemented")
 
+    def remove_config(self, name: str):
+        """
+        Remove the configuration for the named system, if it exists
+        """
+        # Import here to prevent import loops
+        from .system import SystemConfig
+        if path := SystemConfig.find_config(self.session.moncic.config, self.imagedir, name):
+            log.info("%s: removing image configuration file", path)
+            os.unlink(path)
+
     def add_dependencies(self, images: List[str]) -> List[str]:
         """
         Add dependencies to the given list of images, returning the extended
