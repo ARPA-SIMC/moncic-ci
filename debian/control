@@ -3,14 +3,15 @@ Section: python
 Priority: optional
 Maintainer: Enrico Zini <enrico@debian.org>
 Build-Depends: debhelper (>= 13), dh-python,
-               python3-all, python3-setuptools, python3-yaml, python3-requests,
-               btrfs-progs, dnf, systemd-container
+	       python3-all, python3-setuptools, python3-yaml,
+	       python3-ruamel.yaml, python3-requests, btrfs-progs, dnf,
+	       systemd-container
 Standards-Version: 4.2.0
 
 Package: moncic-ci
 Architecture: all
 Depends: ${misc:Depends}, ${python3:Depends},
-         python3-yaml, btrfs-progs, systemd-container, mkosi
+         python3-yaml, python3-ruamel.yaml, btrfs-progs, systemd-container, mkosi
 Recommends: ${python3:Recommends}, python3-coloredlogs, python3-texttable,
 Suggests: ${python3:Suggests}
 Description: Continuous integration tool, and development helper

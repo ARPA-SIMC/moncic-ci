@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import contextlib
 import csv
@@ -6,11 +7,13 @@ import logging
 import os
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
-from typing import Optional, Sequence, Any, TextIO, NamedTuple, TYPE_CHECKING
 import urllib.parse
+from typing import (TYPE_CHECKING, Any, Dict, NamedTuple, Optional, Sequence,
+                    TextIO)
 
 try:
     from texttable import Texttable
@@ -19,15 +22,19 @@ except ModuleNotFoundError:
     HAVE_TEXTTABLE = False
 
 import git
+import ruamel.yaml
+import yaml
 
+from . import (  # noqa: import them so they are registered as builders
+    build_arpa, build_debian)
+from .analyze import Analyzer
+from .build import Builder
 from .cli import Command, Fail
 from .container import BindConfig, ContainerConfig, RunConfig, UserConfig
-from .build import Builder
-from . import build_arpa, build_debian  # noqa: import them so they are registered as builders
-from .moncic import Moncic, MoncicConfig, expand_path
 from .distro import DistroFamily
+from .moncic import Moncic, MoncicConfig, expand_path
 from .privs import ProcessPrivs
-from .analyze import Analyzer
+from .utils import atomic_writer, edit_yaml
 
 if TYPE_CHECKING:
     from .system import System
@@ -172,6 +179,110 @@ class CI(MoncicCommand):
                     log.info("Build using builder %r", builder.__class__.__name__)
 
                     return builder.build(shell=self.args.shell, source_only=self.args.source_only)
+
+
+class Image(MoncicCommand):
+    """
+    image creation and maintenance
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("name",
+                            help="name of the image")
+        group = parser.add_mutually_exclusive_group(required=True)
+        group.add_argument("--extends", action="store", metavar="name",
+                           help="create a new image, extending an existing one")
+        group.add_argument("--distro", action="store", metavar="name",
+                           help="create a new image, bootstrapping the given distribution")
+        group.add_argument("--setup", "-s", action="store", nargs=argparse.REMAINDER,
+                           help="run and record a maintenance command to setup the image")
+        group.add_argument("--edit", action="store_true",
+                           help="open an editor on the image configuration file")
+        return parser
+
+    def run(self):
+        if self.args.extends:
+            self.do_extends()
+        elif self.args.distro:
+            self.do_distro()
+        elif self.args.setup:
+            self.do_setup()
+        elif self.args.edit:
+            self.do_edit()
+        else:
+            raise NotImplementedError("cannot determine what to do")
+
+    def create(self, contents: Dict[str, Any]):
+        """
+        Create a configuration with the given contents
+        """
+        with self.moncic.session() as session:
+            with self.moncic.privs.user():
+                if path := session.images.find_config(self.args.name):
+                    raise Fail(f"{self.args.name}: configuration already exists in {path}")
+                path = os.path.join(self.moncic.config.imageconfdirs[0], f"{self.args.name}.yaml")
+                with atomic_writer(path, "wt", use_umask=True) as fd:
+                    yaml.dump(contents, stream=fd, default_flow_style=False,
+                              allow_unicode=True, explicit_start=True,
+                              sort_keys=False, Dumper=yaml.CDumper)
+
+            log.info("%s: bootstrapping image", self.args.name)
+            try:
+                session.images.bootstrap_system(self.args.name)
+            except Exception:
+                log.error("%s: cannot create image", self.args.name, exc_info=True)
+
+    def do_extends(self):
+        self.create({"extends": self.args.extends})
+
+    def do_distro(self):
+        self.create({"distro": self.args.distro})
+
+    def do_setup(self):
+        with self.moncic.session() as session:
+            with self.moncic.privs.user():
+                if path := session.images.find_config(self.args.name):
+                    # Use ruamel.yaml to preserve comments
+                    ryaml = ruamel.yaml.YAML(typ="rt")
+                    with open(path, "rt") as fd:
+                        data = ryaml.load(fd)
+                        st = os.fstat(fd.fileno())
+                        mode = stat.S_IMODE(st.st_mode)
+
+                    if maintscript := data.get("maintscript"):
+                        maintscript += "\n" + " ".join(shlex.quote(c) for c in self.args.setup)
+                    else:
+                        maintscript = " ".join(shlex.quote(c) for c in self.args.setup)
+                    data["maintscript"] = ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
+
+                    with atomic_writer(path, "wt", chmod=mode) as out:
+                        ryaml.dump(data, out)
+                else:
+                    raise Fail(f"{self.args.name}: configuration does not exist")
+
+            with session.images.maintenance_system(self.args.name) as system:
+                log.info("%s: updating image", self.args.name)
+                try:
+                    system.update()
+                except Exception:
+                    log.error("%s: cannot update image", self.args.name, exc_info=True)
+
+    def do_edit(self):
+        with self.moncic.session() as session:
+            if path := session.images.find_config(self.args.name):
+                with self.moncic.privs.user():
+                    with open(path, "rt") as fd:
+                        buf = fd.read()
+                        st = os.fstat(fd.fileno())
+                        mode = stat.S_IMODE(st.st_mode)
+                    edited = edit_yaml(buf, path)
+                    if edited is not None:
+                        with atomic_writer(path, "wt", chmod=mode) as out:
+                            out.write(edited)
+            else:
+                raise Fail(f"Configuration for {self.args.name} not found")
 
 
 class ImageActionCommand(MoncicCommand):
@@ -335,7 +446,7 @@ class Bootstrap(MoncicCommand):
                     return 5
 
                 with images.maintenance_system(name) as system:
-                    log.info("%s: updating subvolume", name)
+                    log.info("%s: updating image", name)
                     try:
                         system.update()
                     except Exception:
@@ -370,7 +481,7 @@ class Update(MoncicCommand):
                     if not os.path.exists(system.path):
                         continue
 
-                    log.info("%s: updating subvolume", name)
+                    log.info("%s: updating image", name)
                     try:
                         system.update()
                         count_ok += 1
@@ -394,6 +505,8 @@ class Remove(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("systems", nargs="+",
                             help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
+        parser.add_argument("--purge", "-P", action="store_true",
+                            help="also remove the image configuration file")
         return parser
 
     def run(self):
@@ -401,6 +514,8 @@ class Remove(MoncicCommand):
             images = session.images
             for name in self.args.systems:
                 images.remove_system(name)
+                if self.args.purge:
+                    images.remove_config(name)
 
 
 class RowOutput:

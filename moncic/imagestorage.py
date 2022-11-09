@@ -96,6 +96,23 @@ class Images:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.remove_system is not implemented")
 
+    def find_config(self, name: str) -> Optional[str]:
+        """
+        Return the path of the config file of the given image, if it exists
+        """
+        # Import here to prevent import loops
+        from .system import SystemConfig
+        return SystemConfig.find_config(self.session.moncic.config, self.imagedir, name)
+
+    def remove_config(self, name: str):
+        """
+        Remove the configuration for the named system, if it exists
+        """
+        # Import here to prevent import loops
+        if path := self.find_config(name):
+            log.info("%s: removing image configuration file", path)
+            os.unlink(path)
+
     def add_dependencies(self, images: List[str]) -> List[str]:
         """
         Add dependencies to the given list of images, returning the extended
@@ -259,10 +276,7 @@ class BtrfsImages(Images):
                 os.rename(work_path, path)
 
     def remove_system(self, name: str):
-        path = os.path.join(self.imagedir, name)
-        if not os.path.exists(path):
-            return
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, path)
+        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         subvolume = Subvolume(system_config, self.session.moncic.config)
         subvolume.remove()
 

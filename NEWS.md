@@ -13,6 +13,11 @@
   and the system name is given as first argument (#73)
 * Added experimental `monci analyze` that runs consistency checks on source
   directories
+* Implemented `monci remove --purge` to also remove the config file (#74)
+* Implemented `monci image [name] --distro` to create a new image (#74)
+* Implemented `monci image [name] --extends` to create a new image (#74)
+* Implemented `monci image [name] --setup` to add a maintscript line to an image (#74)
+* Implemented `monci image [name] --edit` to edit an image's config file (#74)
 
 # Version 0.7
 

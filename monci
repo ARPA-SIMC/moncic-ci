@@ -16,6 +16,7 @@ def main():
     subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
 
     ci.CI.make_subparser(subparsers)
+    ci.Image.make_subparser(subparsers)
     ci.Images.make_subparser(subparsers)
     ci.Distros.make_subparser(subparsers)
     ci.Bootstrap.make_subparser(subparsers)
