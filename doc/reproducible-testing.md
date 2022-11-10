@@ -14,10 +14,16 @@ can use --distro to bootstrap a new image from scratch):
 monci image testimg --extends bookworm
 ```
 
-Use `monci image --setup` to install your testing environment:
+Use `monci image --install` to install packages you need:
 
 ```
-monci image testimg --setup apt install build-essential libfoo-dev
+monci image testimg --install build-essential libfoo-dev
+```
+
+Use `monci image --setup` to run extra maintenance commands:
+
+```
+monci image testimg --setup /usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf
 ```
 
 ## Test your code
