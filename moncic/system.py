@@ -37,6 +37,8 @@ class SystemConfig:
     # Name of the distribution used as a base for this one.
     # If missing, this image needs to be created by bootstrapping from scratch
     extends: Optional[str] = None
+    # List of packages to install
+    packages: List[str] = dataclasses.field(default_factory=list)
     # Contents of a script to run for system maintenance
     maintscript: Optional[str] = None
     # List of users to propagate from host to image during maintenance
@@ -207,7 +209,7 @@ class System:
                 parent._update_container(container)
         else:
             # Run the default standard distro maintenance
-            for cmd in self.distro.get_update_script():
+            for cmd in self.distro.get_update_script(self):
                 container.run(cmd)
 
         if self.config.maintscript is not None:

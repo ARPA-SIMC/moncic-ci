@@ -18,6 +18,7 @@ Keywords currently supported are:
 
 * `distro`: what distribution should be bootstrapped to create the image
 * `extends`: instead of bootstrapping, snapshot an existing OS image
+* `packages: List[str]`: list of extra packages to install during maintenance
 * `maintscript`: script run after bootstrap and during regular maintenance, to
   customize the OS image. If it does not start with a shebang (`#!`),
   `#!/bin/sh` is automatically prepended.

@@ -111,6 +111,65 @@ class BootstrapTestMixin(DistroTestMixin):
             run_log.assertPopFirst(f"'<replace>' {path}.new {path}")
         run_log.assertLogEmpty()
 
+    def test_packages_rpm(self):
+        with self.config() as mconfig:
+            base_dir = os.path.join(mconfig.imagedir, "test")
+            # Pretend that the distro has already been bootstrapped
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+                print("distro: rocky8", file=fd)
+                print("packages: [vim, mc]", file=fd)
+                print("maintscript: echo base", file=fd)
+            os.mkdir(base_dir)
+
+            with self.mock() as run_log:
+                moncic = make_moncic(mconfig)
+                with moncic.session() as session:
+                    images = session.images
+                    with images.maintenance_system("test") as system:
+                        system.update()
+                        path = system.path[:-4]
+
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
+        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
+        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
+        run_log.assertPopFirst('/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf vim mc')
+        run_log.assertPopFirst("script:#!/bin/sh\necho base")
+        run_log.assertPopFirst("cachedir_tag:")
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f"'<replace>' {path}.new {path}")
+        run_log.assertLogEmpty()
+
+    def test_packages_deb(self):
+        with self.config() as mconfig:
+            base_dir = os.path.join(mconfig.imagedir, "test")
+            # Pretend that the distro has already been bootstrapped
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+                print("distro: bookworm", file=fd)
+                print("packages: [vim, mc]", file=fd)
+                print("maintscript: echo base", file=fd)
+            os.mkdir(base_dir)
+
+            with self.mock() as run_log:
+                moncic = make_moncic(mconfig)
+                with moncic.session() as session:
+                    images = session.images
+                    with images.maintenance_system("test") as system:
+                        system.update()
+                        path = system.path[:-4]
+
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
+        apt_prefix = "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"' "
+        run_log.assertPopFirst("/usr/bin/apt-get update")
+        run_log.assertPopFirst(apt_prefix + "full-upgrade")
+        run_log.assertPopFirst(apt_prefix + "install bash dbus systemd apt-utils eatmydata iproute2 vim mc")
+        run_log.assertPopFirst("script:#!/bin/sh\necho base")
+        run_log.assertPopFirst("cachedir_tag:")
+        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
+            run_log.assertPopFirst(f"'<replace>' {path}.new {path}")
+        run_log.assertLogEmpty()
+
     def test_compression(self):
         with self.config() as mconfig:
             with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:

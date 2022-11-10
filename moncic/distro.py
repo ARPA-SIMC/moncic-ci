@@ -279,6 +279,13 @@ class Distro:
         """
         return ["bash", "dbus"]
 
+    def get_requested_packages(self, system: System) -> List[str]:
+        """
+        Return the list of packages that should be installed during maintenance
+        """
+        # Make a copy so the returning list can be modified freely
+        return list(system.config.packages)
+
     def container_config_hook(self, system: System, config: ContainerConfig):
         """
         Hook to allow distro-specific container setup
@@ -312,7 +319,7 @@ class Distro:
         except FileNotFoundError:
             pass
 
-    def get_update_script(self) -> List[List[str]]:
+    def get_update_script(self, system: System) -> List[List[str]]:
         """
         Get the sequence of commands to use for regular update/maintenance
         """
@@ -391,11 +398,11 @@ class YumDistro(RpmDistro):
     def get_base_packages(self) -> List[str]:
         return super().get_base_packages() + ["yum"]
 
-    def get_update_script(self):
-        res = super().get_update_script()
+    def get_update_script(self, system: System):
+        res = super().get_update_script(system)
         return res + [
             ["/usr/bin/yum", "upgrade", "-q", "-y"],
-            ["/usr/bin/yum", "install", "-q", "-y"] + self.get_base_packages(),
+            ["/usr/bin/yum", "install", "-q", "-y"] + self.get_base_packages() + self.get_requested_packages(system),
         ]
 
 
@@ -403,12 +410,12 @@ class DnfDistro(RpmDistro):
     def get_base_packages(self) -> List[str]:
         return super().get_base_packages() + ["dnf"]
 
-    def get_update_script(self):
-        res = super().get_update_script()
+    def get_update_script(self, system: System):
+        res = super().get_update_script(system)
         return res + [
             ["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"],
             ["/usr/bin/dnf", "upgrade", "-q", "-y"],
-            ["/usr/bin/dnf", "install", "-q", "-y"] + self.get_base_packages(),
+            ["/usr/bin/dnf", "install", "-q", "-y"] + self.get_base_packages() + self.get_requested_packages(system),
         ]
 
 
@@ -527,20 +534,20 @@ class DebianDistro(Distro):
                 cmd.insert(0, eatmydata)
             system.local_run(cmd)
 
-    def get_update_script(self) -> List[List[str]]:
+    def get_update_script(self, system: System) -> List[List[str]]:
         """
         Get the sequence of commands to use for regular update/maintenance
         """
+        res = super().get_update_script(system)
         apt_install_cmd = [
                 "/usr/bin/apt-get", "--assume-yes", "--quiet", "--show-upgraded",
                 # The space after -o is odd but required, and I could
                 # not find a better working syntax
                 '-o Dpkg::Options::="--force-confnew"']
-        return [
-            ["/usr/bin/apt-get", "update"],
-            apt_install_cmd + ["full-upgrade"],
-            apt_install_cmd + ["install"] + self.get_base_packages(),
-        ]
+        res.append(["/usr/bin/apt-get", "update"])
+        res.append(apt_install_cmd + ["full-upgrade"])
+        res.append(apt_install_cmd + ["install"] + self.get_base_packages() + self.get_requested_packages(system))
+        return res
 
 
 class UbuntuDistro(DebianDistro):
