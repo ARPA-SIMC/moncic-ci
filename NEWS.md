@@ -20,6 +20,8 @@
 * Implemented `monci image [name] --edit` to edit an image's config file (#74)
 * Allow to configure a list of packages in [image configuration](doc/image-config.md)
   instead of manually invoking the package manager in the maintscript
+* Implemented `monci image [name] --install [packages...] to add packages to
+  the image's package list
 
 # Version 0.7
 

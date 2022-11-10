@@ -38,6 +38,7 @@ from .utils import atomic_writer, edit_yaml
 
 if TYPE_CHECKING:
     from .system import System
+    from .session import Session
 
 log = logging.getLogger(__name__)
 
@@ -198,6 +199,8 @@ class Image(MoncicCommand):
                            help="create a new image, bootstrapping the given distribution")
         group.add_argument("--setup", "-s", action="store", nargs=argparse.REMAINDER,
                            help="run and record a maintenance command to setup the image")
+        group.add_argument("--install", "-i", nargs="+",
+                           help="install the given packages in the image")
         group.add_argument("--edit", action="store_true",
                            help="open an editor on the image configuration file")
         return parser
@@ -211,6 +214,8 @@ class Image(MoncicCommand):
             self.do_setup()
         elif self.args.edit:
             self.do_edit()
+        elif self.args.install:
+            self.do_install()
         else:
             raise NotImplementedError("cannot determine what to do")
 
@@ -240,6 +245,17 @@ class Image(MoncicCommand):
     def do_distro(self):
         self.create({"distro": self.args.distro})
 
+    def run_maintenance(self, session: Session):
+        """
+        Run system maintenance
+        """
+        with session.images.maintenance_system(self.args.name) as system:
+            log.info("%s: updating image", self.args.name)
+            try:
+                system.update()
+            except Exception:
+                log.error("%s: cannot update image", self.args.name, exc_info=True)
+
     def do_setup(self):
         with self.moncic.session() as session:
             with self.moncic.privs.user():
@@ -262,14 +278,45 @@ class Image(MoncicCommand):
                 else:
                     raise Fail(f"{self.args.name}: configuration does not exist")
 
-            with session.images.maintenance_system(self.args.name) as system:
-                log.info("%s: updating image", self.args.name)
-                try:
-                    system.update()
-                except Exception:
-                    log.error("%s: cannot update image", self.args.name, exc_info=True)
+            self.run_maintenance(session)
+
+    def do_install(self):
+        changed = False
+
+        with self.moncic.session() as session:
+            with self.moncic.privs.user():
+                if path := session.images.find_config(self.args.name):
+                    # Use ruamel.yaml to preserve comments
+                    ryaml = ruamel.yaml.YAML(typ="rt")
+                    with open(path, "rt") as fd:
+                        data = ryaml.load(fd)
+                        st = os.fstat(fd.fileno())
+                        mode = stat.S_IMODE(st.st_mode)
+
+                    packages = data.get("packages")
+                    if packages is None:
+                        packages = []
+
+                    # Add package names, avoiding duplicates
+                    for name in self.args.install:
+                        if name not in packages:
+                            changed = True
+                            packages.append(name)
+
+                    data["packages"] = packages
+
+                    if changed:
+                        with atomic_writer(path, "wt", chmod=mode) as out:
+                            ryaml.dump(data, out)
+                else:
+                    raise Fail(f"{self.args.name}: configuration does not exist")
+
+            if changed:
+                self.run_maintenance(session)
 
     def do_edit(self):
+        changed = False
+
         with self.moncic.session() as session:
             if path := session.images.find_config(self.args.name):
                 with self.moncic.privs.user():
@@ -279,10 +326,14 @@ class Image(MoncicCommand):
                         mode = stat.S_IMODE(st.st_mode)
                     edited = edit_yaml(buf, path)
                     if edited is not None:
+                        changed = True
                         with atomic_writer(path, "wt", chmod=mode) as out:
                             out.write(edited)
             else:
                 raise Fail(f"Configuration for {self.args.name} not found")
+
+            if changed:
+                self.run_maintenance(session)
 
 
 class ImageActionCommand(MoncicCommand):
