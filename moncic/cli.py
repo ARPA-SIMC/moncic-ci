@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, NamedTuple, Optional, Tuple
 
 try:
     import coloredlogs
@@ -29,22 +29,30 @@ class Fail(BaseException):
     pass
 
 
+class SharedArgument(NamedTuple):
+    """
+    Information about an argument shared between a parser and its subparsers
+    """
+    action: argparse.Action
+    args: Tuple[Any]
+    kwargs: Dict[str, Any]
+
+
 class Namespace(argparse.Namespace):
     """
     Hacks around a namespace to allow merging of values set multiple times
     """
     def __setattr__(self, name, value):
-        if name not in self._cli_shared_actions:
-            return super().__setattr__(name, value)
-
-        action, kw = self._cli_shared_actions[name]
-        action_type = kw.get("action")
-        if action_type == "store_true":
-            # OR values
-            old = getattr(self, name, False)
-            super().__setattr__(name, old or value)
+        if (arg := self._shared_args.get(name)):
+            action_type = arg.kwargs.get("action")
+            if action_type == "store_true":
+                # OR values
+                old = getattr(self, name, False)
+                super().__setattr__(name, old or value)
+            else:
+                raise NotImplementedError("Action {action_type!r} for {arg.action.dest!r} is not supported")
         else:
-            raise NotImplementedError("Action {action_type!r} for {action.dest!r} is not supported")
+            return super().__setattr__(name, value)
 
 
 class ArgumentParser(argparse.ArgumentParser):
@@ -54,7 +62,13 @@ class ArgumentParser(argparse.ArgumentParser):
     """
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
-        self.cli_shared_args: List[argparse.Action, Tuple[Any], Dict[str, Any]] = []
+
+        if not hasattr(self, "shared_args"):
+            self.shared_args: Dict[str, SharedArgument] = {}
+
+        # Add arguments from the shared ones
+        for a in self.shared_args.values():
+            super().add_argument(*a.args, **a.kwargs)
 
     def add_argument(self, *args, **kw):
         shared = kw.pop("shared", False)
@@ -62,22 +76,21 @@ class ArgumentParser(argparse.ArgumentParser):
         if shared:
             if (action := kw.get("action")) != "store_true":
                 raise NotImplementedError(f"Action {action!r} for {args!r} is not supported")
-            self.cli_shared_args.append((res, args, kw))
+            # Take note of the argument if it was marked as shared
+            self.shared_args[res.dest] = SharedArgument(res, args, kw)
         return res
 
     def add_subparsers(self, *args, **kw):
-        res = super().add_subparsers(*args, **kw)
-        setattr(res, "cli_shared_args", self.cli_shared_args)
-        return res
+        if "parser_class" not in kw:
+            kw["parser_class"] = type("ArgumentParser", (self.__class__,), {"shared_args": dict(self.shared_args)})
+        return super().add_subparsers(*args, **kw)
 
     def parse_args(self, *args, **kw):
         if "namespace" not in kw:
             # Use a subclass to pass the special action list without making it
             # appear as an argument
-            cli_shared_actions = {action.dest: (action, kw) for action, args, kw in self.cli_shared_args}
-            kw["namespace"] = type("Namespace", (Namespace,), {"_cli_shared_actions": cli_shared_actions})()
-        res = super().parse_args(*args, **kw)
-        return res
+            kw["namespace"] = type("Namespace", (Namespace,), {"_shared_args": self.shared_args})()
+        return super().parse_args(*args, **kw)
 
 
 class Command:
@@ -116,9 +129,6 @@ class Command:
             help=_get_first_docstring_line(cls),
         )
         parser.set_defaults(handler=cls)
-        if cli_shared_args := getattr(subparsers, "cli_shared_args", None):
-            for action, args, kw in cli_shared_args:
-                parser.add_argument(*args, **kw)
         return parser
 
 
