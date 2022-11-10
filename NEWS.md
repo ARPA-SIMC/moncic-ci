@@ -22,6 +22,7 @@
   instead of manually invoking the package manager in the maintscript
 * Implemented `monci image [name] --install [packages...] to add packages to
   the image's package list
+* Allow to use `-v`, `--verbose` and `--debug` also before the subcommand name
 
 # Version 0.7
 
