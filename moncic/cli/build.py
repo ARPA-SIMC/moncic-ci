@@ -4,10 +4,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from .. import (  # noqa: import them so they are registered as builders
-    build_arpa, build_debian)
-from ..analyze import Analyzer
-from ..build import Builder
+from ..build import Builder, Analyzer
 from .base import Command
 from .moncic import MoncicCommand, checkout, main_command
 

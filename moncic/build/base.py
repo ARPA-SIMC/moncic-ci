@@ -6,11 +6,11 @@ import os
 import shutil
 from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 
-from .container import ContainerConfig
-from .runner import UserConfig
-from .utils import guest_only, host_only
+from .. import distro, utils
+from ..container import ContainerConfig
+from ..runner import UserConfig
+from ..utils import guest_only, host_only
 from .analyze import Analyzer
-from . import distro, utils
 
 if TYPE_CHECKING:
     from .container import Container, System

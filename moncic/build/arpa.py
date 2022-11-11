@@ -7,11 +7,11 @@ import os
 import shutil
 from typing import TYPE_CHECKING, Optional
 
-from .distro import DnfDistro, YumDistro
-from .runner import UserConfig
-from .build import Builder, link_or_copy
-from .utils import run, guest_only, host_only
+from ..distro import DnfDistro, YumDistro
+from ..runner import UserConfig
+from ..utils import guest_only, host_only, run
 from .analyze import Analyzer
+from .base import Builder, link_or_copy
 
 if TYPE_CHECKING:
     from .container import Container, System
