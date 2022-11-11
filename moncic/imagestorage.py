@@ -45,6 +45,16 @@ class Images:
                     res.add(entry.name)
                 elif entry.name.endswith(".yaml"):
                     res.add(entry.name[:-5])
+
+        for path in self.session.moncic.config.imageconfdirs:
+            with os.scandir(path) as it:
+                for entry in it:
+                    if entry.name.startswith(".") or entry.is_dir():
+                        continue
+                    if not entry.name.endswith(".yaml") or entry.name == "moncic-ci.yaml":
+                        continue
+                    res.add(entry.name[:-5])
+
         return sorted(res)
 
     def local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:

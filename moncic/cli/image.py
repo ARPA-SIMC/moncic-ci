@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
+import copy
 import logging
 import os
 import shlex
+import shutil
 import stat
-from typing import TYPE_CHECKING, Any, Dict
+import sys
+from typing import TYPE_CHECKING, Any, Dict, Generator
 
 import ruamel.yaml
 import yaml
@@ -78,11 +82,46 @@ class MaintCommand(MoncicCommand):
         Run system maintenance
         """
         with session.images.maintenance_system(self.args.name) as system:
+            if not system.is_bootstrapped():
+                return
             log.info("%s: updating image", self.args.name)
             try:
                 system.update()
             except Exception:
                 log.error("%s: cannot update image", self.args.name, exc_info=True)
+
+    @contextlib.contextmanager
+    def edit_config(self) -> Generator[Dict[str, Any], None, None]:
+        """
+        Edit the image configuration file as a parsed yaml structure.
+
+        If the structure is changed, it writes it back to the configuration
+        file, and then runs a maintenance update
+        """
+        changed = False
+        with self.moncic.session() as session:
+            with self.moncic.privs.user():
+                if path := session.images.find_config(self.args.name):
+                    # Use ruamel.yaml to preserve comments
+                    ryaml = ruamel.yaml.YAML(typ="rt")
+                    with open(path, "rt") as fd:
+                        data = ryaml.load(fd)
+                        st = os.fstat(fd.fileno())
+                        mode = stat.S_IMODE(st.st_mode)
+
+                    orig_data = copy.deepcopy(data)
+                    yield data
+
+                    if data != orig_data:
+                        log.info("%s: updating configuration file", self.args.name)
+                        changed = True
+                        with atomic_writer(path, "wt", chmod=mode) as out:
+                            ryaml.dump(data, out)
+                else:
+                    raise Fail(f"{self.args.name}: configuration does not exist")
+
+        if changed:
+            self.run_maintenance(session)
 
 
 class Setup(MaintCommand):
@@ -98,28 +137,38 @@ class Setup(MaintCommand):
         return parser
 
     def run(self):
-        with self.moncic.session() as session:
-            with self.moncic.privs.user():
-                if path := session.images.find_config(self.args.name):
-                    # Use ruamel.yaml to preserve comments
-                    ryaml = ruamel.yaml.YAML(typ="rt")
-                    with open(path, "rt") as fd:
-                        data = ryaml.load(fd)
-                        st = os.fstat(fd.fileno())
-                        mode = stat.S_IMODE(st.st_mode)
+        with self.edit_config() as data:
+            if maintscript := data.get("maintscript"):
+                maintscript += "\n" + " ".join(shlex.quote(c) for c in self.args.command)
+            else:
+                maintscript = " ".join(shlex.quote(c) for c in self.args.command)
+            data["maintscript"] = ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
 
-                    if maintscript := data.get("maintscript"):
-                        maintscript += "\n" + " ".join(shlex.quote(c) for c in self.args.setup)
-                    else:
-                        maintscript = " ".join(shlex.quote(c) for c in self.args.setup)
-                    data["maintscript"] = ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
 
-                    with atomic_writer(path, "wt", chmod=mode) as out:
-                        ryaml.dump(data, out)
-                else:
-                    raise Fail(f"{self.args.name}: configuration does not exist")
+class Install(MaintCommand):
+    """
+    install the given packages in the image
+    """
 
-            self.run_maintenance(session)
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("packages", nargs="+",
+                            help="packages to install in the image")
+        return parser
+
+    def run(self):
+        with self.edit_config() as data:
+            packages = data.get("packages")
+            if packages is None:
+                packages = []
+
+            # Add package names, avoiding duplicates
+            for name in self.args.packages:
+                if name not in packages:
+                    packages.append(name)
+
+            data["packages"] = packages
 
 
 class Edit(MaintCommand):
@@ -149,51 +198,17 @@ class Edit(MaintCommand):
                 self.run_maintenance(session)
 
 
-class Install(MaintCommand):
+class Cat(MoncicCommand):
     """
-    install the given packages in the image
+    show the image configuration
     """
-
-    @classmethod
-    def make_subparser(cls, subparsers):
-        parser = super().make_subparser(subparsers)
-        parser.add_argument("packages", nargs="+",
-                            help="packages to install in the image")
-        return parser
-
     def run(self):
-        changed = False
-
         with self.moncic.session() as session:
-            with self.moncic.privs.user():
-                if path := session.images.find_config(self.args.name):
-                    # Use ruamel.yaml to preserve comments
-                    ryaml = ruamel.yaml.YAML(typ="rt")
+            if path := session.images.find_config(self.args.name):
+                with self.moncic.privs.user():
+                    print(f"# {path}")
                     with open(path, "rt") as fd:
-                        data = ryaml.load(fd)
-                        st = os.fstat(fd.fileno())
-                        mode = stat.S_IMODE(st.st_mode)
-
-                    packages = data.get("packages")
-                    if packages is None:
-                        packages = []
-
-                    # Add package names, avoiding duplicates
-                    for name in self.args.install:
-                        if name not in packages:
-                            changed = True
-                            packages.append(name)
-
-                    data["packages"] = packages
-
-                    if changed:
-                        with atomic_writer(path, "wt", chmod=mode) as out:
-                            ryaml.dump(data, out)
-                else:
-                    raise Fail(f"{self.args.name}: configuration does not exist")
-
-            if changed:
-                self.run_maintenance(session)
+                        shutil.copyfileobj(fd, sys.stdout)
 
 
 @main_command
@@ -213,6 +228,7 @@ class Image(MoncicCommand):
         Distro.make_subparser(subparsers)
         Setup.make_subparser(subparsers)
         Install.make_subparser(subparsers)
+        Cat.make_subparser(subparsers)
         Edit.make_subparser(subparsers)
 
         return parser
