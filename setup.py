@@ -19,7 +19,7 @@ setup(
     # coloredlogs and texttable, although moncic-ci is able to work without
     # them
     install_requires=["pyyaml", "ruamel.yaml", "coloredlogs", "texttable", "requests"],
-    packages=['moncic'],
+    packages=['moncic', "moncic.cli"],
     scripts=['monci'],
     classifiers=[
         "Development Status :: 4 - Beta",

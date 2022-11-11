@@ -3,7 +3,7 @@ import contextlib
 import os
 import pwd
 import sys
-from .cli import Fail
+from .exceptions import Fail
 
 
 class ProcessPrivs:
