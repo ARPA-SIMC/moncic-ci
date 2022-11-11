@@ -107,6 +107,30 @@ class Debian(Builder):
         # been called
         self.srcinfo: Optional[SourceInfo] = None
 
+    @host_only
+    def get_build_deps(self) -> List[str]:
+        with self.container() as container:
+            # Build run config
+            run_config = container.config.run_config()
+
+            res = container.run_callable(
+                    self.get_build_deps_in_container,
+                    run_config)
+            # TODO: error if res failed
+
+        # TODO: read get_build_deps_in_container results
+        raise NotImplementedError("get_build_deps")
+        return []
+
+    @guest_only
+    def get_build_deps_in_container(self):
+        build_info = self.build_info_cls()
+
+        with self.source_directory(build_info):
+            raise NotImplementedError("get_build_deps_in_container")
+            # TODO: scan and store results somewhere where get_build_deps can find it
+            print("TEST", os.getcwd())
+
     @guest_only
     def build_source(self, build_info: BuildInfo):
         """

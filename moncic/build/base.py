@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import logging
 import os
@@ -138,12 +139,19 @@ class Builder:
             self.buildlog_file = None
 
     @host_only
-    def build(self, shell: bool = False, source_only: bool = False) -> int:
+    def get_build_deps(self) -> List[str]:
         """
-        Run the build, store the artifacts in the given directory if requested,
-        return the returncode of the build process
+        Return a list of packages to be installed as build-depedencies to build
+        this source
         """
-        artifacts_dir = self.system.images.session.moncic.config.build_artifacts_dir
+        raise NotImplementedError(f"{self.__class__.__name__}.get_build_deps is not implemented")
+
+    @host_only
+    @contextlib.contextmanager
+    def container(self):
+        """
+        Start a container to run CI operations
+        """
         container_config = ContainerConfig()
         # Mount the source directory as /srv/moncic-ci/source/<name>
         # Set it as the default current directory in the container
@@ -152,40 +160,49 @@ class Builder:
         container = self.system.create_container(config=container_config)
         with container:
             self.setup_container_host(container)
+            try:
+                yield container
+            finally:
+                self.log_capture_end()
 
+    @host_only
+    def build(self, shell: bool = False, source_only: bool = False) -> int:
+        """
+        Run the build, store the artifacts in the given directory if requested,
+        return the returncode of the build process
+        """
+        artifacts_dir = self.system.images.session.moncic.config.build_artifacts_dir
+        with self.container() as container:
             # Log moncic config
             moncic_config = self.system.images.session.moncic.config
             for field in dataclasses.fields(moncic_config):
                 log.debug("moncic:%s = %r", field.name, getattr(moncic_config, field.name))
             # Log container config
-            for field in dataclasses.fields(container_config):
-                log.debug("container:%s = %r", field.name, getattr(container_config, field.name))
+            for field in dataclasses.fields(container.config):
+                log.debug("container:%s = %r", field.name, getattr(container.config, field.name))
+
+            # Build run config
+            run_config = container.config.run_config()
+            run_config.user = UserConfig.root()
+            # Log run config
+            for field in dataclasses.fields(run_config):
+                log.debug("run:%s = %r", field.name, getattr(run_config, field.name))
 
             try:
-                # Build run config
-                run_config = container_config.run_config()
-                run_config.user = UserConfig.root()
-                # Log run config
-                for field in dataclasses.fields(run_config):
-                    log.debug("run:%s = %r", field.name, getattr(run_config, field.name))
-
-                try:
-                    res = container.run_callable(
-                            self.build_in_container,
-                            run_config,
-                            kwargs={"source_only": source_only})
-                    if artifacts_dir:
-                        self.collect_artifacts(container, artifacts_dir)
-                finally:
-                    if shell:
-                        run_config = container_config.run_config()
-                        run_config.interactive = True
-                        run_config.check = False
-                        run_config.user = UserConfig.root()
-                        run_config.cwd = "/srv/moncic-ci/build"
-                        container.run_shell(config=run_config)
+                res = container.run_callable(
+                        self.build_in_container,
+                        run_config,
+                        kwargs={"source_only": source_only})
+                if artifacts_dir:
+                    self.collect_artifacts(container, artifacts_dir)
             finally:
-                self.log_capture_end()
+                if shell:
+                    run_config = container.config.run_config()
+                    run_config.interactive = True
+                    run_config.check = False
+                    run_config.user = UserConfig.root()
+                    run_config.cwd = "/srv/moncic-ci/build"
+                    container.run_shell(config=run_config)
         return res.returncode
 
     @guest_only
