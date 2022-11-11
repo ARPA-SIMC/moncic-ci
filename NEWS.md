@@ -14,15 +14,16 @@
 * Added experimental `monci analyze` that runs consistency checks on source
   directories
 * Implemented `monci remove --purge` to also remove the config file (#74)
-* Implemented `monci image [name] --distro` to create a new image (#74)
-* Implemented `monci image [name] --extends` to create a new image (#74)
-* Implemented `monci image [name] --setup` to add a maintscript line to an image (#74)
-* Implemented `monci image [name] --edit` to edit an image's config file (#74)
+* Implemented `monci image [name] distro` to create a new image (#74)
+* Implemented `monci image [name] extends` to create a new image (#74)
+* Implemented `monci image [name] setup` to add a maintscript line to an image (#74)
+* Implemented `monci image [name] edit` to edit an image's config file (#74)
 * Allow to configure a list of packages in [image configuration](doc/image-config.md)
   instead of manually invoking the package manager in the maintscript
-* Implemented `monci image [name] --install [packages...] to add packages to
+* Implemented `monci image [name] install [packages...] to add packages to
   the image's package list
-* Allow to use `-v`, `--verbose` and `--debug` also before the subcommand name
+* Propagate options to subcommands, so they can be used anywhere in the command
+  line
 
 # Version 0.7
 

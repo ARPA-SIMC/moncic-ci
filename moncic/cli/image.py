@@ -20,44 +20,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-@main_command
-class Image(MoncicCommand):
-    """
-    image creation and maintenance
-    """
-
-    @classmethod
-    def make_subparser(cls, subparsers):
-        parser = super().make_subparser(subparsers)
-        parser.add_argument("name",
-                            help="name of the image")
-        group = parser.add_mutually_exclusive_group(required=True)
-        group.add_argument("--extends", action="store", metavar="name",
-                           help="create a new image, extending an existing one")
-        group.add_argument("--distro", action="store", metavar="name",
-                           help="create a new image, bootstrapping the given distribution")
-        group.add_argument("--setup", "-s", action="store", nargs=argparse.REMAINDER,
-                           help="run and record a maintenance command to setup the image")
-        group.add_argument("--install", "-i", nargs="+",
-                           help="install the given packages in the image")
-        group.add_argument("--edit", action="store_true",
-                           help="open an editor on the image configuration file")
-        return parser
-
-    def run(self):
-        if self.args.extends:
-            self.do_extends()
-        elif self.args.distro:
-            self.do_distro()
-        elif self.args.setup:
-            self.do_setup()
-        elif self.args.edit:
-            self.do_edit()
-        elif self.args.install:
-            self.do_install()
-        else:
-            raise NotImplementedError("cannot determine what to do")
-
+class CreateCommand(MoncicCommand):
     def create(self, contents: Dict[str, Any]):
         """
         Create a configuration with the given contents
@@ -78,12 +41,38 @@ class Image(MoncicCommand):
             except Exception:
                 log.error("%s: cannot create image", self.args.name, exc_info=True)
 
-    def do_extends(self):
-        self.create({"extends": self.args.extends})
 
-    def do_distro(self):
+class Extends(CreateCommand):
+    """
+    create a new image, extending an existing one
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("image", help="parent image")
+        return parser
+
+    def run(self):
+        self.create({"extends": self.args.image})
+
+
+class Distro(CreateCommand):
+    """
+    create a new image, bootstrapping the given distribution
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("distro", help="distribution to bootstrap")
+        return parser
+
+    def run(self):
         self.create({"distro": self.args.distro})
 
+
+class MaintCommand(MoncicCommand):
     def run_maintenance(self, session: Session):
         """
         Run system maintenance
@@ -95,7 +84,20 @@ class Image(MoncicCommand):
             except Exception:
                 log.error("%s: cannot update image", self.args.name, exc_info=True)
 
-    def do_setup(self):
+
+class Setup(MaintCommand):
+    """
+    run and record a maintenance command to setup the image
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("command", nargs=argparse.REMAINDER,
+                            help="run and record a maintenance command to setup the image")
+        return parser
+
+    def run(self):
         with self.moncic.session() as session:
             with self.moncic.privs.user():
                 if path := session.images.find_config(self.args.name):
@@ -119,7 +121,47 @@ class Image(MoncicCommand):
 
             self.run_maintenance(session)
 
-    def do_install(self):
+
+class Edit(MaintCommand):
+    """
+    open an editor on the image configuration file
+    """
+
+    def run(self):
+        changed = False
+
+        with self.moncic.session() as session:
+            if path := session.images.find_config(self.args.name):
+                with self.moncic.privs.user():
+                    with open(path, "rt") as fd:
+                        buf = fd.read()
+                        st = os.fstat(fd.fileno())
+                        mode = stat.S_IMODE(st.st_mode)
+                    edited = edit_yaml(buf, path)
+                    if edited is not None:
+                        changed = True
+                        with atomic_writer(path, "wt", chmod=mode) as out:
+                            out.write(edited)
+            else:
+                raise Fail(f"Configuration for {self.args.name} not found")
+
+            if changed:
+                self.run_maintenance(session)
+
+
+class Install(MaintCommand):
+    """
+    install the given packages in the image
+    """
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("packages", nargs="+",
+                            help="packages to install in the image")
+        return parser
+
+    def run(self):
         changed = False
 
         with self.moncic.session() as session:
@@ -153,23 +195,30 @@ class Image(MoncicCommand):
             if changed:
                 self.run_maintenance(session)
 
-    def do_edit(self):
-        changed = False
 
-        with self.moncic.session() as session:
-            if path := session.images.find_config(self.args.name):
-                with self.moncic.privs.user():
-                    with open(path, "rt") as fd:
-                        buf = fd.read()
-                        st = os.fstat(fd.fileno())
-                        mode = stat.S_IMODE(st.st_mode)
-                    edited = edit_yaml(buf, path)
-                    if edited is not None:
-                        changed = True
-                        with atomic_writer(path, "wt", chmod=mode) as out:
-                            out.write(edited)
-            else:
-                raise Fail(f"Configuration for {self.args.name} not found")
+@main_command
+class Image(MoncicCommand):
+    """
+    image creation and maintenance
+    """
 
-            if changed:
-                self.run_maintenance(session)
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("name",
+                            help="name of the image")
+
+        subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
+        Extends.make_subparser(subparsers)
+        Distro.make_subparser(subparsers)
+        Setup.make_subparser(subparsers)
+        Install.make_subparser(subparsers)
+        Edit.make_subparser(subparsers)
+
+        return parser
+
+    def run(self):
+        if self.args.install:
+            self.do_install()
+        else:
+            raise NotImplementedError("cannot determine what to do")

@@ -75,16 +75,17 @@ class MoncicCommand(Command):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("-I", "--imagedir", action="store",
-                            help="path to the directory that contains container images."
-                                 " Default: from configuration file, or /var/lib/machines")
-        parser.add_argument("-C", "--config", action="store",
-                            help="path to the Moncic-CI config file to use. By default,"
-                                 " look in a number of well-known locations, see"
-                                 " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md")
-        parser.add_argument("--extra-packages-dir", action="store",
-                            help="directory where extra packages, if present, are added to package sources"
-                                 " in containers")
+        if "imagedir" not in parser.shared_args:
+            parser.add_argument("-I", "--imagedir", action="store", shared=True,
+                                help="path to the directory that contains container images."
+                                     " Default: from configuration file, or /var/lib/machines")
+            parser.add_argument("-C", "--config", action="store", shared=True,
+                                help="path to the Moncic-CI config file to use. By default,"
+                                     " look in a number of well-known locations, see"
+                                     " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md")
+            parser.add_argument("--extra-packages-dir", action="store", shared=True,
+                                help="directory where extra packages, if present, are added to package sources"
+                                     " in containers")
         return parser
 
     def __init__(self, args):

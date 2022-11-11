@@ -7,23 +7,23 @@ quick development iterations.
 
 ## Create a system image for debugging
 
-Use `monci image --extends` to create a new image based on an existing one (you
-can use --distro to bootstrap a new image from scratch):
+Use `monci image [name] extends` to create a new image based on an existing one (you
+can use `distro` to bootstrap a new image from scratch):
 
 ```
-monci image testimg --extends bookworm
+monci image testimg extends bookworm
 ```
 
-Use `monci image --install` to install packages you need:
+Use `monci image [name] install` to install packages you need:
 
 ```
-monci image testimg --install build-essential libfoo-dev
+monci image testimg install build-essential libfoo-dev
 ```
 
-Use `monci image --setup` to run extra maintenance commands:
+Use `monci image [name] setup` to run extra maintenance commands:
 
 ```
-monci image testimg --setup /usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf
+monci image testimg setup /usr/bin/sed -i '/^tsflags=/d' /etc/dnf/dnf.conf
 ```
 
 ## Test your code

@@ -24,6 +24,13 @@ class Namespace(argparse.Namespace):
                 # OR values
                 old = getattr(self, name, False)
                 super().__setattr__(name, old or value)
+            elif action_type == "store":
+                old = getattr(self, name, False)
+                if old is None:
+                    super().__setattr__(name, value)
+                elif old != value:
+                    raise argparse.ArgumentError(
+                            f"conflicting values provided for {arg.action.dest!r} ({old!r} and {value!r})")
             else:
                 raise NotImplementedError("Action {action_type!r} for {arg.action.dest!r} is not supported")
         else:
@@ -49,7 +56,7 @@ class ArgumentParser(argparse.ArgumentParser):
         shared = kw.pop("shared", False)
         res = super().add_argument(*args, **kw)
         if shared:
-            if (action := kw.get("action")) != "store_true":
+            if (action := kw.get("action")) not in ("store", "store_true"):
                 raise NotImplementedError(f"Action {action!r} for {args!r} is not supported")
             # Take note of the argument if it was marked as shared
             self.shared_args[res.dest] = SharedArgument(res, args, kw)
