@@ -546,7 +546,7 @@ class DebianDistro(Distro):
                 '-o Dpkg::Options::="--force-confnew"']
         res.append(["/usr/bin/apt-get", "update"])
         res.append(apt_install_cmd + ["full-upgrade"])
-        res.append(apt_install_cmd + ["install"] + self.get_base_packages() + self.get_requested_packages(system))
+        res.append(apt_install_cmd + ["satisfy"] + self.get_base_packages() + self.get_requested_packages(system))
         return res
 
 
