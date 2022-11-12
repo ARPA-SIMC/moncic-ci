@@ -14,9 +14,10 @@ from typing import TYPE_CHECKING, Any, Dict, Generator
 import ruamel.yaml
 import yaml
 
+from ..build import Builder
 from ..exceptions import Fail
 from ..utils import atomic_writer, edit_yaml
-from .moncic import MoncicCommand, main_command
+from .moncic import MoncicCommand, checkout, main_command
 
 if TYPE_CHECKING:
     from ..session import Session
@@ -171,6 +172,48 @@ class Install(MaintCommand):
             data["packages"] = packages
 
 
+class BuildDep(MaintCommand):
+    """
+    install the build-dependencies of the given sources
+    """
+    NAME = "build-dep"
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("--branch", action="store",
+                            help="branch to be used. Default: let 'git clone' choose")
+        parser.add_argument("-s", "--build-style", action="store",
+                            help="name of the procedure used to run the CI. Default: autodetect")
+        parser.add_argument("repo", nargs="?", default=".",
+                            help="path or url of the repository to build. Default: the current directory")
+        return parser
+
+    def run(self):
+        with self.moncic.session() as session:
+            images = session.images
+            with images.system(self.args.name) as system:
+                with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
+                    if self.args.build_style:
+                        builder = Builder.create_builder(self.args.build_style, system, srcdir)
+                    else:
+                        builder = Builder.detect(system, srcdir)
+
+                    log.info("Query using builder %r", builder.__class__.__name__)
+                    packages = builder.get_build_deps()
+
+        log.info("Detected build-deps: %r", packages)
+
+        with self.edit_config() as data:
+            # Add package names, avoiding duplicates
+            for name in packages:
+                if name not in packages:
+                    log.info("Adding package %r", name)
+                    packages.append(name)
+
+            data["packages"] = packages
+
+
 class Edit(MaintCommand):
     """
     open an editor on the image configuration file
@@ -228,6 +271,7 @@ class Image(MoncicCommand):
         Distro.make_subparser(subparsers)
         Setup.make_subparser(subparsers)
         Install.make_subparser(subparsers)
+        BuildDep.make_subparser(subparsers)
         Cat.make_subparser(subparsers)
         Edit.make_subparser(subparsers)
 
