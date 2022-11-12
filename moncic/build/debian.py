@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import contextlib
+import importlib.resources
+import json
 import logging
 import os
 import re
@@ -110,26 +112,34 @@ class Debian(Builder):
     @host_only
     def get_build_deps(self) -> List[str]:
         with self.container() as container:
+            # Inject a perl script that uses libdpkg-perl to compute the dependency list
+            with importlib.resources.open_binary("moncic.build", "debian-dpkg-listbuilddeps") as fdin:
+                with open(os.path.join(container.get_root(), "srv", "moncic-ci", "dpkg-listbuilddeps"), "wb") as fdout:
+                    shutil.copyfileobj(fdin, fdout)
+                    os.fchmod(fdout.fileno(), 0o755)
+
             # Build run config
             run_config = container.config.run_config()
 
             res = container.run_callable(
                     self.get_build_deps_in_container,
                     run_config)
-            # TODO: error if res failed
+            res.check_returncode()
 
-        # TODO: read get_build_deps_in_container results
-        raise NotImplementedError("get_build_deps")
-        return []
+            with open(os.path.join(container.get_root(), "srv", "moncic-ci", "build", "result.json"), "rt") as fd:
+                result = json.load(fd)
+
+        return result["packages"]
 
     @guest_only
     def get_build_deps_in_container(self):
         build_info = self.build_info_cls()
 
         with self.source_directory(build_info):
-            raise NotImplementedError("get_build_deps_in_container")
-            # TODO: scan and store results somewhere where get_build_deps can find it
-            print("TEST", os.getcwd())
+            res = subprocess.run(["/srv/moncic-ci/dpkg-listbuilddeps"], stdout=subprocess.PIPE, text=True, check=True)
+            packages = [name.strip() for name in res.stdout.strip().splitlines()]
+            with open("/srv/moncic-ci/build/result.json", "wt") as out:
+                json.dump({"packages": packages}, out)
 
     @guest_only
     def build_source(self, build_info: BuildInfo):
