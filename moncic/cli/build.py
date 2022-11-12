@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
+import sys
 from typing import TYPE_CHECKING
 
-from .. import (  # noqa: import them so they are registered as builders
-    build_arpa, build_debian)
-from ..analyze import Analyzer
-from ..build import Builder
+from ..build import Builder, Analyzer
 from .base import Command
 from .moncic import MoncicCommand, checkout, main_command
 
@@ -65,7 +64,7 @@ class CI(MoncicCommand):
 
 
 @main_command
-class Analyze(Command):
+class Lint(Command):
     """
     Run consistency checks on a source directory using all available build
     styles
@@ -81,3 +80,44 @@ class Analyze(Command):
     def run(self):
         analyzer = Analyzer(self.args.repo)
         Builder.analyze(analyzer)
+
+
+@main_command
+class QuerySource(MoncicCommand):
+    """
+    Run consistency checks on a source directory using all available build
+    styles
+    """
+    NAME = "query-source"
+
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("--branch", action="store",
+                            help="branch to be used. Default: let 'git clone' choose")
+        parser.add_argument("-s", "--build-style", action="store",
+                            help="name of the procedure used to run the CI. Default: autodetect")
+        parser.add_argument("system", action="store",
+                            help="name or path of the system used to query the package")
+        parser.add_argument("repo", nargs="?", default=".",
+                            help="path or url of the repository to build. Default: the current directory")
+        return parser
+
+    def run(self):
+        result = {}
+        with self.moncic.session() as session:
+            images = session.images
+            with images.system(self.args.system) as system:
+                result["distribution"] = system.distro.name
+                with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
+                    if self.args.build_style:
+                        builder = Builder.create_builder(self.args.build_style, system, srcdir)
+                    else:
+                        builder = Builder.detect(system, srcdir)
+
+                    log.info("Query using builder %r", builder.__class__.__name__)
+
+                    result["build-deps"] = builder.get_build_deps()
+
+        json.dump(result, sys.stdout, indent=1)
+        sys.stdout.write("\n")
