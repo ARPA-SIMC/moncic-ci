@@ -137,7 +137,9 @@ class Debian(Builder):
 
         with self.source_directory(build_info):
             res = subprocess.run(["/srv/moncic-ci/dpkg-listbuilddeps"], stdout=subprocess.PIPE, text=True, check=True)
-            packages = [name.strip() for name in res.stdout.strip().splitlines()]
+            # Throw away version constraints, since the package name with
+            # version constraints cannot be passed to apt-get
+            packages = [name.split(None, 1)[0].strip() for name in res.stdout.strip().splitlines()]
             with open("/srv/moncic-ci/build/result.json", "wt") as out:
                 json.dump({"packages": packages}, out)
 
