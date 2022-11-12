@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
+import sys
 from typing import TYPE_CHECKING
 
 from ..build import Builder, Analyzer
@@ -102,9 +104,11 @@ class QuerySource(MoncicCommand):
         return parser
 
     def run(self):
+        result = {}
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
+                result["distribution"] = system.distro.name
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
                     if self.args.build_style:
                         builder = Builder.create_builder(self.args.build_style, system, srcdir)
@@ -113,5 +117,7 @@ class QuerySource(MoncicCommand):
 
                     log.info("Query using builder %r", builder.__class__.__name__)
 
-                    for package in builder.get_build_deps():
-                        print(package)
+                    result["build-deps"] = builder.get_build_deps()
+
+        json.dump(result, sys.stdout, indent=1)
+        sys.stdout.write("\n")

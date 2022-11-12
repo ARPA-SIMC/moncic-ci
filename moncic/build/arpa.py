@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import glob
 import itertools
+import json
 import logging
 import os
 import shutil
-from typing import TYPE_CHECKING, Optional
+import subprocess
+from typing import TYPE_CHECKING, List, Optional
 
 from ..distro import DnfDistro, YumDistro
 from ..runner import UserConfig
@@ -89,6 +91,34 @@ class ARPA(RPM):
         # Reinstantiate the module logger
         global log
         log = logging.getLogger(__name__)
+
+    @host_only
+    def get_build_deps(self) -> List[str]:
+        with self.container() as container:
+            # Build run config
+            run_config = container.config.run_config()
+
+            res = container.run_callable(
+                    self.get_build_deps_in_container,
+                    run_config)
+            res.check_returncode()
+
+            with open(os.path.join(container.get_root(), "srv", "moncic-ci", "build", "result.json"), "rt") as fd:
+                result = json.load(fd)
+
+        return result["packages"]
+
+    @guest_only
+    def get_build_deps_in_container(self):
+        res = subprocess.run(
+                ["/usr/bin/rpmspec", "--parse", self.specfile], stdout=subprocess.PIPE, text=True, check=True)
+        packages = []
+        for line in res.stdout.splitlines():
+            if line.startswith("BuildRequires: "):
+                print(repr(line[15:]))
+                packages.append(line[15:].strip())
+            with open("/srv/moncic-ci/build/result.json", "wt") as out:
+                json.dump({"packages": packages}, out)
 
     @guest_only
     def build_in_container(self, source_only: bool = False) -> Optional[int]:
