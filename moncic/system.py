@@ -207,13 +207,13 @@ class System:
             # Chain to the parent's maintenance
             with self.images.system(self.config.extends) as parent:
                 parent._update_container(container)
-        else:
-            # Run the default standard distro maintenance
-            for cmd in self.distro.get_update_script(self):
-                container.run(cmd)
 
+        # Run the default standard distro maintenance
+        for cmd in self.distro.get_update_script(self):
+            container.run(cmd)
+
+        # Run maintscripts configured for this system
         if self.config.maintscript is not None:
-            # Run maintscripts configured for this system
             container.run_script(self.config.maintscript)
 
     def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
