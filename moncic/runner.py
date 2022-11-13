@@ -27,6 +27,11 @@ if TYPE_CHECKING:
     from .system import SystemConfig
 
 
+RESULT_LOG = 0
+RESULT_EXCEPTION = 1
+RESULT_VALUE = 2
+
+
 class UserConfig(NamedTuple):
     """
     User and group information to use for running processes
@@ -158,6 +163,9 @@ class Runner:
         self.config = config
         self.stdout: List[bytes] = []
         self.stderr: List[bytes] = []
+        self.exception: Optional[BaseException] = None
+        self.has_result: bool = False
+        self.result: Any = None
 
     async def read_stdout(self, reader: asyncio.StreamReader):
         while True:
@@ -177,13 +185,21 @@ class Runner:
 
     async def read_log(self, reader: asyncio.StreamReader):
         while True:
-            size_encoded = await reader.read(4)
+            size_encoded = await reader.read(5)
             if not size_encoded:
                 break
-            size = struct.unpack("=L", size_encoded)[0]
+            code, size = struct.unpack("=BL", size_encoded)
             pickled = await reader.read(size)
-            record = pickle.loads(pickled)
-            self.log.handle(record)
+            decoded = pickle.loads(pickled)
+            if code == RESULT_LOG:
+                self.log.handle(decoded)
+            elif code == RESULT_EXCEPTION:
+                self.exception = decoded
+            elif code == RESULT_VALUE:
+                self.has_result = True
+                self.result = decoded
+            else:
+                raise NotImplementedError(f"unknown result stream item type {code!r}")
 
 
 class AsyncioRunner(Runner):
@@ -281,7 +297,7 @@ class PickleStreamHandler(logging.Handler):
 
     def emit(self, record):
         pickled = pickle.dumps(record, pickle.HIGHEST_PROTOCOL)
-        self.stream.write(struct.pack("=L", len(pickled)))
+        self.stream.write(struct.pack("=BL", RESULT_LOG, len(pickled)))
         self.stream.write(pickled)
         self.stream.flush()
 
@@ -363,6 +379,7 @@ class SetnsCallableRunner(Runner):
                     os.dup2(stderr_w, 2)
                     os.close(stderr_w)
                 os.close(log_r)
+                result_stream = open(log_w, "wb")
 
                 # Start building an environment from scratch
                 env = {
@@ -375,7 +392,7 @@ class SetnsCallableRunner(Runner):
 
                 logging.shutdown()
                 importlib.reload(logging)
-                logging.getLogger().addHandler(PickleStreamHandler(stream=open(log_w, "wb"), level=logging.DEBUG))
+                logging.getLogger().addHandler(PickleStreamHandler(stream=result_stream, level=logging.DEBUG))
                 logging.getLogger().setLevel(logging.DEBUG)
                 setns.nsenter(
                         self.leader_pid,
@@ -406,15 +423,26 @@ class SetnsCallableRunner(Runner):
                         guest.in_guest = True
                         res = self.func(*self.args, **({} if self.kwargs is None else self.kwargs))
                         os._exit(res if res is not None else 0)
-                    except Exception:
-                        traceback.print_exc()
+                    except Exception as e:
+                        pickled = pickle.dumps(e, pickle.HIGHEST_PROTOCOL)
+                        result_stream.write(struct.pack("=BL", RESULT_EXCEPTION, len(pickled)))
+                        result_stream.write(pickled)
+                        result_stream.flush()
                         # Reusing systemd-analyze exit-status
                         os._exit(255)
+                    else:
+                        pickled = pickle.dumps(res, pickle.HIGHEST_PROTOCOL)
+                        result_stream.write(struct.pack("=BL", RESULT_VALUE, len(pickled)))
+                        result_stream.write(pickled)
+                        result_stream.flush()
                 else:
                     wres = os.waitid(os.P_PID, pid, os.WEXITED)
                     os._exit(wres.si_status)
-            except Exception:
-                traceback.print_exc()
+            except Exception as e:
+                pickled = pickle.dumps(e, pickle.HIGHEST_PROTOCOL)
+                result_stream.write(struct.pack("=BL", RESULT_EXCEPTION, len(pickled)))
+                result_stream.write(pickled)
+                result_stream.flush()
                 # Reusing systemd-analyze exit-status
                 os._exit(255)
         else:
@@ -435,9 +463,14 @@ class SetnsCallableRunner(Runner):
             stderr = None
 
         wres = os.waitid(os.P_PID, pid, os.WEXITED)
-        if self.config.check and wres.si_status != 0:
-            raise subprocess.CalledProcessError(
-                    wres.si_status, func_name, stdout, stderr)
+        if self.exception:
+            raise self.exception
+        elif self.has_result:
+            return self.result
+        else:
+            if self.config.check and wres.si_status != 0:
+                raise subprocess.CalledProcessError(
+                        wres.si_status, func_name, stdout, stderr)
 
-        return subprocess.CompletedProcess(
-                func_name, wres.si_status, stdout, stderr)
+            return subprocess.CompletedProcess(
+                    func_name, wres.si_status, stdout, stderr)
