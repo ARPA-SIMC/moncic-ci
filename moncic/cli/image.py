@@ -255,6 +255,19 @@ class Cat(MoncicCommand):
                         shutil.copyfileobj(fd, sys.stdout)
 
 
+class Describe(MoncicCommand):
+    """
+    show a description of the image
+    """
+    def run(self):
+        with self.moncic.session() as session:
+            with session.images.system(self.args.name) as system:
+                info = system.describe_container()
+                yaml.dump(info, stream=sys.stdout, default_flow_style=False,
+                          allow_unicode=True, explicit_start=True,
+                          sort_keys=False, Dumper=yaml.CDumper)
+
+
 @main_command
 class Image(MoncicCommand):
     """
@@ -274,6 +287,7 @@ class Image(MoncicCommand):
         Install.make_subparser(subparsers)
         BuildDep.make_subparser(subparsers)
         Cat.make_subparser(subparsers)
+        Describe.make_subparser(subparsers)
         Edit.make_subparser(subparsers)
 
         return parser
