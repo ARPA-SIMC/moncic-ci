@@ -26,6 +26,7 @@
   instead of manually invoking the package manager in the maintscript
 * Propagate options to subcommands, so they can be used anywhere in the command
   line
+* Try out easier to type machine names (#78)
 
 # Version 0.7
 

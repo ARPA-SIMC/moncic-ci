@@ -13,13 +13,14 @@ import signal
 import subprocess
 import tempfile
 import time
-import uuid
+from collections import Counter
 from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict, Iterator, List,
                     NoReturn, Optional, Protocol, Tuple)
 
 from .nspawn import escape_bind_ro
 from .runner import RunConfig, SetnsCallableRunner, UserConfig
 from .deb import apt_get_cmd
+from . import libbanana
 
 if TYPE_CHECKING:
     from .system import System
@@ -27,6 +28,16 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 re_split_bind = re.compile(r"(?<!\\):")
+
+# Per-pid sequence numbers used for machine names
+machine_name_sequences: Dict[int, int] = Counter()
+
+# Convert PIDs to machine names
+machine_name_generator = libbanana.Codec(
+        alphabets=(
+            "bcdfgjklmnprstvwxz",
+            "aeiouy",
+        )).encode
 
 
 @dataclasses.dataclass
@@ -381,7 +392,12 @@ class ContainerBase:
         self.system = system
 
         if instance_name is None:
-            self.instance_name = str(uuid.uuid4())
+            current_pid = os.getpid()
+            seq = machine_name_sequences[current_pid]
+            machine_name_sequences[current_pid] += 1
+            self.instance_name = "mc" + machine_name_generator(current_pid)
+            if seq > 0:
+                self.instance_name += str(seq)
         else:
             self.instance_name = instance_name
 
@@ -513,6 +529,7 @@ class NspawnContainer(ContainerBase):
                 cmd.append("--ephemeral")
         if self.system.images.session.moncic.systemd_version >= 250:
             cmd.append("--suppress-sync=yes")
+        cmd.append(f"systemd.hostname={self.instance_name}")
         return cmd
 
     def forward_user(self, user: UserConfig, allow_maint=False):
