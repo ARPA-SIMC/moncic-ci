@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 import contextlib
 import os
 import pwd
 import sys
-from .exceptions import Fail
+
+from ..exceptions import Fail
 
 
 class ProcessPrivs:

@@ -5,8 +5,8 @@ from functools import cached_property
 from typing import TYPE_CHECKING, Optional
 
 from . import imagestorage
-from .deb import DebCache
-from .utils import extra_packages_dir
+from .utils.deb import DebCache
+from .utils.fs import extra_packages_dir
 
 if TYPE_CHECKING:
     from .moncic import Moncic

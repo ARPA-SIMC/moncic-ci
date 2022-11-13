@@ -19,7 +19,7 @@ import traceback
 from typing import (TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple,
                     Optional, TextIO, Tuple)
 
-from . import setns, utils
+from .utils import guest, setns
 
 if TYPE_CHECKING:
     from .container import NspawnContainer
@@ -408,7 +408,7 @@ class SetnsCallableRunner(Runner):
                 pid = os.fork()
                 if pid == 0:
                     try:
-                        utils.in_guest = True
+                        guest.in_guest = True
                         res = self.func(*self.args, **({} if self.kwargs is None else self.kwargs))
                         os._exit(res if res is not None else 0)
                     except Exception:

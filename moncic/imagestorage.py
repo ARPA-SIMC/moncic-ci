@@ -10,7 +10,7 @@ import subprocess
 from collections import defaultdict
 from typing import TYPE_CHECKING, ContextManager, Generator, List, Optional
 
-from .btrfs import Subvolume, do_dedupe, is_btrfs
+from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 from .distro import DistroFamily
 from .system import MaintenanceSystem, System, SystemConfig
 from .runner import LocalRunner

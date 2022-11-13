@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest import mock
 
-from moncic.deb import DebCache
+from moncic.utils.deb import DebCache
 
 
 def make_deb(workdir: str, name: str, size: int, atime: int):

@@ -13,13 +13,13 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict, Iterator, List,
-                    NoReturn, Optional, Protocol, Tuple)
+from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
+                    Iterator, List, NoReturn, Optional, Protocol, Tuple)
 
-from .nspawn import escape_bind_ro
 from .runner import RunConfig, SetnsCallableRunner, UserConfig
-from .deb import apt_get_cmd
-from . import libbanana
+from .utils import libbanana
+from .utils.deb import apt_get_cmd
+from .utils.nspawn import escape_bind_ro
 
 if TYPE_CHECKING:
     from .system import System

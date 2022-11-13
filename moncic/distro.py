@@ -1,5 +1,5 @@
 from __future__ import annotations
-from collections import defaultdict
+
 import contextlib
 import glob
 import logging
@@ -8,11 +8,14 @@ import shutil
 import stat
 import subprocess
 import tempfile
-from typing import Optional, Type, List, Dict, Iterable, NamedTuple, TYPE_CHECKING
+from collections import defaultdict
+from typing import (TYPE_CHECKING, Dict, Iterable, List, NamedTuple, Optional,
+                    Type)
 
-from .osrelease import parse_osrelase
 from .container import BindConfig, ContainerConfig
-from .utils import atomic_writer
+from .utils.fs import atomic_writer
+from .utils.osrelease import parse_osrelase
+
 if TYPE_CHECKING:
     from .system import System
 

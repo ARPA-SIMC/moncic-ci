@@ -6,8 +6,8 @@ import shutil
 import tempfile
 from typing import Dict, Generator, List, NamedTuple, Optional
 
-from .runner import UserConfig
-from .utils import dirfd
+from ..runner import UserConfig
+from .fs import dirfd
 
 
 class FileInfo(NamedTuple):

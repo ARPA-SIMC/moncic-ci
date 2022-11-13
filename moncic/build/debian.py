@@ -11,14 +11,17 @@ import subprocess
 import tempfile
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, List, NamedTuple, Optional, Type, cast
+from typing import (TYPE_CHECKING, Generator, List, NamedTuple, Optional, Type,
+                    cast)
 
 import git
 
-from .. import setns
-from ..deb import apt_get_cmd
 from ..runner import UserConfig
-from ..utils import cd, guest_only, host_only, run
+from ..utils import setns
+from ..utils.deb import apt_get_cmd
+from ..utils.fs import cd
+from ..utils.guest import guest_only, host_only
+from ..utils.run import run
 from .analyze import Analyzer
 from .base import Builder, link_or_copy
 

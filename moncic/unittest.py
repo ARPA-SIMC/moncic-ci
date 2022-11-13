@@ -12,11 +12,11 @@ from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
                     Generator, List, Optional, Union)
 from unittest import SkipTest, mock
 
-from moncic.btrfs import is_btrfs
-from moncic.container import RunConfig, UserConfig
-from moncic.moncic import Moncic, MoncicConfig
-from moncic.privs import ProcessPrivs
-from moncic.system import MaintenanceSystem, SystemConfig
+from .container import RunConfig, UserConfig
+from .moncic import Moncic, MoncicConfig
+from .system import MaintenanceSystem, SystemConfig
+from .utils.btrfs import is_btrfs
+from .utils.privs import ProcessPrivs
 
 if TYPE_CHECKING:
     from moncic import imagestorage
@@ -188,8 +188,8 @@ class DistroTestMixin:
         def _update_cachedir(self):
             rlog.append_cachedir()
 
-        with mock.patch("moncic.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
-            with mock.patch("moncic.btrfs.Subvolume.local_run", new=_subvolume_local_run):
+        with mock.patch("moncic.utils.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
+            with mock.patch("moncic.utils.btrfs.Subvolume.local_run", new=_subvolume_local_run):
                 with mock.patch("moncic.imagestorage.Images.local_run", new=_images_local_run):
                     with mock.patch("moncic.system.System.local_run", new=_system_local_run):
                         with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_system_local_run):

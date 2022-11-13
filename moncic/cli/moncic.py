@@ -12,7 +12,7 @@ import git
 from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
-from ..privs import ProcessPrivs
+from ..utils.privs import ProcessPrivs
 from .base import Command
 
 if TYPE_CHECKING:

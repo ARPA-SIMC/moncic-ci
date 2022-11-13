@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, List, Optional
 
 from ..distro import DnfDistro, YumDistro
 from ..runner import UserConfig
-from ..utils import guest_only, host_only, run
+from ..utils.guest import guest_only, host_only
+from ..utils.run import run
 from .analyze import Analyzer
 from .base import Builder, link_or_copy
 

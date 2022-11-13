@@ -16,7 +16,8 @@ import yaml
 
 from ..build import Builder
 from ..exceptions import Fail
-from ..utils import atomic_writer, edit_yaml
+from ..utils.fs import atomic_writer
+from ..utils.edit import edit_yaml
 from .moncic import MoncicCommand, checkout, main_command
 
 if TYPE_CHECKING:

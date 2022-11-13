@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 from .. import distro, utils
 from ..container import ContainerConfig
 from ..runner import UserConfig
-from ..utils import guest_only, host_only
+from ..utils.guest import guest_only, host_only
 from .analyze import Analyzer
 
 if TYPE_CHECKING:
@@ -118,7 +118,7 @@ class Builder:
         global log
         log = logging.getLogger(__name__)
 
-        utils.fix_logging_on_guest()
+        utils.run.fix_logging_on_guest()
 
     @host_only
     def log_capture_start(self, log_file: str):

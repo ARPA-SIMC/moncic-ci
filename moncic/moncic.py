@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 import dataclasses
 import logging
 import os
 import subprocess
-from typing import ContextManager, Optional, List
+from typing import ContextManager, List, Optional
 
 import yaml
 
 from .session import Session
-from .privs import ProcessPrivs
+from .utils.privs import ProcessPrivs
 
 log = logging.getLogger(__name__)
 
