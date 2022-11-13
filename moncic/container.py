@@ -13,7 +13,6 @@ import signal
 import subprocess
 import tempfile
 import time
-from collections import Counter
 from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict, Iterator, List,
                     NoReturn, Optional, Protocol, Tuple)
 
@@ -29,8 +28,9 @@ log = logging.getLogger(__name__)
 
 re_split_bind = re.compile(r"(?<!\\):")
 
-# Per-pid sequence numbers used for machine names
-machine_name_sequences: Dict[int, int] = Counter()
+# PID-specific sequence number used for machine names
+machine_name_sequence_pid: Optional[int] = None
+machine_name_sequence: int = 0
 
 # Convert PIDs to machine names
 machine_name_generator = libbanana.Codec(
@@ -388,14 +388,19 @@ class ContainerBase:
     Convenience common base implementation for Container
     """
     def __init__(self, system: System, config: ContainerConfig, instance_name: Optional[str] = None):
+        global machine_name_sequence_pid, machine_name_sequence
         super().__init__()
         self.system = system
 
         if instance_name is None:
             current_pid = os.getpid()
-            seq = machine_name_sequences[current_pid]
-            machine_name_sequences[current_pid] += 1
-            self.instance_name = "mc" + machine_name_generator(current_pid)
+            if machine_name_sequence_pid is None or machine_name_sequence_pid != current_pid:
+                machine_name_sequence_pid = current_pid
+                machine_name_sequence = 0
+
+            seq = machine_name_sequence
+            machine_name_sequence += 1
+            self.instance_name = "mc-" + machine_name_generator(current_pid)
             if seq > 0:
                 self.instance_name += str(seq)
         else:
