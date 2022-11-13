@@ -35,6 +35,6 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
                 " full-upgrade")
         run_log.assertPopFirst(
                 "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " install bash dbus systemd apt-utils eatmydata iproute2")
+                " satisfy bash dbus systemd apt-utils eatmydata iproute2")
         run_log.assertPopFirst("cachedir_tag:")
         run_log.assertLogEmpty()

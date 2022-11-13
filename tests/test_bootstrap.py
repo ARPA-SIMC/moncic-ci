@@ -163,7 +163,7 @@ class BootstrapTestMixin(DistroTestMixin):
         apt_prefix = "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"' "
         run_log.assertPopFirst("/usr/bin/apt-get update")
         run_log.assertPopFirst(apt_prefix + "full-upgrade")
-        run_log.assertPopFirst(apt_prefix + "install bash dbus systemd apt-utils eatmydata iproute2 vim mc")
+        run_log.assertPopFirst(apt_prefix + "satisfy bash dbus systemd apt-utils eatmydata iproute2 vim mc")
         run_log.assertPopFirst("script:#!/bin/sh\necho base")
         run_log.assertPopFirst("cachedir_tag:")
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
