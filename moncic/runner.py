@@ -8,12 +8,13 @@ import asyncio
 import dataclasses
 import grp
 import importlib
-import json
 import logging
 import os
+import pickle
 import pwd
 import shlex
 import shutil
+import struct
 import subprocess
 import traceback
 from typing import (TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple,
@@ -176,15 +177,12 @@ class Runner:
 
     async def read_log(self, reader: asyncio.StreamReader):
         while True:
-            line = await reader.readline()
-            if not line:
+            size_encoded = await reader.read(4)
+            if not size_encoded:
                 break
-            record_args = json.loads(line)
-            message = record_args.pop("msg")
-            record = logging.LogRecord(
-                    name=self.log.name,
-                    msg="%s", args=(message,),
-                    exc_info=None, **record_args)
+            size = struct.unpack("=L", size_encoded)[0]
+            pickled = await reader.read(size)
+            record = pickle.loads(pickled)
             self.log.handle(record)
 
 
@@ -273,7 +271,7 @@ class LocalRunner(AsyncioRunner):
         return runner.execute()
 
 
-class JSONStreamHandler(logging.Handler):
+class PickleStreamHandler(logging.Handler):
     """
     Serialize log records as json over a stream
     """
@@ -282,13 +280,9 @@ class JSONStreamHandler(logging.Handler):
         self.stream = stream
 
     def emit(self, record):
-        encoded = json.dumps({
-            "level": record.levelno,
-            "pathname": record.pathname,
-            "lineno": record.lineno,
-            "msg": record.msg % record.args,
-        })
-        print(encoded, file=self.stream)
+        pickled = pickle.dumps(record, pickle.HIGHEST_PROTOCOL)
+        self.stream.write(struct.pack("=L", len(pickled)))
+        self.stream.write(pickled)
         self.stream.flush()
 
 
@@ -349,6 +343,7 @@ class SetnsCallableRunner(Runner):
             # Create pipes for catching stdout and stderr
             stdout_r, stdout_w = os.pipe2(0)
             stderr_r, stderr_w = os.pipe2(0)
+        # Pipe to forward logging and return results
         log_r, log_w = os.pipe2(0)
 
         pid = os.fork()
@@ -380,7 +375,7 @@ class SetnsCallableRunner(Runner):
 
                 logging.shutdown()
                 importlib.reload(logging)
-                logging.getLogger().addHandler(JSONStreamHandler(stream=open(log_w, "wt"), level=logging.DEBUG))
+                logging.getLogger().addHandler(PickleStreamHandler(stream=open(log_w, "wb"), level=logging.DEBUG))
                 logging.getLogger().setLevel(logging.DEBUG)
                 setns.nsenter(
                         self.leader_pid,

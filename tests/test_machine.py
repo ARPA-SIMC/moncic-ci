@@ -276,14 +276,13 @@ class RunTestCase:
             self.assertEqual(res.stdout, b"")
             self.assertEqual(res.stderr, b"")
 
-            logname = container.system.log.name
             output = [line for line in lg.output if 'asyncio' not in line]
             self.assertEqual(output, [
-                f"INFO:{logname}:Running test_log",
-                f"DEBUG:{logname}:debug",
-                f"INFO:{logname}:info",
-                f"WARNING:{logname}:warning",
-                f"ERROR:{logname}:error"])
+                f"INFO:{container.system.log.name}:Running test_log",
+                "DEBUG:root:debug",
+                "INFO:root:info",
+                "WARNING:root:warning",
+                "ERROR:root:error"])
 
     def test_issue37(self):
         def test_redirect():
