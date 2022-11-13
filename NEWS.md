@@ -27,6 +27,7 @@
 * Propagate options to subcommands, so they can be used anywhere in the command
   line
 * Try out easier to type machine names (#78)
+* Set hostname of containers to the machine name
 
 # Version 0.7
 
