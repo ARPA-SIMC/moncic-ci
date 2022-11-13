@@ -4,7 +4,7 @@ import dataclasses
 import logging
 import os
 from functools import cached_property
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, Set
 
 import yaml
 
@@ -194,27 +194,78 @@ class System:
         from .runner import LocalRunner
         return LocalRunner.run(self.log, cmd, config, self.config)
 
+    def _container_chain_forwards_users(self) -> List[str]:
+        """
+        Check if any container in the chain forwards users
+        """
+        res = set(self.config.forward_users)
+        if self.config.extends is not None:
+            with self.images.system(self.config.extends) as parent:
+                res.update(parent._container_chain_forwards_users())
+        return sorted(res)
+
+    def _container_chain_package_list(self) -> List[str]:
+        """
+        Concatenate the requested package lists for all containers in the
+        chain
+        """
+        res = []
+        if self.config.extends is not None:
+            with self.images.system(self.config.extends) as parent:
+                res.extend(parent._container_chain_package_list())
+        res.extend(self.distro.get_base_packages())
+        res.extend(self.config.packages)
+        return res
+
+    def _container_chain_maintscripts(self) -> List[str]:
+        """
+        Build a script with the concatenation of all scripts coming from
+        calling distro.get_{name}_script on all the containers in the chain
+        """
+        res = []
+        if self.config.extends is not None:
+            with self.images.system(self.config.extends) as parent:
+                res.extend(parent._container_chain_maintscripts())
+        if self.config.maintscript:
+            res.append(self.config.maintscript)
+        return res
+
     def _update_container(self, container: Container):
         """
-        Run update machinery on a container
+        Run update machinery on a container.
         """
         # Forward users if needed
-        for u in self.config.forward_users:
+        for u in self._container_chain_forwards_users():
             container.forward_user(UserConfig.from_user(u), allow_maint=True)
 
-        # Base maintenance
-        if self.config.extends is not None:
-            # Chain to the parent's maintenance
-            with self.images.system(self.config.extends) as parent:
-                parent._update_container(container)
-
-        # Run the default standard distro maintenance
-        for cmd in self.distro.get_update_script(self):
+        # Setup network
+        for cmd in self.distro.get_setup_network_script(self):
             container.run(cmd)
 
-        # Run maintscripts configured for this system
-        if self.config.maintscript is not None:
-            container.run_script(self.config.maintscript)
+        # Update package databases
+        for cmd in self.distro.get_update_pkgdb_script(self):
+            container.run(cmd)
+
+        # Upgrade system packages
+        for cmd in self.distro.get_upgrade_system_script(self):
+            container.run(cmd)
+
+        # Build list of packages to install, removing duplicates
+        packages: List[str] = []
+        seen: Set[str] = set()
+        for pkg in self._container_chain_package_list():
+            if pkg in seen:
+                continue
+            packages.append(pkg)
+            seen.add(pkg)
+
+        # Install packages
+        for cmd in self.distro.get_install_packages_script(self, packages):
+            container.run(cmd)
+
+        # Run maintscripts
+        for script in self._container_chain_maintscripts():
+            container.run_script(script)
 
     def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
         """

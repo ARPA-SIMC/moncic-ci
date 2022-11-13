@@ -30,6 +30,7 @@ class Centos7(DistroTestMixin, unittest.TestCase):
             with self.make_system(distro) as system:
                 system.update()
 
+        run_log.assertPopFirst('/usr/bin/yum updateinfo -q -y')
         run_log.assertPopFirst('/usr/bin/yum upgrade -q -y')
         run_log.assertPopFirst('/usr/bin/yum install -q -y bash dbus rootfiles iproute yum')
         run_log.assertPopFirst("cachedir_tag:")

@@ -31,6 +31,7 @@ class Fedora34(DistroTestMixin, unittest.TestCase):
                 system.update()
 
         run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
+        run_log.assertPopFirst('/usr/bin/dnf updateinfo -q -y')
         run_log.assertPopFirst('/usr/bin/dnf upgrade -q -y')
         run_log.assertPopFirst('/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf')
         run_log.assertPopFirst("cachedir_tag:")

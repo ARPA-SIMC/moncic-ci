@@ -282,13 +282,6 @@ class Distro:
         """
         return ["bash", "dbus"]
 
-    def get_requested_packages(self, system: System) -> List[str]:
-        """
-        Return the list of packages that should be installed during maintenance
-        """
-        # Make a copy so the returning list can be modified freely
-        return list(system.config.packages)
-
     def container_config_hook(self, system: System, config: ContainerConfig):
         """
         Hook to allow distro-specific container setup
@@ -322,9 +315,27 @@ class Distro:
         except FileNotFoundError:
             pass
 
-    def get_update_script(self, system: System) -> List[List[str]]:
+    def get_setup_network_script(self, system: System) -> List[List[str]]:
         """
-        Get the sequence of commands to use for regular update/maintenance
+        Get the sequence of commands to use to setup networking
+        """
+        return []
+
+    def get_update_pkgdb_script(self, system: System) -> List[List[str]]:
+        """
+        Get the sequence of commands to use to update package information
+        """
+        return []
+
+    def get_upgrade_system_script(self, system: System) -> List[List[str]]:
+        """
+        Get the sequence of commands to use to update package information
+        """
+        return []
+
+    def get_install_packages_script(self, system: System, packages: List[str]) -> List[List[str]]:
+        """
+        Get the sequence of commands to use to install packages
         """
         return []
 
@@ -401,25 +412,45 @@ class YumDistro(RpmDistro):
     def get_base_packages(self) -> List[str]:
         return super().get_base_packages() + ["yum"]
 
-    def get_update_script(self, system: System):
-        res = super().get_update_script(system)
-        return res + [
-            ["/usr/bin/yum", "upgrade", "-q", "-y"],
-            ["/usr/bin/yum", "install", "-q", "-y"] + self.get_base_packages() + self.get_requested_packages(system),
-        ]
+    def get_update_pkgdb_script(self, system: System):
+        res = super().get_update_pkgdb_script(system)
+        res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
+        return res
+
+    def get_upgrade_system_script(self, system: System) -> List[List[str]]:
+        res = super().get_upgrade_system_script(system)
+        res.append(["/usr/bin/yum", "upgrade", "-q", "-y"])
+        return res
+
+    def get_install_packages_script(self, system: System, packages: List[str]) -> List[List[str]]:
+        res = super().get_install_packages_script(system, packages)
+        res.append(["/usr/bin/yum", "install", "-q", "-y"] + packages)
+        return res
 
 
 class DnfDistro(RpmDistro):
     def get_base_packages(self) -> List[str]:
         return super().get_base_packages() + ["dnf"]
 
-    def get_update_script(self, system: System):
-        res = super().get_update_script(system)
-        return res + [
-            ["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"],
-            ["/usr/bin/dnf", "upgrade", "-q", "-y"],
-            ["/usr/bin/dnf", "install", "-q", "-y"] + self.get_base_packages() + self.get_requested_packages(system),
-        ]
+    def get_setup_network_script(self, system: System):
+        res = super().get_setup_network_script(system)
+        res.append(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
+        return res
+
+    def get_update_pkgdb_script(self, system: System):
+        res = super().get_update_pkgdb_script(system)
+        res.append(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
+        return res
+
+    def get_upgrade_system_script(self, system: System) -> List[List[str]]:
+        res = super().get_upgrade_system_script(system)
+        res.append(["/usr/bin/dnf", "upgrade", "-q", "-y"])
+        return res
+
+    def get_install_packages_script(self, system: System, packages: List[str]):
+        res = super().get_install_packages_script(system, packages)
+        res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
+        return res
 
 
 class Centos7(YumDistro):
@@ -482,6 +513,12 @@ class DebianDistro(Distro):
     """
     Common implementation for Debian-based distributions
     """
+    APT_INSTALL_CMD = [
+            "/usr/bin/apt-get", "--assume-yes", "--quiet", "--show-upgraded",
+            # The space after -o is odd but required, and I could
+            # not find a better working syntax
+            '-o Dpkg::Options::="--force-confnew"']
+
     def __init__(self, name: str, suite: str, mirror: str = "http://deb.debian.org/debian"):
         super().__init__(name)
         self.mirror = mirror
@@ -537,19 +574,19 @@ class DebianDistro(Distro):
                 cmd.insert(0, eatmydata)
             system.local_run(cmd)
 
-    def get_update_script(self, system: System) -> List[List[str]]:
-        """
-        Get the sequence of commands to use for regular update/maintenance
-        """
-        res = super().get_update_script(system)
-        apt_install_cmd = [
-                "/usr/bin/apt-get", "--assume-yes", "--quiet", "--show-upgraded",
-                # The space after -o is odd but required, and I could
-                # not find a better working syntax
-                '-o Dpkg::Options::="--force-confnew"']
+    def get_update_pkgdb_script(self, system: System):
+        res = super().get_update_pkgdb_script(system)
         res.append(["/usr/bin/apt-get", "update"])
-        res.append(apt_install_cmd + ["full-upgrade"])
-        res.append(apt_install_cmd + ["satisfy"] + self.get_base_packages() + self.get_requested_packages(system))
+        return res
+
+    def get_upgrade_system_script(self, system: System) -> List[List[str]]:
+        res = super().get_upgrade_system_script(system)
+        res.append(self.APT_INSTALL_CMD + ["full-upgrade"])
+        return res
+
+    def get_install_packages_script(self, system: System, packages: List[str]) -> List[List[str]]:
+        res = super().get_install_packages_script(system, packages)
+        res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res
 
 

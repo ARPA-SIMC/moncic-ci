@@ -51,7 +51,7 @@ class Subvolume:
         Run a command on the host system.
         """
         # Import here to avoid dependency loops
-        from .runner import LocalRunner
+        from ..runner import LocalRunner
         return LocalRunner.run(self.log, cmd, system_config=self.system_config)
 
     @contextlib.contextmanager

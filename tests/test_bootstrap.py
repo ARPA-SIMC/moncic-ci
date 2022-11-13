@@ -48,6 +48,7 @@ class BootstrapTestMixin(DistroTestMixin):
 
         run_log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
         run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
+        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
         run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         run_log.assertPopFirst('/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf')
         run_log.assertPopFirst("cachedir_tag:")
@@ -102,6 +103,7 @@ class BootstrapTestMixin(DistroTestMixin):
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
         run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
+        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
         run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         run_log.assertPopFirst('/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf')
         run_log.assertPopFirst("script:#!/bin/sh\necho base")
@@ -132,6 +134,7 @@ class BootstrapTestMixin(DistroTestMixin):
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
         run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
+        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
         run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
         run_log.assertPopFirst('/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf vim mc')
         run_log.assertPopFirst("script:#!/bin/sh\necho base")
