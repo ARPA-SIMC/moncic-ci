@@ -599,7 +599,10 @@ class DebianDistro(Distro):
     def get_versions(self, packages: List[str]) -> Dict[str, str]:
         re_inst = re.compile(r"^Inst (\S+) \((\S+)")
         cmd_prefix = [
-            "apt-get", "satisfy", "-o", "Dir::state::status=/dev/null", "-o", "APT::Build-Essential=,", "-o", "APT::Get::Show-Versions=true", "-s"
+            "apt-get", "satisfy", "-s"
+            "-o", "Dir::state::status=/dev/null",
+            "-o", "APT::Build-Essential=,",
+            "-o", "APT::Get::Show-Versions=true",
         ]
 
         # Get a list of packages that would be installed as build-essential
