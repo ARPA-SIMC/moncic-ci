@@ -332,11 +332,13 @@ class PickleStreamHandler(logging.Handler):
     """
     Serialize log records as json over a stream
     """
-    def __init__(self, stream: TextIO, level=logging.NOTSET):
+    def __init__(self, logger_name_prefix: str, stream: TextIO, level=logging.NOTSET):
         super().__init__(level)
+        self.logger_name_prefix = logger_name_prefix
         self.stream = stream
 
     def emit(self, record):
+        record.name = self.logger_name_prefix + "." + record.name
         pickled = pickle.dumps(record, pickle.HIGHEST_PROTOCOL)
         self.stream.write(struct.pack("=BL", RESULT_LOG, len(pickled)))
         self.stream.write(pickled)
@@ -463,7 +465,10 @@ class SetnsCallableRunner(Runner):
                 # The logic comes from unittest.TestCase.assertLogs
                 root_logger = logging.getLogger()
                 root_logger.handlers = [
-                    PickleStreamHandler(stream=self.result_stream_writer, level=logging.DEBUG)
+                    PickleStreamHandler(
+                        logger_name_prefix=self.log.name,
+                        stream=self.result_stream_writer,
+                        level=logging.DEBUG)
                 ]
                 root_logger.setLevel(logging.DEBUG)
                 root_logger.propagate = False
