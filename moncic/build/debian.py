@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import importlib.resources
-import json
 import logging
 import os
 import re
@@ -124,14 +123,9 @@ class Debian(Builder):
             # Build run config
             run_config = container.config.run_config()
 
-            container.run_callable(
+            return container.run_callable(
                     self.get_build_deps_in_container,
                     run_config).result()
-
-            with open(os.path.join(container.get_root(), "srv", "moncic-ci", "build", "result.json"), "rt") as fd:
-                result = json.load(fd)
-
-        return result["packages"]
 
     @guest_only
     def get_build_deps_in_container(self):
@@ -139,9 +133,7 @@ class Debian(Builder):
 
         with self.source_directory(build_info):
             res = subprocess.run(["/srv/moncic-ci/dpkg-listbuilddeps"], stdout=subprocess.PIPE, text=True, check=True)
-            packages = [name.strip() for name in res.stdout.strip().splitlines()]
-            with open("/srv/moncic-ci/build/result.json", "wt") as out:
-                json.dump({"packages": packages}, out)
+            return [name.strip() for name in res.stdout.strip().splitlines()]
 
     @guest_only
     def build_source(self, build_info: BuildInfo):
