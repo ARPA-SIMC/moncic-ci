@@ -4,13 +4,14 @@ import contextlib
 import glob
 import logging
 import os
+import re
 import shutil
 import stat
 import subprocess
 import tempfile
 from collections import defaultdict
 from typing import (TYPE_CHECKING, Dict, Iterable, List, NamedTuple, Optional,
-                    Type)
+                    Tuple, Type)
 
 from .container import BindConfig, ContainerConfig
 from .utils.fs import atomic_writer
@@ -339,6 +340,12 @@ class Distro:
         """
         return []
 
+    def get_versions(self, packages: List[str]) -> List[Tuple[str, str]]:
+        """
+        Get the installed versions of packages described in the given list
+        """
+        raise NotImplementedError(f"{self.__class__}.get_versions not implemented")
+
 
 class RpmDistro(Distro):
     """
@@ -588,6 +595,29 @@ class DebianDistro(Distro):
         res = super().get_install_packages_script(system, packages)
         res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res
+
+    def get_versions(self, packages: List[str]) -> Dict[str, str]:
+        re_inst = re.compile(r"^Inst (\S+) \((\S+)")
+        cmd_prefix = [
+            "apt-get", "satisfy", "-o", "Dir::state::status=/dev/null", "-o", "APT::Build-Essential=,", "-o", "APT::Get::Show-Versions=true", "-s"
+        ]
+
+        # Get a list of packages that would be installed as build-essential
+        base: Dict[str, str] = {}
+        res = subprocess.run(cmd_prefix + ["build-essential"], stdout=subprocess.PIPE, check=True, text=True)
+        for line in res.stdout.splitlines():
+            if (mo := re_inst.match(line)):
+                base[mo.group(1)] = mo.group(2)
+
+        # Get a list of packages that would be installed when the given package
+        # list is installed
+        wanted: Dict[str, str] = {}
+        res = subprocess.run(cmd_prefix + packages, stdout=subprocess.PIPE, check=True, text=True)
+        for line in res.stdout.splitlines():
+            if (mo := re_inst.match(line)):
+                wanted[mo.group(1)] = mo.group(2)
+
+        return {k: v for k, v in wanted.items() if k not in base}
 
 
 class UbuntuDistro(DebianDistro):

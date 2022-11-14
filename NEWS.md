@@ -22,6 +22,8 @@
   the image's package list
 * Implemented `monci image [name] build-dep` to add build dependencies of a
   source directory (#76)
+* Implemented `monci image [name] describe` to get a detailed description of
+  how the image has been build (#77)
 * Allow to configure a list of packages in [image configuration](doc/image-config.md)
   instead of manually invoking the package manager in the maintscript
 * Propagate options to subcommands, so they can be used anywhere in the command

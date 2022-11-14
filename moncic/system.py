@@ -290,16 +290,18 @@ class System:
             res["users_forwarded"] = users_forwarded
 
         # Build list of packages to install, removing duplicates
-        packages: List[str] = []
-        seen: Set[str] = set()
+        packages: Set[str] = set()
         for pkg in self._container_chain_config_package_list():
-            if pkg in seen:
-                continue
-            packages.append(pkg)
-            seen.add(pkg)
+            packages.add(pkg)
 
-        # TODO: find versions of packages
-        res["packages"] = packages
+        res["packages_required"] = sorted(packages)
+
+        if packages:
+            with self.create_container() as container:
+                res["packages_installed"] = container.run_callable(
+                        self.distro.get_versions, args=(res["packages_required"],)).result()
+        else:
+            res["packages_installed"] = {}
 
         # Run maintscripts
         if (scripts := self._container_chain_maintscripts()):
