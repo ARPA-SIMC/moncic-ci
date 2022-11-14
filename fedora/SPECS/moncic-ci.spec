@@ -17,6 +17,7 @@ BuildRequires:  python3
 BuildRequires:  python3-setuptools
 BuildRequires:  python3-devel
 BuildRequires:  python3-yaml
+BuildRequires:  python3-tblib
 
 Requires:       python3
 Requires:       python3-yaml

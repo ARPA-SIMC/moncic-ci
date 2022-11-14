@@ -16,7 +16,7 @@ import time
 from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
                     Iterator, List, NoReturn, Optional, Protocol, Tuple)
 
-from .runner import RunConfig, SetnsCallableRunner, UserConfig
+from .runner import RunConfig, CompletedCallable, SetnsCallableRunner, UserConfig
 from .utils import libbanana
 from .utils.deb import apt_get_cmd
 from .utils.nspawn import escape_bind_ro
@@ -369,7 +369,7 @@ class Container(ContextManager, Protocol):
     def run_callable(
             self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> subprocess.CompletedProcess:
+            ) -> CompletedCallable:
         """
         Run the given callable in a separate process inside the running
         system. Returns the process exit status.
@@ -436,7 +436,7 @@ class ContainerBase:
     def run_callable(
             self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> subprocess.CompletedProcess:
+            ) -> CompletedCallable:
         raise NotImplementedError(f"{self.__class__}._run_callable not implemented")
 
     def run_shell(self, config: Optional[RunConfig]):
