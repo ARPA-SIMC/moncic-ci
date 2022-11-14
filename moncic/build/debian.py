@@ -158,9 +158,6 @@ class Debian(Builder):
     @guest_only
     def setup_container_guest(self):
         super().setup_container_guest()
-        # Reinstantiate the module logger
-        global log
-        log = logging.getLogger(__name__)
 
         # TODO: run apt update if the apt index is older than some threshold
 

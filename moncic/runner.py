@@ -7,7 +7,6 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import grp
-import importlib
 import logging
 import os
 import pickle
@@ -455,11 +454,16 @@ class SetnsCallableRunner(Runner):
                 if term := os.environ.get("TERM"):
                     env["TERM"] = term
 
-                logging.shutdown()
-                importlib.reload(logging)
-                logging.getLogger().addHandler(
-                        PickleStreamHandler(stream=self.result_stream_writer, level=logging.DEBUG))
-                logging.getLogger().setLevel(logging.DEBUG)
+                # Setup root logger to divert all logging to our forwarded
+                #
+                # The logic comes from unittest.TestCase.assertLogs
+                root_logger = logging.getLogger()
+                root_logger.handlers = [
+                    PickleStreamHandler(stream=self.result_stream_writer, level=logging.DEBUG)
+                ]
+                root_logger.setLevel(logging.DEBUG)
+                root_logger.propagate = False
+
                 setns.nsenter(
                         self.leader_pid,
                         # We don't use a private user namespace in containers

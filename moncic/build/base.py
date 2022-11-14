@@ -114,11 +114,7 @@ class Builder:
         """
         Set up the build environment in the container
         """
-        # Reinstantiate the module logger
-        global log
-        log = logging.getLogger(__name__)
-
-        utils.run.fix_logging_on_guest()
+        pass
 
     @host_only
     def log_capture_start(self, log_file: str):

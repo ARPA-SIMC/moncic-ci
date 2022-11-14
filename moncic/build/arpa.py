@@ -85,14 +85,6 @@ class ARPA(RPM):
 
         return os.path.relpath(specs[0], start=srcdir)
 
-    @guest_only
-    def setup_container_guest(self):
-        super().setup_container_guest()
-
-        # Reinstantiate the module logger
-        global log
-        log = logging.getLogger(__name__)
-
     @host_only
     def get_build_deps(self) -> List[str]:
         with self.container() as container:
