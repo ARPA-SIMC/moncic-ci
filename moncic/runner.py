@@ -345,11 +345,15 @@ class PickleStreamHandler(logging.Handler):
 
 class SetnsCallableRunner(Runner):
     def __init__(
-            self, run: NspawnContainer, config: RunConfig, func: Callable[..., Optional[int]],
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None):
-        super().__init__(run.system.log, config)
-        self.run = run
-        self.leader_pid = int(run.properties["Leader"])
+            self,
+            container: NspawnContainer,
+            config: RunConfig,
+            func: Callable[..., Optional[int]],
+            args: Tuple = (),
+            kwargs: Optional[Dict[str, Any]] = None):
+        super().__init__(container.system.log, config)
+        self.container = container
+        self.leader_pid = int(container.properties["Leader"])
         self.func = func
         self.args = args
         self.kwargs = kwargs
@@ -447,7 +451,7 @@ class SetnsCallableRunner(Runner):
 
                 # Start building an environment from scratch
                 env = {
-                    "HOSTNAME": self.run.instance_name,
+                    "HOSTNAME": self.container.instance_name,
                 }
                 if path := os.environ.get("PATH"):
                     env["PATH"] = path
@@ -528,12 +532,8 @@ class SetnsCallableRunner(Runner):
             stderr = None
 
         wres = os.waitid(os.P_PID, pid, os.WEXITED)
-        if wres.si_status != 0:
-            if self.exc_info:
-                raise self.exc_info[1].with_traceback(self.exc_info[2])
-            else:
-                raise subprocess.CalledProcessError(
-                        wres.si_status, self.name, stdout, stderr)
+        if self.exc_info and wres.si_status == 255:
+            raise self.exc_info[1].with_traceback(self.exc_info[2])
 
         res = CompletedCallable(self.name, wres.si_status, stdout, stderr)
         res.exc_info = self.exc_info

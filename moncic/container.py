@@ -341,7 +341,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def run(self, command: List[str], config: Optional[RunConfig] = None) -> CompletedCallable:
         """
         Run the given command inside the running system.
 
@@ -356,7 +356,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def run_script(self, body: str, config: Optional[RunConfig] = None) -> CompletedCallable:
         """
         Run the given string as a script in the machine.
 
@@ -453,12 +453,11 @@ class ContainerBase:
             for cand in shell_candidates:
                 pathname = shutil.which(cand)
                 if pathname is not None:
-                    print(pathname)
-                    return
+                    return pathname
             raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
 
-        res = self.run_callable(find_shell)
-        return self.run([res.stdout.strip().decode(), "--login"], config=config)
+        shell = self.run_callable(find_shell).decode()
+        return self.run([shell, "--login"], config=config)
 
 
 class NspawnContainer(ContainerBase):
@@ -567,7 +566,7 @@ class NspawnContainer(ContainerBase):
                 user.check_system()
         forward.__doc__ = f"check or create user {user.user_name!r} and group {user.group_name!r}"
 
-        self.run_callable(forward, config=RunConfig(user=UserConfig.root()))
+        return self.run_callable(forward, config=RunConfig(user=UserConfig.root())).result()
 
     def _start(self):
         self.system.log.info("Starting system %s as %s using image %s",
@@ -596,7 +595,7 @@ class NspawnContainer(ContainerBase):
 
         # Set up volatile mounts
         if any(bind.setup for bind in self.active_binds):
-            self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root()))
+            self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root())).result()
 
     def _bind_setup(self):
         """
@@ -617,7 +616,7 @@ class NspawnContainer(ContainerBase):
     def _stop(self):
         # Run teardown script frombinds
         if any(bind.teardown for bind in self.active_binds):
-            self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
+            self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root())).result()
 
         # See https://github.com/systemd/systemd/issues/6458
         leader_pid = int(self.properties["Leader"])
@@ -632,7 +631,7 @@ class NspawnContainer(ContainerBase):
             time.sleep(0.1)
         self.started = False
 
-    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def run(self, command: List[str], config: Optional[RunConfig] = None) -> CompletedCallable:
         run_config = self.config.run_config(config)
 
         exec_func: Callable[[str, List[str]], NoReturn]
@@ -653,7 +652,7 @@ class NspawnContainer(ContainerBase):
 
         return self.run_callable(command_runner, run_config)
 
-    def run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def run_script(self, body: str, config: Optional[RunConfig] = None) -> CompletedCallable:
         def script_runner():
             with tempfile.TemporaryDirectory() as workdir:
                 script_path = os.path.join(workdir, "script")
@@ -676,7 +675,7 @@ class NspawnContainer(ContainerBase):
     def run_callable(
             self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> subprocess.CompletedProcess:
+            ) -> CompletedCallable:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
         return runner.execute()

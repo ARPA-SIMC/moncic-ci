@@ -91,10 +91,9 @@ class ARPA(RPM):
             # Build run config
             run_config = container.config.run_config()
 
-            res = container.run_callable(
+            container.run_callable(
                     self.get_build_deps_in_container,
-                    run_config)
-            res.check_returncode()
+                    run_config).result()
 
             with open(os.path.join(container.get_root(), "srv", "moncic-ci", "build", "result.json"), "rt") as fd:
                 result = json.load(fd)

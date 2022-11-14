@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import logging
 import os
 import secrets
-import subprocess
 import sys
 import tempfile
 import time
@@ -159,7 +157,7 @@ class RunTestCase:
 
     def test_forward_user(self):
         def get_user():
-            print(json.dumps(UserConfig.from_current()))
+            return UserConfig.from_current()
 
         user = UserConfig.from_sudoer()
 
@@ -167,27 +165,21 @@ class RunTestCase:
         with self.system() as system:
             container_config = ContainerConfig()
             with system.create_container(config=container_config) as container:
-                res = container.run_callable(get_user)
-                u = UserConfig(*json.loads(res.stdout))
-                self.assertEqual(res.stderr, b"")
+                u = container.run_callable(get_user).result()
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 
                 # Running with another user fails as it does not exist in the
                 # container
-                with self.assertRaises(subprocess.CalledProcessError) as e:
-                    res = container.run_callable(get_user, config=RunConfig(user=user))
-                self.assertRegex(e.exception.stderr.decode(), "RuntimeError: container has no user 1000 'enrico'")
+                with self.assertRaises(RuntimeError) as e:
+                    container.run_callable(get_user, config=RunConfig(user=user)).result()
+                self.assertEqual(str(e.exception), "container has no user 1000 'enrico'")
 
             container_config = ContainerConfig(forward_user=user)
             with system.create_container(config=container_config) as container:
-                res = container.run_callable(get_user)
-                u = UserConfig(*json.loads(res.stdout))
-                self.assertEqual(res.stderr, b"")
+                u = container.run_callable(get_user).result()
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 
-                res = container.run_callable(get_user, config=RunConfig(user=user))
-                u = UserConfig(*json.loads(res.stdout))
-                self.assertEqual(res.stderr, b"")
+                u = container.run_callable(get_user, config=RunConfig(user=user)).result()
                 self.assertEqual(u, user)
 
                 res = container.run_script("#!/bin/sh\n/bin/true\n", config=RunConfig(user=user))
@@ -311,6 +303,10 @@ class RunTestCase:
                 res = container.run_callable(test_log)
             self.assertEqual(res.stdout, b"")
             self.assertEqual(res.stderr, b"")
+            self.assertEqual(res.returncode, 0)
+            self.assertIsNone(res.returnvalue)
+            self.assertIsNone(res.exc_info)
+            self.assertIsNone(res.result())
 
             output = [line for line in lg.output if 'asyncio' not in line]
             self.assertEqual(output, [
@@ -330,6 +326,10 @@ class RunTestCase:
             res = container.run_callable(test_redirect)
             self.assertEqual(res.stdout, b"")
             self.assertEqual(res.stderr, b"")
+            self.assertEqual(res.returncode, 0)
+            self.assertIsNone(res.returnvalue)
+            self.assertIsNone(res.exc_info)
+            self.assertIsNone(res.result())
 
 
 # Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
