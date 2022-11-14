@@ -7,7 +7,7 @@ import os
 import shutil
 from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 
-from .. import distro, utils
+from .. import distro
 from ..container import ContainerConfig
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
@@ -114,11 +114,7 @@ class Builder:
         """
         Set up the build environment in the container
         """
-        # Reinstantiate the module logger
-        global log
-        log = logging.getLogger(__name__)
-
-        utils.run.fix_logging_on_guest()
+        pass
 
     @host_only
     def log_capture_start(self, log_file: str):

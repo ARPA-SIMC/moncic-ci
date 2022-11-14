@@ -43,9 +43,8 @@ Edit the script as you iterate, to save keystrokes.
 
 ## File a bug report
 
-Once you manage to reproduce the issue, in `~/.config/moncic-ci/testimg.yaml`
-you have all the commands needed to set up the test environment, and in your
-script you have the commands needed to reproduce the problem in it.
+Once you manage to reproduce the issue, you can run `monci image testimg describe`
+to get a description of how the test environment has been built.
 
 That's very helpful information for putting together a well written bug report.
 

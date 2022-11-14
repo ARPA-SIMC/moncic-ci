@@ -13,6 +13,7 @@ from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
 from unittest import SkipTest, mock
 
 from .container import RunConfig, UserConfig
+from .runner import CompletedCallable
 from .moncic import Moncic, MoncicConfig
 from .system import MaintenanceSystem, SystemConfig
 from .utils.btrfs import is_btrfs
@@ -216,19 +217,19 @@ class DistroTestMixin:
         def _forward_user(self, user: UserConfig, allow_maint: bool = False):
             rlog.append_forward_user(user)
 
-        def _run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        def _run(self, command: List[str], config: Optional[RunConfig] = None) -> CompletedCallable:
             rlog.append(command, {})
-            return subprocess.CompletedProcess(command, 0, b'', b'')
+            return CompletedCallable(command, 0, b'', b'')
 
-        def _run_script(self, body: str, config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        def _run_script(self, body: str, config: Optional[RunConfig] = None) -> CompletedCallable:
             rlog.append_script(body)
-            return subprocess.CompletedProcess(["script"], 0, b'', b'')
+            return CompletedCallable(["script"], 0, b'', b'')
 
         def _run_callable(
                 self, func: Callable[[], Optional[int]],
-                config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+                config: Optional[RunConfig] = None) -> CompletedCallable:
             rlog.append_callable(func)
-            return subprocess.CompletedProcess(func.__name__, 0, b'', b'')
+            return CompletedCallable(func.__name__, 0, b'', b'')
 
         with mock.patch("moncic.container.NspawnContainer._start", new=_start):
             with mock.patch("moncic.container.NspawnContainer._stop", new=_stop):

@@ -8,15 +8,6 @@ from typing import Sequence
 log = logging.getLogger(__name__)
 
 
-def fix_logging_on_guest():
-    """
-    When running a fuction in the guest system, logging is reinitialized, but
-    the `log` value remains a reference to the old logger. Recreate it here.
-    """
-    global log
-    log = logging.getLogger(__name__)
-
-
 def run(cmd: Sequence[str], check: bool = True, **kw) -> subprocess.CompletedProcess:
     """
     Logging wrapper to subprocess.run.

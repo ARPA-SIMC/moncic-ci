@@ -4,7 +4,7 @@ import dataclasses
 import logging
 import os
 from functools import cached_property
-from typing import TYPE_CHECKING, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
 
 import yaml
 
@@ -217,6 +217,18 @@ class System:
         res.extend(self.config.packages)
         return res
 
+    def _container_chain_config_package_list(self) -> List[str]:
+        """
+        Concatenate the requested package lists for all containers in the
+        chain
+        """
+        res = []
+        if self.config.extends is not None:
+            with self.images.system(self.config.extends) as parent:
+                res.extend(parent._container_chain_config_package_list())
+        res.extend(self.config.packages)
+        return res
+
     def _container_chain_maintscripts(self) -> List[str]:
         """
         Build a script with the concatenation of all scripts coming from
@@ -266,6 +278,36 @@ class System:
         # Run maintscripts
         for script in self._container_chain_maintscripts():
             container.run_script(script)
+
+    def describe_container(self) -> Dict[str, Any]:
+        """
+        Return a dictionary describing facts about the container
+        """
+        res: Dict[str, Any] = {}
+
+        # Forward users if needed
+        if (users_forwarded := self._container_chain_forwards_users()):
+            res["users_forwarded"] = users_forwarded
+
+        # Build list of packages to install, removing duplicates
+        packages: Set[str] = set()
+        for pkg in self._container_chain_config_package_list():
+            packages.add(pkg)
+
+        res["packages_required"] = sorted(packages)
+
+        if packages:
+            with self.create_container() as container:
+                res["packages_installed"] = container.run_callable(
+                        self.distro.get_versions, args=(res["packages_required"],)).result()
+        else:
+            res["packages_installed"] = {}
+
+        # Run maintscripts
+        if (scripts := self._container_chain_maintscripts()):
+            res["maintscripts"] = scripts
+
+        return res
 
     def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
         """

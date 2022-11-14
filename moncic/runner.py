@@ -7,23 +7,32 @@ from __future__ import annotations
 import asyncio
 import dataclasses
 import grp
-import importlib
-import json
 import logging
 import os
+import pickle
 import pwd
 import shlex
 import shutil
+import struct
 import subprocess
-import traceback
-from typing import (TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple,
-                    Optional, TextIO, Tuple)
+import sys
+import types
+from functools import cached_property
+from typing import (TYPE_CHECKING, Any, BinaryIO, Callable, Dict, List,
+                    NamedTuple, Optional, TextIO, Tuple, Type)
+
+import tblib
 
 from .utils import guest, setns
 
 if TYPE_CHECKING:
     from .container import NspawnContainer
     from .system import SystemConfig
+
+
+RESULT_LOG = 0
+RESULT_EXCEPTION = 1
+RESULT_VALUE = 2
 
 
 class UserConfig(NamedTuple):
@@ -147,6 +156,27 @@ class RunConfig:
     use_path: bool = False
 
 
+class CompletedCallable(subprocess.CompletedProcess):
+    """
+    Extension of subprocess.CompletedProcess that can also store a return value
+    and exception information
+    """
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self.returnvalue: Any = None
+        self.exc_info: Optional[Tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+
+    def result(self) -> Any:
+        """
+        Return the callable's return value if it was successful, or if it
+        raised an exception, reraise that exception
+        """
+        if self.exc_info:
+            raise self.exc_info[1].with_traceback(self.exc_info[2])
+        else:
+            return self.returnvalue
+
+
 class Runner:
     """
     Run commands in a system
@@ -157,6 +187,22 @@ class Runner:
         self.config = config
         self.stdout: List[bytes] = []
         self.stderr: List[bytes] = []
+        self.exc_info: Optional[Tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+        self.has_result: bool = False
+        self.result: Any = None
+
+    @cached_property
+    def name(self) -> str:
+        """
+        Return a name describing this runner
+        """
+        return self._get_name()
+
+    def _get_name(self) -> str:
+        """
+        Return a name describing this runner
+        """
+        raise NotImplementedError(f"{self.__class__}._get_name not implemented")
 
     async def read_stdout(self, reader: asyncio.StreamReader):
         while True:
@@ -176,16 +222,22 @@ class Runner:
 
     async def read_log(self, reader: asyncio.StreamReader):
         while True:
-            line = await reader.readline()
-            if not line:
+            try:
+                size_encoded = await reader.readexactly(5)
+            except asyncio.IncompleteReadError:
                 break
-            record_args = json.loads(line)
-            message = record_args.pop("msg")
-            record = logging.LogRecord(
-                    name=self.log.name,
-                    msg="%s", args=(message,),
-                    exc_info=None, **record_args)
-            self.log.handle(record)
+            code, size = struct.unpack("=BL", size_encoded)
+            pickled = await reader.read(size)
+            decoded = pickle.loads(pickled)
+            if code == RESULT_LOG:
+                self.log.handle(decoded)
+            elif code == RESULT_EXCEPTION:
+                self.exc_info = (decoded[0], decoded[1], decoded[2].as_traceback())
+            elif code == RESULT_VALUE:
+                self.has_result = True
+                self.result = decoded
+            else:
+                raise NotImplementedError(f"unknown result stream item type {code!r}")
 
 
 class AsyncioRunner(Runner):
@@ -229,13 +281,16 @@ class LocalRunner(AsyncioRunner):
     """
     Run a command locally, logging its output
     """
+    def _get_name(self) -> str:
+        return " ".join(shlex.quote(c) for c in self.cmd)
+
     async def start_process(self):
         if self.config.user is not None:
             raise NotImplementedError("support for user config in LocalRunner is not yet implemented")
         if self.config.interactive:
             raise NotImplementedError("support for interactive config in LocalRunner is not yet implemented")
 
-        self.log.info("Running %s", " ".join(shlex.quote(c) for c in self.cmd))
+        self.log.info("Running %s", self.name)
 
         kwargs = {}
         if self.config.cwd is not None:
@@ -273,35 +328,41 @@ class LocalRunner(AsyncioRunner):
         return runner.execute()
 
 
-class JSONStreamHandler(logging.Handler):
+class PickleStreamHandler(logging.Handler):
     """
     Serialize log records as json over a stream
     """
-    def __init__(self, stream: TextIO, level=logging.NOTSET):
+    def __init__(self, logger_name_prefix: str, stream: TextIO, level=logging.NOTSET):
         super().__init__(level)
+        self.logger_name_prefix = logger_name_prefix
         self.stream = stream
 
     def emit(self, record):
-        encoded = json.dumps({
-            "level": record.levelno,
-            "pathname": record.pathname,
-            "lineno": record.lineno,
-            "msg": record.msg % record.args,
-        })
-        print(encoded, file=self.stream)
+        record.name = self.logger_name_prefix + "." + record.name
+        pickled = pickle.dumps(record, pickle.HIGHEST_PROTOCOL)
+        self.stream.write(struct.pack("=BL", RESULT_LOG, len(pickled)))
+        self.stream.write(pickled)
         self.stream.flush()
 
 
 class SetnsCallableRunner(Runner):
     def __init__(
-            self, run: NspawnContainer, config: RunConfig, func: Callable[..., Optional[int]],
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None):
-        super().__init__(run.system.log, config)
-        self.run = run
-        self.leader_pid = int(run.properties["Leader"])
+            self,
+            container: NspawnContainer,
+            config: RunConfig,
+            func: Callable[..., Optional[int]],
+            args: Tuple = (),
+            kwargs: Optional[Dict[str, Any]] = None):
+        super().__init__(container.system.log, config)
+        self.container = container
+        self.leader_pid = int(container.properties["Leader"])
         self.func = func
         self.args = args
         self.kwargs = kwargs
+        self.result_stream_writer: Optional[BinaryIO] = None
+
+    def _get_name(self) -> str:
+        return self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__
 
     async def make_reader(self, fd: int):
         loop = asyncio.get_running_loop()
@@ -311,14 +372,14 @@ class SetnsCallableRunner(Runner):
                 lambda: reader_protocol, os.fdopen(fd))
         return reader
 
-    async def collect_output(self, stdout_r: Optional[int], stderr_r: Optional[int], log_r: int):
+    async def collect_output(self, stdout_r: Optional[int], stderr_r: Optional[int], result_r: int):
         # See https://gist.github.com/oconnor663/08c081904264043e55bf
         readers = []
         if stdout_r is not None:
             readers.append(self.read_stdout(await self.make_reader(stdout_r)))
         if stderr_r is not None:
             readers.append(self.read_stderr(await self.make_reader(stderr_r)))
-        readers.append(self.read_log(await self.make_reader(log_r)))
+        readers.append(self.read_log(await self.make_reader(result_r)))
 
         await asyncio.gather(*readers)
 
@@ -339,9 +400,28 @@ class SetnsCallableRunner(Runner):
 
         return self.config.user
 
-    def execute(self) -> subprocess.CompletedProcess:
-        func_name = self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__
-        self.log.info("Running %s", func_name)
+    def send_exception(self):
+        """
+        Send the current exception to the result stream
+        """
+        exc_info = sys.exc_info()
+        pickled = pickle.dumps(
+                (exc_info[0], exc_info[1], tblib.Traceback(exc_info[2])), pickle.HIGHEST_PROTOCOL)
+        self.result_stream_writer.write(struct.pack("=BL", RESULT_EXCEPTION, len(pickled)))
+        self.result_stream_writer.write(pickled)
+        self.result_stream_writer.flush()
+
+    def send_result(self, value: Any):
+        """
+        Send a function return value to the result stream
+        """
+        pickled = pickle.dumps(value, pickle.HIGHEST_PROTOCOL)
+        self.result_stream_writer.write(struct.pack("=BL", RESULT_VALUE, len(pickled)))
+        self.result_stream_writer.write(pickled)
+        self.result_stream_writer.flush()
+
+    def execute(self) -> CompletedCallable:
+        self.log.info("Running %s", self.name)
 
         catch_output = not self.config.interactive
 
@@ -349,13 +429,14 @@ class SetnsCallableRunner(Runner):
             # Create pipes for catching stdout and stderr
             stdout_r, stdout_w = os.pipe2(0)
             stderr_r, stderr_w = os.pipe2(0)
-        log_r, log_w = os.pipe2(0)
+        # Pipe to forward logging and return results
+        result_r, result_w = os.pipe2(0)
 
         pid = os.fork()
         if pid == 0:
             try:
                 if catch_output:
-                    # Redirect /dev/null to stdin
+                    # Have stdin read from /dev/null
                     fd = os.open("/dev/null", os.O_RDONLY)
                     os.dup2(fd, 0)
                     os.close(fd)
@@ -367,21 +448,31 @@ class SetnsCallableRunner(Runner):
                     os.close(stdout_w)
                     os.dup2(stderr_w, 2)
                     os.close(stderr_w)
-                os.close(log_r)
+                os.close(result_r)
+                self.result_stream_writer = open(result_w, "wb")
 
                 # Start building an environment from scratch
                 env = {
-                    "HOSTNAME": self.run.instance_name,
+                    "HOSTNAME": self.container.instance_name,
                 }
                 if path := os.environ.get("PATH"):
                     env["PATH"] = path
                 if term := os.environ.get("TERM"):
                     env["TERM"] = term
 
-                logging.shutdown()
-                importlib.reload(logging)
-                logging.getLogger().addHandler(JSONStreamHandler(stream=open(log_w, "wt"), level=logging.DEBUG))
-                logging.getLogger().setLevel(logging.DEBUG)
+                # Setup root logger to divert all logging to our forwarded
+                #
+                # The logic comes from unittest.TestCase.assertLogs
+                root_logger = logging.getLogger()
+                root_logger.handlers = [
+                    PickleStreamHandler(
+                        logger_name_prefix=self.log.name,
+                        stream=self.result_stream_writer,
+                        level=logging.DEBUG)
+                ]
+                root_logger.setLevel(logging.DEBUG)
+                root_logger.propagate = False
+
                 setns.nsenter(
                         self.leader_pid,
                         # We don't use a private user namespace in containers
@@ -409,40 +500,47 @@ class SetnsCallableRunner(Runner):
                 if pid == 0:
                     try:
                         guest.in_guest = True
-                        res = self.func(*self.args, **({} if self.kwargs is None else self.kwargs))
-                        os._exit(res if res is not None else 0)
-                    except Exception:
-                        traceback.print_exc()
+                        if self.kwargs is None:
+                            res = self.func(*self.args)
+                        else:
+                            res = self.func(*self.args, **self.kwargs)
+                    except BaseException:
+                        self.send_exception()
                         # Reusing systemd-analyze exit-status
-                        os._exit(255)
+                        os._exit(0)
+                    else:
+                        self.send_result(res)
+                        os._exit(0)
                 else:
+                    # Forward the child return code
                     wres = os.waitid(os.P_PID, pid, os.WEXITED)
                     os._exit(wres.si_status)
-            except Exception:
-                traceback.print_exc()
+            except BaseException:
+                self.send_exception()
                 # Reusing systemd-analyze exit-status
                 os._exit(255)
         else:
             if catch_output:
                 os.close(stdout_w)
                 os.close(stderr_w)
-            os.close(log_w)
+            os.close(result_w)
 
         stdout: Optional[bytes]
         stderr: Optional[bytes]
         if catch_output:
-            asyncio.run(self.collect_output(stdout_r, stderr_r, log_r))
+            asyncio.run(self.collect_output(stdout_r, stderr_r, result_r))
             stdout = b"".join(self.stdout)
             stderr = b"".join(self.stderr)
         else:
-            asyncio.run(self.collect_output(None, None, log_r))
+            asyncio.run(self.collect_output(None, None, result_r))
             stdout = None
             stderr = None
 
         wres = os.waitid(os.P_PID, pid, os.WEXITED)
-        if self.config.check and wres.si_status != 0:
-            raise subprocess.CalledProcessError(
-                    wres.si_status, func_name, stdout, stderr)
+        if self.exc_info and wres.si_status == 255:
+            raise self.exc_info[1].with_traceback(self.exc_info[2])
 
-        return subprocess.CompletedProcess(
-                func_name, wres.si_status, stdout, stderr)
+        res = CompletedCallable(self.name, wres.si_status, stdout, stderr)
+        res.exc_info = self.exc_info
+        res.returnvalue = self.result
+        return res
