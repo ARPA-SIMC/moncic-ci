@@ -72,6 +72,9 @@ class MoncicCommand(Command):
     """
     Base class for commands that need a Moncic state
     """
+    # Set to False if the command does not need root
+    NEEDS_ROOT: bool = True
+
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
@@ -105,8 +108,9 @@ class MoncicCommand(Command):
             # Instantiate Moncic
             self.moncic = Moncic(config=config, privs=privs)
 
-        # Do the rest as root
-        self.moncic.privs.regain()
+        if self.NEEDS_ROOT:
+            # Do the rest as root
+            self.moncic.privs.regain()
 
     def setup_moncic_config(self, config: MoncicConfig):
         """

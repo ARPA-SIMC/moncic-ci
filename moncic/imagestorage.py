@@ -31,29 +31,37 @@ class Images:
         self.session = session
         self.imagedir = imagedir
 
-    def list_images(self) -> List[str]:
+    def list_images(self, skip_unaccessible: bool = False) -> List[str]:
         """
         List the names of images found in image directories
         """
         res = set()
-        with os.scandir(self.imagedir) as it:
-            for entry in it:
-                if entry.name.startswith("."):
-                    continue
+        try:
+            with os.scandir(self.imagedir) as it:
+                for entry in it:
+                    if entry.name.startswith("."):
+                        continue
 
-                if entry.is_dir():
-                    res.add(entry.name)
-                elif entry.name.endswith(".yaml"):
-                    res.add(entry.name[:-5])
+                    if entry.is_dir():
+                        res.add(entry.name)
+                    elif entry.name.endswith(".yaml"):
+                        res.add(entry.name[:-5])
+        except PermissionError:
+            if not skip_unaccessible:
+                raise
 
         for path in self.session.moncic.config.imageconfdirs:
-            with os.scandir(path) as it:
-                for entry in it:
-                    if entry.name.startswith(".") or entry.is_dir():
-                        continue
-                    if not entry.name.endswith(".yaml") or entry.name == "moncic-ci.yaml":
-                        continue
-                    res.add(entry.name[:-5])
+            try:
+                with os.scandir(path) as it:
+                    for entry in it:
+                        if entry.name.startswith(".") or entry.is_dir():
+                            continue
+                        if not entry.name.endswith(".yaml") or entry.name == "moncic-ci.yaml":
+                            continue
+                        res.add(entry.name[:-5])
+            except PermissionError:
+                if not skip_unaccessible:
+                    raise
 
         return sorted(res)
 

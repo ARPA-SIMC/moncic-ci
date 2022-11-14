@@ -30,6 +30,7 @@
   line
 * Try out easier to type machine names (#78)
 * Set hostname of containers to the machine name
+* `monci images` does not require root to run
 
 # Version 0.7
 

@@ -3,8 +3,9 @@ from __future__ import annotations
 import csv
 import logging
 import shutil
+import subprocess
 import sys
-from typing import Any, NamedTuple, Sequence, TextIO
+from typing import Any, NamedTuple, Sequence, Set, TextIO
 
 try:
     from texttable import Texttable
@@ -61,6 +62,8 @@ class Images(MoncicCommand):
     """
     List OS images
     """
+    NEEDS_ROOT = False
+
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
@@ -79,11 +82,20 @@ class Images(MoncicCommand):
                     TextColumn("Boostrapped"),
                     TextColumn("Path"))
 
+        # List images that have been bootstrapped
+        res = subprocess.run(
+                ["machinectl", "list-images", "--no-pager", "--no-legend"],
+                check=True, stdout=subprocess.PIPE, text=True)
+        bootstrapped: Set[str] = set()
+        for line in res.stdout.splitlines():
+            bootstrapped.add(line.split()[0])
+
+        # List configured images
         with self.moncic.session() as session:
             images = session.images
-            for name in images.list_images():
+            for name in images.list_images(skip_unaccessible=True):
                 with images.system(name) as system:
-                    output.add_row((name, system.distro.name, "yes" if system.is_bootstrapped() else "no", system.path))
+                    output.add_row((name, system.distro.name, "yes" if name in bootstrapped else "no", system.path))
         output.flush()
 
 
