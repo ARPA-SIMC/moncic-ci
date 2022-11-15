@@ -260,12 +260,15 @@ class Describe(MoncicCommand):
     show a description of the image
     """
     def run(self):
+        ryaml = ruamel.yaml.YAML(typ="rt")
         with self.moncic.session() as session:
             with session.images.system(self.args.name) as system:
                 info = system.describe_container()
-                yaml.dump(info, stream=sys.stdout, default_flow_style=False,
-                          allow_unicode=True, explicit_start=True,
-                          sort_keys=False, Dumper=yaml.CDumper)
+                if (maintscripts := info.get("maintscripts")):
+                    info["maintscripts"] = [
+                        ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
+                        for maintscript in maintscripts]
+                ryaml.dump(info, sys.stdout)
 
 
 @main_command
