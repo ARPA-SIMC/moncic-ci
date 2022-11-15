@@ -10,8 +10,7 @@ import subprocess
 import tempfile
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import (TYPE_CHECKING, Generator, List, NamedTuple, Optional, Type,
-                    cast)
+from typing import (TYPE_CHECKING, Generator, List, NamedTuple, Optional, cast)
 
 import git
 
@@ -22,7 +21,7 @@ from ..utils.fs import cd
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .analyze import Analyzer
-from .base import Builder, link_or_copy
+from .base import BuildInfo, Builder, link_or_copy
 
 if TYPE_CHECKING:
     from .container import Container, System
@@ -89,15 +88,8 @@ def get_file_list(path: str) -> List[str]:
     return res
 
 
-@dataclass
-class BuildInfo:
-    pass
-
-
 @Builder.register
 class Debian(Builder):
-    build_info_cls: Type[BuildInfo] = BuildInfo
-
     @classmethod
     def create(cls, system: System, srcdir: str) -> Builder:
         if (os.path.isdir(os.path.join(srcdir, "debian")) and not
@@ -164,10 +156,8 @@ class Debian(Builder):
         raise NotImplementedError(f"{self.__class__.__name__}.source_directory not implemented")
 
     @guest_only
-    def build_in_container(self, source_only: bool = False) -> Optional[int]:
-        build_info = self.build_info_cls()
-
-        self.setup_container_guest()
+    def build_in_container(self, source_only: bool = False) -> BuildInfo:
+        build_info = super().build_in_container(source_only)
 
         # Build source package
         with self.system.images.session.moncic.privs.user():
@@ -176,23 +166,15 @@ class Debian(Builder):
         if not source_only:
             self.build_binary(build_info)
 
-        # Collect artifacts
-        artifacts_dir = "/srv/artifacts"
-        if os.path.isdir(artifacts_dir):
-            shutil.rmtree(artifacts_dir)
-        os.makedirs(artifacts_dir)
-
-        def collect(path: str):
-            log.info("Found artifact %s", path)
-            link_or_copy(path, artifacts_dir)
-
         for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
             with os.scandir(path) as it:
                 for de in it:
                     if de.is_file():
-                        collect(de.path)
+                        build_info.artifacts.append(de.path)
 
-        return None
+        build_info.success = True
+
+        return build_info
 
     @guest_only
     def build_binary(self, build_info: BuildInfo):
@@ -230,17 +212,16 @@ class Debian(Builder):
                 run(["dpkg-buildpackage", "--no-sign"])
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: str):
+    def collect_artifacts(self, container: Container, build_info: BuildInfo, destdir: str):
         container_root = container.get_root()
         user = UserConfig.from_sudoer()
         build_log_name: Optional[str] = None
-        with os.scandir(os.path.join(container_root, "srv", "artifacts")) as it:
-            for de in it:
-                if de.is_file():
-                    if de.name.endswith("_source.changes"):
-                        build_log_name = de.name[:-15] + ".buildlog"
-                    log.info("Copying %s to %s", de.name, destdir)
-                    link_or_copy(de.path, destdir, user=user)
+        for path in build_info.artifacts:
+            if path.endswith("_source.changes"):
+                build_log_name = os.path.basename(path)[:-15] + ".buildlog"
+            log.info("Copying %s to %s", path, destdir)
+            link_or_copy(os.path.join(container_root, path.lstrip("/")), destdir, user=user)
+        build_info.artifacts = [os.path.basename(path) for path in build_info.artifacts]
 
         if build_log_name is None:
             build_log_name = os.path.basename(self.srcdir) + ".buildlog"
@@ -251,6 +232,7 @@ class Debian(Builder):
                     logfile, destdir, user=user,
                     filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)
+            build_info.artifacts.append(build_log_name)
 
     @classmethod
     def analyze(cls, analyzer: Analyzer):

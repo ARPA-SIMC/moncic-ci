@@ -5,6 +5,7 @@ import dataclasses
 import logging
 import os
 import shutil
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
 
 from .. import distro
@@ -37,12 +38,26 @@ def link_or_copy(src: str, dstdir: str, filename: Optional[str] = None, user: Op
         os.chown(dest, user.user_id, user.group_id)
 
 
+@dataclass
+class BuildInfo:
+    """
+    Information gathered during a build
+    """
+    # True if the build was successful
+    success: bool = False
+    # List of container paths for artifacts
+    artifacts: List[str] = field(default_factory=list)
+
+
 class Builder:
     """
     Interface for classes providing the logic for CI builds
     """
     # Registry of known builders
     builders: Dict[str, Type[Builder]] = {}
+
+    # BuildInfo (sub)class used by this builder
+    build_info_cls: Type[BuildInfo] = BuildInfo
 
     @classmethod
     def register(cls, builder_cls: Type["Builder"]) -> Type["Builder"]:
@@ -162,7 +177,7 @@ class Builder:
                 self.log_capture_end()
 
     @host_only
-    def build(self, shell: bool = False, source_only: bool = False) -> int:
+    def build(self, shell: bool = False, source_only: bool = False) -> BuildInfo:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
@@ -171,26 +186,26 @@ class Builder:
         with self.container() as container:
             # Log moncic config
             moncic_config = self.system.images.session.moncic.config
-            for field in dataclasses.fields(moncic_config):
-                log.debug("moncic:%s = %r", field.name, getattr(moncic_config, field.name))
+            for fld in dataclasses.fields(moncic_config):
+                log.debug("moncic:%s = %r", fld.name, getattr(moncic_config, fld.name))
             # Log container config
-            for field in dataclasses.fields(container.config):
-                log.debug("container:%s = %r", field.name, getattr(container.config, field.name))
+            for fld in dataclasses.fields(container.config):
+                log.debug("container:%s = %r", fld.name, getattr(container.config, fld.name))
 
             # Build run config
             run_config = container.config.run_config()
             run_config.user = UserConfig.root()
             # Log run config
-            for field in dataclasses.fields(run_config):
-                log.debug("run:%s = %r", field.name, getattr(run_config, field.name))
+            for fld in dataclasses.fields(run_config):
+                log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
 
             try:
-                res = container.run_callable(
+                build_info = container.run_callable(
                         self.build_in_container,
                         run_config,
-                        kwargs={"source_only": source_only})
+                        kwargs={"source_only": source_only}).result()
                 if artifacts_dir:
-                    self.collect_artifacts(container, artifacts_dir)
+                    self.collect_artifacts(container, build_info, artifacts_dir)
             finally:
                 if shell:
                     run_config = container.config.run_config()
@@ -199,10 +214,10 @@ class Builder:
                     run_config.user = UserConfig.root()
                     run_config.cwd = "/srv/moncic-ci/build"
                     container.run_shell(config=run_config)
-        return res.returncode
+        return build_info
 
     @guest_only
-    def build_in_container(self, source_only: bool = False) -> Optional[int]:
+    def build_in_container(self, source_only: bool = False) -> BuildInfo:
         """
         Run the build in a child process.
 
@@ -214,7 +229,9 @@ class Builder:
 
         The return value will be used as the return code of the child process.
         """
-        raise NotImplementedError(f"{self.__class__}.build not implemented")
+        build_info = self.build_info_cls()
+        self.setup_container_guest()
+        return build_info
 
     @host_only
     def collect_artifacts(self, container: Container, destdir: str):

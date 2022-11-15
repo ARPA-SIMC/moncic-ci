@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import logging
 import os
@@ -60,7 +61,9 @@ class CI(MoncicCommand):
                         builder = Builder.detect(system, srcdir)
                     log.info("Build using builder %r", builder.__class__.__name__)
 
-                    return builder.build(shell=self.args.shell, source_only=self.args.source_only)
+                    build_info = builder.build(shell=self.args.shell, source_only=self.args.source_only)
+                    json.dump(dataclasses.asdict(build_info), sys.stdout, indent=1)
+                    sys.stdout.write("\n")
 
 
 @main_command
