@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import glob
+import json
 import logging
 import os
 import re
@@ -11,7 +12,7 @@ import subprocess
 import tempfile
 from collections import defaultdict
 from typing import (TYPE_CHECKING, Dict, Iterable, List, NamedTuple, Optional,
-                    Tuple, Type)
+                    Set, Type)
 
 from .container import BindConfig, ContainerConfig
 from .utils.fs import atomic_writer
@@ -340,11 +341,12 @@ class Distro:
         """
         return []
 
-    def get_versions(self, packages: List[str]) -> List[Tuple[str, str]]:
+    def get_versions(self, packages: List[str]) -> Dict[str, Dict[str, str]]:
         """
         Get the installed versions of packages described in the given list
         """
-        raise NotImplementedError(f"{self.__class__}.get_versions not implemented")
+        raise NotImplementedError(
+                f"getting installed versions for package requirements is not implemented for {self.name}")
 
 
 class RpmDistro(Distro):
@@ -458,6 +460,36 @@ class DnfDistro(RpmDistro):
         res = super().get_install_packages_script(system, packages)
         res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
         return res
+
+    def get_versions(self, packages: List[str]) -> Dict[str, Dict[str, str]]:
+        # We cannot just import dnf here, as it is unlikely to match the
+        # version of python in the host system. We therefore shell out to the
+        # guest system's version of python
+        script = f"""#!/usr/bin/python3
+import json
+import sys
+from collections import defaultdict
+
+import dnf
+
+requirements = {packages!r}
+res = defaultdict(dict)
+
+base = dnf.Base()
+base.read_all_repos()
+base.fill_sack()
+for requirement in requirements:
+    for pkg in base.sack.query().available().latest().filter(
+            provides=requirement, arch=base.conf.substitutions["arch"]):
+        res[requirement][pkg.name] = pkg.version
+
+json.dump(res, sys.stdout)
+"""
+
+        with open("/tmp/script", "wt") as fd:
+            fd.write(script)
+        res = subprocess.run(["/usr/bin/python3", "/tmp/script"], stdout=subprocess.PIPE, text=True, check=True)
+        return json.loads(res.stdout)
 
 
 class Centos7(YumDistro):
@@ -596,31 +628,41 @@ class DebianDistro(Distro):
         res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res
 
-    def get_versions(self, packages: List[str]) -> Dict[str, str]:
+    def get_versions(self, packages: List[str]) -> Dict[str, Dict[str, str]]:
         re_inst = re.compile(r"^Inst (\S+) \((\S+)")
         cmd_prefix = [
-            "apt-get", "satisfy", "-s"
+            "apt-get", "satisfy", "-s",
             "-o", "Dir::state::status=/dev/null",
             "-o", "APT::Build-Essential=,",
             "-o", "APT::Get::Show-Versions=true",
         ]
 
         # Get a list of packages that would be installed as build-essential
-        base: Dict[str, str] = {}
+        base: Set[str] = set()
         res = subprocess.run(cmd_prefix + ["build-essential"], stdout=subprocess.PIPE, check=True, text=True)
         for line in res.stdout.splitlines():
             if (mo := re_inst.match(line)):
-                base[mo.group(1)] = mo.group(2)
+                base.add(mo.group(1))
+
+        result = defaultdict(dict)
 
         # Get a list of packages that would be installed when the given package
         # list is installed
-        wanted: Dict[str, str] = {}
-        res = subprocess.run(cmd_prefix + packages, stdout=subprocess.PIPE, check=True, text=True)
-        for line in res.stdout.splitlines():
-            if (mo := re_inst.match(line)):
-                wanted[mo.group(1)] = mo.group(2)
+        for requirement in packages:
+            if requirement == "build-essential":
+                continue
+            res = subprocess.run(cmd_prefix + [requirement], stdout=subprocess.PIPE, check=True, text=True)
+            for line in res.stdout.splitlines():
+                if (mo := re_inst.match(line)):
+                    if (name := mo.group(1)) not in base:
+                        result[requirement][name] = mo.group(2)
 
-        return {k: v for k, v in wanted.items() if k not in base}
+        common = set.intersection(*(set(v.keys()) for v in result.values()))
+        for v in result.values():
+            for name in common:
+                del v[name]
+
+        return result
 
 
 class UbuntuDistro(DebianDistro):

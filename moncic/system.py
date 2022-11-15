@@ -298,12 +298,15 @@ class System:
 
         if packages:
             with self.create_container() as container:
-                res["packages_installed"] = container.run_callable(
-                        self.distro.get_versions, args=(res["packages_required"],)).result()
+                try:
+                    res["packages_installed"] = dict(container.run_callable(
+                            self.distro.get_versions, args=(res["packages_required"],)).result())
+                except NotImplementedError as e:
+                    self.log.info("cannot get details of how package requirements have been resolved: %s", e)
         else:
             res["packages_installed"] = {}
 
-        # Run maintscripts
+        # Describe maintscripts
         if (scripts := self._container_chain_maintscripts()):
             res["maintscripts"] = scripts
 
