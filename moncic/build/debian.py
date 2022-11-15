@@ -166,21 +166,13 @@ class Debian(Builder):
         if not source_only:
             self.build_binary(build_info)
 
-        # Collect artifacts
-        artifacts_dir = "/srv/artifacts"
-        if os.path.isdir(artifacts_dir):
-            shutil.rmtree(artifacts_dir)
-        os.makedirs(artifacts_dir)
-
-        def collect(path: str):
-            log.info("Found artifact %s", path)
-            link_or_copy(path, artifacts_dir)
-
         for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
             with os.scandir(path) as it:
                 for de in it:
                     if de.is_file():
-                        collect(de.path)
+                        build_info.artifacts.append(de.path)
+
+        build_info.success = True
 
         return build_info
 
@@ -224,13 +216,11 @@ class Debian(Builder):
         container_root = container.get_root()
         user = UserConfig.from_sudoer()
         build_log_name: Optional[str] = None
-        with os.scandir(os.path.join(container_root, "srv", "artifacts")) as it:
-            for de in it:
-                if de.is_file():
-                    if de.name.endswith("_source.changes"):
-                        build_log_name = de.name[:-15] + ".buildlog"
-                    log.info("Copying %s to %s", de.name, destdir)
-                    link_or_copy(de.path, destdir, user=user)
+        for path in build_info.artifacts:
+            if path.endswith("_source.changes"):
+                build_log_name = os.path.basename(path)[:-15] + ".buildlog"
+            log.info("Copying %s to %s", path, destdir)
+            link_or_copy(os.path.join(container_root, path.lstrip("/")), destdir, user=user)
 
         if build_log_name is None:
             build_log_name = os.path.basename(self.srcdir) + ".buildlog"

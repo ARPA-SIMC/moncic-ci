@@ -62,7 +62,8 @@ class CI(MoncicCommand):
                     log.info("Build using builder %r", builder.__class__.__name__)
 
                     build_info = builder.build(shell=self.args.shell, source_only=self.args.source_only)
-                    json.dump(dataclasses.asdict(build_info), indent=1)
+                    json.dump(dataclasses.asdict(build_info), sys.stdout, indent=1)
+                    sys.stdout.write("\n")
 
 
 @main_command

@@ -165,6 +165,8 @@ class ARPA(RPM):
             run(["spectool", "-g", "-R", build_info.specfile])
             run(["rpmbuild", "-ba", build_info.specfile])
 
+        build_info.success = True
+
         return build_info
 
     @host_only
