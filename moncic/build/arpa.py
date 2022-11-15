@@ -187,6 +187,7 @@ class ARPA(RPM):
                     build_log_name = filename[:-8] + ".buildlog"
                 log.info("Copying %s to %s", filename, destdir)
                 link_or_copy(file, destdir, user=user)
+                build_info.artifacts.append(filename)
 
         if build_log_name is None:
             build_log_name = os.path.basename(build_info.specfile)[:-5] + ".buildlog"
@@ -197,3 +198,4 @@ class ARPA(RPM):
                     logfile, destdir, user=user,
                     filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)
+            build_info.artifacts.append(build_log_name)

@@ -221,6 +221,7 @@ class Debian(Builder):
                 build_log_name = os.path.basename(path)[:-15] + ".buildlog"
             log.info("Copying %s to %s", path, destdir)
             link_or_copy(os.path.join(container_root, path.lstrip("/")), destdir, user=user)
+        build_info.artifacts = [os.path.basename(path) for path in build_info.artifacts]
 
         if build_log_name is None:
             build_log_name = os.path.basename(self.srcdir) + ".buildlog"
@@ -231,6 +232,7 @@ class Debian(Builder):
                     logfile, destdir, user=user,
                     filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)
+            build_info.artifacts.append(build_log_name)
 
     @classmethod
     def analyze(cls, analyzer: Analyzer):
