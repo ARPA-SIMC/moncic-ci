@@ -184,6 +184,8 @@ class Builder:
         """
         artifacts_dir = self.system.images.session.moncic.config.build_artifacts_dir
         with self.container() as container:
+            # General builder information
+            log.info("Builder: %s", self.__class__.__name__)
             # Log moncic config
             moncic_config = self.system.images.session.moncic.config
             for fld in dataclasses.fields(moncic_config):
