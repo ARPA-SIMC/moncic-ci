@@ -147,6 +147,11 @@ class Debian(Builder):
         # Disable reindexing of manpages during installation of build-dependencies
         run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
 
+        # Log DEB_* env variables
+        for k, v in os.environ.items():
+            if k.startswith("DEB_"):
+                log.debug("%s: %r", k, v)
+
     @guest_only
     @contextlib.contextmanager
     def source_directory(self, build_info: BuildInfo) -> Generator[None, None, None]:
