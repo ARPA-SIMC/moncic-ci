@@ -31,6 +31,8 @@
 * Try out easier to type machine names (#78)
 * Set hostname of containers to the machine name
 * `monci images` does not require root to run
+* Check that the `--artifacts` directory exists before starting the build
+* Added `--deb-build-profiles` option for Debian builds
 
 # Version 0.7
 
