@@ -6,7 +6,7 @@ import logging
 import os
 import shutil
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Dict, List, Optional, TextIO, Type
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, TextIO, Type
 
 from .. import distro
 from ..container import ContainerConfig
@@ -15,6 +15,8 @@ from ..utils.guest import guest_only, host_only
 from .analyze import Analyzer
 
 if TYPE_CHECKING:
+    import argparse
+
     from .container import Container, System
 
 log = logging.getLogger(__name__)
@@ -56,6 +58,9 @@ class Builder:
     # Registry of known builders
     builders: Dict[str, Type[Builder]] = {}
 
+    # Callbacks to use to add extra command line args
+    extra_args_callbacks: List[Callable] = []
+
     # BuildInfo (sub)class used by this builder
     build_info_cls: Type[BuildInfo] = BuildInfo
 
@@ -65,6 +70,15 @@ class Builder:
         if name is None:
             name = builder_cls.__name__.lower()
         cls.builders[name] = builder_cls
+
+        # Register extra_args callbacks.
+        #
+        # Only register callbacks that are in the class __dict__ to avoid
+        # inheritance, which would register command line options from base
+        # classes multiple times
+        if "add_arguments" in builder_cls.__dict__:
+            cls.extra_args_callbacks.append(builder_cls.add_arguments)
+
         return builder_cls
 
     @classmethod
@@ -72,24 +86,24 @@ class Builder:
         return list(cls.builders.keys())
 
     @classmethod
-    def create_builder(cls, name: str, system: System, srcdir: str) -> "Builder":
+    def create_builder(cls, name: str, **kw) -> "Builder":
         builder_cls = cls.builders[name.lower()]
-        return builder_cls.create(system, srcdir)
+        return builder_cls.create(**kw)
 
     @classmethod
-    def create(cls, system: System, srcdir: str) -> "Builder":
+    def create(cls, **kw) -> "Builder":
         raise NotImplementedError(f"The builder {cls} cannot be instantiated")
 
     @classmethod
-    def detect(cls, system: System, srcdir: str) -> "Builder":
+    def detect(cls, *, system: System, **kw) -> "Builder":
         if isinstance(system.distro, distro.DebianDistro):
-            return cls.builders["debian"].create(system, srcdir)
+            return cls.builders["debian"].create(system=system, **kw)
         elif isinstance(system.distro, distro.RpmDistro):
-            return cls.builders["rpm"].create(system, srcdir)
+            return cls.builders["rpm"].create(system=system, **kw)
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {system.distro!r}")
 
-    def __init__(self, system: System, srcdir: str):
+    def __init__(self, *, system: System, srcdir: str, args: argparse.Namespace):
         """
         The constructor is run in the host system
         """

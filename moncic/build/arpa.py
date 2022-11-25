@@ -17,7 +17,7 @@ from .analyze import Analyzer
 from .base import BuildInfo, Builder, link_or_copy
 
 if TYPE_CHECKING:
-    from .container import Container, System
+    from .container import Container
 
 log = logging.getLogger(__name__)
 
@@ -35,25 +35,25 @@ class RPM(Builder):
     build_info_cls = RPMBuildInfo
 
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
+    def create(cls, *, srcdir: str, **kw) -> Builder:
         travis_yml = os.path.join(srcdir, ".travis.yml")
         try:
             with open(travis_yml, "rt") as fd:
                 if 'simc/stable' in fd.read():
-                    return ARPA.create(system, srcdir)
+                    return ARPA.create(srcdir=srcdir, **kw)
         except FileNotFoundError:
             pass
 
         raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
 
-    def __init__(self, system: System, srcdir: str):
-        super().__init__(system, srcdir)
-        if isinstance(system.distro, YumDistro):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        if isinstance(self.system.distro, YumDistro):
             self.builddep = ["yum-builddep"]
-        elif isinstance(system.distro, DnfDistro):
+        elif isinstance(self.system.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
-            raise RuntimeError(f"Unsupported distro: {system.distro.name}")
+            raise RuntimeError(f"Unsupported distro: {self.system.distro.name}")
 
     def locate_specfile(self, srcdir: str) -> str:
         """
@@ -112,8 +112,8 @@ class ARPA(RPM):
     configured for travis
     """
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
-        return cls(system, srcdir)
+    def create(cls, **kw) -> Builder:
+        return cls(**kw)
 
     def locate_specfile(self, srcdir: str) -> str:
         """

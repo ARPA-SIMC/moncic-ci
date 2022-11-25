@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import (TYPE_CHECKING, Generator, List, NamedTuple, Optional, cast)
+from typing import TYPE_CHECKING, Generator, List, NamedTuple, Optional, cast
 
 import git
 
@@ -21,9 +21,11 @@ from ..utils.fs import cd
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .analyze import Analyzer
-from .base import BuildInfo, Builder, link_or_copy
+from .base import Builder, BuildInfo, link_or_copy
 
 if TYPE_CHECKING:
+    import argparse
+
     from .container import Container, System
 
 log = logging.getLogger(__name__)
@@ -91,17 +93,26 @@ def get_file_list(path: str) -> List[str]:
 @Builder.register
 class Debian(Builder):
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
+    def create(cls, *, srcdir: str, **kw) -> Builder:
         if (os.path.isdir(os.path.join(srcdir, "debian")) and not
                 os.path.exists(os.path.join(srcdir, "debian", "gbp.conf"))):
-            return DebianPlain.create(system, srcdir)
-        return DebianGBP.create(system, srcdir)
+            return DebianPlain.create(srcdir=srcdir, **kw)
+        return DebianGBP.create(srcdir=srcdir, **kw)
 
-    def __init__(self, system: System, srcdir: str):
-        super().__init__(system, srcdir)
+    @classmethod
+    def add_arguments(cls, parser):
+        """
+        Add command line arguments specific to this builder
+        """
+        parser.add_argument("--deb-build-profiles", action="store",
+                            help="space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE")
+
+    def __init__(self, *, args: argparse.Namespace, **kw):
+        super().__init__(args=args, **kw)
         # This is only set in guest systems, and after self.build_source() has
         # been called
         self.srcinfo: Optional[SourceInfo] = None
+        self.deb_build_profiles: Optional[str] = args.deb_build_profiles
 
     @host_only
     def get_build_deps(self) -> List[str]:
@@ -146,6 +157,9 @@ class Debian(Builder):
 
         # Disable reindexing of manpages during installation of build-dependencies
         run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
+
+        if self.deb_build_profiles:
+            os.environ["DEB_BUILD_PROFILES"] = self.deb_build_profiles
 
         # Log DEB_* env variables
         for k, v in os.environ.items():
@@ -271,8 +285,8 @@ class DebianPlain(Debian):
     re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>[^)-]+)(?:[^)]+)?\)")
 
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
-        return cls(system, srcdir)
+    def create(cls, **kw) -> Builder:
+        return cls(**kw)
 
     @host_only
     def setup_container_host(self, container: Container):
@@ -393,22 +407,22 @@ class DebianGBP(Debian):
             gitrepo.create_head(branch, remote_branch)
 
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
+    def create(cls, srcdir: str, **kw) -> Builder:
         repo = git.Repo(srcdir)
         if repo.head.commit.hexsha in [t.commit.hexsha for t in repo.tags]:
             if os.path.isdir(os.path.join(srcdir, "debian")):
                 # If branch to build is a tag, build a release from it
-                return DebianGBPRelease.create(system, srcdir)
+                return DebianGBPRelease.create(srcdir=srcdir, **kw)
             else:
                 # There is no debian/directory, the current branch is upstream
-                return DebianGBPTestUpstream.create(system, srcdir)
+                return DebianGBPTestUpstream.create(srcdir=srcdir, **kw)
         else:
             if os.path.isdir(os.path.join(srcdir, "debian")):
                 # There is a debian/ directory, find upstream from gbp.conf
-                return DebianGBPTestDebian.create(system, srcdir)
+                return DebianGBPTestDebian.create(srcdir=srcdir, **kw)
             else:
                 # There is no debian/directory, the current branch is upstream
-                return DebianGBPTestUpstream.create(system, srcdir)
+                return DebianGBPTestUpstream.create(srcdir=srcdir, **kw)
 
     @guest_only
     def setup_container_guest(self):
@@ -454,8 +468,8 @@ class DebianGBPTestUpstream(DebianGBP):
     packaging branch inferred from the System distribution
     """
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
-        return cls(system, srcdir)
+    def create(cls, **kw) -> Builder:
+        return cls(**kw)
 
     @guest_only
     @contextlib.contextmanager
@@ -505,8 +519,8 @@ class DebianGBPTestDebian(DebianGBP):
     and the upstream branch as configured in gbp.conf
     """
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
-        return cls(system, srcdir)
+    def create(cls, **kw) -> Builder:
+        return cls(**kw)
 
     @guest_only
     @contextlib.contextmanager

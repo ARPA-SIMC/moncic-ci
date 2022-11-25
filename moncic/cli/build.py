@@ -44,6 +44,8 @@ class CI(MoncicCommand):
                             help="name or path of the system used to build")
         parser.add_argument("repo", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
+        for cb in Builder.extra_args_callbacks:
+            cb(parser)
         return parser
 
     def setup_moncic_config(self, config: MoncicConfig):
@@ -58,10 +60,15 @@ class CI(MoncicCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
+                    builder_args = {
+                        "system": system,
+                        "srcdir": srcdir,
+                        "args": self.args,
+                    }
                     if self.args.build_style:
-                        builder = Builder.create_builder(self.args.build_style, system, srcdir)
+                        builder = Builder.create_builder(self.args.build_style, **builder_args)
                     else:
-                        builder = Builder.detect(system, srcdir)
+                        builder = Builder.detect(**builder_args)
                     log.info("Build using builder %r", builder.__class__.__name__)
 
                     build_info = builder.build(shell=self.args.shell, source_only=self.args.source_only)
