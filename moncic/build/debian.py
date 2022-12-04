@@ -441,8 +441,8 @@ class DebianGBPRelease(DebianGBP):
     current branch
     """
     @classmethod
-    def create(cls, system: System, srcdir: str) -> Builder:
-        return cls(system, srcdir)
+    def create(cls, system: System, srcdir: str, **kw) -> Builder:
+        return cls(system, srcdir, **kw)
 
     @guest_only
     @contextlib.contextmanager
