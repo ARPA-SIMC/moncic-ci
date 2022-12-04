@@ -188,6 +188,8 @@ class BuildDep(MaintCommand):
                             help="name of the procedure used to run the CI. Default: autodetect")
         parser.add_argument("repo", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
+        for cb in Builder.extra_args_callbacks:
+            cb(parser)
         return parser
 
     def run(self):
@@ -198,7 +200,7 @@ class BuildDep(MaintCommand):
                     if self.args.build_style:
                         builder = Builder.create_builder(self.args.build_style, system, srcdir)
                     else:
-                        builder = Builder.detect(system, srcdir)
+                        builder = Builder.detect(system=system, srcdir=srcdir, args=self.args)
 
                     log.info("Query using builder %r", builder.__class__.__name__)
                     packages = builder.get_build_deps()
