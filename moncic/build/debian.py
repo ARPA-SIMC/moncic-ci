@@ -26,7 +26,7 @@ from .base import Builder, BuildInfo, link_or_copy
 if TYPE_CHECKING:
     import argparse
 
-    from .container import Container, System
+    from .container import Container
 
 log = logging.getLogger(__name__)
 
@@ -441,8 +441,8 @@ class DebianGBPRelease(DebianGBP):
     current branch
     """
     @classmethod
-    def create(cls, system: System, srcdir: str, **kw) -> Builder:
-        return cls(system, srcdir, **kw)
+    def create(cls, **kw) -> Builder:
+        return cls(**kw)
 
     @guest_only
     @contextlib.contextmanager
