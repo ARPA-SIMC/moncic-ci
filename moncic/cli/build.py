@@ -8,7 +8,6 @@ import sys
 from typing import TYPE_CHECKING
 
 from ..build import Builder, Analyzer
-from ..exceptions import Fail
 from .base import Command
 from .moncic import MoncicCommand, checkout, main_command
 
@@ -52,8 +51,7 @@ class CI(MoncicCommand):
         super().setup_moncic_config(config)
         if self.args.artifacts:
             config.build_artifacts_dir = os.path.abspath(self.args.artifacts)
-            if not os.path.exists(config.build_artifacts_dir):
-                raise Fail(f"Artifact directory {config.build_artifacts_dir!r} does not exist")
+            os.makedirs(config.build_artifacts_dir, exist_ok=True)
 
     def run(self):
         with self.moncic.session() as session:
