@@ -17,7 +17,7 @@ setup(
     # It does not make muc sense to run pip install without installing also
     # coloredlogs and texttable, although moncic-ci is able to work without
     # them
-    install_requires=["pyyaml", "ruamel.yaml", "coloredlogs", "texttable", "requests", "tblib"],
+    install_requires=["pyyaml", "ruamel.yaml", "coloredlogs", "texttable", "requests", "tblib", "GitPython"],
     packages=['moncic', "moncic.build", "moncic.cli", "moncic.utils"],
     scripts=['monci'],
     classifiers=[
