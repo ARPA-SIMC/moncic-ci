@@ -18,11 +18,13 @@ BuildRequires:  python3-setuptools
 BuildRequires:  python3-devel
 BuildRequires:  python3-yaml
 BuildRequires:  python3-tblib
+BuildRequires:  python3-GitPython
 
 Requires:       python3
 Requires:       python3-yaml
 Requires:       btrfs-progs
 Requires:       systemd-container
+Requires:       python3-GitPython
 
 # not strictly necessary, for formatting
 Requires:       python3-texttable
