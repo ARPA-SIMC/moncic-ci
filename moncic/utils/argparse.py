@@ -42,11 +42,11 @@ class ArgumentParser(argparse.ArgumentParser):
     Hacks around a standard ArgumentParser to allow to have a limited set of
     options both outside and inside subcommands
     """
-    def __init__(self, *args, **kw):
+    def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
 
         if not hasattr(self, "shared_args"):
-            self.shared_args: Dict[str, SharedArgument] = {}
+            self.shared_args: dict[str, SharedArgument] = {}
 
         # Add arguments from the shared ones
         for a in self.shared_args.values():

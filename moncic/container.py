@@ -24,7 +24,7 @@ from .utils.nspawn import escape_bind_ro
 if TYPE_CHECKING:
     from .system import System
 
-RESULT = TypeVar("Result")
+Result = TypeVar("Result")
 
 log = logging.getLogger(__name__)
 
@@ -368,13 +368,23 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run_callable(
-            self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
+    def run_callable_raw(
+            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> CompletedCallable:
+            ) -> CompletedCallable[Result]:
         """
         Run the given callable in a separate process inside the running
-        system. Returns the process exit status.
+        system. Returns a CompletedCallable describing details of the execution
+        """
+        ...
+
+    def run_callable(
+            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
+            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            ) -> Result:
+        """
+        Run the given callable in a separate process inside the running
+        system. Returns the function's result
         """
         ...
 
@@ -435,11 +445,18 @@ class ContainerBase:
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         raise NotImplementedError(f"{self.__class__}._run not implemented")
 
-    def run_callable(
-            self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
+    def run_callable_raw(
+            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> CompletedCallable:
-        raise NotImplementedError(f"{self.__class__}._run_callable not implemented")
+            ) -> CompletedCallable[Result]:
+        raise NotImplementedError(f"{self.__class__}._run_callable_raw not implemented")
+
+    def run_callable(
+            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
+            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            ) -> Result:
+        completed = self.run_callable_raw(func, config, args, kwargs)
+        return completed.result()
 
     def run_shell(self, config: Optional[RunConfig]):
         shell_candidates = []
@@ -466,10 +483,10 @@ class NspawnContainer(ContainerBase):
     """
     Running system implemented using systemd nspawn
     """
-    def __init__(self, *args, **kw):
+    def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
         # machinectl properties of the running machine
-        self.properties = None
+        self.properties: dict[str, str] = {}
         # Bind mounts used by this container
         self.active_binds: List[BindConfig] = []
 
@@ -675,19 +692,10 @@ class NspawnContainer(ContainerBase):
         return self.run_callable_raw(script_runner, config)
 
     def run_callable_raw(
-            self, func: Callable[..., RESULT], config: Optional[RunConfig] = None,
+            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> CompletedCallable[RESULT]:
+            ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
         completed = runner.execute()
         return completed
-
-    def run_callable(
-            self, func: Callable[..., RESULT], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> RESULT:
-        run_config = self.config.run_config(config)
-        runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
-        completed = runner.execute()
-        return completed.result()

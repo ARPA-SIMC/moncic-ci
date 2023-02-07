@@ -18,8 +18,8 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import (TYPE_CHECKING, Any, BinaryIO, Callable, Dict, Generic,
-                    List, NamedTuple, Optional, TextIO, Tuple, Type, TypeVar)
+from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Callable, Dict, Generic,
+                    List, NamedTuple, Optional, Tuple, Type, TypeVar, cast)
 
 import tblib
 
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from .container import NspawnContainer
     from .system import SystemConfig
 
-RESULT = TypeVar("Result")
+Result = TypeVar("Result")
 
 
 RESULT_LOG = 0
@@ -158,17 +158,17 @@ class RunConfig:
     use_path: bool = False
 
 
-class CompletedCallable(Generic[RESULT], subprocess.CompletedProcess):
+class CompletedCallable(Generic[Result], subprocess.CompletedProcess):
     """
     Extension of subprocess.CompletedProcess that can also store a return value
     and exception information
     """
-    def __init__(self, *args, **kw):
+    def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
-        self.returnvalue: Optional[RESULT] = None
+        self.returnvalue: Optional[Result] = None
         self.exc_info: Optional[Tuple[Type[BaseException], BaseException, types.TracebackType]] = None
 
-    def result(self) -> RESULT:
+    def result(self) -> Result:
         """
         Return the callable's return value if it was successful, or if it
         raised an exception, reraise that exception
@@ -176,7 +176,7 @@ class CompletedCallable(Generic[RESULT], subprocess.CompletedProcess):
         if self.exc_info:
             raise self.exc_info[1].with_traceback(self.exc_info[2])
         else:
-            return self.returnvalue
+            return cast(Result, self.returnvalue)
 
 
 class Runner:
@@ -334,7 +334,7 @@ class PickleStreamHandler(logging.Handler):
     """
     Serialize log records as json over a stream
     """
-    def __init__(self, logger_name_prefix: str, stream: TextIO, level=logging.NOTSET):
+    def __init__(self, logger_name_prefix: str, stream: IO[bytes], level=logging.NOTSET):
         super().__init__(level)
         self.logger_name_prefix = logger_name_prefix
         self.stream = stream
@@ -347,12 +347,12 @@ class PickleStreamHandler(logging.Handler):
         self.stream.flush()
 
 
-class SetnsCallableRunner(Runner):
+class SetnsCallableRunner(Generic[Result], Runner):
     def __init__(
             self,
             container: NspawnContainer,
             config: RunConfig,
-            func: Callable[..., Optional[int]],
+            func: Callable[..., Result],
             args: Tuple = (),
             kwargs: Optional[Dict[str, Any]] = None):
         super().__init__(container.system.log, config)
@@ -361,7 +361,7 @@ class SetnsCallableRunner(Runner):
         self.func = func
         self.args = args
         self.kwargs = kwargs
-        self.result_stream_writer: Optional[BinaryIO] = None
+        self.result_stream_writer: BinaryIO
 
     def _get_name(self) -> str:
         return self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__
@@ -422,7 +422,7 @@ class SetnsCallableRunner(Runner):
         self.result_stream_writer.write(pickled)
         self.result_stream_writer.flush()
 
-    def execute(self) -> CompletedCallable:
+    def execute(self) -> CompletedCallable[Result]:
         self.log.info("Running %s", self.name)
 
         catch_output = not self.config.interactive
@@ -542,7 +542,7 @@ class SetnsCallableRunner(Runner):
         if self.exc_info and wres.si_status == 255:
             raise self.exc_info[1].with_traceback(self.exc_info[2])
 
-        res = CompletedCallable(self.name, wres.si_status, stdout, stderr)
-        res.exc_info = self.exc_info
-        res.returnvalue = self.result
-        return res
+        cres = CompletedCallable[Result](self.name, wres.si_status, stdout, stderr)
+        cres.exc_info = self.exc_info
+        cres.returnvalue = self.result
+        return cres

@@ -62,8 +62,8 @@ def edit_yaml(buf: str, path: str) -> Optional[str]:
                 return None
 
             try:
-                with io.StringIO(edited) as buf:
-                    yaml.load(buf, Loader=yaml.CLoader)
+                with io.StringIO(edited) as fd:
+                    yaml.load(fd, Loader=yaml.CLoader)
                 return edited
             except Exception as e:
                 error = str(e)

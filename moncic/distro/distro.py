@@ -44,6 +44,9 @@ class DistroFamily:
 
     @classmethod
     def populate(cls):
+        """
+        Ensure modules that register DistroFamily instances get loaded
+        """
         from . import debian, rpm  # noqa
 
     @classmethod

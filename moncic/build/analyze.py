@@ -57,6 +57,7 @@ class Analyzer:
                 continue
             self.check_local_remote_sync(name)
             return name
+        return "main"
 
     @cached_property
     def debian_packaging_branches(self) -> Dict[str, str]:

@@ -11,8 +11,8 @@ import tempfile
 from typing import TYPE_CHECKING, List, Tuple
 
 if TYPE_CHECKING:
-    from .moncic import MoncicConfig
-    from .system import SystemConfig
+    from ..moncic import MoncicConfig
+    from ..system import SystemConfig
 
 log = logging.getLogger(__name__)
 
