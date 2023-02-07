@@ -10,7 +10,8 @@ import subprocess
 import tempfile
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, List, NamedTuple, Optional, cast
+from typing import (TYPE_CHECKING, Any, Generator, List, NamedTuple, Optional,
+                    cast)
 
 import git
 
@@ -26,7 +27,7 @@ from .base import Builder, BuildInfo, link_or_copy
 if TYPE_CHECKING:
     import argparse
 
-    from .container import Container
+    from ..container import Container
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ def get_file_list(path: str) -> List[str]:
 @Builder.register
 class Debian(Builder):
     @classmethod
-    def create(cls, *, srcdir: str, **kw) -> Builder:
+    def create(cls, *, srcdir: str, **kw: Any) -> Builder:
         if (os.path.isdir(os.path.join(srcdir, "debian")) and not
                 os.path.exists(os.path.join(srcdir, "debian", "gbp.conf"))):
             return DebianPlain.create(srcdir=srcdir, **kw)
@@ -200,6 +201,8 @@ class Debian(Builder):
         """
         Build binary packages
         """
+        if self.srcinfo is None:
+            raise RuntimeError("source information not collected at build_binary time")
         with cd("/srv/moncic-ci/build"):
             run(["dpkg-source", "-x", self.srcinfo.dsc_fname])
 
@@ -210,7 +213,7 @@ class Debian(Builder):
                         builddir = de.path
                         break
                 else:
-                    builddir = None
+                    raise RuntimeError("build directory not found")
 
             with cd(builddir):
                 # Install build dependencies
@@ -324,6 +327,8 @@ class DebianPlain(Debian):
 
         This function is run from a clean source directory
         """
+        if self.srcinfo is None:
+            raise RuntimeError("source information not collected at build_binary time")
         dest_tarball = os.path.join("..", self.srcinfo.tar_fname)
         if os.path.exists(orig_tarball := os.path.join("/srv", "moncic-ci", "source", self.srcinfo.tar_fname)):
             link_or_copy(orig_tarball, "..")
@@ -407,7 +412,7 @@ class DebianGBP(Debian):
             gitrepo.create_head(branch, remote_branch)
 
     @classmethod
-    def create(cls, srcdir: str, **kw) -> Builder:
+    def create(cls, *, srcdir: str, **kw) -> Builder:
         repo = git.Repo(srcdir)
         if repo.head.commit.hexsha in [t.commit.hexsha for t in repo.tags]:
             if os.path.isdir(os.path.join(srcdir, "debian")):

@@ -6,9 +6,9 @@ import logging
 import os
 import shutil
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable, Dict, List, Optional, TextIO, Type
+from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, TextIO,
+                    Type)
 
-from .. import distro
 from ..container import ContainerConfig
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
@@ -17,7 +17,7 @@ from .analyze import Analyzer
 if TYPE_CHECKING:
     import argparse
 
-    from .container import Container, System
+    from ..container import Container, System
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +64,8 @@ class Builder:
     # BuildInfo (sub)class used by this builder
     build_info_cls: Type[BuildInfo] = BuildInfo
 
+    add_arguments: Callable
+
     @classmethod
     def register(cls, builder_cls: Type["Builder"]) -> Type["Builder"]:
         name = getattr(builder_cls, "NAME", None)
@@ -91,14 +93,16 @@ class Builder:
         return builder_cls.create(**kw)
 
     @classmethod
-    def create(cls, **kw) -> "Builder":
+    def create(cls, **kw: Any) -> "Builder":
         raise NotImplementedError(f"The builder {cls} cannot be instantiated")
 
     @classmethod
     def detect(cls, *, system: System, **kw) -> "Builder":
-        if isinstance(system.distro, distro.DebianDistro):
+        from ..distro.debian import DebianDistro
+        from ..distro.rpm import RpmDistro
+        if isinstance(system.distro, DebianDistro):
             return cls.builders["debian"].create(system=system, **kw)
-        elif isinstance(system.distro, distro.RpmDistro):
+        elif isinstance(system.distro, RpmDistro):
             return cls.builders["rpm"].create(system=system, **kw)
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {system.distro!r}")
@@ -237,13 +241,11 @@ class Builder:
         """
         Run the build in a child process.
 
-        The function will be callsed inside the running system.
+        The function will be called inside the running system.
 
         The current directory will be set to the source directory in /srv/moncic-ci/source/<name>.
 
         Standard output and standard error are logged.
-
-        The return value will be used as the return code of the child process.
         """
         build_info = self.build_info_cls()
         self.setup_container_guest()

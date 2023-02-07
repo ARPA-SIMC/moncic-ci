@@ -9,7 +9,6 @@ import subprocess
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional
 
-from ..distro import DnfDistro, YumDistro
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
@@ -17,7 +16,7 @@ from .analyze import Analyzer
 from .base import BuildInfo, Builder, link_or_copy
 
 if TYPE_CHECKING:
-    from .container import Container
+    from ..container import Container
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +47,7 @@ class RPM(Builder):
 
     def __init__(self, **kw):
         super().__init__(**kw)
+        from ..distro.rpm import DnfDistro, YumDistro
         if isinstance(self.system.distro, YumDistro):
             self.builddep = ["yum-builddep"]
         elif isinstance(self.system.distro, DnfDistro):
