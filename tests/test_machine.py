@@ -80,7 +80,7 @@ class RunTestCase:
                 with open("/tmp/token", "wb") as out:
                     out.write(token)
 
-            res = container.run_callable(test_function)
+            res = container.run_callable_raw(test_function)
             self.assertEqual(res.stdout, b'')
             self.assertEqual(res.stderr, b'')
             self.assertEqual(res.returncode, 0)
@@ -100,7 +100,7 @@ class RunTestCase:
                 print("stdout")
                 print("stderr", file=sys.stderr)
 
-            res = container.run_callable(test_function)
+            res = container.run_callable_raw(test_function)
             self.assertEqual(res.stdout, b'stdout\n')
             self.assertEqual(res.stderr, b'stderr\n')
             self.assertEqual(res.returncode, 0)
@@ -112,7 +112,7 @@ class RunTestCase:
             def test_function():
                 return {"success": True}
 
-            res = container.run_callable(test_function)
+            res = container.run_callable_raw(test_function)
             self.assertEqual(res.stdout, b'')
             self.assertEqual(res.stderr, b'')
             self.assertEqual(res.returncode, 0)
@@ -125,7 +125,7 @@ class RunTestCase:
             def test_function():
                 raise RuntimeError("expected failure")
 
-            res = container.run_callable(test_function)
+            res = container.run_callable_raw(test_function)
             self.assertEqual(res.stdout, b'')
             self.assertEqual(res.stderr, b'')
             self.assertEqual(res.returncode, 0)
@@ -165,7 +165,7 @@ class RunTestCase:
         with self.system() as system:
             container_config = ContainerConfig()
             with system.create_container(config=container_config) as container:
-                u = container.run_callable(get_user).result()
+                u = container.run_callable(get_user)
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 
                 # Running with another user fails as it does not exist in the
@@ -176,10 +176,10 @@ class RunTestCase:
 
             container_config = ContainerConfig(forward_user=user)
             with system.create_container(config=container_config) as container:
-                u = container.run_callable(get_user).result()
+                u = container.run_callable(get_user)
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 
-                u = container.run_callable(get_user, config=RunConfig(user=user)).result()
+                u = container.run_callable_raw(get_user, config=RunConfig(user=user)).result()
                 self.assertEqual(u, user)
 
                 res = container.run_script("#!/bin/sh\n/bin/true\n", config=RunConfig(user=user))
@@ -300,7 +300,7 @@ class RunTestCase:
 
         with self.container() as container:
             with self.assertLogs(level=logging.DEBUG) as lg:
-                res = container.run_callable(test_log)
+                res = container.run_callable_raw(test_log)
             self.assertEqual(res.stdout, b"")
             self.assertEqual(res.stderr, b"")
             self.assertEqual(res.returncode, 0)
@@ -311,10 +311,10 @@ class RunTestCase:
             output = [line for line in lg.output if 'asyncio' not in line]
             self.assertEqual(output, [
                 f"INFO:{container.system.log.name}:Running test_log",
-                "DEBUG:root:debug",
-                "INFO:root:info",
-                "WARNING:root:warning",
-                "ERROR:root:error"])
+                f"DEBUG:{container.system.log.name}.root:debug",
+                f"INFO:{container.system.log.name}.root:info",
+                f"WARNING:{container.system.log.name}.root:warning",
+                f"ERROR:{container.system.log.name}.root:error"])
 
     def test_issue37(self):
         def test_redirect():
@@ -323,7 +323,7 @@ class RunTestCase:
         self.maxDiff = None
 
         with self.container() as container:
-            res = container.run_callable(test_redirect)
+            res = container.run_callable_raw(test_redirect)
             self.assertEqual(res.stdout, b"")
             self.assertEqual(res.stderr, b"")
             self.assertEqual(res.returncode, 0)

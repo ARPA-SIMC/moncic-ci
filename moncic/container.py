@@ -14,7 +14,7 @@ import subprocess
 import tempfile
 import time
 from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
-                    Iterator, List, NoReturn, Optional, Protocol, Tuple)
+                    Iterator, List, NoReturn, Optional, Protocol, Tuple, TypeVar)
 
 from .runner import RunConfig, CompletedCallable, SetnsCallableRunner, UserConfig
 from .utils import libbanana
@@ -23,6 +23,8 @@ from .utils.nspawn import escape_bind_ro
 
 if TYPE_CHECKING:
     from .system import System
+
+RESULT = TypeVar("Result")
 
 log = logging.getLogger(__name__)
 
@@ -536,7 +538,7 @@ class NspawnContainer(ContainerBase):
         cmd.append(f"systemd.hostname={self.instance_name}")
         return cmd
 
-    def forward_user(self, user: UserConfig, allow_maint=False):
+    def forward_user(self, user: UserConfig, allow_maint=False) -> None:
         """
         Ensure the system has a matching user and group
         """
@@ -566,7 +568,7 @@ class NspawnContainer(ContainerBase):
                 user.check_system()
         forward.__doc__ = f"check or create user {user.user_name!r} and group {user.group_name!r}"
 
-        return self.run_callable(forward, config=RunConfig(user=UserConfig.root())).result()
+        self.run_callable(forward, config=RunConfig(user=UserConfig.root()))
 
     def _start(self):
         self.system.log.info("Starting system %s as %s using image %s",
@@ -595,7 +597,7 @@ class NspawnContainer(ContainerBase):
 
         # Set up volatile mounts
         if any(bind.setup for bind in self.active_binds):
-            self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root())).result()
+            self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root()))
 
     def _bind_setup(self):
         """
@@ -616,7 +618,7 @@ class NspawnContainer(ContainerBase):
     def _stop(self):
         # Run teardown script frombinds
         if any(bind.teardown for bind in self.active_binds):
-            self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root())).result()
+            self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
 
         # See https://github.com/systemd/systemd/issues/6458
         leader_pid = int(self.properties["Leader"])
@@ -650,7 +652,7 @@ class NspawnContainer(ContainerBase):
 
         command_runner.__doc__ = " ".join(shlex.quote(c) for c in command)
 
-        return self.run_callable(command_runner, run_config)
+        return self.run_callable_raw(command_runner, run_config)
 
     def run_script(self, body: str, config: Optional[RunConfig] = None) -> CompletedCallable:
         def script_runner():
@@ -670,12 +672,22 @@ class NspawnContainer(ContainerBase):
         else:
             script_runner.__doc__ = f"script: {body!r}"
 
-        return self.run_callable(script_runner, config)
+        return self.run_callable_raw(script_runner, config)
 
-    def run_callable(
-            self, func: Callable[..., Optional[int]], config: Optional[RunConfig] = None,
+    def run_callable_raw(
+            self, func: Callable[..., RESULT], config: Optional[RunConfig] = None,
             args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
-            ) -> CompletedCallable:
+            ) -> CompletedCallable[RESULT]:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
-        return runner.execute()
+        completed = runner.execute()
+        return completed
+
+    def run_callable(
+            self, func: Callable[..., RESULT], config: Optional[RunConfig] = None,
+            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            ) -> RESULT:
+        run_config = self.config.run_config(config)
+        runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
+        completed = runner.execute()
+        return completed.result()

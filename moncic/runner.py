@@ -18,8 +18,8 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import (TYPE_CHECKING, Any, BinaryIO, Callable, Dict, List,
-                    NamedTuple, Optional, TextIO, Tuple, Type)
+from typing import (TYPE_CHECKING, Any, BinaryIO, Callable, Dict, Generic,
+                    List, NamedTuple, Optional, TextIO, Tuple, Type, TypeVar)
 
 import tblib
 
@@ -28,6 +28,8 @@ from .utils import guest, setns
 if TYPE_CHECKING:
     from .container import NspawnContainer
     from .system import SystemConfig
+
+RESULT = TypeVar("Result")
 
 
 RESULT_LOG = 0
@@ -156,17 +158,17 @@ class RunConfig:
     use_path: bool = False
 
 
-class CompletedCallable(subprocess.CompletedProcess):
+class CompletedCallable(Generic[RESULT], subprocess.CompletedProcess):
     """
     Extension of subprocess.CompletedProcess that can also store a return value
     and exception information
     """
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
-        self.returnvalue: Any = None
+        self.returnvalue: Optional[RESULT] = None
         self.exc_info: Optional[Tuple[Type[BaseException], BaseException, types.TracebackType]] = None
 
-    def result(self) -> Any:
+    def result(self) -> RESULT:
         """
         Return the callable's return value if it was successful, or if it
         raised an exception, reraise that exception

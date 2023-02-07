@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-import subprocess
 import unittest
 
 from moncic.unittest import make_moncic, privs
@@ -62,8 +61,11 @@ maintscript: |
                     def test_function():
                         with open("/root/token", "wt") as out:
                             out.write("test_transactional_updates")
+                        return ("result", 123)
 
-                    container.run_callable(test_function)
+                    self.assertEqual(
+                            container.run_callable(test_function),
+                            ("result", 123))
 
                 # The file has been written in a persistent way
                 self.assertTrue(os.path.exists(os.path.join(system.path, "root", "token")))
@@ -82,7 +84,7 @@ maintscript: |
         with privs.root():
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
-            with self.assertRaises(subprocess.CalledProcessError) as e:
+            with self.assertRaises(RuntimeError):
                 with self.assertLogs(level=logging.WARNING):
                     with self.images.maintenance_system(test_image_name) as system:
                         # Check that we are working on a temporary snapshot
@@ -92,11 +94,9 @@ maintscript: |
                             def test_function():
                                 with open("/root/token", "wt") as out:
                                     out.write("test_transactional_updates")
-                                return 1  # Error!
+                                raise RuntimeError("expected error")
 
                             container.run_callable(test_function)
-
-            self.assertEqual(e.exception.returncode, 1)
 
             # Exiting the maintenance transaction rolls back the changes
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
