@@ -9,6 +9,7 @@ from moncic.utils import argparse
 log = logging.getLogger(__name__)
 
 cli.FAIL_EXCEPTIONS.append(exceptions.Fail)
+cli.SUCCESS_EXCEPTIONS.append(exceptions.Success)
 
 
 def main():

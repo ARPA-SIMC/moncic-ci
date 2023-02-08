@@ -18,6 +18,7 @@ from ..build import Builder
 from ..exceptions import Fail
 from ..utils.fs import atomic_writer
 from ..utils.edit import edit_yaml
+from .utils import BuildStyleAction
 from .moncic import MoncicCommand, checkout, main_command
 
 if TYPE_CHECKING:
@@ -184,12 +185,11 @@ class BuildDep(MaintCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--build-style", action="store",
-                            help="name of the procedure used to run the CI. Default: autodetect")
+        parser.add_argument("-s", "--build-style", action=BuildStyleAction,
+                            help="name of the procedure used to run the CI. Use 'list' to list available options."
+                                 " Default: autodetect")
         parser.add_argument("repo", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
-        for cb in Builder.extra_args_callbacks:
-            cb(parser)
         return parser
 
     def run(self):

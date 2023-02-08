@@ -7,9 +7,11 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
-from ..build import Builder, Analyzer
+from ..build import Analyzer, Builder
+from ..exceptions import Fail
 from .base import Command
 from .moncic import MoncicCommand, checkout, main_command
+from .utils import BuildStyleAction
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
@@ -31,20 +33,22 @@ class CI(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--build-style", action="store",
-                            help="name of the procedure used to run the CI. Default: autodetect")
+        parser.add_argument("-s", "--build-style", action=BuildStyleAction,
+                            help="name of the procedure used to run the CI. Use 'list' to list available options."
+                                 " Default: autodetect")
         parser.add_argument("-a", "--artifacts", metavar="dir", action="store",
                             help="directory where build artifacts will be stored")
         parser.add_argument("--source-only", action="store_true",
                             help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
+        parser.add_argument("--option", "-O", action="append",
+                            help="key=value option for the build. See `-s list` for a list of"
+                                 " available option for each build style")
         parser.add_argument("system", action="store",
                             help="name or path of the system used to build")
         parser.add_argument("repo", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
-        for cb in Builder.extra_args_callbacks:
-            cb(parser)
         return parser
 
     def setup_moncic_config(self, config: MoncicConfig):
@@ -54,23 +58,28 @@ class CI(MoncicCommand):
             os.makedirs(config.build_artifacts_dir, exist_ok=True)
 
     def run(self):
+        build_kwargs: dict[str, str] = {}
+        for option in self.args.option:
+            if "=" not in option:
+                raise Fail(f"option --option={option!r} must be key=value")
+            k, v = option.split("=", 1)
+            if not k:
+                raise Fail(f"option --option={option!r} must have an non-empty key")
+            build_kwargs[k] = v
+
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
+                builder = Builder(system)
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    builder_args = {
-                        "system": system,
-                        "srcdir": srcdir,
-                        "args": self.args,
-                    }
+                    build_kwargs["source"] = srcdir
                     if self.args.build_style:
-                        builder = Builder.create_builder(self.args.build_style, **builder_args)
-                    else:
-                        builder = Builder.detect(**builder_args)
+                        build_kwargs["build_style"] = self.args.build_style
+                    builder.setup_build(**build_kwargs)
                     log.info("Build using builder %r", builder.__class__.__name__)
 
-                    build_info = builder.build(shell=self.args.shell, source_only=self.args.source_only)
-                    json.dump(dataclasses.asdict(build_info), sys.stdout, indent=1)
+                    builder.run_build(shell=self.args.shell, source_only=self.args.source_only)
+                    json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
                     sys.stdout.write("\n")
 
 
@@ -106,14 +115,13 @@ class QuerySource(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--build-style", action="store",
-                            help="name of the procedure used to run the CI. Default: autodetect")
+        parser.add_argument("-s", "--build-style", action=BuildStyleAction,
+                            help="name of the procedure used to run the CI. Use 'list' to list available options."
+                                 " Default: autodetect")
         parser.add_argument("system", action="store",
                             help="name or path of the system used to query the package")
         parser.add_argument("repo", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
-        for cb in Builder.extra_args_callbacks:
-            cb(parser)
         return parser
 
     def run(self):
