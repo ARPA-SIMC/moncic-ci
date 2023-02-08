@@ -1,33 +1,26 @@
 from __future__ import annotations
 
-import contextlib
 import importlib.resources
 import logging
 import os
-import re
 import shutil
 import subprocess
-import tempfile
-from configparser import ConfigParser
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, Type, cast
-
-import git
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, NamedTuple, Optional
 
 from .. import context
 from ..runner import UserConfig
-from ..source import Source
 from ..utils import setns
 from ..utils.deb import apt_get_cmd
 from ..utils.fs import cd
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .analyze import Analyzer
-from .build import Build, register
+from .build import Build
 from .utils import link_or_copy
 
 if TYPE_CHECKING:
-    from ..container import Container, System
+    from ..container import Container
 
 log = logging.getLogger(__name__)
 
@@ -91,43 +84,11 @@ def get_file_list(path: str) -> list[str]:
     return res
 
 
-def detect(*, system: System, source: Source, **kw) -> Type["Build"]:
-    """
-    Autodetect and instantiate a build object
-    """
-    if (os.path.isdir(os.path.join(source.host_path, "debian")) and not
-            os.path.exists(os.path.join(source.host_path, "debian", "gbp.conf"))):
-        return DebianPlain
-
-    repo = git.Repo(source.host_path)
-    if repo.head.commit.hexsha in [t.commit.hexsha for t in repo.tags]:
-        if os.path.isdir(os.path.join(source.host_path, "debian")):
-            # If branch to build is a tag, build a release from it
-            return DebianGBPRelease
-        else:
-            # There is no debian/directory, the current branch is upstream
-            return DebianGBPTestUpstream
-    else:
-        if os.path.isdir(os.path.join(source.host_path, "debian")):
-            # There is a debian/ directory, find upstream from gbp.conf
-            return DebianGBPTestDebian
-        else:
-            # There is no debian/directory, the current branch is upstream
-            return DebianGBPTestUpstream
-
-
-@register
 @dataclass
 class Debian(Build):
     build_profile: str = ""
 
-    @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
-        yield from super().list_build_options()
-        yield "build_profile", "space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE"
-
-    def __init__(self, **kw):
-        super().__init__(**kw)
+    def __post_init__(self):
         # This is only set in guest systems, and after self.build_source() has
         # been called
         self.srcinfo: Optional[SourceInfo] = None
@@ -150,20 +111,10 @@ class Debian(Build):
 
     @guest_only
     def get_build_deps_in_container(self):
-        with self.source_directory():
-            res = subprocess.run(["/srv/moncic-ci/dpkg-listbuilddeps"], stdout=subprocess.PIPE, text=True, check=True)
-            return [name.strip() for name in res.stdout.strip().splitlines()]
-
-    @guest_only
-    def build_source(self):
-        """
-        Build the Debian source package from /srv/moncic-ci/source/<name>
-
-        The results will be left in /srv/moncic-ci.
-
-        This function is run as the build user
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.build_source not implemented")
+        res = subprocess.run(
+                ["/srv/moncic-ci/dpkg-listbuilddeps"],
+                stdout=subprocess.PIPE, text=True, check=True, cwd=self.source.guest_path)
+        return [name.strip() for name in res.stdout.strip().splitlines()]
 
     @guest_only
     def setup_container_guest(self):
@@ -183,23 +134,16 @@ class Debian(Build):
                 log.debug("%s: %r", k, v)
 
     @guest_only
-    @contextlib.contextmanager
-    def source_directory(self) -> Generator[None, None, None]:
-        """
-        Change the current directory to the one with the sources ready to be built
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.source_directory not implemented")
-
-    @guest_only
     def build(self, source_only: bool = False) -> None:
         # Build source package
         with context.moncic.get().privs.user():
-            self.build_source()
+            self.srcinfo = get_source_info(self.source.guest_path)
+            dsc_fname = self.source.build_source_package()
 
         self.name = self.srcinfo.srcname
 
         if not source_only:
-            self.build_binary()
+            self.build_binary(dsc_fname)
 
         for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
             with os.scandir(path) as it:
@@ -210,14 +154,14 @@ class Debian(Build):
         self.success = True
 
     @guest_only
-    def build_binary(self):
+    def build_binary(self, dsc_fname: str):
         """
         Build binary packages
         """
         if self.srcinfo is None:
             raise RuntimeError("source information not collected at build_binary time")
         with cd("/srv/moncic-ci/build"):
-            run(["dpkg-source", "-x", self.srcinfo.dsc_fname])
+            run(["dpkg-source", "-x", dsc_fname])
 
             # Find the newly created build directory
             with os.scandir(".") as it:
@@ -277,244 +221,3 @@ class Debian(Build):
 
         # TODO: check tags present for one distro but not for the other
         # TODO: check that upstream tag exists if debian/changelog is not UNRELEASED
-
-
-re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>[^)-]+)(?:[^)]+)?\)")
-
-
-@register
-@dataclass
-class DebianPlain(Debian):
-    """
-    Build debian packages using the debian/ directory in the current branch
-    """
-    @host_only
-    def setup_container_host(self, container: Container):
-        super().setup_container_host(container)
-
-        tarball_search_dirs = [os.path.join(self.source.host_path, "..")]
-        if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
-            tarball_search_dirs.append(artifacts_dir)
-
-        with open(os.path.join(self.source.host_path, "debian", "changelog"), "rt") as fd:
-            if (mo := re_debchangelog_head.match(next(fd))):
-                src_name = mo.group("name")
-                tar_version = mo.group("tar_version")
-                tar_fname = f"{src_name}_{tar_version}.orig.tar.gz"
-            else:
-                raise RuntimeError("Unparsable debian/changelog")
-
-        found = None
-        for path in tarball_search_dirs:
-            with os.scandir(path) as it:
-                for de in it:
-                    if de.name == tar_fname:
-                        found = de.path
-                        break
-            if found:
-                log.info("Found existing source tarball %s", found)
-                container_root = container.get_root()
-                link_or_copy(found, os.path.join(container_root, "srv", "moncic-ci", "source"))
-                break
-
-    @guest_only
-    def build_orig_tarball(self):
-        """
-        Make sure srcinfo.tar_fname exists.
-
-        This function is run from a clean source directory
-        """
-        if self.srcinfo is None:
-            raise RuntimeError("source information not collected at build_binary time")
-        dest_tarball = os.path.join("..", self.srcinfo.tar_fname)
-        if os.path.exists(orig_tarball := os.path.join("/srv", "moncic-ci", "source", self.srcinfo.tar_fname)):
-            link_or_copy(orig_tarball, "..")
-            return
-
-        # This is a last-resort measure, trying to build an approximation of an
-        # upstream tarball when none was found
-        log.info("Building tarball from source directory")
-        run(["git", "archive", f"--output={dest_tarball}", "HEAD", ".", ":(exclude)debian"])
-
-    @guest_only
-    @contextlib.contextmanager
-    def source_directory(self) -> Generator[None, None, None]:
-        with tempfile.TemporaryDirectory(dir="/srv/moncic-ci/build") as clean_src:
-            # Make a clean clone to avoid potentially building from a dirty
-            # working directory
-            run(["git", "clone", ".", clean_src])
-
-            with cd(clean_src):
-                yield
-
-    @guest_only
-    def build_source(self):
-        with self.source_directory():
-            self.srcinfo = get_source_info()
-
-            self.build_orig_tarball()
-
-            # Uses --no-pre-clean to avoid requiring build-deps to be installed at
-            # this stage
-            run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"])
-
-            # No need to copy .dsc and its assets to the work
-            # directory, since we're building on a temporary subdir inside it
-
-
-@dataclass
-class DebianGBP(Debian):
-    """
-    Build Debian packages using git-buildpackage
-    """
-    gbp_args: list[str] = field(default_factory=list)
-
-    @classmethod
-    def read_upstream_branch(cls) -> Optional[str]:
-        """
-        Read the upstream branch from gbp.conf
-
-        Return None if gbp.conf does not exists or it does not specify an upstream branch
-        """
-        cfg = ConfigParser()
-        cfg.read([os.path.join("debian", "gbp.conf")])
-        return cfg.get("DEFAULT", "upstream-branch", fallback=None)
-
-    @classmethod
-    def ensure_local_branch_exists(cls, branch: str):
-        """
-        Make sure the upstream branch exists as a local branch.
-
-        Cloning a repository only creates one local branch for the active
-        branch, and all other branches remain as origin/*
-
-        This methods creates a local branch for the given origin/ branch
-        """
-        # Make a local branch for the upstream branch in gbp.conf, if it
-        # does not already exist
-        gitrepo = git.Repo(".")
-        # Not sure how to fit the type of gitrepo.branches here, but it behaves
-        # like a list of strings
-        if branch not in cast(list[str], gitrepo.branches):
-            remote = gitrepo.remotes["origin"]
-            remote_branch = remote.refs[branch]
-            gitrepo.create_head(branch, remote_branch)
-
-    @guest_only
-    def setup_container_guest(self):
-        super().setup_container_guest()
-        # Set up git-buildpackage before the build
-        with context.moncic.get().privs.user():
-            with open(os.path.expanduser("~/.gbp.conf"), "wt") as fd:
-                fd.write("[DEFAULT]\nexport-dir=/srv/moncic-ci/build\n")
-                fd.flush()
-
-
-@register
-@dataclass
-class DebianGBPRelease(DebianGBP):
-    """
-    Build Debian packages using git-buildpackage and its configuration in the
-    current branch
-    """
-    @guest_only
-    @contextlib.contextmanager
-    def source_directory(self) -> Generator[None, None, None]:
-        self.gbp_args.append("--git-upstream-tree=tag")
-        # The current directory is already the right source directory
-        yield
-
-    def build_source(self):
-        with self.source_directory():
-            cmd = ["gbp", "buildpackage", "--git-ignore-new",
-                   "-d", "-S", "--no-sign", "--no-pre-clean"]
-            cmd += self.gbp_args
-            run(cmd)
-
-            self.srcinfo = get_source_info()
-
-
-@register
-@dataclass
-class DebianGBPTestUpstream(DebianGBP):
-    """
-    Build Debian packges using the current directory as upstream, and the
-    packaging branch inferred from the System distribution
-    """
-    @guest_only
-    @contextlib.contextmanager
-    def source_directory(self) -> Generator[None, None, None]:
-        # find the right debian branch
-        branch = self.system.distro.get_gbp_branch()
-        repo = git.Repo(".")
-        origin = repo.remotes["origin"]
-        if branch not in origin.refs:
-            raise RuntimeError(f"Packaging branch {branch!r} not found for distribution '{self.system.distro}'")
-
-        # TODO: find common ancestor between current and packaging, and merge
-        #       packaging branch from that?
-
-        # Make a temporary merge of active_branch on the debian branch
-        log.info("merge packaging branch %s for test build", branch)
-        active_branch = repo.active_branch.name
-        if active_branch is None:
-            log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
-            run(["git", "checkout", "-b", "moncic-ci"])
-            active_branch = "moncic-ci"
-        run(["git", "checkout", branch])
-        run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", active_branch])
-
-        self.gbp_args.append("--git-upstream-tree=branch")
-        self.gbp_args.append("--git-upstream-branch=" + active_branch)
-
-        # Use the current directory
-        yield
-
-    @guest_only
-    def build_source(self):
-        with self.source_directory():
-            cmd = ["gbp", "buildpackage", "--git-ignore-new",
-                   "-d", "-S", "--no-sign", "--no-pre-clean"]
-            cmd += self.gbp_args
-            run(cmd)
-
-            self.srcinfo = get_source_info()
-
-
-@register
-@dataclass
-class DebianGBPTestDebian(DebianGBP):
-    """
-    Build Debian packges using the current directory as the packaging branch,
-    and the upstream branch as configured in gbp.conf
-    """
-    @guest_only
-    @contextlib.contextmanager
-    def source_directory(self) -> Generator[None, None, None]:
-        # Read the upstream branch to use from gbp.conf
-        upstream_branch = self.read_upstream_branch()
-        if upstream_branch is None:
-            raise RuntimeError("Cannot read upstream branch from debian/gbp.conf")
-
-        self.ensure_local_branch_exists(upstream_branch)
-
-        # Merge the upstream branch into the debian branch
-        log.info("merge upstream branch %s into build branch", upstream_branch)
-        run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", upstream_branch])
-
-        self.gbp_args.append("--git-upstream-tree=branch")
-
-        # Use the current directory
-        yield
-
-    @guest_only
-    def build_source(self):
-        with self.source_directory():
-            cmd = ["gbp", "buildpackage", "--git-ignore-new",
-                   "-d", "-S", "--no-sign", "--no-pre-clean"]
-            cmd += self.gbp_args
-            run(cmd)
-
-            self.srcinfo = get_source_info()

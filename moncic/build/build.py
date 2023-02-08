@@ -1,61 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, Optional, Type
+from typing import TYPE_CHECKING, Optional
 
 from ..source import Source
 from ..utils.guest import guest_only, host_only
 
 if TYPE_CHECKING:
-    from ..container import Container, System
-
-# Registry of known builders
-build_types: dict[str, Type["Build"]] = {}
-
-
-def register(builder_cls: Type["Build"]) -> Type["Build"]:
-    """
-    Add a Build object to the Build registry
-    """
-    name = getattr(builder_cls, "NAME", None)
-    if name is None:
-        name = builder_cls.__name__.lower()
-    build_types[name] = builder_cls
-
-    # Register extra_args callbacks.
-    #
-    # Only register callbacks that are in the class __dict__ to avoid
-    # inheritance, which would register command line options from base
-    # classes multiple times
-    # if "add_arguments" in builder_cls.__dict__:
-    #     cls.extra_args_callbacks.append(builder_cls.add_arguments)
-
-    return builder_cls
-
-
-def get(name: str) -> Type["Build"]:
-    """
-    Create a Build object by its name
-    """
-    return build_types[name.lower()]
-
-
-def detect(*, system: System, source: Source, **kw) -> Type["Build"]:
-    """
-    Autodetect and instantiate a build object
-    """
-    from ..distro.debian import DebianDistro
-    from ..distro.rpm import RpmDistro
-    if isinstance(system.distro, DebianDistro):
-        from . import debian
-        return debian.detect(system=system, source=source, **kw)
-        # return build_types["debian"].create(system=system, source=source, **kw)
-    elif isinstance(system.distro, RpmDistro):
-        from . import arpa
-        return arpa.detect(system=system, source=source, **kw)
-        # return build_types["rpm"].create(system=system, source=source, **kw)
-    else:
-        raise NotImplementedError(f"No suitable builder found for distribution {system.distro!r}")
+    from ..container import Container
 
 
 @dataclass
@@ -99,11 +51,3 @@ class Build:
         Set up the build environment in the container
         """
         pass
-
-    @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
-        """
-        List available build option names and their documentation
-        """
-        return
-        yield

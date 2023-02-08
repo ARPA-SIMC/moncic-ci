@@ -7,35 +7,19 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional, Type
+from typing import TYPE_CHECKING, Optional
 
 from ..runner import UserConfig
-from ..source import Source
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .analyze import Analyzer
-from .build import Build, register
+from .build import Build
 from .utils import link_or_copy
 
 if TYPE_CHECKING:
-    from ..container import Container, System
+    from ..container import Container
 
 log = logging.getLogger(__name__)
-
-
-def detect(*, system: System, source: Source, **kw) -> Type["Build"]:
-    """
-    Autodetect and instantiate a build object
-    """
-    travis_yml = os.path.join(source.host_path, ".travis.yml")
-    try:
-        with open(travis_yml, "rt") as fd:
-            if 'simc/stable' in fd.read():
-                return ARPA
-    except FileNotFoundError:
-        pass
-
-    raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
 
 
 @dataclass
@@ -97,7 +81,6 @@ class RPMBuild(Build):
         # TODO: check that upstream tag exists
 
 
-@register
 @dataclass
 class ARPA(RPMBuild):
     """

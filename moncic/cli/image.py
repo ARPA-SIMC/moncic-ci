@@ -18,7 +18,7 @@ from ..build import Builder
 from ..exceptions import Fail
 from ..utils.fs import atomic_writer
 from ..utils.edit import edit_yaml
-from .utils import BuildStyleAction
+from .utils import SourceTypeAction
 from .moncic import MoncicCommand, checkout, main_command
 
 if TYPE_CHECKING:
@@ -185,7 +185,7 @@ class BuildDep(MaintCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--build-style", action=BuildStyleAction,
+        parser.add_argument("-s", "--source-type", action=SourceTypeAction,
                             help="name of the procedure used to run the CI. Use 'list' to list available options."
                                  " Default: autodetect")
         parser.add_argument("repo", nargs="?", default=".",
@@ -197,8 +197,8 @@ class BuildDep(MaintCommand):
             images = session.images
             with images.system(self.args.name) as system:
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    if self.args.build_style:
-                        builder = Builder.create_builder(self.args.build_style, system, srcdir)
+                    if self.args.source_type:
+                        builder = Builder.create_builder(self.args.source_type, system, srcdir)
                     else:
                         builder = Builder.detect(system=system, srcdir=srcdir, args=self.args)
 

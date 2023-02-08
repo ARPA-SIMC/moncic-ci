@@ -12,7 +12,7 @@ from ..exceptions import Fail
 from ..source import Source
 from .base import Command
 from .moncic import MoncicCommand, checkout, main_command
-from .utils import BuildStyleAction
+from .utils import SourceTypeAction
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
@@ -34,7 +34,7 @@ class CI(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--build-style", action=BuildStyleAction,
+        parser.add_argument("-s", "--source-type", action=SourceTypeAction,
                             help="name of the procedure used to run the CI. Use 'list' to list available options."
                                  " Default: autodetect")
         parser.add_argument("-a", "--artifacts", metavar="dir", action="store",
@@ -75,11 +75,11 @@ class CI(MoncicCommand):
                 builder = Builder(system)
                 with self.moncic.privs.user():
                     source = Source.create(builder, self.args.source, self.args.branch)
+                log.info("Source type: %s", source.NAME)
                 build_kwargs["source"] = source
-                if self.args.build_style:
-                    build_kwargs["build_style"] = self.args.build_style
+                if self.args.source_type:
+                    build_kwargs["source_type"] = self.args.source_type
                 builder.setup_build(**build_kwargs)
-                log.info("Build using builder %r", builder.__class__.__name__)
 
                 builder.run_build(shell=self.args.shell, source_only=self.args.source_only)
                 json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
@@ -118,7 +118,7 @@ class QuerySource(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store",
                             help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--build-style", action=BuildStyleAction,
+        parser.add_argument("-s", "--source-type", action=SourceTypeAction,
                             help="name of the procedure used to run the CI. Use 'list' to list available options."
                                  " Default: autodetect")
         parser.add_argument("system", action="store",
@@ -134,8 +134,8 @@ class QuerySource(MoncicCommand):
             with images.system(self.args.system) as system:
                 result["distribution"] = system.distro.name
                 with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    if self.args.build_style:
-                        builder = Builder.create_builder(self.args.build_style, system, srcdir)
+                    if self.args.source_type:
+                        builder = Builder.create_builder(self.args.source_type, system, srcdir)
                     else:
                         builder = Builder.detect(system=system, srcdir=srcdir, args=self.args)
 

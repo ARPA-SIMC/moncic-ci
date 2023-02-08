@@ -37,14 +37,11 @@ class Builder(contextlib.ExitStack):
         # Build object that is being built
         self.build: Optional[build.Build] = None
 
-    def setup_build(self, *, source: Source, build_style: Optional[str] = None, **kw):
+    def setup_build(self, *, source: Source, **kw):
         """
         Instantiate self.build
         """
-        if build_style is not None:
-            build_cls = build.get(build_style)
-        else:
-            build_cls = build.detect(system=self.system, source=source)
+        build_cls = source.get_build_class()
         self.build = build_cls(source=source, **kw)
 
     @host_only
@@ -67,6 +64,7 @@ class Builder(contextlib.ExitStack):
         log_file = os.path.join(container_root, "srv", "moncic-ci", "buildlog")
         self.log_capture_start(log_file)
 
+        self.build.source.gather_sources_from_host(container)
         self.build.setup_container_host(container)
 
     @host_only
@@ -105,8 +103,10 @@ class Builder(contextlib.ExitStack):
         # Mount the source directory as /srv/moncic-ci/source/<name>
         # Set it as the default current directory in the container
         # Mounted volatile to prevent changes to it
+        mountpoint = "/srv/moncic-ci/source"
+        self.build.source.guest_path = os.path.join(mountpoint, os.path.basename(self.build.source.host_path))
         container_config.configure_workdir(
-                self.build.source.host_path, bind_type="volatile", mountpoint="/srv/moncic-ci/source")
+                self.build.source.host_path, bind_type="volatile", mountpoint=mountpoint)
         container = self.system.create_container(config=container_config)
         with container:
             self.setup_container_host(container)
@@ -124,7 +124,7 @@ class Builder(contextlib.ExitStack):
         artifacts_dir = self.system.images.session.moncic.config.build_artifacts_dir
         with self.container() as container:
             # General builder information
-            log.info("Build style: %s", self.build.__class__.__name__)
+            log.info("Build strategy: %s", self.build.__class__.__name__)
             # Log moncic config
             moncic_config = self.system.images.session.moncic.config
             for fld in dataclasses.fields(moncic_config):
