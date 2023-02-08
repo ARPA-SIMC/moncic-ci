@@ -9,10 +9,8 @@ from typing import TYPE_CHECKING
 
 from ..build import Analyzer, Builder
 from ..exceptions import Fail
-from ..source import Source
 from .base import Command
-from .moncic import MoncicCommand, checkout, main_command
-from .utils import SourceTypeAction
+from .moncic import SourceCommand, main_command
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
@@ -21,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 @main_command
-class CI(MoncicCommand):
+class CI(SourceCommand):
     """
     clone a git repository and launch a container instance in the
     requested OS chroot executing a build in the cloned source tree
@@ -32,11 +30,6 @@ class CI(MoncicCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--branch", action="store",
-                            help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--source-type", action=SourceTypeAction,
-                            help="name of the procedure used to run the CI. Use 'list' to list available options."
-                                 " Default: autodetect")
         parser.add_argument("-a", "--artifacts", metavar="dir", action="store",
                             help="directory where build artifacts will be stored")
         parser.add_argument("--source-only", action="store_true",
@@ -73,8 +66,7 @@ class CI(MoncicCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 builder = Builder(system)
-                with self.moncic.privs.user():
-                    source = Source.create(builder, self.args.source, self.args.branch)
+                source = self.get_source(builder, self.args.source)
                 log.info("Source type: %s", source.NAME)
                 build_kwargs["source"] = source
                 if self.args.source_type:
@@ -106,7 +98,7 @@ class Lint(Command):
 
 
 @main_command
-class QuerySource(MoncicCommand):
+class QuerySource(SourceCommand):
     """
     Run consistency checks on a source directory using all available build
     styles
@@ -116,14 +108,9 @@ class QuerySource(MoncicCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--branch", action="store",
-                            help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--source-type", action=SourceTypeAction,
-                            help="name of the procedure used to run the CI. Use 'list' to list available options."
-                                 " Default: autodetect")
         parser.add_argument("system", action="store",
                             help="name or path of the system used to query the package")
-        parser.add_argument("repo", nargs="?", default=".",
+        parser.add_argument("source", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
         return parser
 
@@ -132,16 +119,11 @@ class QuerySource(MoncicCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
+                builder = Builder(system)
+                source = self.get_source(builder, self.args.source)
                 result["distribution"] = system.distro.name
-                with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    if self.args.source_type:
-                        builder = Builder.create_builder(self.args.source_type, system, srcdir)
-                    else:
-                        builder = Builder.detect(system=system, srcdir=srcdir, args=self.args)
-
-                    log.info("Query using builder %r", builder.__class__.__name__)
-
-                    result["build-deps"] = builder.get_build_deps()
+                log.info("Query using builder %r", builder.__class__.__name__)
+                result["build-deps"] = builder.get_build_deps(source)
 
         json.dump(result, sys.stdout, indent=1)
         sys.stdout.write("\n")

@@ -9,11 +9,14 @@ from typing import TYPE_CHECKING, List, Optional, Type
 
 import git
 
+from ..build import Builder
 from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
+from ..source import Source
 from ..utils.privs import ProcessPrivs
 from .base import Command
+from .utils import SourceTypeAction
 
 if TYPE_CHECKING:
     from .system import System
@@ -211,3 +214,25 @@ class ImageActionCommand(MoncicCommand):
 
                     with system.create_container(config=config) as container:
                         yield container
+
+
+class SourceCommand(MoncicCommand):
+    """
+    Command that operates on sources
+    """
+    @classmethod
+    def make_subparser(cls, subparsers):
+        parser = super().make_subparser(subparsers)
+        parser.add_argument("--branch", action="store",
+                            help="branch to be used. Default: let 'git clone' choose")
+        parser.add_argument("-s", "--source-type", action=SourceTypeAction,
+                            help="name of the procedure used to run the CI. Use 'list' to list available options."
+                                 " Default: autodetect")
+        return parser
+
+    def get_source(self, builder: Builder, source: str) -> Source:
+        """
+        Instantiate a Source object
+        """
+        with self.moncic.privs.user():
+            return Source.create(builder, self.args.source, self.args.branch)
