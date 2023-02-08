@@ -73,7 +73,8 @@ class CI(MoncicCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 builder = Builder(system)
-                source = Source.create(builder, self.args.source, self.args.branch)
+                with self.moncic.privs.user():
+                    source = Source.create(builder, self.args.source, self.args.branch)
                 build_kwargs["source"] = source
                 if self.args.build_style:
                     build_kwargs["build_style"] = self.args.build_style
