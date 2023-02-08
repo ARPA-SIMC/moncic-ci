@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional, Type
 
 from ..runner import UserConfig
+from ..source import Source
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .analyze import Analyzer
@@ -22,11 +23,11 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def detect(*, system: System, source: str, **kw) -> Type["Build"]:
+def detect(*, system: System, source: Source, **kw) -> Type["Build"]:
     """
     Autodetect and instantiate a build object
     """
-    travis_yml = os.path.join(source, ".travis.yml")
+    travis_yml = os.path.join(source.host_path, ".travis.yml")
     try:
         with open(travis_yml, "rt") as fd:
             if 'simc/stable' in fd.read():

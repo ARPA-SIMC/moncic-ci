@@ -15,15 +15,17 @@ from .utils import link_or_copy
 
 if TYPE_CHECKING:
     from ..container import Container, System
+    from ..source import Source
 
 log = logging.getLogger(__name__)
 
 
-class Builder:
+class Builder(contextlib.ExitStack):
     """
     Interface for classes providing the logic for CI builds
     """
     def __init__(self, system: System):
+        super().__init__()
         # System used for the build
         self.system = system
         # User to use for the build
@@ -35,7 +37,7 @@ class Builder:
         # Build object that is being built
         self.build: Optional[build.Build] = None
 
-    def setup_build(self, *, source: str, build_style: Optional[str] = None, **kw):
+    def setup_build(self, *, source: Source, build_style: Optional[str] = None, **kw):
         """
         Instantiate self.build
         """
@@ -103,7 +105,8 @@ class Builder:
         # Mount the source directory as /srv/moncic-ci/source/<name>
         # Set it as the default current directory in the container
         # Mounted volatile to prevent changes to it
-        container_config.configure_workdir(self.build.source, bind_type="volatile", mountpoint="/srv/moncic-ci/source")
+        container_config.configure_workdir(
+                self.build.source.host_path, bind_type="volatile", mountpoint="/srv/moncic-ci/source")
         container = self.system.create_container(config=container_config)
         with container:
             self.setup_container_host(container)

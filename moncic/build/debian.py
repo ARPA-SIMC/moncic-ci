@@ -10,20 +10,21 @@ import subprocess
 import tempfile
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, cast, Type
+from typing import TYPE_CHECKING, Generator, NamedTuple, Optional, Type, cast
 
 import git
 
+from .. import context
 from ..runner import UserConfig
+from ..source import Source
 from ..utils import setns
 from ..utils.deb import apt_get_cmd
 from ..utils.fs import cd
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .analyze import Analyzer
-from .utils import link_or_copy
 from .build import Build, register
-from .. import context
+from .utils import link_or_copy
 
 if TYPE_CHECKING:
     from ..container import Container, System
@@ -90,24 +91,24 @@ def get_file_list(path: str) -> list[str]:
     return res
 
 
-def detect(*, system: System, source: str, **kw) -> Type["Build"]:
+def detect(*, system: System, source: Source, **kw) -> Type["Build"]:
     """
     Autodetect and instantiate a build object
     """
-    if (os.path.isdir(os.path.join(source, "debian")) and not
-            os.path.exists(os.path.join(source, "debian", "gbp.conf"))):
+    if (os.path.isdir(os.path.join(source.host_path, "debian")) and not
+            os.path.exists(os.path.join(source.host_path, "debian", "gbp.conf"))):
         return DebianPlain
 
-    repo = git.Repo(source)
+    repo = git.Repo(source.host_path)
     if repo.head.commit.hexsha in [t.commit.hexsha for t in repo.tags]:
-        if os.path.isdir(os.path.join(source, "debian")):
+        if os.path.isdir(os.path.join(source.host_path, "debian")):
             # If branch to build is a tag, build a release from it
             return DebianGBPRelease
         else:
             # There is no debian/directory, the current branch is upstream
             return DebianGBPTestUpstream
     else:
-        if os.path.isdir(os.path.join(source, "debian")):
+        if os.path.isdir(os.path.join(source.host_path, "debian")):
             # There is a debian/ directory, find upstream from gbp.conf
             return DebianGBPTestDebian
         else:
@@ -291,11 +292,11 @@ class DebianPlain(Debian):
     def setup_container_host(self, container: Container):
         super().setup_container_host(container)
 
-        tarball_search_dirs = [os.path.join(self.source, "..")]
+        tarball_search_dirs = [os.path.join(self.source.host_path, "..")]
         if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 
-        with open(os.path.join(self.source, "debian", "changelog"), "rt") as fd:
+        with open(os.path.join(self.source.host_path, "debian", "changelog"), "rt") as fd:
             if (mo := re_debchangelog_head.match(next(fd))):
                 src_name = mo.group("name")
                 tar_version = mo.group("tar_version")

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Generator, Optional, Type
 
+from ..source import Source
 from ..utils.guest import guest_only, host_only
 
 if TYPE_CHECKING:
@@ -39,7 +40,7 @@ def get(name: str) -> Type["Build"]:
     return build_types[name.lower()]
 
 
-def detect(*, system: System, source: str, **kw) -> Type["Build"]:
+def detect(*, system: System, source: Source, **kw) -> Type["Build"]:
     """
     Autodetect and instantiate a build object
     """
@@ -63,7 +64,7 @@ class Build:
     Information gathered during a build
     """
     # Path to source to be built
-    source: str
+    source: Source
     # Package name (optional when not yet set)
     name: Optional[str] = None
     # True if the build was successful

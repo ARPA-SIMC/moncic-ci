@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from ..build import Analyzer, Builder
 from ..exceptions import Fail
+from ..source import Source
 from .base import Command
 from .moncic import MoncicCommand, checkout, main_command
 from .utils import BuildStyleAction
@@ -47,8 +48,9 @@ class CI(MoncicCommand):
                                  " available option for each build style")
         parser.add_argument("system", action="store",
                             help="name or path of the system used to build")
-        parser.add_argument("repo", nargs="?", default=".",
-                            help="path or url of the repository to build. Default: the current directory")
+        parser.add_argument("source", nargs="?", default=".",
+                            help="path or url of the repository or source package to build."
+                                 " Default: the current directory")
         return parser
 
     def setup_moncic_config(self, config: MoncicConfig):
@@ -71,16 +73,16 @@ class CI(MoncicCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 builder = Builder(system)
-                with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    build_kwargs["source"] = srcdir
-                    if self.args.build_style:
-                        build_kwargs["build_style"] = self.args.build_style
-                    builder.setup_build(**build_kwargs)
-                    log.info("Build using builder %r", builder.__class__.__name__)
+                source = Source.create(builder, self.args.source, self.args.branch)
+                build_kwargs["source"] = source
+                if self.args.build_style:
+                    build_kwargs["build_style"] = self.args.build_style
+                builder.setup_build(**build_kwargs)
+                log.info("Build using builder %r", builder.__class__.__name__)
 
-                    builder.run_build(shell=self.args.shell, source_only=self.args.source_only)
-                    json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
-                    sys.stdout.write("\n")
+                builder.run_build(shell=self.args.shell, source_only=self.args.source_only)
+                json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
+                sys.stdout.write("\n")
 
 
 @main_command
