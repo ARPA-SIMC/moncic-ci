@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 import git
 
-from .source import Git, register
+from .source import Source, register
 
 if TYPE_CHECKING:
     from ..build import Builder
@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class RPMGit(Git):
+class RPMGit(Source):
     """
     Git working directory with a Debian package
     """
@@ -39,7 +39,7 @@ class RPMGit(Git):
 
 @register
 @dataclass
-class ARPAGit(Git):
+class ARPAGit(RPMGit):
     """
     ARPA/SIMC git repository, building RPM packages using the logic previously
     configured for travis

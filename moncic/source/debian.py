@@ -13,7 +13,7 @@ from .. import context
 from ..build.utils import link_or_copy
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
-from .source import Git, Source, register
+from .source import Source, register, LocalGit
 
 if TYPE_CHECKING:
     from ..build import Build, Builder
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>[^)-]+)(?:[^)]+)?\)")
 
 
-class DebianMixin(Source):
+class DebianSource(Source):
     @classmethod
     def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
         yield from super().list_build_options()
@@ -35,34 +35,9 @@ class DebianMixin(Source):
         return Debian
 
 
-@dataclass
-class DebianGit(DebianMixin, Git):
-    """
-    Git working directory with a Debian package
-    """
-    @classmethod
-    def _create_from_repo(cls, builder: Builder, source: str, repo: git.Repo, cloned: bool) -> "DebianGit":
-        """
-        Create a Git Source from a prepared host path
-        """
-        if not os.path.isdir(os.path.join(repo.working_dir, "debian")):
-            # There is no debian/directory, the current branch is upstream
-            return DebianGBPTestUpstream._create_from_repo(builder, source, repo, cloned)
-
-        if not os.path.exists(os.path.join(repo.working_dir, "debian", "gbp.conf")):
-            return DebianPlainGit._create_from_repo(builder, source, repo, cloned)
-
-        if repo.head.commit.hexsha in [t.commit.hexsha for t in repo.tags]:
-            # If branch to build is a tag, build a release from it
-            return DebianGBPRelease._create_from_repo(builder, source, repo, cloned)
-        else:
-            # There is a debian/ directory, find upstream from gbp.conf
-            return DebianGBPTestDebian._create_from_repo(builder, source, repo, cloned)
-
-
 @register
 @dataclass
-class DebianPlainGit(DebianGit):
+class DebianPlainGit(DebianSource):
     """
     Debian git working directory that does not use git-buildpackage
     """
@@ -71,14 +46,14 @@ class DebianPlainGit(DebianGit):
     tarball_source: Optional[str] = None
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: str, repo: git.Repo, cloned: bool) -> "DebianPlainGit":
-        if not cloned:
-            log.info("%s: cloning repository to avoid building a potentially dirty working directory", repo.working_dir)
-            new_workdir = cls._clone(builder, repo.working_dir)
-            repo = git.Repo(new_workdir)
-            cloned = True
+    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianPlainGit":
+        if not source.copy:
+            log.info(
+                    "%s: cloning repository to avoid building a potentially dirty working directory",
+                    source.repo.working_dir)
+            source = source.clone(builder)
 
-        return cls(source, repo.working_dir)
+        return cls(source.source, source.repo.working_dir)
 
     @host_only
     def gather_sources_from_host(self, container: Container) -> None:
@@ -150,7 +125,7 @@ class DebianPlainGit(DebianGit):
 
 
 @dataclass
-class DebianGBP(DebianGit):
+class DebianGBP(DebianSource):
     """
     Debian git working directory with a git-buildpackage setup
     """
@@ -219,10 +194,10 @@ class DebianGBPTestUpstream(DebianGBP):
     NAME = "debian-gbp-upstream"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: str, repo: git.Repo, cloned: bool) -> "DebianGBPTestUpstream":
+    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestUpstream":
         # find the right debian branch
         branch = builder.system.distro.get_gbp_branch()
-        origin = repo.remotes["origin"]
+        origin = source.repo.remotes["origin"]
         if branch not in origin.refs:
             raise RuntimeError(f"Packaging branch {branch!r} not found for distribution '{builder.system.distro}'")
 
@@ -231,24 +206,22 @@ class DebianGBPTestUpstream(DebianGBP):
 
         # If we are still working on an uncloned repository, create a temporary
         # clone to avoid mangling it
-        if not cloned:
-            log.info("%s: cloning repository to avoid mangling the original version", repo.working_dir)
-            new_workdir = cls._clone(builder, repo.working_dir)
-            repo = git.Repo(new_workdir)
-            cloned = True
+        if not source.copy:
+            log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
+            source = source.clone(builder)
 
         # Make a temporary merge of active_branch on the debian branch
         log.info("merge packaging branch %s for test build", branch)
-        active_branch = repo.active_branch.name
+        active_branch = source.repo.active_branch.name
         if active_branch is None:
             log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
-            run(["git", "checkout", "-b", "moncic-ci"], cwd=repo.working_dir)
+            run(["git", "checkout", "-b", "moncic-ci"], cwd=source.repo.working_dir)
             active_branch = "moncic-ci"
-        run(["git", "checkout", branch], cwd=repo.working_dir)
+        run(["git", "checkout", branch], cwd=source.repo.working_dir)
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", active_branch], cwd=repo.working_dir)
+             "user.name=Moncic-CI", "merge", active_branch], cwd=source.repo.working_dir)
 
-        res = cls(source, repo.working_dir)
+        res = cls(source.source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=branch")
         res.gbp_args.append("--git-upstream-branch=" + active_branch)
         return res
@@ -263,10 +236,10 @@ class DebianGBPRelease(DebianGBP):
     NAME = "debian-gbp-release"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: str, repo: git.Repo, cloned: bool) -> "DebianGBPRelease":
+    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPRelease":
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
-        res = cls(source, repo.working_dir)
+        res = cls(source.source, source.repo.working_dir)
         cls.gbp_args.append("--git-upstream-tree=tag")
         return res
 
@@ -280,34 +253,32 @@ class DebianGBPTestDebian(DebianGBP):
     NAME = "debian-gbp-test"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: str, repo: git.Repo, cloned: bool) -> "DebianGBPTestDebian":
+    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestDebian":
         # Read the upstream branch to use from gbp.conf
-        upstream_branch = cls.read_upstream_branch(repo)
+        upstream_branch = cls.read_upstream_branch(source.repo)
         if upstream_branch is None:
             raise RuntimeError("Cannot read upstream branch from debian/gbp.conf")
 
         # If we are still working on an uncloned repository, create a temporary
         # clone to avoid mangling it
-        if not cloned:
-            log.info("%s: cloning repository to avoid mangling the original version", repo.working_dir)
-            new_workdir = cls._clone(builder, repo.working_dir)
-            repo = git.Repo(new_workdir)
-            cloned = True
+        if not source.copy:
+            log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
+            source = source.clone(builder)
 
-        cls.ensure_local_branch_exists(repo, upstream_branch)
+        cls.ensure_local_branch_exists(source.repo, upstream_branch)
 
         # Merge the upstream branch into the debian branch
         log.info("merge upstream branch %s into build branch", upstream_branch)
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", upstream_branch], cwd=repo.working_dir)
+             "user.name=Moncic-CI", "merge", upstream_branch], cwd=source.repo.working_dir)
 
-        res = cls(source, repo.working_dir)
+        res = cls(source.source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=branch")
         return res
 
 
 @dataclass
-class DebianSourceDir(DebianMixin, Source):
+class DebianSourceDir(DebianSource):
     """
     Unpacked debian source
     """
@@ -318,7 +289,7 @@ class DebianSourceDir(DebianMixin, Source):
 
 
 @dataclass
-class DebianSourcePackage(DebianMixin, Source):
+class DebianSourcePackage(DebianSource):
     """
     Debian source .dsc
     """
