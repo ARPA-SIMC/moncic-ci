@@ -13,7 +13,7 @@ from ..build import Builder
 from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
-from ..source import Source
+from ..source import InputSource, Source, get_source_class
 from ..utils.privs import ProcessPrivs
 from .base import Command
 from .utils import SourceTypeAction
@@ -235,4 +235,11 @@ class SourceCommand(MoncicCommand):
         Instantiate a Source object
         """
         with self.moncic.privs.user():
-            return Source.create(builder, self.args.source, self.args.branch)
+            input_source = InputSource.create(self.args.source)
+            if self.args.branch:
+                input_source = input_source.branch(self.args.branch)
+            if self.args.source_type:
+                source_cls = get_source_class(self.args.source_type)
+                return source_cls.create(builder, input_source)
+            else:
+                return input_source.detect_source(builder)

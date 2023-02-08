@@ -13,7 +13,8 @@ from .. import context
 from ..build.utils import link_or_copy
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
-from .source import Source, register, LocalGit
+from .source import (URL, InputSource, LocalDir, LocalFile, LocalGit, Source,
+                     register)
 
 if TYPE_CHECKING:
     from ..build import Build, Builder
@@ -35,9 +36,24 @@ class DebianSource(Source):
         return Debian
 
 
+class DebianGitSource(DebianSource):
+    """
+    Debian sources from a git repository
+    """
+    @classmethod
+    def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
+        if isinstance(source, LocalGit):
+            return cls(source.source, source.repo.working_dir)
+        elif isinstance(source, URL):
+            return cls.create(builder, source.clone(builder))
+        else:
+            raise RuntimeError(
+                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+
+
 @register
 @dataclass
-class DebianPlainGit(DebianSource):
+class DebianPlainGit(DebianGitSource):
     """
     Debian git working directory that does not use git-buildpackage
     """
@@ -125,7 +141,7 @@ class DebianPlainGit(DebianSource):
 
 
 @dataclass
-class DebianGBP(DebianSource):
+class DebianGBP(DebianGitSource):
     """
     Debian git working directory with a git-buildpackage setup
     """
@@ -287,6 +303,14 @@ class DebianSourceDir(DebianSource):
         # TODO
         raise NotImplementedError("DebianSourceDir not yet implemented")
 
+    @classmethod
+    def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
+        if isinstance(source, LocalDir):
+            return cls(source.source, source.path)
+        else:
+            raise RuntimeError(
+                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+
 
 @dataclass
 class DebianSourcePackage(DebianSource):
@@ -298,3 +322,11 @@ class DebianSourcePackage(DebianSource):
     def __init__(self, *args, **kw):
         # TODO
         raise NotImplementedError("DebianSourcePackage not yet implemented")
+
+    @classmethod
+    def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
+        if isinstance(source, LocalFile):
+            return cls(source.source, source.path)
+        else:
+            raise RuntimeError(
+                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")

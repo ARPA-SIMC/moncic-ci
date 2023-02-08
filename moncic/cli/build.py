@@ -69,8 +69,6 @@ class CI(SourceCommand):
                 source = self.get_source(builder, self.args.source)
                 log.info("Source type: %s", source.NAME)
                 build_kwargs["source"] = source
-                if self.args.source_type:
-                    build_kwargs["source_type"] = self.args.source_type
                 builder.setup_build(**build_kwargs)
 
                 builder.run_build(shell=self.args.shell, source_only=self.args.source_only)

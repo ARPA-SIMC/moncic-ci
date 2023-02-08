@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import git
-
-from .source import Source, register
+from .source import URL, InputSource, LocalDir, LocalGit, Source, register
 
 if TYPE_CHECKING:
     from ..build import Builder
@@ -21,20 +18,6 @@ class RPMGit(Source):
     Git working directory with a Debian package
     """
     # TODO: locate specfile
-    @classmethod
-    def _create_from_repo(cls, builder: Builder, source: str, repo: git.Repo, cloned: bool) -> "RPMGit":
-        """
-        Create a Git Source from a prepared host path
-        """
-        travis_yml = os.path.join(source.host_path, ".travis.yml")
-        try:
-            with open(travis_yml, "rt") as fd:
-                if 'simc/stable' in fd.read():
-                    return ARPAGit._create_from_repo(builder, source, repo, cloned)
-        except FileNotFoundError:
-            pass
-
-        raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
 
 
 @register
@@ -47,5 +30,17 @@ class ARPAGit(RPMGit):
     NAME = "rpm-arpa"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: str, repo: git.Repo, cloned: bool) -> "RPMGit":
-        return cls(source, repo.working_dir)
+    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "RPMGit":
+        return cls(source.source, source.repo.working_dir)
+
+    @classmethod
+    def create(cls, builder: Builder, source: InputSource) -> "ARPAGit":
+        if isinstance(source, LocalGit):
+            return cls(source.source, source.repo.working_dir)
+        elif isinstance(source, URL):
+            return cls.create(builder, source.clone(builder))
+        if isinstance(source, LocalDir):
+            return cls(source.source, source.path)
+        else:
+            raise RuntimeError(
+                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")

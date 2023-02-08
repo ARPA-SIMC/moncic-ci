@@ -1,3 +1,3 @@
-from .source import Source, registry, get
+from .source import InputSource, Source, registry, get_source_class
 
-__all__ = ["Source", "registry", "get"]
+__all__ = ["InputSource", "Source", "registry", "get_source_class"]

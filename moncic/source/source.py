@@ -50,7 +50,7 @@ def registry() -> dict[str, Type["Source"]]:
     return source_types
 
 
-def get(name: str) -> Type["Source"]:
+def get_source_class(name: str) -> Type["Source"]:
     """
     Create a Build object by its name
     """
@@ -101,7 +101,13 @@ class InputSource:
         else:
             return URL(source, parsed)
 
-    def detect_source(self, builder: Builder, branch: Optional[str]) -> "Source":
+    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+        """
+        Return an InputSource for the given branch
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.branch is not implemented")
+
+    def detect_source(self, builder: Builder) -> "Source":
         """
         Autodetect the Source for this input
         """
@@ -116,11 +122,12 @@ class LocalFile(InputSource):
         super().__init__(source)
         self.path = path
 
-    def detect_source(self, builder: Builder, branch: Optional[str]) -> "Source":
+    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+        raise Fail("--branch does not make sense for local files")
+
+    def detect_source(self, builder: Builder) -> "Source":
         from .debian import DebianSourcePackage
         if self.source.endswith(".dsc"):
-            if branch is not None:
-                raise Fail("--branch does not make sense with Debian source packages")
             return DebianSourcePackage(self.source)
         else:
             raise Fail(f"{self.source!r}: cannot detect source type")
@@ -134,7 +141,10 @@ class LocalDir(InputSource):
         super().__init__(source)
         self.path = path
 
-    def detect_source(self, builder: Builder, branch: Optional[str]) -> "Source":
+    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+        raise Fail("--branch does not make sense for non-git directories")
+
+    def detect_source(self, builder: Builder) -> "Source":
         from .debian import DebianSourceDir
 
         if os.path.isdir(os.path.join(self.source, "debian")):
@@ -160,10 +170,12 @@ class LocalGit(InputSource):
         workdir = _git_clone(builder, self.repo.working_dir, branch)
         return LocalGit(self.source, workdir, copy=True)
 
-    def detect_source(self, builder: Builder, branch: Optional[str]) -> "Source":
-        if branch is not None and self.repo.active_branch != branch:
-            return self.clone(builder, branch).detect_source(builder, branch)
+    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+        if self.repo.active_branch == branch:
+            return self
+        return self.clone(builder, branch)
 
+    def detect_source(self, builder: Builder) -> "Source":
         from ..distro.debian import DebianDistro
         from ..distro.rpm import RpmDistro
         distro = builder.system.distro
@@ -183,8 +195,15 @@ class LocalGit(InputSource):
                 # There is a debian/ directory, find upstream from gbp.conf
                 return DebianGBPTestDebian._create_from_repo(builder, self)
         elif isinstance(distro, RpmDistro):
-            from .rpm import RPMGit
-            return RPMGit._create_from_repo(builder, self)
+            from .rpm import ARPAGit
+            travis_yml = os.path.join(self.repo.working_dir, ".travis.yml")
+            try:
+                with open(travis_yml, "rt") as fd:
+                    if 'simc/stable' in fd.read():
+                        return ARPAGit._create_from_repo(builder, self)
+            except FileNotFoundError:
+                pass
+            raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {distro!r}")
 
@@ -204,8 +223,11 @@ class URL(InputSource):
         workdir = _git_clone(builder, self.source, branch)
         return LocalGit(self.source, workdir, copy=True)
 
-    def detect_source(self, builder: Builder, branch: Optional[str]) -> "Source":
-        return self.clone(builder, branch).detect_source(builder, branch)
+    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+        return self.clone(builder, branch).branch(builder, branch)
+
+    def detect_source(self, builder: Builder) -> "Source":
+        return self.clone(builder).detect_source(builder)
 
 
 @dataclass
@@ -219,14 +241,6 @@ class Source:
     host_path: str
     # Path to the unpacked sources in the guest system
     guest_path: Optional[str] = None
-
-    @classmethod
-    def create(cls, builder: Builder, source: str, branch: Optional[str] = None) -> "Source":
-        """
-        Create a Source class for the given source path/url
-        """
-        input_source = InputSource.create(source)
-        return input_source.detect_source(builder, branch)
 
     @classmethod
     def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
