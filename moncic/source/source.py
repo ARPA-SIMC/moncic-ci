@@ -132,12 +132,12 @@ class LocalFile(InputSource):
         raise Fail("--branch does not make sense for local files")
 
     def detect_source(self, builder: Builder) -> "Source":
-        from .debian import DebianSourcePackage
         from ..distro.debian import DebianDistro
         distro = builder.system.distro
         if isinstance(distro, DebianDistro):
             if self.source.endswith(".dsc"):
-                return DebianSourcePackage(self.source)
+                from .debian import DebianDsc
+                return DebianDsc._create_from_file(builder, self)
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:

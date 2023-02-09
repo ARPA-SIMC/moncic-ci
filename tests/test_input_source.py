@@ -41,9 +41,8 @@ class TestInputSource(unittest.TestCase):
             self.assertIsInstance(isrc, source.LocalFile)
             self.assertEqual(isrc.source, dsc_file)
             self.assertEqual(isrc.path, dsc_file)
-            with self.assertRaises(NotImplementedError):
-                src = isrc.detect_source(MockBuilder("sid"))
-                self.assertIsInstance(src, debian.DebianSourcePackage)
+            src = isrc.detect_source(MockBuilder("sid"))
+            self.assertIsInstance(src, debian.DebianDsc)
             with self.assertRaises(Fail):
                 isrc.detect_source(MockBuilder("rocky9"))
 
@@ -51,9 +50,8 @@ class TestInputSource(unittest.TestCase):
             self.assertIsInstance(isrc, source.LocalFile)
             self.assertEqual(isrc.source, "file:" + dsc_file)
             self.assertEqual(isrc.path, dsc_file)
-            with self.assertRaises(NotImplementedError):
-                src = isrc.detect_source(MockBuilder("sid"))
-                self.assertIsInstance(src, debian.DebianSourcePackage)
+            src = isrc.detect_source(MockBuilder("sid"))
+            self.assertIsInstance(src, debian.DebianDsc)
             with self.assertRaises(Fail):
                 isrc.detect_source(MockBuilder("rocky9"))
 

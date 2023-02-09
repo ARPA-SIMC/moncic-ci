@@ -338,6 +338,58 @@ debian-branch=debian/unstable
                 self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
 
 
+class TestDebianDsc(WorkdirFixtureMixin, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.dsc_file = os.path.join(cls.workdir, "moncic-ci_0.1.0-1.dsc")
+        with open(cls.dsc_file, "wt") as fd:
+            fd.write("""Format: 3.0 (quilt)
+Source: moncic-ci
+Binary: moncic-ci
+Version: 0.1.0-1
+Files:
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0.orig.tar.gz
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
+""")
+
+        with open(os.path.join(cls.workdir, "moncic-ci_0.1.0.orig.tar.gz"), "wb"):
+            pass
+        with open(os.path.join(cls.workdir, "moncic-ci_0.1.0-1.debian.tar.xz"), "wb"):
+            pass
+
+    def test_build_options(self):
+        self.assertEqual(
+            [x[0] for x in debian.DebianDsc.list_build_options()],
+            ["build_profile"])
+
+    def test_detect_local(self):
+        isrc = source.InputSource.create(self.dsc_file)
+        self.assertIsInstance(isrc, source.LocalFile)
+
+        with self.assertRaises(Fail):
+            isrc.detect_source(MockBuilder("rocky9"))
+
+        with MockBuilder("sid") as builder:
+            src = isrc.detect_source(builder)
+            self.assertIsInstance(src, debian.DebianDsc)
+
+    def test_build_source(self):
+        isrc = source.InputSource.create(self.dsc_file)
+        with make_moncic().session():
+            with MockBuilder("sid") as builder:
+                src = isrc.detect_source(builder)
+                self.assertEqual(src.get_build_class().__name__, "Debian")
+
+                with builder.container() as container:
+                    src.gather_sources_from_host(container)
+                    self.assertCountEqual(os.listdir(container.source_dir), [
+                        "moncic-ci_0.1.0-1.dsc",
+                        "moncic-ci_0.1.0.orig.tar.gz",
+                        "moncic-ci_0.1.0-1.debian.tar.xz",
+                    ])
+
+
 class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
     @classmethod
     def setUpClass(cls):

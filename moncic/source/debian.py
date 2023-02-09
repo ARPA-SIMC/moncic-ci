@@ -340,7 +340,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
     """
     Unpacked debian source
     """
-    NAME = "debian-dir-plain"
+    NAME = "debian-dir"
 
     @classmethod
     def create(cls, builder: Builder, source: InputSource) -> "DebianSourceDir":
@@ -382,21 +382,63 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
         raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
 
+@register
 @dataclass
-class DebianSourcePackage(DebianSource):
+class DebianDsc(DebianSource):
     """
     Debian source .dsc
     """
-    # local: collect file list
-    # container: unpack
-    def __init__(self, *args, **kw):
-        # TODO
-        raise NotImplementedError("DebianSourcePackage not yet implemented")
+    NAME = "debian-dsc"
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianSourcePackage":
+    def create(cls, builder: Builder, source: InputSource) -> "DebianDsc":
         if isinstance(source, LocalFile):
             return cls(source, source.path)
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+
+    @classmethod
+    def _create_from_file(cls, builder: Builder, source: LocalFile) -> "DebianDsc":
+        return cls(source, source.path)
+
+    @host_only
+    def gather_sources_from_host(self, container: Container) -> None:
+        """
+        Gather needed source files from the host system and copy them to the
+        guest
+        """
+        super().gather_sources_from_host(container)
+
+        re_files = re.compile(r"^Files:\s*$")
+        re_file = re.compile(r"^\s+\S+\s+\d+\s+(\S+)\s*$")
+
+        # Parse .dsc to get the list of assets
+        file_list = [os.path.basename(self.host_path)]
+        with open(self.host_path, "rt") as fd:
+            files_section = False
+            for line in fd:
+                if not files_section:
+                    if re_files.match(line):
+                        files_section = True
+                else:
+                    mo = re_file.match(line)
+                    if not mo:
+                        break
+                    file_list.append(mo.group(1))
+
+        # Copy .dsc and its assets to the container
+        srcdir = os.path.dirname(self.host_path)
+        dstdir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
+        for fname in file_list:
+            link_or_copy(os.path.join(srcdir, fname), dstdir)
+
+        self.guest_path = os.path.join("/srv/moncic-ci/source", os.path.basename(self.host_path))
+
+    @guest_only
+    def build_source_package(self) -> str:
+        """
+        Build a source package in /srv/moncic-ci/source returning the name of
+        the main file of the source package fileset
+        """
+        return self.guest_path
