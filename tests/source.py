@@ -68,7 +68,10 @@ class GitRepo(contextlib.ExitStack):
     def serve(self) -> Generator[str, None, None]:
         """
         Run a webserver serving the repo contents for the duration of this
-        context manager
+        context manager.
+
+        The context variable will be the URL one can use with git to clone the
+        repository
         """
         self.git("update-server-info")
 
@@ -82,6 +85,7 @@ class GitRepo(contextlib.ExitStack):
             def log_message(self, *args):
                 logging.debug(*args)
 
+        # Auto-allocate the server port
         with socketserver.TCPServer(("localhost", 0), Handler) as httpd:
             port = httpd.server_address[1]
 
