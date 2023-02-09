@@ -41,6 +41,9 @@ class DebianGitSource(DebianSource):
     """
     Debian sources from a git repository
     """
+    # Redefine specialized as LocalGit
+    source: LocalGit
+
     @classmethod
     def create(cls, builder: Builder, source: InputSource) -> "DebianGitSource":
         if isinstance(source, LocalGit):
