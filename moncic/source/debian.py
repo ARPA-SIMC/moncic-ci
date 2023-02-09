@@ -86,7 +86,9 @@ class DebianPlainGit(DebianGitSource):
         # TODO: if the repo has been cloned, looking at the directory above
         # will likely look in the wrong place
 
-        tarball_search_dirs = [os.path.dirname(self.host_path)]
+        tarball_search_dirs = []
+        if self.source.orig_path is not None:
+            tarball_search_dirs.append(os.path.dirname(self.source.orig_path))
         if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 

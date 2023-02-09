@@ -99,7 +99,7 @@ class InputSource:
         if parsed.scheme in ("", "file"):
             if os.path.isdir(parsed.path):
                 if os.path.isdir(os.path.join(parsed.path, ".git")):
-                    return LocalGit(source, parsed.path, copy=False)
+                    return LocalGit(source, parsed.path, copy=False, orig_path=parsed.path)
                 else:
                     return LocalDir(source, parsed.path)
             else:
@@ -180,10 +180,11 @@ class LocalGit(InputSource):
     """
     Source specified as a local git working directory
     """
-    def __init__(self, source: str, path: str, copy: bool):
+    def __init__(self, source: str, path: str, copy: bool, orig_path: Optional[str] = None):
         super().__init__(source)
         self.repo = git.Repo(path)
         self.copy = copy
+        self.orig_path = orig_path
 
     def find_branch(self, name: str) -> Optional[git.refs.symbolic.SymbolicReference]:
         """
@@ -214,7 +215,7 @@ class LocalGit(InputSource):
         Clone this URL into a local git repository
         """
         workdir = _git_clone(builder, self.repo.working_dir, branch)
-        return LocalGit(self.source, workdir, copy=True)
+        return LocalGit(self.source, workdir, copy=True, orig_path=self.orig_path)
 
     def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
         if self.repo.active_branch == branch:
@@ -267,7 +268,7 @@ class URL(InputSource):
         Clone this URL into a local git repository
         """
         workdir = _git_clone(builder, self.source, branch)
-        return LocalGit(self.source, workdir, copy=True)
+        return LocalGit(self.source, workdir, copy=True, orig_path=None)
 
     def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
         return self.clone(builder, branch).branch(builder, branch)
