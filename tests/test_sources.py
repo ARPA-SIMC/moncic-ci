@@ -33,8 +33,8 @@ class GitFixtureMixin(WorkdirFixtureMixin):
         cls.git = cls.stack.enter_context(GitRepo(os.path.join(cls.workdir, "repo")))
 
 
-class TesttDebianSourceDir(WorkdirFixtureMixin, unittest.TestCase):
-    tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
+class DebianSourceDirMixin(WorkdirFixtureMixin):
+    tarball_name: str
 
     @classmethod
     def setUpClass(cls):
@@ -47,7 +47,6 @@ class TesttDebianSourceDir(WorkdirFixtureMixin, unittest.TestCase):
             print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
 
         # Create mock tarball
-        # TODO: test also .tar.xz
         with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
             pass
 
@@ -81,8 +80,17 @@ class TesttDebianSourceDir(WorkdirFixtureMixin, unittest.TestCase):
             # TODO: def build_source_package(self) -> str:
 
 
-class TesttDebianPlainGit(GitFixtureMixin, unittest.TestCase):
+class TestDebianSourceDir1(DebianSourceDirMixin, unittest.TestCase):
     tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
+
+
+class TestDebianSourceDir2(DebianSourceDirMixin, unittest.TestCase):
+    tarball_name = "moncic-ci_0.1.0.orig.tar.xz"
+
+
+class DebianPlainGitMixin(GitFixtureMixin):
+    tarball_name: str
+    skip_tarball: bool = False
 
     @classmethod
     def setUpClass(cls):
@@ -90,9 +98,9 @@ class TesttDebianPlainGit(GitFixtureMixin, unittest.TestCase):
         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
         cls.git.commit()
         # Create mock tarball
-        # TODO: test also .tar.xz
-        with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
-            pass
+        if not cls.skip_tarball:
+            with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
+                pass
 
     def test_build_options(self):
         self.assertEqual(
@@ -134,6 +142,22 @@ class TesttDebianPlainGit(GitFixtureMixin, unittest.TestCase):
                     self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
             # TODO: @guest_only
             # TODO: def build_source_package(self) -> str:
+
+
+class TesttDebianPlainGit1(DebianPlainGitMixin, unittest.TestCase):
+    tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
+    skip_tarball = False
+
+
+class TesttDebianPlainGit2(DebianPlainGitMixin, unittest.TestCase):
+    tarball_name = "moncic-ci_0.1.0.orig.tar.xz"
+    skip_tarball = False
+
+
+class TesttDebianPlainGit3(DebianPlainGitMixin, unittest.TestCase):
+    # Test without tarball: a .tar.xz one gets generated from git
+    tarball_name = "moncic-ci_0.1.0.orig.tar.xz"
+    skip_tarball = True
 
 
 class DebianGBPTestUpstreamMixin(GitFixtureMixin):

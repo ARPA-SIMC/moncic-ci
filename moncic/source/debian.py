@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import logging
+import lzma
 import os
 import re
+import shlex
+import shutil
+import subprocess
 from configparser import ConfigParser
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type, cast
@@ -59,8 +63,7 @@ class DebianDirMixin(Source):
             if (mo := re_debchangelog_head.match(next(fd))):
                 src_name = mo.group("name")
                 tar_version = mo.group("tar_version")
-                # TODO: there can be other compression method: .xz? .zstd?
-                self.tarball_filename = f"{src_name}_{tar_version}.orig.tar.gz"
+                tarball_match = f"{src_name}_{tar_version}.orig.tar"
             else:
                 raise RuntimeError("Unparsable debian/changelog")
 
@@ -68,7 +71,8 @@ class DebianDirMixin(Source):
         for path in tarball_search_dirs:
             with os.scandir(path) as it:
                 for de in it:
-                    if de.name == self.tarball_filename:
+                    if de.name.startswith(tarball_match):
+                        self.tarball_filename = de.name
                         self.tarball_source = de.path
                         break
             if self.tarball_source:
@@ -76,6 +80,9 @@ class DebianDirMixin(Source):
                 container_root = container.get_root()
                 link_or_copy(self.tarball_source, os.path.join(container_root, "srv", "moncic-ci", "source"))
                 break
+            else:
+                # Default to .xz compression
+                self.tarball_filename = tarball_match + ".xz"
 
 
 class DebianGitSource(DebianSource):
@@ -144,22 +151,29 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
         if self.source.orig_path is not None:
             tarball_search_dirs.append(os.path.dirname(self.source.orig_path))
         self._find_tarball(container, tarball_search_dirs)
+        if self.tarball_source is None:
+            self.build_orig_tarball(container)
 
-    @guest_only
-    def build_orig_tarball(self):
+    @host_only
+    def build_orig_tarball(self, container: Container):
         """
         Make sure srcinfo.tar_fname exists.
 
         This function is run from a clean source directory
         """
-        dest_tarball = os.path.join("/srv/moncic-ci/source", self.tarball_filename)
-        if os.path.exists(dest_tarball):
-            return
+        dest_tarball = os.path.join(container.get_root(), "srv", "moncic-ci", "source", self.tarball_filename)
 
         # This is a last-resort measure, trying to build an approximation of an
         # upstream tarball when none was found
         log.info("Building tarball from source directory")
-        run(["git", "archive", f"--output={dest_tarball}", "HEAD", ".", ":(exclude)debian"], cwd=self.guest_path)
+        cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
+        log.info("Run: %s", " ".join(shlex.quote(x) for x in cmd))
+        proc = subprocess.Popen(cmd, cwd=self.guest_path, stdout=subprocess.PIPE)
+        with lzma.open(dest_tarball, "wb") as out:
+            shutil.copyfileobj(proc.stdout, out)
+        if proc.wait() != 0:
+            raise RuntimeError(f"git archive exited with error code {proc.returncode}")
+
         self.tarball_source = "[git archive HEAD . :(exclude)debian]"
 
     @guest_only
@@ -168,8 +182,6 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
         Build a source package in /srv/moncic-ci/source returning the name of
         the main file of the source package fileset
         """
-        self.build_orig_tarball()
-
         # Uses --no-pre-clean to avoid requiring build-deps to be installed at
         # this stage
         run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.guest_path)
