@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING, Generator, Optional, Type
 
 import git
 
-from ..container import RunConfig
 from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
+from ..utils.run import run
 
 if TYPE_CHECKING:
     from ..build import Build, Builder
@@ -65,10 +65,10 @@ def _git_clone(builder: Builder, repository: str, branch: Optional[str] = None) 
     """
     # Git checkout in a temporary directory
     workdir = builder.enter_context(tempfile.TemporaryDirectory())
-    cmd = ["git", "-c", "advice.detachedHead=false", "clone", repository]
+    cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]
     if branch is not None:
         cmd += ["--branch", branch]
-    builder.system.local_run(cmd, config=RunConfig(cwd=workdir))
+    run(cmd, cwd=workdir)
 
     # Look for the directory that git created
     names = os.listdir(workdir)
@@ -127,10 +127,18 @@ class LocalFile(InputSource):
 
     def detect_source(self, builder: Builder) -> "Source":
         from .debian import DebianSourcePackage
-        if self.source.endswith(".dsc"):
-            return DebianSourcePackage(self.source)
+        from ..distro.debian import DebianDistro
+        distro = builder.system.distro
+        if isinstance(distro, DebianDistro):
+            if self.source.endswith(".dsc"):
+                return DebianSourcePackage(self.source)
+            else:
+                raise Fail(f"{self.source!r}: cannot detect source type")
         else:
-            raise Fail(f"{self.source!r}: cannot detect source type")
+            if self.source.endswith(".dsc"):
+                raise Fail(f"{self.source!r}: cannot build Debian source package on {distro}")
+            else:
+                raise Fail(f"{self.source!r}: cannot detect source type")
 
 
 class LocalDir(InputSource):
@@ -146,12 +154,20 @@ class LocalDir(InputSource):
 
     def detect_source(self, builder: Builder) -> "Source":
         from .debian import DebianSourceDir
+        from ..distro.debian import DebianDistro
 
-        if os.path.isdir(os.path.join(self.source, "debian")):
-            return DebianSourceDir(self.source)
+        distro = builder.system.distro
+        if isinstance(distro, DebianDistro):
+            if os.path.isdir(os.path.join(self.path, "debian")):
+                return DebianSourceDir(self.path)
+            else:
+                raise Fail(f"{self.source!r}: cannot detect source type")
         else:
-            # TODO: find specfiles?
-            raise Fail(f"{self.source!r}: cannot detect source type")
+            if os.path.isdir(os.path.join(self.path, "debian")):
+                raise Fail(f"{self.source!r}: cannot build Debian source on {distro}")
+            else:
+                # TODO: find specfiles?
+                raise Fail(f"{self.source!r}: cannot detect source type")
 
 
 class LocalGit(InputSource):
@@ -162,6 +178,29 @@ class LocalGit(InputSource):
         super().__init__(source)
         self.repo = git.Repo(path)
         self.copy = copy
+
+    def find_branch(self, name: str) -> Optional[git.refs.symbolic.SymbolicReference]:
+        """
+        Look for the named branch locally or in the origin repository.
+
+        Return the branch object, or None if not found.
+
+        If the result is not None, `git checkout <name>` is expected to work
+        """
+        for branch in self.repo.branches:
+            if branch.name == name:
+                return branch
+
+        for remote in self.repo.remotes:
+            if remote.name == "origin":
+                break
+        else:
+            return None
+
+        for ref in remote.refs:
+            if ref.name == name:
+                return ref
+        return None
 
     def clone(self, builder: Builder, branch: Optional[str] = None) -> LocalGit:
         """
@@ -203,7 +242,7 @@ class LocalGit(InputSource):
                         return ARPAGit._create_from_repo(builder, self)
             except FileNotFoundError:
                 pass
-            raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
+            raise Fail("but simc/stable not found in .travis.yml for ARPA builds")
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {distro!r}")
 

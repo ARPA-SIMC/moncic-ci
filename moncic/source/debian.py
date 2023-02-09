@@ -11,6 +11,7 @@ import git
 
 from .. import context
 from ..build.utils import link_or_copy
+from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .source import (URL, InputSource, LocalDir, LocalFile, LocalGit, Source,
@@ -213,9 +214,9 @@ class DebianGBPTestUpstream(DebianGBP):
     def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestUpstream":
         # find the right debian branch
         branch = builder.system.distro.get_gbp_branch()
-        origin = source.repo.remotes["origin"]
-        if branch not in origin.refs:
-            raise RuntimeError(f"Packaging branch {branch!r} not found for distribution '{builder.system.distro}'")
+
+        if source.find_branch(branch) is None:
+            raise Fail(f"Packaging branch {branch!r} not found for distribution '{builder.system.distro}'")
 
         # TODO: find common ancestor between current and packaging, and merge
         #       packaging branch from that?

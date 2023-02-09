@@ -66,6 +66,7 @@ class CI(SourceCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 builder = Builder(system)
+
                 source = self.get_source(builder, self.args.source)
                 log.info("Source type: %s", source.NAME)
                 build_kwargs["source"] = source
