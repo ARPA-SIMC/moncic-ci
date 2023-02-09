@@ -116,7 +116,9 @@ class DebianGitSource(DebianSource):
 @dataclass
 class DebianPlainGit(DebianDirMixin, DebianGitSource):
     """
-    Debian git working directory that does not use git-buildpackage
+    Debian git working directory that does not use git-buildpackage.
+
+    If no tarball can be found, one is generated with `git archive`
     """
     NAME = "debian-git-plain"
 
