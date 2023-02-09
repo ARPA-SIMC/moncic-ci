@@ -31,7 +31,7 @@ class ARPAGit(RPMGit):
 
     @classmethod
     def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "RPMGit":
-        return cls(source.source, source.repo.working_dir)
+        return cls(source, source.repo.working_dir)
 
     @classmethod
     def create(cls, builder: Builder, source: InputSource) -> "ARPAGit":

@@ -70,7 +70,7 @@ class DebianPlainGit(DebianGitSource):
                     source.repo.working_dir)
             source = source.clone(builder)
 
-        return cls(source.source, source.repo.working_dir)
+        return cls(source, source.repo.working_dir)
 
     @host_only
     def gather_sources_from_host(self, container: Container) -> None:
@@ -244,7 +244,7 @@ class DebianGBPTestUpstream(DebianGBP):
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
              "user.name=Moncic-CI", "merge", active_branch, "--quiet", "-m", "CI merge"], cwd=source.repo.working_dir)
 
-        res = cls(source.source, source.repo.working_dir)
+        res = cls(source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=branch")
         res.gbp_args.append("--git-upstream-branch=" + active_branch)
         return res
@@ -262,7 +262,7 @@ class DebianGBPRelease(DebianGBP):
     def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPRelease":
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
-        res = cls(source.source, source.repo.working_dir)
+        res = cls(source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=tag")
         return res
 
@@ -295,7 +295,7 @@ class DebianGBPTestDebian(DebianGBP):
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
              "user.name=Moncic-CI", "merge", upstream_branch, "--quiet", "-m", "CI merge"], cwd=source.repo.working_dir)
 
-        res = cls(source.source, source.repo.working_dir)
+        res = cls(source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=branch")
         return res
 
@@ -313,7 +313,7 @@ class DebianSourceDir(DebianSource):
     @classmethod
     def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
         if isinstance(source, LocalDir):
-            return cls(source.source, source.path)
+            return cls(source, source.path)
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
@@ -333,7 +333,7 @@ class DebianSourcePackage(DebianSource):
     @classmethod
     def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
         if isinstance(source, LocalFile):
-            return cls(source.source, source.path)
+            return cls(source, source.path)
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")

@@ -84,6 +84,12 @@ class InputSource:
     def __init__(self, source: str):
         self.source = source
 
+    def __str__(self) -> str:
+        return self.source
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.source})"
+
     @classmethod
     def create(self, source: str) -> "InputSource":
         """
@@ -276,7 +282,7 @@ class Source:
     Sources to be built
     """
     # Original source as specified by the user
-    source: str
+    source: InputSource
     # Path to the unpacked sources in the host system
     host_path: str
     # Path to the unpacked sources in the guest system
