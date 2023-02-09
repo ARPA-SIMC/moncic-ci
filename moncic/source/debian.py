@@ -80,7 +80,10 @@ class DebianPlainGit(DebianGitSource):
         """
         super().gather_sources_from_host(container)
 
-        tarball_search_dirs = [os.path.join(self.host_path, "..")]
+        # TODO: if the repo has been cloned, looking at the directory above
+        # will likely look in the wrong place
+
+        tarball_search_dirs = [os.path.dirname(self.host_path)]
         if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 
@@ -88,6 +91,7 @@ class DebianPlainGit(DebianGitSource):
             if (mo := re_debchangelog_head.match(next(fd))):
                 src_name = mo.group("name")
                 tar_version = mo.group("tar_version")
+                # TODO: there can be other compression method: .xz? .zstd?
                 self.tarball_filename = f"{src_name}_{tar_version}.orig.tar.gz"
             else:
                 raise RuntimeError("Unparsable debian/changelog")
@@ -190,8 +194,6 @@ class DebianGBP(DebianGitSource):
         cmd += self.gbp_args
         run(cmd, cwd=self.guest_path)
 
-        print(os.listdir("/srv/moncic-ci/source"))
-        print(os.listdir("/srv/moncic-ci/build"))
         for fn in os.listdir("/srv/moncic-ci/source"):
             if fn.endswith(".dsc"):
                 return os.path.join("/srv/moncic-ci/source", fn)
@@ -219,7 +221,8 @@ class DebianGBPTestUpstream(DebianGBP):
             if source.find_branch(branch) is not None:
                 break
         else:
-            raise Fail(f"Packaging branch not found for distribution '{builder.system.distro}'. Tried: {', '.join(candidate_branches)} ")
+            raise Fail(f"Packaging branch not found for distribution '{builder.system.distro}'."
+                       f" Tried: {', '.join(candidate_branches)} ")
 
         # TODO: find common ancestor between current and packaging, and merge
         #       packaging branch from that?
@@ -260,7 +263,7 @@ class DebianGBPRelease(DebianGBP):
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
         res = cls(source.source, source.repo.working_dir)
-        cls.gbp_args.append("--git-upstream-tree=tag")
+        res.gbp_args.append("--git-upstream-tree=tag")
         return res
 
 
@@ -290,7 +293,7 @@ class DebianGBPTestDebian(DebianGBP):
         # Merge the upstream branch into the debian branch
         log.info("merge upstream branch %s into build branch", upstream_branch)
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", upstream_branch], cwd=source.repo.working_dir)
+             "user.name=Moncic-CI", "merge", upstream_branch, "--quiet", "-m", "CI merge"], cwd=source.repo.working_dir)
 
         res = cls(source.source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=branch")

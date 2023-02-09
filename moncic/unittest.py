@@ -41,10 +41,6 @@ privs.drop()
 def make_moncic(config: Optional[MoncicConfig] = None):
     """
     Create a Moncic instance configured to work with the test suite.
-
-    If testcase is present, it will create a fullly mocked Moncic instance that
-    will also create mock systems. Otherwise it will create a real Moncic
-    instance configured to use test images
     """
     if config is not None:
         # Use dataclasses.replace to make a copy

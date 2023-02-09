@@ -8,7 +8,7 @@ import socketserver
 import subprocess
 import tempfile
 import threading
-from typing import Generator, Union
+from typing import Generator, Optional, Union
 
 from moncic.distro import Distro, DistroFamily
 
@@ -18,20 +18,41 @@ class MockSystem:
         self.distro = distro
 
 
+class MockContainer:
+    def __init__(self, system: MockSystem, root: str):
+        self.system = system
+        self.root = root
+        self.source_dir = os.path.join(self.root, "srv", "moncic-ci", "source")
+        os.makedirs(self.source_dir, exist_ok=True)
+
+    def get_root(self):
+        return self.root
+
+
 class MockBuilder(contextlib.ExitStack):
     def __init__(self, distro: str):
         super().__init__()
         self.system = MockSystem(
                 distro=DistroFamily.lookup_distro(distro))
 
+    @contextlib.contextmanager
+    def container(self) -> Generator[MockContainer, None, None]:
+        with tempfile.TemporaryDirectory() as container_root:
+            yield MockContainer(self.system, container_root)
+
 
 class GitRepo(contextlib.ExitStack):
     """
     Temporary git repository used for testing
     """
-    def __init__(self):
+    def __init__(self, workdir: Optional[str] = None):
         super().__init__()
-        self.root = self.enter_context(tempfile.TemporaryDirectory())
+        if workdir is None:
+            self.root = self.enter_context(tempfile.TemporaryDirectory())
+        else:
+            os.makedirs(workdir, exist_ok=True)
+            self.root = workdir
+
         self.git("init", "-b", "main")
         self.git("config", "user.name", "Test User")
         self.git("config", "user.email", "hyde@example.com")
