@@ -24,14 +24,14 @@ log = logging.getLogger(__name__)
 source_types: dict[str, Type["Source"]] = {}
 
 
-def register(builder_cls: Type["Build"]) -> Type["Build"]:
+def register(source_cls: Type["Source"]) -> Type["Source"]:
     """
     Add a Build object to the Build registry
     """
-    name = getattr(builder_cls, "NAME", None)
+    name = getattr(source_cls, "NAME", None)
     if name is None:
-        name = builder_cls.__name__.lower()
-    source_types[name] = builder_cls
+        name = source_cls.__name__.lower()
+    source_types[name] = source_cls
 
     # Register extra_args callbacks.
     #
@@ -41,7 +41,7 @@ def register(builder_cls: Type["Build"]) -> Type["Build"]:
     # if "add_arguments" in builder_cls.__dict__:
     #     cls.extra_args_callbacks.append(builder_cls.add_arguments)
 
-    return builder_cls
+    return source_cls
 
 
 def registry() -> dict[str, Type["Source"]]:

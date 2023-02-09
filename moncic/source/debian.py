@@ -42,7 +42,7 @@ class DebianGitSource(DebianSource):
     Debian sources from a git repository
     """
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
+    def create(cls, builder: Builder, source: InputSource) -> "DebianGitSource":
         if isinstance(source, LocalGit):
             return cls(source.source, source.repo.working_dir)
         elif isinstance(source, URL):
@@ -311,7 +311,7 @@ class DebianSourceDir(DebianSource):
         raise NotImplementedError("DebianSourceDir not yet implemented")
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
+    def create(cls, builder: Builder, source: InputSource) -> "DebianSourceDir":
         if isinstance(source, LocalDir):
             return cls(source, source.path)
         else:
@@ -331,7 +331,7 @@ class DebianSourcePackage(DebianSource):
         raise NotImplementedError("DebianSourcePackage not yet implemented")
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianPlainGit":
+    def create(cls, builder: Builder, source: InputSource) -> "DebianSourcePackage":
         if isinstance(source, LocalFile):
             return cls(source, source.path)
         else:
