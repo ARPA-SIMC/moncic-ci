@@ -33,6 +33,54 @@ class GitFixtureMixin(WorkdirFixtureMixin):
         cls.git = cls.stack.enter_context(GitRepo(os.path.join(cls.workdir, "repo")))
 
 
+class TesttDebianSourceDir(WorkdirFixtureMixin, unittest.TestCase):
+    tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.pkg_root = os.path.join(cls.workdir, "moncic-ci")
+        debian_dir = os.path.join(cls.pkg_root, "debian")
+        os.makedirs(debian_dir, exist_ok=True)
+
+        with open(os.path.join(debian_dir, "changelog"), "wt") as fd:
+            print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
+
+        # Create mock tarball
+        # TODO: test also .tar.xz
+        with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
+            pass
+
+    def test_build_options(self):
+        self.assertEqual(
+            [x[0] for x in debian.DebianSourceDir.list_build_options()],
+            ["build_profile"])
+
+    def test_detect_local(self):
+        isrc = source.InputSource.create(self.pkg_root)
+        self.assertIsInstance(isrc, source.LocalDir)
+
+        with self.assertRaises(Fail):
+            isrc.detect_source(MockBuilder("rocky9"))
+
+        with MockBuilder("sid") as builder:
+            src = isrc.detect_source(builder)
+            self.assertIsInstance(src, debian.DebianSourceDir)
+
+    def test_build_source(self):
+        isrc = source.InputSource.create(self.pkg_root)
+        with make_moncic().session():
+            with MockBuilder("sid") as builder:
+                src = isrc.detect_source(builder)
+                self.assertEqual(src.get_build_class().__name__, "Debian")
+
+                with builder.container() as container:
+                    src.gather_sources_from_host(container)
+                    self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
+            # TODO: @guest_only
+            # TODO: def build_source_package(self) -> str:
+
+
 class TesttDebianPlainGit(GitFixtureMixin, unittest.TestCase):
     tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
 
@@ -328,5 +376,4 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
             # TODO: def build_source_package(self) -> str:
 
 
-# TODO: class DebianSourceDir(DebianSource):
 # TODO: class DebianSourcePackage(DebianSource):

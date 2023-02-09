@@ -5,7 +5,7 @@ import os
 import re
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, Optional, Type, cast
+from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type, cast
 
 import git
 
@@ -35,6 +35,47 @@ class DebianSource(Source):
     def get_build_class(self) -> Type["Build"]:
         from ..build.debian import Debian
         return Debian
+
+
+@dataclass
+class DebianDirMixin(Source):
+    """
+    Plain Debian source directory
+    """
+    tarball_filename: Optional[str] = None
+    tarball_source: Optional[str] = None
+
+    @host_only
+    def _find_tarball(self, container: Container, search_dirs: Sequence[str] = ()) -> None:
+        """
+        Find the Debian tarball and copy it to the source directory in the container
+        """
+        tarball_search_dirs = []
+        tarball_search_dirs.extend(search_dirs)
+        if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
+            tarball_search_dirs.append(artifacts_dir)
+
+        with open(os.path.join(self.host_path, "debian", "changelog"), "rt") as fd:
+            if (mo := re_debchangelog_head.match(next(fd))):
+                src_name = mo.group("name")
+                tar_version = mo.group("tar_version")
+                # TODO: there can be other compression method: .xz? .zstd?
+                self.tarball_filename = f"{src_name}_{tar_version}.orig.tar.gz"
+            else:
+                raise RuntimeError("Unparsable debian/changelog")
+
+        self.tarball_source = None
+        for path in tarball_search_dirs:
+            with os.scandir(path) as it:
+                for de in it:
+                    if de.name == self.tarball_filename:
+                        self.tarball_source = de.path
+                        break
+            if self.tarball_source:
+                log.info("Found existing source tarball %s", self.tarball_source)
+                container_root = container.get_root()
+                link_or_copy(self.tarball_source, os.path.join(container_root, "srv", "moncic-ci", "source"))
+                break
 
 
 class DebianGitSource(DebianSource):
@@ -73,13 +114,11 @@ class DebianGitSource(DebianSource):
 
 @register
 @dataclass
-class DebianPlainGit(DebianGitSource):
+class DebianPlainGit(DebianDirMixin, DebianGitSource):
     """
     Debian git working directory that does not use git-buildpackage
     """
     NAME = "debian-git-plain"
-    tarball_filename: Optional[str] = None
-    tarball_source: Optional[str] = None
 
     @classmethod
     def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianPlainGit":
@@ -99,36 +138,10 @@ class DebianPlainGit(DebianGitSource):
         """
         super().gather_sources_from_host(container)
 
-        # TODO: if the repo has been cloned, looking at the directory above
-        # will likely look in the wrong place
-
         tarball_search_dirs = []
         if self.source.orig_path is not None:
             tarball_search_dirs.append(os.path.dirname(self.source.orig_path))
-        if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
-            tarball_search_dirs.append(artifacts_dir)
-
-        with open(os.path.join(self.host_path, "debian", "changelog"), "rt") as fd:
-            if (mo := re_debchangelog_head.match(next(fd))):
-                src_name = mo.group("name")
-                tar_version = mo.group("tar_version")
-                # TODO: there can be other compression method: .xz? .zstd?
-                self.tarball_filename = f"{src_name}_{tar_version}.orig.tar.gz"
-            else:
-                raise RuntimeError("Unparsable debian/changelog")
-
-        self.tarball_source = None
-        for path in tarball_search_dirs:
-            with os.scandir(path) as it:
-                for de in it:
-                    if de.name == self.tarball_filename:
-                        self.tarball_source = de.path
-                        break
-            if self.tarball_source:
-                log.info("Found existing source tarball %s", self.tarball_source)
-                container_root = container.get_root()
-                link_or_copy(self.tarball_source, os.path.join(container_root, "srv", "moncic-ci", "source"))
-                break
+        self._find_tarball(container, tarball_search_dirs)
 
     @guest_only
     def build_orig_tarball(self):
@@ -321,15 +334,13 @@ class DebianGBPTestDebian(DebianGBP):
         return res
 
 
+@register
 @dataclass
-class DebianSourceDir(DebianSource):
+class DebianSourceDir(DebianDirMixin, DebianSource):
     """
     Unpacked debian source
     """
-    # local: collect orig tarball in directory above
-    def __init__(self, *args, **kw):
-        # TODO
-        raise NotImplementedError("DebianSourceDir not yet implemented")
+    NAME = "debian-dir-plain"
 
     @classmethod
     def create(cls, builder: Builder, source: InputSource) -> "DebianSourceDir":
@@ -338,6 +349,37 @@ class DebianSourceDir(DebianSource):
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+
+    @classmethod
+    def _create_from_dir(cls, builder: Builder, source: LocalDir) -> "DebianSourceDir":
+        return cls(source, source.path)
+
+    @host_only
+    def gather_sources_from_host(self, container: Container) -> None:
+        """
+        Gather needed source files from the host system and copy them to the
+        guest
+        """
+        super().gather_sources_from_host(container)
+
+        tarball_search_dirs = [os.path.dirname(self.source.path)]
+        self._find_tarball(container, tarball_search_dirs)
+
+    @guest_only
+    def build_source_package(self) -> str:
+        """
+        Build a source package in /srv/moncic-ci/source returning the name of
+        the main file of the source package fileset
+        """
+        # Uses --no-pre-clean to avoid requiring build-deps to be installed at
+        # this stage
+        run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.guest_path)
+
+        for fn in os.listdir("/srv/moncic-ci/source"):
+            if fn.endswith(".dsc"):
+                return os.path.join("/srv/moncic-ci/source", fn)
+
+        raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
 
 @dataclass

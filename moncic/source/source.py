@@ -165,7 +165,7 @@ class LocalDir(InputSource):
         distro = builder.system.distro
         if isinstance(distro, DebianDistro):
             if os.path.isdir(os.path.join(self.path, "debian")):
-                return DebianSourceDir(self.path)
+                return DebianSourceDir._create_from_dir(builder, self)
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:
