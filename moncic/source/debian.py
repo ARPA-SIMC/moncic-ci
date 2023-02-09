@@ -45,6 +45,22 @@ class DebianGitSource(DebianSource):
     source: LocalGit
 
     @classmethod
+    def detect(cls, builder: Builder, source: LocalGit) -> "DebianGitSource":
+        if not os.path.isdir(os.path.join(source.repo.working_dir, "debian")):
+            # There is no debian/directory, the current branch is upstream
+            return DebianGBPTestUpstream._create_from_repo(builder, source)
+
+        if not os.path.exists(os.path.join(source.repo.working_dir, "debian", "gbp.conf")):
+            return DebianPlainGit._create_from_repo(builder, source)
+
+        if source.repo.head.commit.hexsha in [t.commit.hexsha for t in source.repo.tags]:
+            # If branch to build is a tag, build a release from it
+            return DebianGBPRelease._create_from_repo(builder, source)
+        else:
+            # There is a debian/ directory, find upstream from gbp.conf
+            return DebianGBPTestDebian._create_from_repo(builder, source)
+
+    @classmethod
     def create(cls, builder: Builder, source: InputSource) -> "DebianGitSource":
         if isinstance(source, LocalGit):
             return cls(source.source, source.repo.working_dir)

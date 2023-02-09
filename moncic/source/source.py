@@ -169,11 +169,8 @@ class LocalDir(InputSource):
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:
-            if os.path.isdir(os.path.join(self.path, "debian")):
-                raise Fail(f"{self.source!r}: cannot build Debian source on {distro}")
-            else:
-                # TODO: find specfiles?
-                raise Fail(f"{self.source!r}: cannot detect source type")
+            from .rpm import RPMSource
+            return RPMSource.detect(builder, self)
 
 
 class LocalGit(InputSource):
@@ -185,6 +182,13 @@ class LocalGit(InputSource):
         self.repo = git.Repo(path)
         self.copy = copy
         self.orig_path = orig_path
+
+    @property
+    def path(self) -> str:
+        """
+        Return the filesystem path to the working directory
+        """
+        return self.repo.working_dir
 
     def find_branch(self, name: str) -> Optional[git.refs.symbolic.SymbolicReference]:
         """
@@ -227,30 +231,11 @@ class LocalGit(InputSource):
         from ..distro.rpm import RpmDistro
         distro = builder.system.distro
         if isinstance(distro, DebianDistro):
-            from .debian import DebianGBPTestUpstream, DebianPlainGit, DebianGBPRelease, DebianGBPTestDebian
-            if not os.path.isdir(os.path.join(self.repo.working_dir, "debian")):
-                # There is no debian/directory, the current branch is upstream
-                return DebianGBPTestUpstream._create_from_repo(builder, self)
-
-            if not os.path.exists(os.path.join(self.repo.working_dir, "debian", "gbp.conf")):
-                return DebianPlainGit._create_from_repo(builder, self)
-
-            if self.repo.head.commit.hexsha in [t.commit.hexsha for t in self.repo.tags]:
-                # If branch to build is a tag, build a release from it
-                return DebianGBPRelease._create_from_repo(builder, self)
-            else:
-                # There is a debian/ directory, find upstream from gbp.conf
-                return DebianGBPTestDebian._create_from_repo(builder, self)
+            from .debian import DebianGitSource
+            return DebianGitSource.detect(builder, self)
         elif isinstance(distro, RpmDistro):
-            from .rpm import ARPAGit
-            travis_yml = os.path.join(self.repo.working_dir, ".travis.yml")
-            try:
-                with open(travis_yml, "rt") as fd:
-                    if 'simc/stable' in fd.read():
-                        return ARPAGit._create_from_repo(builder, self)
-            except FileNotFoundError:
-                pass
-            raise Fail("but simc/stable not found in .travis.yml for ARPA builds")
+            from .rpm import RPMSource
+            return RPMSource.detect(builder, self)
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {distro!r}")
 

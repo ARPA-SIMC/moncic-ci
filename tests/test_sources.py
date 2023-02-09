@@ -12,19 +12,25 @@ from moncic.unittest import make_moncic
 from .source import GitRepo, MockBuilder
 
 
-class GitFixtureMixin:
+class WorkdirFixtureMixin:
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
         cls.workdir = cls.stack.enter_context(tempfile.TemporaryDirectory())
-        cls.git = cls.stack.enter_context(GitRepo(os.path.join(cls.workdir, "repo")))
 
     @classmethod
     def tearDownClass(cls):
         cls.stack.__exit__(None, None, None)
         super().tearDownClass()
+
+
+class GitFixtureMixin(WorkdirFixtureMixin):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.git = cls.stack.enter_context(GitRepo(os.path.join(cls.workdir, "repo")))
 
 
 class TesttDebianPlainGit(GitFixtureMixin, unittest.TestCase):
@@ -77,8 +83,6 @@ class TesttDebianPlainGit(GitFixtureMixin, unittest.TestCase):
 
                 with builder.container() as container:
                     src.gather_sources_from_host(container)
-                    # TODO: since the repo was cloned, using the new repo as
-                    # reference it cannot find the tarball
                     self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
             # TODO: @guest_only
             # TODO: def build_source_package(self) -> str:
@@ -286,6 +290,43 @@ debian-branch=debian/unstable
                 self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
 
 
+class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        travis_yml = os.path.join(cls.workdir, ".travis.yml")
+        with open(travis_yml, "wt") as out:
+            print("foo foo simc/stable bar bar", file=out)
+
+    def test_build_options(self):
+        self.assertEqual(
+            [x[0] for x in rpm.ARPASource.list_build_options()],
+            [])
+
+    def test_detect_local(self):
+        isrc = source.InputSource.create(self.workdir)
+        self.assertIsInstance(isrc, source.LocalDir)
+
+        with self.assertRaises(Fail):
+            isrc.detect_source(MockBuilder("sid"))
+
+        with MockBuilder("rocky9") as builder:
+            src = isrc.detect_source(builder)
+            self.assertIsInstance(src, rpm.ARPASource)
+
+    def test_build_source(self):
+        isrc = source.InputSource.create(self.workdir)
+        with make_moncic().session():
+            with MockBuilder("rocky9") as builder:
+                src = isrc.detect_source(builder)
+                self.assertEqual(src.get_build_class().__name__, "ARPA")
+
+                with builder.container() as container:
+                    src.gather_sources_from_host(container)
+                    self.assertCountEqual(os.listdir(container.source_dir), [])
+            # TODO: @guest_only
+            # TODO: def build_source_package(self) -> str:
+
+
 # TODO: class DebianSourceDir(DebianSource):
 # TODO: class DebianSourcePackage(DebianSource):
-# TODO: class ARPAGit(RPMGit):

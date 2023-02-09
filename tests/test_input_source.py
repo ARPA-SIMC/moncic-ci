@@ -106,20 +106,23 @@ class TestInputSource(unittest.TestCase):
             self.assertEqual(isrc.source, git.root)
             self.assertEqual(isrc.repo.working_dir, git.root)
             self.assertFalse(isrc.copy)
+            self.assertEqual(isrc.orig_path, git.root)
 
             isrc = source.InputSource.create("file:" + git.root)
             self.assertIsInstance(isrc, source.LocalGit)
             self.assertEqual(isrc.source, "file:" + git.root)
             self.assertEqual(isrc.repo.working_dir, git.root)
             self.assertFalse(isrc.copy)
+            self.assertEqual(isrc.orig_path, git.root)
             # src = isrc.detect_source(MockBuilder("sid"))
             # self.assertIsInstance(src, debian.DebianSourceDir)
 
             with MockBuilder("sid") as builder:
                 clone = isrc.clone(builder)
                 self.assertIsInstance(clone, source.LocalGit)
-                self.assertNotEqual(isrc.repo.working_dir, clone.repo.working_dir)
+                self.assertNotEqual(clone.repo.working_dir, git.root)
                 self.assertTrue(clone.copy)
+                self.assertEqual(isrc.orig_path, git.root)
 
     def test_url(self):
         url = "http://localhost/test"
