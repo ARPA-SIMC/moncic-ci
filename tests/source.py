@@ -32,7 +32,7 @@ class GitRepo(contextlib.ExitStack):
     def __init__(self):
         super().__init__()
         self.root = self.enter_context(tempfile.TemporaryDirectory())
-        self.git("init")
+        self.git("init", "-b", "main")
         self.git("config", "user.name", "Test User")
         self.git("config", "user.email", "hyde@example.com")
 

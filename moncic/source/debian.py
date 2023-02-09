@@ -203,7 +203,8 @@ class DebianGBP(DebianGitSource):
 @dataclass
 class DebianGBPTestUpstream(DebianGBP):
     """
-    Debian git working directory checked out to the upstream sources.
+    Merge the current upstream working directory into the packaging branch for
+    the build distro.
 
     We can attempt to build a source package by looking for a gbp-buildpackage
     branch, and merging the current upstream branch into it
@@ -213,10 +214,12 @@ class DebianGBPTestUpstream(DebianGBP):
     @classmethod
     def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestUpstream":
         # find the right debian branch
-        branch = builder.system.distro.get_gbp_branch()
-
-        if source.find_branch(branch) is None:
-            raise Fail(f"Packaging branch {branch!r} not found for distribution '{builder.system.distro}'")
+        candidate_branches = builder.system.distro.get_gbp_branches()
+        for branch in candidate_branches:
+            if source.find_branch(branch) is not None:
+                break
+        else:
+            raise Fail(f"Packaging branch not found for distribution '{builder.system.distro}'. Tried: {', '.join(candidate_branches)} ")
 
         # TODO: find common ancestor between current and packaging, and merge
         #       packaging branch from that?
@@ -234,9 +237,9 @@ class DebianGBPTestUpstream(DebianGBP):
             log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
             run(["git", "checkout", "-b", "moncic-ci"], cwd=source.repo.working_dir)
             active_branch = "moncic-ci"
-        run(["git", "checkout", branch], cwd=source.repo.working_dir)
+        run(["git", "checkout", "--quiet", branch], cwd=source.repo.working_dir)
         run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", active_branch], cwd=source.repo.working_dir)
+             "user.name=Moncic-CI", "merge", active_branch, "--quiet", "-m", "CI merge"], cwd=source.repo.working_dir)
 
         res = cls(source.source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=branch")

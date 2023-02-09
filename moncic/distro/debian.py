@@ -133,12 +133,15 @@ class DebianDistro(Distro):
         res += ["systemd", "apt-utils", "eatmydata", "iproute2"]
         return res
 
-    def get_gbp_branch(self) -> str:
+    def get_gbp_branches(self) -> list[str]:
         """
         Return the default git-buildpackage debian-branch name for this
         distribution
         """
-        return "debian/" + self.suite
+        if self.suite in ("unstable", "sid"):
+            return ["debian/unstable", "debian/sid"]
+        else:
+            return ["debian/" + self.suite]
 
     def bootstrap(self, system: System):
         with contextlib.ExitStack() as stack:
@@ -223,9 +226,9 @@ class UbuntuDistro(DebianDistro):
     def __init__(self, name: str, suite: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"):
         super().__init__(name, suite, mirror=mirror)
 
-    def get_gbp_branch(self) -> str:
+    def get_gbp_branches(self) -> list[str]:
         """
         Return the default git-buildpackage debian-branch name for this
         distribution
         """
-        return "ubuntu/" + self.suite
+        return ["ubuntu/" + self.suite]

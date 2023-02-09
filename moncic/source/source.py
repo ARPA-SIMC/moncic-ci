@@ -197,8 +197,9 @@ class LocalGit(InputSource):
         else:
             return None
 
+        ref_name = remote.name + "/" + name
         for ref in remote.refs:
-            if ref.name == name:
+            if ref.name == ref_name:
                 return ref
         return None
 
