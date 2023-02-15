@@ -18,7 +18,7 @@ from ..build import Builder
 from ..exceptions import Fail
 from ..utils.fs import atomic_writer
 from ..utils.edit import edit_yaml
-from .moncic import MoncicCommand, checkout, main_command
+from .moncic import MoncicCommand, SourceCommand, main_command
 
 if TYPE_CHECKING:
     from ..session import Session
@@ -173,7 +173,7 @@ class Install(MaintCommand):
             data["packages"] = packages
 
 
-class BuildDep(MaintCommand):
+class BuildDep(SourceCommand):
     """
     install the build-dependencies of the given sources
     """
@@ -182,28 +182,18 @@ class BuildDep(MaintCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--branch", action="store",
-                            help="branch to be used. Default: let 'git clone' choose")
-        parser.add_argument("-s", "--build-style", action="store",
-                            help="name of the procedure used to run the CI. Default: autodetect")
-        parser.add_argument("repo", nargs="?", default=".",
+        parser.add_argument("source", nargs="?", default=".",
                             help="path or url of the repository to build. Default: the current directory")
-        for cb in Builder.extra_args_callbacks:
-            cb(parser)
         return parser
 
     def run(self):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.name) as system:
-                with checkout(system, self.args.repo, branch=self.args.branch) as srcdir:
-                    if self.args.build_style:
-                        builder = Builder.create_builder(self.args.build_style, system, srcdir)
-                    else:
-                        builder = Builder.detect(system=system, srcdir=srcdir, args=self.args)
-
-                    log.info("Query using builder %r", builder.__class__.__name__)
-                    packages = builder.get_build_deps()
+                builder = Builder(system)
+                source = self.get_source(builder, self.args.source)
+                log.info("Query using builder %r", builder.__class__.__name__)
+                packages = builder.get_build_deps(source)
 
         log.info("Detected build-deps: %r", packages)
 

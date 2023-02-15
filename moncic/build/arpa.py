@@ -7,13 +7,14 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Optional
 
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .analyze import Analyzer
-from .base import BuildInfo, Builder, link_or_copy
+from .build import Build
+from .utils import link_or_copy
 
 if TYPE_CHECKING:
     from ..container import Container
@@ -22,28 +23,11 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class RPMBuildInfo(BuildInfo):
+class RPMBuild(Build):
     """
     BuildInfo class with gbp-buildpackage specific fields
     """
     specfile: Optional[str] = None
-
-
-@Builder.register
-class RPM(Builder):
-    build_info_cls = RPMBuildInfo
-
-    @classmethod
-    def create(cls, *, srcdir: str, **kw) -> Builder:
-        travis_yml = os.path.join(srcdir, ".travis.yml")
-        try:
-            with open(travis_yml, "rt") as fd:
-                if 'simc/stable' in fd.read():
-                    return ARPA.create(srcdir=srcdir, **kw)
-        except FileNotFoundError:
-            pass
-
-        raise NotImplementedError("RPM source found, but simc/stable not found in .travis.yml for ARPA builds")
 
     def __init__(self, **kw):
         super().__init__(**kw)
@@ -54,6 +38,8 @@ class RPM(Builder):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {self.system.distro.name}")
+        self.specfile = self.locate_specfile(self.source)
+        self.name = os.path.basename(self.specfile)[:-5]
 
     def locate_specfile(self, srcdir: str) -> str:
         """
@@ -64,7 +50,7 @@ class RPM(Builder):
         raise NotImplementedError(f"{self.__class__.__name__}.locate_specfile() is not implemented")
 
     @host_only
-    def get_build_deps(self) -> List[str]:
+    def get_build_deps(self) -> list[str]:
         with self.container() as container:
             # Build run config
             run_config = container.config.run_config()
@@ -74,7 +60,7 @@ class RPM(Builder):
                     run_config).result()
 
     @guest_only
-    def get_build_deps_in_container(self) -> List[str]:
+    def get_build_deps_in_container(self) -> list[str]:
         specfile = self.locate_specfile(".")
         res = subprocess.run(
                 ["/usr/bin/rpmspec", "--parse", specfile], stdout=subprocess.PIPE, text=True, check=True)
@@ -83,16 +69,6 @@ class RPM(Builder):
             if line.startswith("BuildRequires: "):
                 packages.append(line[15:].strip())
         return packages
-
-    @guest_only
-    def build_in_container(self, source_only: bool = False) -> RPMBuildInfo:
-        build_info = super().build_in_container(source_only)
-        build_info.specfile = self.locate_specfile(".")
-
-        # Install build dependencies
-        run(self.builddep + ["-q", "-y", build_info.specfile])
-
-        return build_info
 
     @classmethod
     def analyze(cls, analyzer: Analyzer):
@@ -105,16 +81,12 @@ class RPM(Builder):
         # TODO: check that upstream tag exists
 
 
-@Builder.register
-class ARPA(RPM):
+@dataclass
+class ARPA(RPMBuild):
     """
     ARPA/SIMC builder, building RPM packages using the logic previously
     configured for travis
     """
-    @classmethod
-    def create(cls, **kw) -> Builder:
-        return cls(**kw)
-
     def locate_specfile(self, srcdir: str) -> str:
         """
         Locate the specfile in the given source directory.
@@ -133,15 +105,16 @@ class ARPA(RPM):
         return os.path.relpath(specs[0], start=srcdir)
 
     @guest_only
-    def build_in_container(self, source_only: bool = False) -> RPMBuildInfo:
-        build_info = super().build_in_container(source_only)
-
-        pkgname = os.path.basename(build_info.specfile)[:-5]
+    def build(self, source_only: bool = False) -> None:
+        pkgname = os.path.basename(self.specfile)[:-5]
 
         for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"):
             os.makedirs(f"/root/rpmbuild/{name}")
 
-        if build_info.specfile.startswith("fedora/SPECS/"):
+        # Install build dependencies
+        run(self.builddep + ["-q", "-y", self.specfile])
+
+        if self.specfile.startswith("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
             if os.path.isdir("fedora/SOURCES"):
                 for root, dirs, fnames in os.walk("fedora/SOURCES"):
@@ -152,25 +125,23 @@ class ARPA(RPM):
                     run(["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD"],
                         stdout=fd)
             run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
-            run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", build_info.specfile])
+            run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", self.specfile])
             if source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"
-            run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", build_info.specfile])
+            run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", self.specfile])
         else:
             # Convenzione SIMC per i repo con solo rpm
             for f in glob.glob("*.patch"):
                 shutil.copy(f, "/root/rpmbuild/SOURCES/")
-            run(["spectool", "-g", "-R", build_info.specfile])
-            run(["rpmbuild", "-ba", build_info.specfile])
+            run(["spectool", "-g", "-R", self.specfile])
+            run(["rpmbuild", "-ba", self.specfile])
 
-        build_info.success = True
-
-        return build_info
+        self.success = True
 
     @host_only
-    def collect_artifacts(self, container: Container, build_info: RPMBuildInfo, destdir: str):
+    def collect_artifacts(self, container: Container, build_info: RPMBuild, destdir: str):
         container_root = container.get_root()
 
         user = UserConfig.from_sudoer()
@@ -179,23 +150,9 @@ class ARPA(RPM):
             "SRPMS/*.rpm",
         )
         basedir = os.path.join(container_root, "root/rpmbuild")
-        build_log_name: Optional[str] = None
         for pattern in patterns:
             for file in glob.glob(os.path.join(basedir, pattern)):
                 filename = os.path.basename(file)
-                if filename.endswith(".src.rpm"):
-                    build_log_name = filename[:-8] + ".buildlog"
                 log.info("Copying %s to %s", filename, destdir)
                 link_or_copy(file, destdir, user=user)
                 build_info.artifacts.append(filename)
-
-        if build_log_name is None:
-            build_log_name = os.path.basename(build_info.specfile)[:-5] + ".buildlog"
-
-        if os.path.exists(logfile := os.path.join(container_root, "srv", "moncic-ci", "buildlog")):
-            self.log_capture_end()
-            link_or_copy(
-                    logfile, destdir, user=user,
-                    filename=build_log_name)
-            log.info("Saving build log to %s/%s", destdir, build_log_name)
-            build_info.artifacts.append(build_log_name)

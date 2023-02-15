@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import contextlib
+import contextvars
 from functools import cached_property
 from typing import TYPE_CHECKING, Optional
 
 from . import imagestorage
 from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
+from . import context
 
 if TYPE_CHECKING:
     from .moncic import Moncic
@@ -19,6 +21,8 @@ class Session(contextlib.ExitStack):
     def __init__(self, moncic: Moncic):
         super().__init__()
         self.moncic = moncic
+        self.orig_moncic: Optional[contextvars.Token] = None
+        self.orig_session: Optional[contextvars.Token] = None
 
         # Storage for OS images
         self.image_storage: imagestorage.ImageStorage
@@ -26,6 +30,19 @@ class Session(contextlib.ExitStack):
             self.image_storage = imagestorage.ImageStorage.create_default(self)
         else:
             self.image_storage = imagestorage.ImageStorage.create(self, self.moncic.config.imagedir)
+
+    def __enter__(self):
+        self.orig_moncic = context.moncic.set(self.moncic)
+        self.orig_session = context.session.set(self)
+        return super().__enter__()
+
+    def __exit__(self, *args):
+        res = super().__exit__(*args)
+        if self.orig_session is not None:
+            context.session.reset(self.orig_session)
+        if self.orig_moncic is not None:
+            context.moncic.set(self.orig_moncic)
+        return res
 
     @cached_property
     def images(self) -> imagestorage.Images:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Any, List, Optional, Type
+from typing import Any, Optional, Type
 
 try:
     import coloredlogs
@@ -20,7 +20,8 @@ def _get_first_docstring_line(obj: Any) -> Optional[str]:
         return None
 
 
-FAIL_EXCEPTIONS: List[Type[BaseException]] = []
+FAIL_EXCEPTIONS: list[Type[BaseException]] = []
+SUCCESS_EXCEPTIONS: list[Type[BaseException]] = []
 
 
 class Command:
@@ -68,3 +69,5 @@ def run_main(func):
     except tuple(FAIL_EXCEPTIONS) as e:
         print(e, file=sys.stderr)
         sys.exit(1)
+    except tuple(SUCCESS_EXCEPTIONS):
+        sys.exit(0)

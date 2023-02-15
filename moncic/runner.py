@@ -23,6 +23,7 @@ from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Callable, Dict, Generic,
 
 import tblib
 
+from . import context
 from .utils import guest, setns
 
 if TYPE_CHECKING:
@@ -500,6 +501,8 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 # Refork to actually enter the PID namespace
                 pid = os.fork()
                 if pid == 0:
+                    context.system.set(self.container.system)
+                    context.container.set(self.container)
                     try:
                         guest.in_guest = True
                         if self.kwargs is None:
