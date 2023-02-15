@@ -100,8 +100,10 @@ class DebianPlainGitMixin(GitFixtureMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.git.add("testfile")
+        cls.git.commit("Initial")
         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
-        cls.git.commit()
+        cls.git.commit("Debianized")
         # Create mock tarball
         if not cls.skip_tarball:
             with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
