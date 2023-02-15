@@ -5,15 +5,11 @@ import json
 import logging
 import os
 import sys
-from typing import TYPE_CHECKING
 
 from ..build import Analyzer, Builder
 from ..exceptions import Fail
 from .base import Command
 from .moncic import SourceCommand, main_command
-
-if TYPE_CHECKING:
-    from ..moncic import MoncicConfig
 
 log = logging.getLogger(__name__)
 

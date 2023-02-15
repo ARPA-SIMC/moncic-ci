@@ -10,8 +10,8 @@ import tempfile
 import threading
 from typing import TYPE_CHECKING, Generator, Optional, Union
 
-from moncic.distro import Distro, DistroFamily
 from moncic.build import Build
+from moncic.distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
     from moncic.source import Source
