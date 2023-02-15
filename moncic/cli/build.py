@@ -65,16 +65,16 @@ class CI(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                builder = Builder(system)
+                with self.get_source(system.distro, self.args.source) as source:
+                    builder = Builder(system)
 
-                source = self.get_source(builder, self.args.source)
-                log.info("Source type: %s", source.NAME)
-                build_kwargs["source"] = source
-                builder.setup_build(**build_kwargs)
+                    log.info("Source type: %s", source.NAME)
+                    build_kwargs["source"] = source
+                    builder.setup_build(**build_kwargs)
 
-                builder.run_build(shell=self.args.shell)
-                json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
-                sys.stdout.write("\n")
+                    builder.run_build(shell=self.args.shell)
+                    json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
+                    sys.stdout.write("\n")
 
 
 @main_command
@@ -118,11 +118,11 @@ class QuerySource(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                builder = Builder(system)
-                source = self.get_source(builder, self.args.source)
-                result["distribution"] = system.distro.name
-                log.info("Query using builder %r", builder.__class__.__name__)
-                result["build-deps"] = builder.get_build_deps(source)
+                with self.get_source(system.distro, self.args.source) as source:
+                    builder = Builder(system)
+                    result["distribution"] = system.distro.name
+                    log.info("Query using builder %r", builder.__class__.__name__)
+                    result["build-deps"] = builder.get_build_deps(source)
 
         json.dump(result, sys.stdout, indent=1)
         sys.stdout.write("\n")

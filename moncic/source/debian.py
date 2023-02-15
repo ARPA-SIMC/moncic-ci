@@ -21,8 +21,9 @@ from .source import (URL, InputSource, LocalDir, LocalFile, LocalGit, Source,
                      register)
 
 if TYPE_CHECKING:
-    from ..build import Build, Builder
+    from ..build import Build
     from ..container import Container
+    from ..distro import Distro
 
 log = logging.getLogger(__name__)
 
@@ -92,27 +93,27 @@ class DebianGitSource(DebianSource):
     source: LocalGit
 
     @classmethod
-    def detect(cls, builder: Builder, source: LocalGit) -> "DebianGitSource":
+    def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
         if not os.path.isdir(os.path.join(source.repo.working_dir, "debian")):
             # There is no debian/directory, the current branch is upstream
-            return DebianGBPTestUpstream._create_from_repo(builder, source)
+            return DebianGBPTestUpstream._create_from_repo(distro, source)
 
         if not os.path.exists(os.path.join(source.repo.working_dir, "debian", "gbp.conf")):
-            return DebianPlainGit._create_from_repo(builder, source)
+            return DebianPlainGit._create_from_repo(distro, source)
 
         if source.repo.head.commit.hexsha in [t.commit.hexsha for t in source.repo.tags]:
             # If branch to build is a tag, build a release from it
-            return DebianGBPRelease._create_from_repo(builder, source)
+            return DebianGBPRelease._create_from_repo(distro, source)
         else:
             # There is a debian/ directory, find upstream from gbp.conf
-            return DebianGBPTestDebian._create_from_repo(builder, source)
+            return DebianGBPTestDebian._create_from_repo(distro, source)
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianGitSource":
+    def create(cls, source: InputSource) -> "DebianGitSource":
         if isinstance(source, LocalGit):
             return cls(source.source, source.repo.working_dir)
         elif isinstance(source, URL):
-            return cls.create(builder, source.clone(builder))
+            return cls.create(source.clone())
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
@@ -129,12 +130,12 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
     NAME = "debian-git-plain"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianPlainGit":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianPlainGit":
         if not source.copy:
             log.info(
                     "%s: cloning repository to avoid building a potentially dirty working directory",
                     source.repo.working_dir)
-            source = source.clone(builder)
+            source = source.clone()
 
         return cls(source, source.repo.working_dir)
 
@@ -261,14 +262,14 @@ class DebianGBPTestUpstream(DebianGBP):
     NAME = "debian-gbp-upstream"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestUpstream":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPTestUpstream":
         # find the right debian branch
-        candidate_branches = builder.system.distro.get_gbp_branches()
+        candidate_branches = distro.get_gbp_branches()
         for branch in candidate_branches:
             if source.find_branch(branch) is not None:
                 break
         else:
-            raise Fail(f"Packaging branch not found for distribution '{builder.system.distro}'."
+            raise Fail(f"Packaging branch not found for distribution '{distro}'."
                        f" Tried: {', '.join(candidate_branches)} ")
 
         # TODO: find common ancestor between current and packaging, and merge
@@ -278,7 +279,7 @@ class DebianGBPTestUpstream(DebianGBP):
         # clone to avoid mangling it
         if not source.copy:
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
-            source = source.clone(builder)
+            source = source.clone()
 
         # Make a temporary merge of active_branch on the debian branch
         log.info("merge packaging branch %s for test build", branch)
@@ -306,7 +307,7 @@ class DebianGBPRelease(DebianGBP):
     NAME = "debian-gbp-release"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPRelease":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPRelease":
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
         res = cls(source, source.repo.working_dir)
@@ -323,7 +324,7 @@ class DebianGBPTestDebian(DebianGBP):
     NAME = "debian-gbp-test"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestDebian":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPTestDebian":
         # Read the upstream branch to use from gbp.conf
         upstream_branch = cls.read_upstream_branch(source.repo)
         if upstream_branch is None:
@@ -333,7 +334,7 @@ class DebianGBPTestDebian(DebianGBP):
         # clone to avoid mangling it
         if not source.copy:
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
-            source = source.clone(builder)
+            source = source.clone()
 
         cls.ensure_local_branch_exists(source.repo, upstream_branch)
 
@@ -356,7 +357,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
     NAME = "debian-dir"
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianSourceDir":
+    def create(cls, source: InputSource) -> "DebianSourceDir":
         if isinstance(source, LocalDir):
             return cls(source, source.path)
         else:
@@ -364,7 +365,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
 
     @classmethod
-    def _create_from_dir(cls, builder: Builder, source: LocalDir) -> "DebianSourceDir":
+    def _create_from_dir(cls, source: LocalDir) -> "DebianSourceDir":
         return cls(source, source.path)
 
     @host_only
@@ -404,7 +405,7 @@ class DebianDsc(DebianSource):
     NAME = "debian-dsc"
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianDsc":
+    def create(cls, source: InputSource) -> "DebianDsc":
         if isinstance(source, LocalFile):
             return cls(source, source.path)
         else:
@@ -412,7 +413,7 @@ class DebianDsc(DebianSource):
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
 
     @classmethod
-    def _create_from_file(cls, builder: Builder, source: LocalFile) -> "DebianDsc":
+    def _create_from_file(cls, source: LocalFile) -> "DebianDsc":
         return cls(source, source.path)
 
     @host_only

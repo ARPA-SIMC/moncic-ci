@@ -5,11 +5,16 @@ import os
 import tempfile
 import unittest
 
+from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
 from moncic.source import debian, rpm, source
 from moncic.unittest import make_moncic
 
 from .source import GitRepo, MockBuilder
+
+
+ROCKY9 = DistroFamily.lookup_distro("rocky9")
+SID = DistroFamily.lookup_distro("sid")
 
 
 class WorkdirFixtureMixin:
@@ -56,29 +61,28 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
             ["build_profile"])
 
     def test_detect_local(self):
-        isrc = source.InputSource.create(self.pkg_root)
-        self.assertIsInstance(isrc, source.LocalDir)
+        with source.InputSource.create(self.pkg_root) as isrc:
+            self.assertIsInstance(isrc, source.LocalDir)
 
-        with self.assertRaises(Fail):
-            isrc.detect_source(MockBuilder("rocky9"))
+            with self.assertRaises(Fail):
+                isrc.detect_source(ROCKY9)
 
-        with MockBuilder("sid") as builder:
-            src = isrc.detect_source(builder)
+            src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianSourceDir)
 
     def test_build_source(self):
-        isrc = source.InputSource.create(self.pkg_root)
-        with make_moncic().session():
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
-                self.assertEqual(src.get_build_class().__name__, "Debian")
+        with source.InputSource.create(self.pkg_root) as isrc:
+            src = isrc.detect_source(SID)
+            with make_moncic().session():
+                with MockBuilder("sid") as builder:
+                    self.assertEqual(src.get_build_class().__name__, "Debian")
 
-                builder.setup_build(source=src)
-                with builder.container() as container:
-                    src.gather_sources_from_host(builder.build, container)
-                    self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
-            # TODO: @guest_only
-            # TODO: def build_source_package(self) -> str:
+                    builder.setup_build(source=src)
+                    with builder.container() as container:
+                        src.gather_sources_from_host(builder.build, container)
+                        self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
+                # TODO: @guest_only
+                # TODO: def build_source_package(self) -> str:
 
 
 class TestDebianSourceDir1(DebianSourceDirMixin, unittest.TestCase):
@@ -109,41 +113,39 @@ class DebianPlainGitMixin(GitFixtureMixin):
             ["build_profile"])
 
     def test_detect_local(self):
-        isrc = source.InputSource.create(self.git.root)
-        self.assertIsInstance(isrc, source.LocalGit)
+        with source.InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, source.LocalGit)
 
-        with self.assertRaises(Fail):
-            isrc.detect_source(MockBuilder("rocky9"))
+            with self.assertRaises(Fail):
+                isrc.detect_source(ROCKY9)
 
-        with MockBuilder("sid") as builder:
-            src = isrc.detect_source(builder)
+            src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianPlainGit)
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            isrc = source.InputSource.create(url)
-            self.assertIsInstance(isrc, source.URL)
+            with source.InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, source.URL)
 
-            with self.assertRaises(Fail):
-                isrc.detect_source(MockBuilder("rocky9"))
+                with self.assertRaises(Fail):
+                    isrc.detect_source(ROCKY9)
 
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
+                src = isrc.detect_source(SID)
                 self.assertIsInstance(src, debian.DebianPlainGit)
 
     def test_build_source(self):
-        isrc = source.InputSource.create(self.git.root)
-        with make_moncic().session():
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
-                self.assertEqual(src.get_build_class().__name__, "Debian")
+        with source.InputSource.create(self.git.root) as isrc:
+            src = isrc.detect_source(SID)
+            with make_moncic().session():
+                with MockBuilder("sid") as builder:
+                    self.assertEqual(src.get_build_class().__name__, "Debian")
 
-                builder.setup_build(source=src)
-                with builder.container() as container:
-                    src.gather_sources_from_host(builder.build, container)
-                    self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
-            # TODO: @guest_only
-            # TODO: def build_source_package(self) -> str:
+                    builder.setup_build(source=src)
+                    with builder.container() as container:
+                        src.gather_sources_from_host(builder.build, container)
+                        self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
+                # TODO: @guest_only
+                # TODO: def build_source_package(self) -> str:
 
 
 class TesttDebianPlainGit1(DebianPlainGitMixin, unittest.TestCase):
@@ -188,41 +190,39 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
             ["build_profile"])
 
     def test_detect_local(self):
-        isrc = source.InputSource.create(self.git.root)
-        self.assertIsInstance(isrc, source.LocalGit)
+        with source.InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, source.LocalGit)
 
-        with self.assertRaises(Fail):
-            isrc.detect_source(MockBuilder("rocky9"))
+            with self.assertRaises(Fail):
+                isrc.detect_source(ROCKY9)
 
-        with MockBuilder("sid") as builder:
-            src = isrc.detect_source(builder)
+            src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianGBPTestUpstream)
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            isrc = source.InputSource.create(url)
-            self.assertIsInstance(isrc, source.URL)
+            with source.InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, source.URL)
 
-            with self.assertRaises(Fail):
-                isrc.detect_source(MockBuilder("rocky9"))
+                with self.assertRaises(Fail):
+                    isrc.detect_source(ROCKY9)
 
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
+                src = isrc.detect_source(SID)
                 self.assertIsInstance(src, debian.DebianGBPTestUpstream)
 
     def test_build_source(self):
-        isrc = source.InputSource.create(self.git.root)
-        with make_moncic().session():
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
-                self.assertEqual(src.get_build_class().__name__, "Debian")
+        with source.InputSource.create(self.git.root) as isrc:
+            src = isrc.detect_source(SID)
+            with make_moncic().session():
+                with MockBuilder("sid") as builder:
+                    self.assertEqual(src.get_build_class().__name__, "Debian")
 
-                builder.setup_build(source=src)
-                with builder.container() as container:
-                    src.gather_sources_from_host(builder.build, container)
-                    self.assertCountEqual(os.listdir(container.source_dir), [])
+                    builder.setup_build(source=src)
+                    with builder.container() as container:
+                        src.gather_sources_from_host(builder.build, container)
+                        self.assertCountEqual(os.listdir(container.source_dir), [])
 
-                self.assertEqual(src.gbp_args, ['--git-upstream-tree=branch', '--git-upstream-branch=main'])
+                    self.assertEqual(src.gbp_args, ['--git-upstream-tree=branch', '--git-upstream-branch=main'])
 
 
 class TestDebianGBPTestUpstreamUnstable(DebianGBPTestUpstreamMixin, unittest.TestCase):
@@ -260,41 +260,39 @@ debian-branch=debian/unstable
             ["build_profile"])
 
     def test_detect_local(self):
-        isrc = source.InputSource.create(self.git.root)
-        self.assertIsInstance(isrc, source.LocalGit)
+        with source.InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, source.LocalGit)
 
-        with self.assertRaises(Fail):
-            isrc.detect_source(MockBuilder("rocky9"))
+            with self.assertRaises(Fail):
+                isrc.detect_source(ROCKY9)
 
-        with MockBuilder("sid") as builder:
-            src = isrc.detect_source(builder)
+            src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianGBPRelease)
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            isrc = source.InputSource.create(url)
-            self.assertIsInstance(isrc, source.URL)
+            with source.InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, source.URL)
 
-            with self.assertRaises(Fail):
-                isrc.detect_source(MockBuilder("rocky9"))
+                with self.assertRaises(Fail):
+                    isrc.detect_source(ROCKY9)
 
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
+                src = isrc.detect_source(SID)
                 self.assertIsInstance(src, debian.DebianGBPRelease)
 
     def test_build_source(self):
-        isrc = source.InputSource.create(self.git.root)
-        with make_moncic().session():
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
-                self.assertEqual(src.get_build_class().__name__, "Debian")
+        with source.InputSource.create(self.git.root) as isrc:
+            src = isrc.detect_source(SID)
+            with make_moncic().session():
+                with MockBuilder("sid") as builder:
+                    self.assertEqual(src.get_build_class().__name__, "Debian")
 
-                builder.setup_build(source=src)
-                with builder.container() as container:
-                    src.gather_sources_from_host(builder.build, container)
-                    self.assertCountEqual(os.listdir(container.source_dir), [])
+                    builder.setup_build(source=src)
+                    with builder.container() as container:
+                        src.gather_sources_from_host(builder.build, container)
+                        self.assertCountEqual(os.listdir(container.source_dir), [])
 
-                self.assertEqual(src.gbp_args, ["--git-upstream-tree=tag"])
+                    self.assertEqual(src.gbp_args, ["--git-upstream-tree=tag"])
 
 
 class TestDebianGBPTestDebian(GitFixtureMixin, unittest.TestCase):
@@ -330,41 +328,39 @@ debian-branch=debian/unstable
             ["build_profile"])
 
     def test_detect_local(self):
-        isrc = source.InputSource.create(self.git.root)
-        self.assertIsInstance(isrc, source.LocalGit)
+        with source.InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, source.LocalGit)
 
-        with self.assertRaises(Fail):
-            isrc.detect_source(MockBuilder("rocky9"))
+            with self.assertRaises(Fail):
+                isrc.detect_source(ROCKY9)
 
-        with MockBuilder("sid") as builder:
-            src = isrc.detect_source(builder)
+            src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianGBPTestDebian)
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            isrc = source.InputSource.create(url)
-            self.assertIsInstance(isrc, source.URL)
+            with source.InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, source.URL)
 
-            with self.assertRaises(Fail):
-                isrc.detect_source(MockBuilder("rocky9"))
+                with self.assertRaises(Fail):
+                    isrc.detect_source(ROCKY9)
 
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
+                src = isrc.detect_source(SID)
                 self.assertIsInstance(src, debian.DebianGBPTestDebian)
 
     def test_build_source(self):
-        isrc = source.InputSource.create(self.git.root)
-        with make_moncic().session():
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
-                self.assertEqual(src.get_build_class().__name__, "Debian")
+        with source.InputSource.create(self.git.root) as isrc:
+            src = isrc.detect_source(SID)
+            with make_moncic().session():
+                with MockBuilder("sid") as builder:
+                    self.assertEqual(src.get_build_class().__name__, "Debian")
 
-                builder.setup_build(source=src)
-                with builder.container() as container:
-                    src.gather_sources_from_host(builder.build, container)
-                    self.assertCountEqual(os.listdir(container.source_dir), [])
+                    builder.setup_build(source=src)
+                    with builder.container() as container:
+                        src.gather_sources_from_host(builder.build, container)
+                        self.assertCountEqual(os.listdir(container.source_dir), [])
 
-                self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
+                    self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
 
 
 class TestDebianDsc(WorkdirFixtureMixin, unittest.TestCase):
@@ -393,31 +389,30 @@ Files:
             ["build_profile"])
 
     def test_detect_local(self):
-        isrc = source.InputSource.create(self.dsc_file)
-        self.assertIsInstance(isrc, source.LocalFile)
+        with source.InputSource.create(self.dsc_file) as isrc:
+            self.assertIsInstance(isrc, source.LocalFile)
 
-        with self.assertRaises(Fail):
-            isrc.detect_source(MockBuilder("rocky9"))
+            with self.assertRaises(Fail):
+                isrc.detect_source(ROCKY9)
 
-        with MockBuilder("sid") as builder:
-            src = isrc.detect_source(builder)
+            src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianDsc)
 
     def test_build_source(self):
-        isrc = source.InputSource.create(self.dsc_file)
-        with make_moncic().session():
-            with MockBuilder("sid") as builder:
-                src = isrc.detect_source(builder)
-                self.assertEqual(src.get_build_class().__name__, "Debian")
+        with source.InputSource.create(self.dsc_file) as isrc:
+            src = isrc.detect_source(SID)
+            with make_moncic().session():
+                with MockBuilder("sid") as builder:
+                    self.assertEqual(src.get_build_class().__name__, "Debian")
 
-                builder.setup_build(source=src)
-                with builder.container() as container:
-                    src.gather_sources_from_host(builder.build, container)
-                    self.assertCountEqual(os.listdir(container.source_dir), [
-                        "moncic-ci_0.1.0-1.dsc",
-                        "moncic-ci_0.1.0.orig.tar.gz",
-                        "moncic-ci_0.1.0-1.debian.tar.xz",
-                    ])
+                    builder.setup_build(source=src)
+                    with builder.container() as container:
+                        src.gather_sources_from_host(builder.build, container)
+                        self.assertCountEqual(os.listdir(container.source_dir), [
+                            "moncic-ci_0.1.0-1.dsc",
+                            "moncic-ci_0.1.0.orig.tar.gz",
+                            "moncic-ci_0.1.0-1.debian.tar.xz",
+                        ])
 
 
 class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
@@ -434,29 +429,28 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
             [])
 
     def test_detect_local(self):
-        isrc = source.InputSource.create(self.workdir)
-        self.assertIsInstance(isrc, source.LocalDir)
+        with source.InputSource.create(self.workdir) as isrc:
+            self.assertIsInstance(isrc, source.LocalDir)
 
-        with self.assertRaises(Fail):
-            isrc.detect_source(MockBuilder("sid"))
+            with self.assertRaises(Fail):
+                isrc.detect_source(SID)
 
-        with MockBuilder("rocky9") as builder:
-            src = isrc.detect_source(builder)
+            src = isrc.detect_source(ROCKY9)
             self.assertIsInstance(src, rpm.ARPASource)
 
     def test_build_source(self):
-        isrc = source.InputSource.create(self.workdir)
-        with make_moncic().session():
-            with MockBuilder("rocky9") as builder:
-                src = isrc.detect_source(builder)
-                self.assertEqual(src.get_build_class().__name__, "ARPA")
+        with source.InputSource.create(self.workdir) as isrc:
+            src = isrc.detect_source(ROCKY9)
+            with make_moncic().session():
+                with MockBuilder("rocky9") as builder:
+                    self.assertEqual(src.get_build_class().__name__, "ARPA")
 
-                builder.setup_build(source=src)
-                with builder.container() as container:
-                    src.gather_sources_from_host(builder.build, container)
-                    self.assertCountEqual(os.listdir(container.source_dir), [])
-            # TODO: @guest_only
-            # TODO: def build_source_package(self) -> str:
+                    builder.setup_build(source=src)
+                    with builder.container() as container:
+                        src.gather_sources_from_host(builder.build, container)
+                        self.assertCountEqual(os.listdir(container.source_dir), [])
+                # TODO: @guest_only
+                # TODO: def build_source_package(self) -> str:
 
 
 # TODO: class DebianSourcePackage(DebianSource):

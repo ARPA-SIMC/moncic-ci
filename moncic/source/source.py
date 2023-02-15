@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import tempfile
@@ -14,8 +15,9 @@ from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 
 if TYPE_CHECKING:
-    from ..build import Build, Builder
+    from ..build import Build
     from ..container import Container
+    from ..distro import Distro
 
 log = logging.getLogger(__name__)
 
@@ -57,14 +59,14 @@ def get_source_class(name: str) -> Type["Source"]:
     return registry()[name.lower()]
 
 
-def _git_clone(builder: Builder, repository: str, branch: Optional[str] = None) -> str:
+def _git_clone(stack: contextlib.ExitStack, repository: str, branch: Optional[str] = None) -> str:
     """
     Clone a git repository into a temporary working directory.
 
     Return the path of the new cloned working directory
     """
     # Git checkout in a temporary directory
-    workdir = builder.enter_context(tempfile.TemporaryDirectory())
+    workdir = stack.enter_context(tempfile.TemporaryDirectory())
     cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]
     if branch is not None:
         cmd += ["--branch", branch]
@@ -77,11 +79,12 @@ def _git_clone(builder: Builder, repository: str, branch: Optional[str] = None) 
     return os.path.join(workdir, names[0])
 
 
-class InputSource:
+class InputSource(contextlib.ExitStack):
     """
     Input source as specified by the user
     """
     def __init__(self, source: str):
+        super().__init__()
         self.source = source
 
     def __str__(self) -> str:
@@ -107,13 +110,13 @@ class InputSource:
         else:
             return URL(source, parsed)
 
-    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: Optional[str]) -> "InputSource":
         """
         Return an InputSource for the given branch
         """
         raise NotImplementedError(f"{self.__class__.__name__}.branch is not implemented")
 
-    def detect_source(self, builder: Builder) -> "Source":
+    def detect_source(self, distro: Distro) -> "Source":
         """
         Autodetect the Source for this input
         """
@@ -128,16 +131,15 @@ class LocalFile(InputSource):
         super().__init__(source)
         self.path = path
 
-    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: Optional[str]) -> "InputSource":
         raise Fail("--branch does not make sense for local files")
 
-    def detect_source(self, builder: Builder) -> "Source":
+    def detect_source(self, distro: Distro) -> "Source":
         from ..distro.debian import DebianDistro
-        distro = builder.system.distro
         if isinstance(distro, DebianDistro):
             if self.source.endswith(".dsc"):
                 from .debian import DebianDsc
-                return DebianDsc._create_from_file(builder, self)
+                return DebianDsc._create_from_file(self)
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:
@@ -155,22 +157,21 @@ class LocalDir(InputSource):
         super().__init__(source)
         self.path = path
 
-    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: Optional[str]) -> "InputSource":
         raise Fail("--branch does not make sense for non-git directories")
 
-    def detect_source(self, builder: Builder) -> "Source":
-        from .debian import DebianSourceDir
+    def detect_source(self, distro: Distro) -> "Source":
         from ..distro.debian import DebianDistro
+        from .debian import DebianSourceDir
 
-        distro = builder.system.distro
         if isinstance(distro, DebianDistro):
             if os.path.isdir(os.path.join(self.path, "debian")):
-                return DebianSourceDir._create_from_dir(builder, self)
+                return DebianSourceDir._create_from_dir(self)
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:
             from .rpm import RPMSource
-            return RPMSource.detect(builder, self)
+            return RPMSource.detect(distro, self)
 
 
 class LocalGit(InputSource):
@@ -214,28 +215,27 @@ class LocalGit(InputSource):
                 return ref
         return None
 
-    def clone(self, builder: Builder, branch: Optional[str] = None) -> LocalGit:
+    def clone(self, branch: Optional[str] = None) -> LocalGit:
         """
         Clone this URL into a local git repository
         """
-        workdir = _git_clone(builder, self.repo.working_dir, branch)
+        workdir = _git_clone(self, self.repo.working_dir, branch)
         return LocalGit(self.source, workdir, copy=True, orig_path=self.orig_path)
 
-    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: Optional[str]) -> "InputSource":
         if self.repo.active_branch == branch:
             return self
-        return self.clone(builder, branch)
+        return self.clone(branch)
 
-    def detect_source(self, builder: Builder) -> "Source":
+    def detect_source(self, distro: Distro) -> "Source":
         from ..distro.debian import DebianDistro
         from ..distro.rpm import RpmDistro
-        distro = builder.system.distro
         if isinstance(distro, DebianDistro):
             from .debian import DebianGitSource
-            return DebianGitSource.detect(builder, self)
+            return DebianGitSource.detect(distro, self)
         elif isinstance(distro, RpmDistro):
             from .rpm import RPMSource
-            return RPMSource.detect(builder, self)
+            return RPMSource.detect(distro, self)
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {distro!r}")
 
@@ -248,18 +248,18 @@ class URL(InputSource):
         super().__init__(source)
         self.parsed = parsed
 
-    def clone(self, builder: Builder, branch: Optional[str] = None) -> LocalGit:
+    def clone(self, branch: Optional[str] = None) -> LocalGit:
         """
         Clone this URL into a local git repository
         """
-        workdir = _git_clone(builder, self.source, branch)
+        workdir = _git_clone(self, self.source, branch)
         return LocalGit(self.source, workdir, copy=True, orig_path=None)
 
-    def branch(self, builder: Builder, branch: Optional[str]) -> "InputSource":
-        return self.clone(builder, branch).branch(builder, branch)
+    def branch(self, branch: Optional[str]) -> "InputSource":
+        return self.clone(branch).branch(branch)
 
-    def detect_source(self, builder: Builder) -> "Source":
-        return self.clone(builder).detect_source(builder)
+    def detect_source(self, distro: Distro) -> "Source":
+        return self.clone().detect_source(distro)
 
 
 @dataclass
