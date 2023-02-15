@@ -105,7 +105,7 @@ class ARPA(RPMBuild):
         return os.path.relpath(specs[0], start=srcdir)
 
     @guest_only
-    def build(self, source_only: bool = False) -> None:
+    def build(self) -> None:
         pkgname = os.path.basename(self.specfile)[:-5]
 
         for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"):
@@ -126,7 +126,7 @@ class ARPA(RPMBuild):
                         stdout=fd)
             run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
             run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", self.specfile])
-            if source_only:
+            if self.source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"

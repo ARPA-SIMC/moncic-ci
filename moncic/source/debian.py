@@ -4,7 +4,6 @@ import logging
 import lzma
 import os
 import re
-import shlex
 import shutil
 import subprocess
 from configparser import ConfigParser
@@ -17,13 +16,14 @@ from .. import context
 from ..build.utils import link_or_copy
 from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
-from ..utils.run import run
+from ..utils.run import log_run, run
 from .source import (URL, InputSource, LocalDir, LocalFile, LocalGit, Source,
                      register)
 
 if TYPE_CHECKING:
-    from ..build import Build, Builder
+    from ..build import Build
     from ..container import Container
+    from ..distro import Distro
 
 log = logging.getLogger(__name__)
 
@@ -50,13 +50,13 @@ class DebianDirMixin(Source):
     tarball_source: Optional[str] = None
 
     @host_only
-    def _find_tarball(self, container: Container, search_dirs: Sequence[str] = ()) -> None:
+    def _find_tarball(self, build: Build, container: Container, search_dirs: Sequence[str] = ()) -> None:
         """
         Find the Debian tarball and copy it to the source directory in the container
         """
         tarball_search_dirs = []
         tarball_search_dirs.extend(search_dirs)
-        if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
+        if (artifacts_dir := build.artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 
         with open(os.path.join(self.host_path, "debian", "changelog"), "rt") as fd:
@@ -93,27 +93,27 @@ class DebianGitSource(DebianSource):
     source: LocalGit
 
     @classmethod
-    def detect(cls, builder: Builder, source: LocalGit) -> "DebianGitSource":
+    def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
         if not os.path.isdir(os.path.join(source.repo.working_dir, "debian")):
             # There is no debian/directory, the current branch is upstream
-            return DebianGBPTestUpstream._create_from_repo(builder, source)
+            return DebianGBPTestUpstream._create_from_repo(distro, source)
 
         if not os.path.exists(os.path.join(source.repo.working_dir, "debian", "gbp.conf")):
-            return DebianPlainGit._create_from_repo(builder, source)
+            return DebianPlainGit._create_from_repo(distro, source)
 
         if source.repo.head.commit.hexsha in [t.commit.hexsha for t in source.repo.tags]:
             # If branch to build is a tag, build a release from it
-            return DebianGBPRelease._create_from_repo(builder, source)
+            return DebianGBPRelease._create_from_repo(distro, source)
         else:
             # There is a debian/ directory, find upstream from gbp.conf
-            return DebianGBPTestDebian._create_from_repo(builder, source)
+            return DebianGBPTestDebian._create_from_repo(distro, source)
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianGitSource":
+    def create(cls, source: InputSource) -> "DebianGitSource":
         if isinstance(source, LocalGit):
             return cls(source.source, source.repo.working_dir)
         elif isinstance(source, URL):
-            return cls.create(builder, source.clone(builder))
+            return cls.create(source.clone())
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
@@ -130,27 +130,27 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
     NAME = "debian-git-plain"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianPlainGit":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianPlainGit":
         if not source.copy:
             log.info(
                     "%s: cloning repository to avoid building a potentially dirty working directory",
                     source.repo.working_dir)
-            source = source.clone(builder)
+            source = source.clone()
 
         return cls(source, source.repo.working_dir)
 
     @host_only
-    def gather_sources_from_host(self, container: Container) -> None:
+    def gather_sources_from_host(self, build: Build, container: Container) -> None:
         """
         Gather needed source files from the host system and copy them to the
         guest
         """
-        super().gather_sources_from_host(container)
+        super().gather_sources_from_host(build, container)
 
         tarball_search_dirs = []
         if self.source.orig_path is not None:
             tarball_search_dirs.append(os.path.dirname(self.source.orig_path))
-        self._find_tarball(container, tarball_search_dirs)
+        self._find_tarball(build, container, tarball_search_dirs)
         if self.tarball_source is None:
             self.build_orig_tarball(container)
 
@@ -161,20 +161,24 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
 
         This function is run from a clean source directory
         """
-        dest_tarball = os.path.join(container.get_root(), "srv", "moncic-ci", "source", self.tarball_filename)
-
-        # This is a last-resort measure, trying to build an approximation of an
-        # upstream tarball when none was found
-        log.info("Building tarball from source directory")
-        cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
-        log.info("Run: %s", " ".join(shlex.quote(x) for x in cmd))
-        proc = subprocess.Popen(cmd, cwd=self.guest_path, stdout=subprocess.PIPE)
+        source_dir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
+        source_stat = os.stat(source_dir)
+        dest_tarball = os.path.join(source_dir, self.tarball_filename)
         with lzma.open(dest_tarball, "wb") as out:
-            shutil.copyfileobj(proc.stdout, out)
-        if proc.wait() != 0:
-            raise RuntimeError(f"git archive exited with error code {proc.returncode}")
+            with context.moncic.get().privs.user():
 
-        self.tarball_source = "[git archive HEAD . :(exclude)debian]"
+                # This is a last-resort measure, trying to build an approximation of an
+                # upstream tarball when none was found
+                log.info("Building tarball from source directory")
+                cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
+                log_run(cmd, cwd=self.source.path)
+                proc = subprocess.Popen(cmd, cwd=self.source.path, stdout=subprocess.PIPE)
+                shutil.copyfileobj(proc.stdout, out)
+                if proc.wait() != 0:
+                    raise RuntimeError(f"git archive exited with error code {proc.returncode}")
+
+                self.tarball_source = "[git archive HEAD . :(exclude)debian]"
+        os.chown(dest_tarball, source_stat.st_uid, source_stat.st_gid)
 
     @guest_only
     def build_source_package(self) -> str:
@@ -262,14 +266,14 @@ class DebianGBPTestUpstream(DebianGBP):
     NAME = "debian-gbp-upstream"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestUpstream":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPTestUpstream":
         # find the right debian branch
-        candidate_branches = builder.system.distro.get_gbp_branches()
+        candidate_branches = distro.get_gbp_branches()
         for branch in candidate_branches:
             if source.find_branch(branch) is not None:
                 break
         else:
-            raise Fail(f"Packaging branch not found for distribution '{builder.system.distro}'."
+            raise Fail(f"Packaging branch not found for distribution '{distro}'."
                        f" Tried: {', '.join(candidate_branches)} ")
 
         # TODO: find common ancestor between current and packaging, and merge
@@ -279,7 +283,7 @@ class DebianGBPTestUpstream(DebianGBP):
         # clone to avoid mangling it
         if not source.copy:
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
-            source = source.clone(builder)
+            source = source.clone()
 
         # Make a temporary merge of active_branch on the debian branch
         log.info("merge packaging branch %s for test build", branch)
@@ -307,7 +311,7 @@ class DebianGBPRelease(DebianGBP):
     NAME = "debian-gbp-release"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPRelease":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPRelease":
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
         res = cls(source, source.repo.working_dir)
@@ -324,7 +328,7 @@ class DebianGBPTestDebian(DebianGBP):
     NAME = "debian-gbp-test"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: LocalGit) -> "DebianGBPTestDebian":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPTestDebian":
         # Read the upstream branch to use from gbp.conf
         upstream_branch = cls.read_upstream_branch(source.repo)
         if upstream_branch is None:
@@ -334,7 +338,7 @@ class DebianGBPTestDebian(DebianGBP):
         # clone to avoid mangling it
         if not source.copy:
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
-            source = source.clone(builder)
+            source = source.clone()
 
         cls.ensure_local_branch_exists(source.repo, upstream_branch)
 
@@ -357,7 +361,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
     NAME = "debian-dir"
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianSourceDir":
+    def create(cls, source: InputSource) -> "DebianSourceDir":
         if isinstance(source, LocalDir):
             return cls(source, source.path)
         else:
@@ -365,19 +369,19 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
 
     @classmethod
-    def _create_from_dir(cls, builder: Builder, source: LocalDir) -> "DebianSourceDir":
+    def _create_from_dir(cls, source: LocalDir) -> "DebianSourceDir":
         return cls(source, source.path)
 
     @host_only
-    def gather_sources_from_host(self, container: Container) -> None:
+    def gather_sources_from_host(self, build: Build, container: Container) -> None:
         """
         Gather needed source files from the host system and copy them to the
         guest
         """
-        super().gather_sources_from_host(container)
+        super().gather_sources_from_host(build, container)
 
         tarball_search_dirs = [os.path.dirname(self.source.path)]
-        self._find_tarball(container, tarball_search_dirs)
+        self._find_tarball(build, container, tarball_search_dirs)
 
     @guest_only
     def build_source_package(self) -> str:
@@ -405,7 +409,7 @@ class DebianDsc(DebianSource):
     NAME = "debian-dsc"
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "DebianDsc":
+    def create(cls, source: InputSource) -> "DebianDsc":
         if isinstance(source, LocalFile):
             return cls(source, source.path)
         else:
@@ -413,16 +417,16 @@ class DebianDsc(DebianSource):
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
 
     @classmethod
-    def _create_from_file(cls, builder: Builder, source: LocalFile) -> "DebianDsc":
+    def _create_from_file(cls, source: LocalFile) -> "DebianDsc":
         return cls(source, source.path)
 
     @host_only
-    def gather_sources_from_host(self, container: Container) -> None:
+    def gather_sources_from_host(self, build: Build, container: Container) -> None:
         """
         Gather needed source files from the host system and copy them to the
         guest
         """
-        super().gather_sources_from_host(container)
+        super().gather_sources_from_host(build, container)
 
         re_files = re.compile(r"^Files:\s*$")
         re_file = re.compile(r"^\s+\S+\s+\d+\s+(\S+)\s*$")

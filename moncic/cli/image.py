@@ -190,10 +190,10 @@ class BuildDep(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.name) as system:
-                builder = Builder(system)
-                source = self.get_source(builder, self.args.source)
-                log.info("Query using builder %r", builder.__class__.__name__)
-                packages = builder.get_build_deps(source)
+                with self.source(system.distro) as source:
+                    builder = Builder(system)
+                    log.info("Query using builder %r", builder.__class__.__name__)
+                    packages = builder.get_build_deps(source)
 
         log.info("Detected build-deps: %r", packages)
 

@@ -21,6 +21,12 @@ class Build:
     name: Optional[str] = None
     # True if the build was successful
     success: bool = False
+    # Directory where artifacts are copied after the build. Artifacts are lost
+    # when not set
+    artifacts_dir: Optional[str] = None
+    # Set to True to only build source packages, and skip compiling/building
+    # binary packages
+    source_only: bool = False
     # List of container paths for artifacts
     artifacts: list[str] = field(default_factory=list)
 

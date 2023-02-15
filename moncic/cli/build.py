@@ -5,15 +5,12 @@ import json
 import logging
 import os
 import sys
-from typing import TYPE_CHECKING
 
 from ..build import Analyzer, Builder
 from ..exceptions import Fail
 from .base import Command
 from .moncic import SourceCommand, main_command
-
-if TYPE_CHECKING:
-    from ..moncic import MoncicConfig
+from ..source.source import InputSource
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +33,7 @@ class CI(SourceCommand):
                             help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
-        parser.add_argument("--option", "-O", action="append",
+        parser.add_argument("--option", "-O", action="append", default=(),
                             help="key=value option for the build. See `-s list` for a list of"
                                  " available option for each build style")
         parser.add_argument("system", action="store",
@@ -46,14 +43,15 @@ class CI(SourceCommand):
                                  " Default: the current directory")
         return parser
 
-    def setup_moncic_config(self, config: MoncicConfig):
-        super().setup_moncic_config(config)
-        if self.args.artifacts:
-            config.build_artifacts_dir = os.path.abspath(self.args.artifacts)
-            os.makedirs(config.build_artifacts_dir, exist_ok=True)
-
     def run(self):
-        build_kwargs: dict[str, str] = {}
+        build_kwargs: dict[str, str] = {
+            "artifacts_dir": self.moncic.config.build_artifacts_dir,
+            "source_only": self.args.source_only,
+        }
+
+        if self.args.artifacts:
+            build_kwargs["artifacts_dir"] = os.path.abspath(self.args.artifacts)
+
         for option in self.args.option:
             if "=" not in option:
                 raise Fail(f"option --option={option!r} must be key=value")
@@ -62,19 +60,31 @@ class CI(SourceCommand):
                 raise Fail(f"option --option={option!r} must have an non-empty key")
             build_kwargs[k] = v
 
+        if (artifacts_dir := build_kwargs.get("artifacts_dir")):
+            os.makedirs(artifacts_dir, exist_ok=True)
+
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                builder = Builder(system)
+                with self.source(system.distro, self.args.source) as source:
+                    builder = Builder(system)
 
-                source = self.get_source(builder, self.args.source)
-                log.info("Source type: %s", source.NAME)
-                build_kwargs["source"] = source
-                builder.setup_build(**build_kwargs)
+                    log.info("Source type: %s", source.NAME)
+                    build_kwargs["source"] = source
+                    builder.setup_build(**build_kwargs)
 
-                builder.run_build(shell=self.args.shell, source_only=self.args.source_only)
-                json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
-                sys.stdout.write("\n")
+                    builder.run_build(shell=self.args.shell)
+
+                    class ResultEncoder(json.JSONEncoder):
+                        def default(self, obj):
+                            if dataclasses.is_dataclass(obj):
+                                return dataclasses.asdict(obj)
+                            elif isinstance(obj, InputSource):
+                                return obj.source
+                            else:
+                                return super().default(obj)
+                    json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
+                    sys.stdout.write("\n")
 
 
 @main_command
@@ -118,11 +128,11 @@ class QuerySource(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                builder = Builder(system)
-                source = self.get_source(builder, self.args.source)
-                result["distribution"] = system.distro.name
-                log.info("Query using builder %r", builder.__class__.__name__)
-                result["build-deps"] = builder.get_build_deps(source)
+                with self.source(system.distro, self.args.source) as source:
+                    builder = Builder(system)
+                    result["distribution"] = system.distro.name
+                    log.info("Query using builder %r", builder.__class__.__name__)
+                    result["build-deps"] = builder.get_build_deps(source)
 
         json.dump(result, sys.stdout, indent=1)
         sys.stdout.write("\n")

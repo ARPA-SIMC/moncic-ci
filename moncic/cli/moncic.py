@@ -5,11 +5,10 @@ import logging
 import os
 import tempfile
 import urllib.parse
-from typing import TYPE_CHECKING, List, Optional, Type
+from typing import TYPE_CHECKING, Generator, List, Optional, Type
 
 import git
 
-from ..build import Builder
 from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
@@ -19,7 +18,8 @@ from .base import Command
 from .utils import SourceTypeAction
 
 if TYPE_CHECKING:
-    from .system import System
+    from ..distro import Distro
+    from ..system import System
 
 log = logging.getLogger(__name__)
 
@@ -230,16 +230,19 @@ class SourceCommand(MoncicCommand):
                                  " Default: autodetect")
         return parser
 
-    def get_source(self, builder: Builder, source: str) -> Source:
+    @contextlib.contextmanager
+    def source(self, distro: Distro, source: str) -> Generator[Source, None, None]:
         """
         Instantiate a Source object
         """
         with self.moncic.privs.user():
-            input_source = InputSource.create(self.args.source)
-            if self.args.branch:
-                input_source = input_source.branch(self.args.branch)
-            if self.args.source_type:
-                source_cls = get_source_class(self.args.source_type)
-                return source_cls.create(builder, input_source)
-            else:
-                return input_source.detect_source(builder)
+            with InputSource.create(self.args.source) as input_source:
+                if self.args.branch:
+                    input_source = input_source.branch(self.args.branch)
+                if self.args.source_type:
+                    source_cls = get_source_class(self.args.source_type)
+                    source = source_cls.create(input_source)
+                else:
+                    source = input_source.detect_source(distro)
+                self.moncic.privs.regain()
+                yield source

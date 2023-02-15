@@ -9,7 +9,8 @@ from ..exceptions import Fail
 from .source import URL, InputSource, LocalDir, LocalGit, Source, register
 
 if TYPE_CHECKING:
-    from ..build import Build, Builder
+    from ..build import Build
+    from ..distro import Distro
 
 log = logging.getLogger(__name__)
 
@@ -21,12 +22,12 @@ class RPMSource(Source):
     """
     # TODO: locate specfile
     @classmethod
-    def detect(cls, builder: Builder, source: Union[LocalGit, LocalDir]) -> "RPMSource":
+    def detect(cls, distro: Distro, source: Union[LocalGit, LocalDir]) -> "RPMSource":
         travis_yml = os.path.join(source.path, ".travis.yml")
         try:
             with open(travis_yml, "rt") as fd:
                 if 'simc/stable' in fd.read():
-                    return ARPASource._create_from_repo(builder, source)
+                    return ARPASource._create_from_repo(source)
         except FileNotFoundError:
             pass
         raise Fail("but simc/stable not found in .travis.yml for ARPA builds")
@@ -42,15 +43,15 @@ class ARPASource(RPMSource):
     NAME = "rpm-arpa"
 
     @classmethod
-    def _create_from_repo(cls, builder: Builder, source: Union[LocalGit, LocalDir]) -> "ARPASource":
+    def _create_from_repo(cls, source: Union[LocalGit, LocalDir]) -> "ARPASource":
         return cls(source, source.path)
 
     @classmethod
-    def create(cls, builder: Builder, source: InputSource) -> "ARPASource":
+    def create(cls, source: InputSource) -> "ARPASource":
         if isinstance(source, (LocalGit, LocalDir)):
             return cls(source, source.path)
         elif isinstance(source, URL):
-            return cls.create(builder, source.clone(builder))
+            return cls.create(source.clone())
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")

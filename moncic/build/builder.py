@@ -64,7 +64,7 @@ class Builder(contextlib.ExitStack):
         log_file = os.path.join(container_root, "srv", "moncic-ci", "buildlog")
         self.log_capture_start(log_file)
 
-        self.build.source.gather_sources_from_host(container)
+        self.build.source.gather_sources_from_host(self.build, container)
         self.build.setup_container_host(container)
 
     @host_only
@@ -116,12 +116,12 @@ class Builder(contextlib.ExitStack):
                 self.log_capture_end()
 
     @host_only
-    def run_build(self, shell: bool = False, source_only: bool = False) -> None:
+    def run_build(self, shell: bool = False) -> None:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
         """
-        artifacts_dir = self.system.images.session.moncic.config.build_artifacts_dir
+        artifacts_dir = self.build.artifacts_dir
         with self.container() as container:
             # General builder information
             log.info("Build strategy: %s", self.build.__class__.__name__)
@@ -143,8 +143,7 @@ class Builder(contextlib.ExitStack):
             try:
                 self.build = container.run_callable(
                         self.build_in_container,
-                        run_config,
-                        kwargs={"source_only": source_only})
+                        run_config)
                 if artifacts_dir:
                     self.collect_artifacts(container, artifacts_dir)
             finally:
@@ -157,7 +156,7 @@ class Builder(contextlib.ExitStack):
                     container.run_shell(config=run_config)
 
     @guest_only
-    def build_in_container(self, source_only: bool = False) -> build.Build:
+    def build_in_container(self) -> build.Build:
         """
         Run the build
         """

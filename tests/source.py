@@ -8,9 +8,13 @@ import socketserver
 import subprocess
 import tempfile
 import threading
-from typing import Generator, Optional, Union
+from typing import TYPE_CHECKING, Generator, Optional, Union
 
+from moncic.build import Build
 from moncic.distro import Distro, DistroFamily
+
+if TYPE_CHECKING:
+    from moncic.source import Source
 
 
 class MockSystem:
@@ -34,6 +38,9 @@ class MockBuilder(contextlib.ExitStack):
         super().__init__()
         self.system = MockSystem(
                 distro=DistroFamily.lookup_distro(distro))
+
+    def setup_build(self, *, source: Source, **kw):
+        self.build = Build(source=source, **kw)
 
     @contextlib.contextmanager
     def container(self) -> Generator[MockContainer, None, None]:
