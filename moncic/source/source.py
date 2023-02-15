@@ -102,7 +102,7 @@ class InputSource(contextlib.ExitStack):
         if parsed.scheme in ("", "file"):
             if os.path.isdir(parsed.path):
                 if os.path.isdir(os.path.join(parsed.path, ".git")):
-                    return LocalGit(source, parsed.path, copy=False, orig_path=parsed.path)
+                    return LocalGit(source, parsed.path, copy=False, orig_path=os.path.abspath(parsed.path))
                 else:
                     return LocalDir(source, parsed.path)
             else:

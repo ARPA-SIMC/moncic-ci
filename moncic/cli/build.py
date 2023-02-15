@@ -32,7 +32,7 @@ class CI(SourceCommand):
                             help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
-        parser.add_argument("--option", "-O", action="append",
+        parser.add_argument("--option", "-O", action="append", default=(),
                             help="key=value option for the build. See `-s list` for a list of"
                                  " available option for each build style")
         parser.add_argument("system", action="store",
@@ -59,13 +59,13 @@ class CI(SourceCommand):
                 raise Fail(f"option --option={option!r} must have an non-empty key")
             build_kwargs[k] = v
 
-        if (artifacts_dir := build_kwargs.get["artifacts_dir"]):
+        if (artifacts_dir := build_kwargs.get("artifacts_dir")):
             os.makedirs(artifacts_dir, exist_ok=True)
 
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                with self.get_source(system.distro, self.args.source) as source:
+                with self.source(system.distro, self.args.source) as source:
                     builder = Builder(system)
 
                     log.info("Source type: %s", source.NAME)
@@ -118,7 +118,7 @@ class QuerySource(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                with self.get_source(system.distro, self.args.source) as source:
+                with self.source(system.distro, self.args.source) as source:
                     builder = Builder(system)
                     result["distribution"] = system.distro.name
                     log.info("Query using builder %r", builder.__class__.__name__)

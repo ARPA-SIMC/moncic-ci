@@ -475,7 +475,7 @@ class ContainerBase:
                     return pathname
             raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
 
-        shell = self.run_callable(find_shell).result()
+        shell = self.run_callable(find_shell)
         return self.run([shell, "--login"], config=config)
 
 

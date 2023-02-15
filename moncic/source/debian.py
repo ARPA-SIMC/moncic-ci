@@ -4,7 +4,6 @@ import logging
 import lzma
 import os
 import re
-import shlex
 import shutil
 import subprocess
 from configparser import ConfigParser
@@ -13,10 +12,11 @@ from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type, cast
 
 import git
 
+from .. import context
 from ..build.utils import link_or_copy
 from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
-from ..utils.run import run
+from ..utils.run import log_run, run
 from .source import (URL, InputSource, LocalDir, LocalFile, LocalGit, Source,
                      register)
 
@@ -161,20 +161,24 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
 
         This function is run from a clean source directory
         """
-        dest_tarball = os.path.join(container.get_root(), "srv", "moncic-ci", "source", self.tarball_filename)
-
-        # This is a last-resort measure, trying to build an approximation of an
-        # upstream tarball when none was found
-        log.info("Building tarball from source directory")
-        cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
-        log.info("Run: %s", " ".join(shlex.quote(x) for x in cmd))
-        proc = subprocess.Popen(cmd, cwd=self.guest_path, stdout=subprocess.PIPE)
+        source_dir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
+        source_stat = os.stat(source_dir)
+        dest_tarball = os.path.join(source_dir, self.tarball_filename)
         with lzma.open(dest_tarball, "wb") as out:
-            shutil.copyfileobj(proc.stdout, out)
-        if proc.wait() != 0:
-            raise RuntimeError(f"git archive exited with error code {proc.returncode}")
+            with context.moncic.get().privs.user():
 
-        self.tarball_source = "[git archive HEAD . :(exclude)debian]"
+                # This is a last-resort measure, trying to build an approximation of an
+                # upstream tarball when none was found
+                log.info("Building tarball from source directory")
+                cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
+                log_run(cmd, cwd=self.source.path)
+                proc = subprocess.Popen(cmd, cwd=self.source.path, stdout=subprocess.PIPE)
+                shutil.copyfileobj(proc.stdout, out)
+                if proc.wait() != 0:
+                    raise RuntimeError(f"git archive exited with error code {proc.returncode}")
+
+                self.tarball_source = "[git archive HEAD . :(exclude)debian]"
+        os.chown(dest_tarball, source_stat.st_uid, source_stat.st_gid)
 
     @guest_only
     def build_source_package(self) -> str:

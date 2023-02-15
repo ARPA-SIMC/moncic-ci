@@ -241,6 +241,8 @@ class SourceCommand(MoncicCommand):
                     input_source = input_source.branch(self.args.branch)
                 if self.args.source_type:
                     source_cls = get_source_class(self.args.source_type)
-                    yield source_cls.create(input_source)
+                    source = source_cls.create(input_source)
                 else:
-                    yield input_source.detect_source(distro)
+                    source = input_source.detect_source(distro)
+                self.moncic.privs.regain()
+                yield source
