@@ -134,7 +134,7 @@ class Debian(Build):
                 log.debug("%s: %r", k, v)
 
     @guest_only
-    def build(self, source_only: bool = False) -> None:
+    def build(self) -> None:
         # Build source package
         with context.moncic.get().privs.user():
             self.srcinfo = get_source_info(self.source.guest_path)
@@ -142,7 +142,7 @@ class Debian(Build):
 
         self.name = self.srcinfo.srcname
 
-        if not source_only:
+        if not self.source_only:
             self.build_binary(dsc_fname)
 
         for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":

@@ -45,6 +45,7 @@ class CI(SourceCommand):
     def run(self):
         build_kwargs: dict[str, str] = {
             "artifacts_dir": self.moncic.config.build_artifacts_dir,
+            "source_only": self.args.source_only,
         }
 
         if self.args.artifacts:
@@ -71,7 +72,7 @@ class CI(SourceCommand):
                 build_kwargs["source"] = source
                 builder.setup_build(**build_kwargs)
 
-                builder.run_build(shell=self.args.shell, source_only=self.args.source_only)
+                builder.run_build(shell=self.args.shell)
                 json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
                 sys.stdout.write("\n")
 
