@@ -10,6 +10,7 @@ from ..build import Analyzer, Builder
 from ..exceptions import Fail
 from .base import Command
 from .moncic import SourceCommand, main_command
+from ..source.source import InputSource
 
 log = logging.getLogger(__name__)
 
@@ -73,7 +74,16 @@ class CI(SourceCommand):
                     builder.setup_build(**build_kwargs)
 
                     builder.run_build(shell=self.args.shell)
-                    json.dump(dataclasses.asdict(builder.build), sys.stdout, indent=1)
+
+                    class ResultEncoder(json.JSONEncoder):
+                        def default(self, obj):
+                            if dataclasses.is_dataclass(obj):
+                                return dataclasses.asdict(obj)
+                            elif isinstance(obj, InputSource):
+                                return obj.source
+                            else:
+                                return super().default(obj)
+                    json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
                     sys.stdout.write("\n")
 
 
