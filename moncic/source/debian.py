@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type, cast
 
 import git
 
-from .. import context
 from ..build.utils import link_or_copy
 from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
@@ -50,13 +49,13 @@ class DebianDirMixin(Source):
     tarball_source: Optional[str] = None
 
     @host_only
-    def _find_tarball(self, container: Container, search_dirs: Sequence[str] = ()) -> None:
+    def _find_tarball(self, build: Build, container: Container, search_dirs: Sequence[str] = ()) -> None:
         """
         Find the Debian tarball and copy it to the source directory in the container
         """
         tarball_search_dirs = []
         tarball_search_dirs.extend(search_dirs)
-        if (artifacts_dir := context.moncic.get().config.build_artifacts_dir):
+        if (artifacts_dir := build.artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 
         with open(os.path.join(self.host_path, "debian", "changelog"), "rt") as fd:
@@ -140,17 +139,17 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
         return cls(source, source.repo.working_dir)
 
     @host_only
-    def gather_sources_from_host(self, container: Container) -> None:
+    def gather_sources_from_host(self, build: Build, container: Container) -> None:
         """
         Gather needed source files from the host system and copy them to the
         guest
         """
-        super().gather_sources_from_host(container)
+        super().gather_sources_from_host(build, container)
 
         tarball_search_dirs = []
         if self.source.orig_path is not None:
             tarball_search_dirs.append(os.path.dirname(self.source.orig_path))
-        self._find_tarball(container, tarball_search_dirs)
+        self._find_tarball(build, container, tarball_search_dirs)
         if self.tarball_source is None:
             self.build_orig_tarball(container)
 
@@ -369,15 +368,15 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
         return cls(source, source.path)
 
     @host_only
-    def gather_sources_from_host(self, container: Container) -> None:
+    def gather_sources_from_host(self, build: Build, container: Container) -> None:
         """
         Gather needed source files from the host system and copy them to the
         guest
         """
-        super().gather_sources_from_host(container)
+        super().gather_sources_from_host(build, container)
 
         tarball_search_dirs = [os.path.dirname(self.source.path)]
-        self._find_tarball(container, tarball_search_dirs)
+        self._find_tarball(build, container, tarball_search_dirs)
 
     @guest_only
     def build_source_package(self) -> str:
@@ -417,12 +416,12 @@ class DebianDsc(DebianSource):
         return cls(source, source.path)
 
     @host_only
-    def gather_sources_from_host(self, container: Container) -> None:
+    def gather_sources_from_host(self, build: Build, container: Container) -> None:
         """
         Gather needed source files from the host system and copy them to the
         guest
         """
-        super().gather_sources_from_host(container)
+        super().gather_sources_from_host(build, container)
 
         re_files = re.compile(r"^Files:\s*$")
         re_file = re.compile(r"^\s+\S+\s+\d+\s+(\S+)\s*$")

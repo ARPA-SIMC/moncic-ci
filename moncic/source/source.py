@@ -286,7 +286,7 @@ class Source:
         raise NotImplementedError(f"{self.__class__.__name__}.get_build_class is not implemented")
 
     @host_only
-    def gather_sources_from_host(self, container: Container) -> None:
+    def gather_sources_from_host(self, build: Build, container: Container) -> None:
         """
         Gather needed source files from the host system and copy them to the
         guest

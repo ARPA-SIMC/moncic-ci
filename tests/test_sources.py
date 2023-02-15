@@ -73,8 +73,9 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
                 src = isrc.detect_source(builder)
                 self.assertEqual(src.get_build_class().__name__, "Debian")
 
+                builder.setup_build(source=src)
                 with builder.container() as container:
-                    src.gather_sources_from_host(container)
+                    src.gather_sources_from_host(builder.build, container)
                     self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
             # TODO: @guest_only
             # TODO: def build_source_package(self) -> str:
@@ -137,8 +138,9 @@ class DebianPlainGitMixin(GitFixtureMixin):
                 src = isrc.detect_source(builder)
                 self.assertEqual(src.get_build_class().__name__, "Debian")
 
+                builder.setup_build(source=src)
                 with builder.container() as container:
-                    src.gather_sources_from_host(container)
+                    src.gather_sources_from_host(builder.build, container)
                     self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
             # TODO: @guest_only
             # TODO: def build_source_package(self) -> str:
@@ -215,8 +217,9 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
                 src = isrc.detect_source(builder)
                 self.assertEqual(src.get_build_class().__name__, "Debian")
 
+                builder.setup_build(source=src)
                 with builder.container() as container:
-                    src.gather_sources_from_host(container)
+                    src.gather_sources_from_host(builder.build, container)
                     self.assertCountEqual(os.listdir(container.source_dir), [])
 
                 self.assertEqual(src.gbp_args, ['--git-upstream-tree=branch', '--git-upstream-branch=main'])
@@ -286,8 +289,9 @@ debian-branch=debian/unstable
                 src = isrc.detect_source(builder)
                 self.assertEqual(src.get_build_class().__name__, "Debian")
 
+                builder.setup_build(source=src)
                 with builder.container() as container:
-                    src.gather_sources_from_host(container)
+                    src.gather_sources_from_host(builder.build, container)
                     self.assertCountEqual(os.listdir(container.source_dir), [])
 
                 self.assertEqual(src.gbp_args, ["--git-upstream-tree=tag"])
@@ -355,8 +359,9 @@ debian-branch=debian/unstable
                 src = isrc.detect_source(builder)
                 self.assertEqual(src.get_build_class().__name__, "Debian")
 
+                builder.setup_build(source=src)
                 with builder.container() as container:
-                    src.gather_sources_from_host(container)
+                    src.gather_sources_from_host(builder.build, container)
                     self.assertCountEqual(os.listdir(container.source_dir), [])
 
                 self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
@@ -405,8 +410,9 @@ Files:
                 src = isrc.detect_source(builder)
                 self.assertEqual(src.get_build_class().__name__, "Debian")
 
+                builder.setup_build(source=src)
                 with builder.container() as container:
-                    src.gather_sources_from_host(container)
+                    src.gather_sources_from_host(builder.build, container)
                     self.assertCountEqual(os.listdir(container.source_dir), [
                         "moncic-ci_0.1.0-1.dsc",
                         "moncic-ci_0.1.0.orig.tar.gz",
@@ -445,8 +451,9 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
                 src = isrc.detect_source(builder)
                 self.assertEqual(src.get_build_class().__name__, "ARPA")
 
+                builder.setup_build(source=src)
                 with builder.container() as container:
-                    src.gather_sources_from_host(container)
+                    src.gather_sources_from_host(builder.build, container)
                     self.assertCountEqual(os.listdir(container.source_dir), [])
             # TODO: @guest_only
             # TODO: def build_source_package(self) -> str:

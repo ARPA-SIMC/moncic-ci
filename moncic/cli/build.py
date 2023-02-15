@@ -46,14 +46,14 @@ class CI(SourceCommand):
                                  " Default: the current directory")
         return parser
 
-    def setup_moncic_config(self, config: MoncicConfig):
-        super().setup_moncic_config(config)
-        if self.args.artifacts:
-            config.build_artifacts_dir = os.path.abspath(self.args.artifacts)
-            os.makedirs(config.build_artifacts_dir, exist_ok=True)
-
     def run(self):
-        build_kwargs: dict[str, str] = {}
+        build_kwargs: dict[str, str] = {
+            "artifacts_dir": self.moncic.config.build_artifacts_dir,
+        }
+
+        if self.args.artifacts:
+            build_kwargs["artifacts_dir"] = os.path.abspath(self.args.artifacts)
+
         for option in self.args.option:
             if "=" not in option:
                 raise Fail(f"option --option={option!r} must be key=value")
@@ -61,6 +61,9 @@ class CI(SourceCommand):
             if not k:
                 raise Fail(f"option --option={option!r} must have an non-empty key")
             build_kwargs[k] = v
+
+        if (artifacts_dir := build_kwargs.get["artifacts_dir"]):
+            os.makedirs(artifacts_dir, exist_ok=True)
 
         with self.moncic.session() as session:
             images = session.images
