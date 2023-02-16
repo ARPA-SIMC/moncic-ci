@@ -33,7 +33,7 @@ class CI(SourceCommand):
                             help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
-        parser.add_argument("--option", "-O", action="append", default=(),
+        parser.add_argument("--option", "-O", action="append", default=[],
                             help="key=value option for the build. See `-s list` for a list of"
                                  " available option for each build style")
         parser.add_argument("system", action="store",
