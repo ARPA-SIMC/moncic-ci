@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import inspect
 import shutil
 import textwrap
 
@@ -15,20 +16,17 @@ class SourceTypeAction(argparse._StoreAction):
 
             # Compute width for builder option help
             columns, lines = shutil.get_terminal_size()
-            option_name_width = 0
-            for build_cls in source_types.values():
-                for option, option_help in build_cls.list_build_options():
-                    if len(option) > option_name_width:
-                        option_name_width = len(option)
-            option_help_wrapper = textwrap.TextWrapper(width=columns - option_name_width - 4)
+            name_width = 0
+            for name in source_types.keys():
+                if len(name) > name_width:
+                    name_width = len(name)
+            option_help_wrapper = textwrap.TextWrapper(width=columns - name_width - 2)
 
-            for name, build_cls in sorted(source_types.items()):
-                print(name)
-                for option, option_help in build_cls.list_build_options():
-                    for idx, line in enumerate(option_help_wrapper.wrap(option_help)):
-                        if idx == 0:
-                            print(f"  {option}: {line}")
-                        else:
-                            print("  {' ' * option_name_width}: {line}")
+            for name, source_cls in sorted(source_types.items()):
+                for idx, line in enumerate(option_help_wrapper.wrap(inspect.getdoc(source_cls))):
+                    if idx == 0:
+                        print(f"{name.rjust(name_width)}: {line}")
+                    else:
+                        print(f"{' ' * name_width}  {line}")
             raise Success()
         setattr(namespace, self.dest, values)

@@ -125,8 +125,7 @@ class Lint(Command):
 @main_command
 class QuerySource(SourceCommand):
     """
-    Run consistency checks on a source directory using all available build
-    styles
+    Query informations about a source
     """
     NAME = "query-source"
 

@@ -55,11 +55,6 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
         with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
             pass
 
-    def test_build_options(self):
-        self.assertEqual(
-            [x[0] for x in debian.DebianSourceDir.list_build_options()],
-            ["build_profile"])
-
     def test_detect_local(self):
         with source.InputSource.create(self.pkg_root) as isrc:
             self.assertIsInstance(isrc, source.LocalDir)
@@ -107,11 +102,6 @@ class DebianPlainGitMixin(GitFixtureMixin):
         if not cls.skip_tarball:
             with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
                 pass
-
-    def test_build_options(self):
-        self.assertEqual(
-            [x[0] for x in debian.DebianPlainGit.list_build_options()],
-            ["build_profile"])
 
     def test_detect_local(self):
         with source.InputSource.create(self.git.root) as isrc:
@@ -184,11 +174,6 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
 
         # TODO: add gdb.conf
 
-    def test_build_options(self):
-        self.assertEqual(
-            [x[0] for x in debian.DebianGBPTestUpstream.list_build_options()],
-            ["build_profile"])
-
     def test_detect_local(self):
         with source.InputSource.create(self.git.root) as isrc:
             self.assertIsInstance(isrc, source.LocalGit)
@@ -253,11 +238,6 @@ debian-branch=debian/unstable
         cls.git.commit()
         cls.git.git("tag", "debian/0.1.0-1")
 
-    def test_build_options(self):
-        self.assertEqual(
-            [x[0] for x in debian.DebianGBPRelease.list_build_options()],
-            ["build_profile"])
-
     def test_detect_local(self):
         with source.InputSource.create(self.git.root) as isrc:
             self.assertIsInstance(isrc, source.LocalGit)
@@ -320,11 +300,6 @@ debian-branch=debian/unstable
         # Leave the packaging branch as current
         cls.git.git("checkout", "debian/unstable")
 
-    def test_build_options(self):
-        self.assertEqual(
-            [x[0] for x in debian.DebianGBPTestDebian.list_build_options()],
-            ["build_profile"])
-
     def test_detect_local(self):
         with source.InputSource.create(self.git.root) as isrc:
             self.assertIsInstance(isrc, source.LocalGit)
@@ -380,11 +355,6 @@ Files:
         with open(os.path.join(cls.workdir, "moncic-ci_0.1.0-1.debian.tar.xz"), "wb"):
             pass
 
-    def test_build_options(self):
-        self.assertEqual(
-            [x[0] for x in debian.DebianDsc.list_build_options()],
-            ["build_profile"])
-
     def test_detect_local(self):
         with source.InputSource.create(self.dsc_file) as isrc:
             self.assertIsInstance(isrc, source.LocalFile)
@@ -419,11 +389,6 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
         with open(travis_yml, "wt") as out:
             print("foo foo simc/stable bar bar", file=out)
 
-    def test_build_options(self):
-        self.assertEqual(
-            [x[0] for x in rpm.ARPASource.list_build_options()],
-            [])
-
     def test_detect_local(self):
         with source.InputSource.create(self.workdir) as isrc:
             self.assertIsInstance(isrc, source.LocalDir)
@@ -446,6 +411,3 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
                         self.assertCountEqual(os.listdir(container.source_dir), [])
                 # TODO: @guest_only
                 # TODO: def build_source_package(self) -> str:
-
-
-# TODO: class DebianSourcePackage(DebianSource):

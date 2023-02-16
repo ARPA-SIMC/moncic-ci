@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Generator, Optional
 
 import yaml
 
@@ -54,7 +54,7 @@ class Build:
         if not isinstance(conf, dict):
             raise Fail(f"{pathname!r}: YAML file should contain a dict")
 
-        sections = set(cls.__name__.lower() for cls in self.__class__.__mro__ if cls != object)
+        sections = set(cls.get_name() for cls in self.__class__.__mro__ if cls != object)
 
         valid_fields = set(f.name for f in fields(self))
 
@@ -94,3 +94,11 @@ class Build:
         Set up the build environment in the container
         """
         pass
+
+    @classmethod
+    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
+        """
+        List available build option names and their documentation
+        """
+        return
+        yield

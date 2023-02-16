@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type, cast
+from typing import TYPE_CHECKING, Optional, Sequence, Type, cast
 
 import git
 
@@ -31,11 +31,6 @@ re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>
 
 
 class DebianSource(Source):
-    @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
-        yield from super().list_build_options()
-        yield "build_profile", "space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE"
-
     def get_build_class(self) -> Type["Build"]:
         from ..build.debian import Debian
         return Debian

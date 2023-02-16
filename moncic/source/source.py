@@ -6,7 +6,7 @@ import os
 import tempfile
 import urllib.parse
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generator, Optional, Type
+from typing import TYPE_CHECKING, Any, Optional, Type
 
 import git
 
@@ -275,12 +275,13 @@ class Source:
     guest_path: Optional[str] = None
 
     @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
+    def get_name(cls) -> str:
         """
-        List available build option names and their documentation
+        Return the user-facing name for this class
         """
-        return
-        yield
+        if (name := cls.__dict__.get("NAME")):
+            return name
+        return cls.__name__.lower()
 
     def get_build_class(self) -> Type["Build"]:
         """
