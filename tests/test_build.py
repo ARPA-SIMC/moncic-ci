@@ -11,19 +11,19 @@ class TestBuild(unittest.TestCase):
     def test_build(self):
         self.assertEqual(
             [x[0] for x in Build.list_build_options()],
-            [])
+            ["artifacts_dir", "source_only"])
 
     def test_debian(self):
         self.assertEqual(
             [x[0] for x in Debian.list_build_options()],
-            ["build_profile"])
+            ["artifacts_dir", "source_only", "build_profile"])
 
     def test_rpm(self):
         self.assertEqual(
             [x[0] for x in RPM.list_build_options()],
-            [])
+            ["artifacts_dir", "source_only"])
 
     def test_arpa(self):
         self.assertEqual(
             [x[0] for x in ARPA.list_build_options()],
-            [])
+            ["artifacts_dir", "source_only"])

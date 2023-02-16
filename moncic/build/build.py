@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import logging
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING, Generator, Optional, Type
@@ -27,14 +28,23 @@ class Build:
     name: Optional[str] = None
     # True if the build was successful
     success: bool = False
-    # Directory where artifacts are copied after the build. Artifacts are lost
-    # when not set
-    artifacts_dir: Optional[str] = None
-    # Set to True to only build source packages, and skip compiling/building
-    # binary packages
-    source_only: bool = False
     # List of container paths for artifacts
     artifacts: list[str] = field(default_factory=list)
+
+    artifacts_dir: Optional[str] = field(
+            default=None,
+            metadata={
+                "doc": """
+                    Directory where artifacts are copied after the build. Artifacts are lost when not set
+                    """})
+
+    source_only: bool = field(
+            default=False,
+            metadata={
+                "doc": """
+                    Set to True to only build source packages, and skip compiling/building
+                    binary packages
+                """})
 
     def load_yaml(self, pathname: str) -> None:
         """
@@ -124,5 +134,6 @@ class Build:
         """
         List available build option names and their documentation
         """
-        return
-        yield
+        for f in fields(cls):
+            if (doc := f.metadata.get("doc")):
+                yield f.name, inspect.cleandoc(doc)

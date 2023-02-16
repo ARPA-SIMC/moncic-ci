@@ -5,8 +5,8 @@ import logging
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generator, NamedTuple, Optional
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, NamedTuple, Optional
 
 from .. import context
 from ..runner import UserConfig
@@ -89,17 +89,17 @@ class Debian(Build):
     """
     Build Debian packages
     """
-    build_profile: str = ""
+    build_profile: str = field(
+            default="",
+            metadata={
+                "doc": """
+                    space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE
+                    """})
 
     def __post_init__(self):
         # This is only set in guest systems, and after self.build_source() has
         # been called
         self.srcinfo: Optional[SourceInfo] = None
-
-    @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
-        yield from super().list_build_options()
-        yield "build_profile", "space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE"
 
     @host_only
     def get_build_deps(self) -> list[str]:
