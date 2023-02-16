@@ -23,9 +23,9 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class RPMBuild(Build):
+class RPM(Build):
     """
-    BuildInfo class with gbp-buildpackage specific fields
+    Build RPM packages
     """
     specfile: Optional[str] = None
 
@@ -82,7 +82,7 @@ class RPMBuild(Build):
 
 
 @dataclass
-class ARPA(RPMBuild):
+class ARPA(RPM):
     """
     ARPA/SIMC builder, building RPM packages using the logic previously
     configured for travis
@@ -141,7 +141,7 @@ class ARPA(RPMBuild):
         self.success = True
 
     @host_only
-    def collect_artifacts(self, container: Container, build_info: RPMBuild, destdir: str):
+    def collect_artifacts(self, container: Container, build_info: RPM, destdir: str):
         container_root = container.get_root()
 
         user = UserConfig.from_sudoer()

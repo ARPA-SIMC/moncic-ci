@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 @dataclass
 class Build:
     """
-    Information gathered during a build
+    Build source packages
     """
     # Path to source to be built
     source: Source
@@ -94,6 +94,15 @@ class Build:
         Set up the build environment in the container
         """
         pass
+
+    @classmethod
+    def get_name(cls) -> str:
+        """
+        Get the user-facing name for this Build class
+        """
+        if (name := cls.__dict__.get("NAME")):
+            return name
+        return cls.__name__.lower()
 
     @classmethod
     def list_build_options(cls) -> Generator[tuple[str, str], None, None]:

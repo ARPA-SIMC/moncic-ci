@@ -86,6 +86,9 @@ def get_file_list(path: str) -> list[str]:
 
 @dataclass
 class Debian(Build):
+    """
+    Build Debian packages
+    """
     build_profile: str = ""
 
     def __post_init__(self):
