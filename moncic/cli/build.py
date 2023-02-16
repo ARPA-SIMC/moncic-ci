@@ -67,11 +67,10 @@ class CI(SourceCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 with self.source(system.distro, self.args.source) as source:
-                    builder = Builder(system)
-
                     log.info("Source type: %s", source.NAME)
-                    build_kwargs["source"] = source
-                    builder.setup_build(**build_kwargs)
+
+                    build = source.make_build(**build_kwargs)
+                    builder = Builder(system, build)
 
                     builder.run_build(shell=self.args.shell)
 

@@ -34,10 +34,11 @@ class MockContainer:
 
 
 class MockBuilder(contextlib.ExitStack):
-    def __init__(self, distro: str):
+    def __init__(self, distro: str, build: Build):
         super().__init__()
         self.system = MockSystem(
                 distro=DistroFamily.lookup_distro(distro))
+        self.build = build
 
     def setup_build(self, *, source: Source, **kw):
         self.build = Build(source=source, **kw)

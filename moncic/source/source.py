@@ -6,7 +6,7 @@ import os
 import tempfile
 import urllib.parse
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generator, Optional, Type
+from typing import TYPE_CHECKING, Any, Generator, Optional, Type
 
 import git
 
@@ -283,7 +283,16 @@ class Source:
         yield
 
     def get_build_class(self) -> Type["Build"]:
+        """
+        Return the Build subclass used to build this source
+        """
         raise NotImplementedError(f"{self.__class__.__name__}.get_build_class is not implemented")
+
+    def make_build(self, **kwargs: Any) -> "Build":
+        """
+        Create a Build to build this Source
+        """
+        return self.get_build_class()(source=self, **kwargs)
 
     @host_only
     def gather_sources_from_host(self, build: Build, container: Container) -> None:
