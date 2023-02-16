@@ -1,8 +1,10 @@
 # Version UNRELEASED
 
-* Expanded Debian build profiles to cover various `git-buildpackage`-related
-  strategies. See [Building Debian Packages](doc/build-debian.md) (#63, #64)
-* Default for `ci --build-style` is autodetect
+* Support a variety of [source styles](doc/source-styles.md). See also
+  [Building Debian Packages](doc/build-debian.md) (#63, #64)
+* Support options specific to different [build styles](doc/build-styles.md)
+* `ci --build-style` is replaced by `ci --source-type`, and it is autodetected
+  by default
 * Fixed a typo that broke DebianPlain builds
 * Allow relative paths in `ci --artifacts`
 * Reuse an existing tarball if one is found above the source directory, or in
@@ -31,7 +33,6 @@
 * Try out easier to type machine names (#78)
 * Set hostname of containers to the machine name
 * `monci images` does not require root to run
-* Added `--deb-build-profiles` option for Debian builds
 * Create the `--artifacts` directory if it does not exist
 
 # Version 0.7
