@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, Generator, Optional
+from typing import TYPE_CHECKING, Generator, Optional, Type
 
 import yaml
 
@@ -103,6 +103,21 @@ class Build:
         if (name := cls.__dict__.get("NAME")):
             return name
         return cls.__name__.lower()
+
+    @classmethod
+    def list_build_classes(cls) -> list[Type["Build"]]:
+        """
+        Return a list of all available build classes, including intermediate
+        classes in class hierarchies
+        """
+        from .debian import Debian
+        from .arpa import RPM, ARPA
+        return [
+            Build,
+            Debian,
+            RPM,
+            ARPA,
+        ]
 
     @classmethod
     def list_build_options(cls) -> Generator[tuple[str, str], None, None]:

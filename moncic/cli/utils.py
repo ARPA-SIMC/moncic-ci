@@ -30,3 +30,23 @@ class SourceTypeAction(argparse._StoreAction):
                         print(f"{' ' * name_width}  {line}")
             raise Success()
         setattr(namespace, self.dest, values)
+
+
+class BuildOptionAction(argparse._AppendAction):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values == "list":
+            from .build import Build
+            for cls in Build.list_build_classes():
+                print(cls.get_name())
+            raise Success()
+        elif "=" not in values:
+            raise ValueError(f"option --option={values!r} must be --option=key=value")
+        else:
+            k, v = values.split("=", 1)
+            if not k:
+                raise ValueError(f"option --option={values!r} must have an non-empty key")
+
+            if (vals := getattr(namespace, self.dest, None)):
+                vals[k] = v
+            else:
+                setattr(namespace, self.dest, {k: v})

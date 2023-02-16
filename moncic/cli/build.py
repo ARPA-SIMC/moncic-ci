@@ -7,10 +7,10 @@ import os
 import sys
 
 from ..build import Analyzer, Builder
-from ..exceptions import Fail
+from ..source.source import InputSource
 from .base import Command
 from .moncic import SourceCommand, main_command
-from ..source.source import InputSource
+from .utils import BuildOptionAction
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class CI(SourceCommand):
                             help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
-        parser.add_argument("--option", "-O", action="append", default=[],
+        parser.add_argument("--option", "-O", action=BuildOptionAction,
                             help="key=value option for the build. See `-s list` for a list of"
                                  " available option for each build style")
         parser.add_argument("system", action="store",
@@ -59,13 +59,8 @@ class CI(SourceCommand):
         if self.args.artifacts:
             build_kwargs_cmd["artifacts_dir"] = os.path.abspath(self.args.artifacts)
 
-        for option in self.args.option:
-            if "=" not in option:
-                raise Fail(f"option --option={option!r} must be key=value")
-            k, v = option.split("=", 1)
-            if not k:
-                raise Fail(f"option --option={option!r} must have an non-empty key")
-            build_kwargs_cmd[k] = v
+        if self.args.option:
+            build_kwargs_cmd.update(self.args.option)
 
         with self.moncic.session() as session:
             images = session.images
