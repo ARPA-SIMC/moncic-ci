@@ -84,18 +84,19 @@ class CI(SourceCommand):
 
                     builder = Builder(system, build)
 
-                    builder.run_build(shell=self.args.shell)
-
-                    class ResultEncoder(json.JSONEncoder):
-                        def default(self, obj):
-                            if dataclasses.is_dataclass(obj):
-                                return dataclasses.asdict(obj)
-                            elif isinstance(obj, InputSource):
-                                return obj.source
-                            else:
-                                return super().default(obj)
-                    json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
-                    sys.stdout.write("\n")
+                    try:
+                        builder.run_build(shell=self.args.shell)
+                    finally:
+                        class ResultEncoder(json.JSONEncoder):
+                            def default(self, obj):
+                                if dataclasses.is_dataclass(obj):
+                                    return dataclasses.asdict(obj)
+                                elif isinstance(obj, InputSource):
+                                    return obj.source
+                                else:
+                                    return super().default(obj)
+                        json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
+                        sys.stdout.write("\n")
 
 
 @main_command
