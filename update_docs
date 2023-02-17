@@ -36,6 +36,9 @@ def document_build_styles(file: IO[str] = None):
 
 This the documentation of the various ways Moncic-CI can build sources, and the
 options that can be used to control them.
+
+You can use these options with the `monci ci --option` command line arguments,
+or in the [YAML configuration for CI builds](build-config.md).
 """, file=file)
 
     for cls in Build.list_build_classes():
