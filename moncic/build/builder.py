@@ -15,7 +15,7 @@ from .utils import link_or_copy
 
 if TYPE_CHECKING:
     from ..container import Container, System
-    from ..source import Source
+    from .build import Build
 
 log = logging.getLogger(__name__)
 
@@ -24,25 +24,18 @@ class Builder(contextlib.ExitStack):
     """
     Interface for classes providing the logic for CI builds
     """
-    def __init__(self, system: System):
+    def __init__(self, system: System, build: Build):
         super().__init__()
         # System used for the build
         self.system = system
+        # Build object that is being built
+        self.build: Optional[build.Build] = build
         # User to use for the build
         self.user = UserConfig.from_sudoer()
         # Build log file
         self.buildlog_file: Optional[IO[str]] = None
         # Log handler used to capture build output
         self.buildlog_handler: Optional[logging.Handler] = None
-        # Build object that is being built
-        self.build: Optional[build.Build] = None
-
-    def setup_build(self, *, source: Source, **kw):
-        """
-        Instantiate self.build
-        """
-        build_cls = source.get_build_class()
-        self.build = build_cls(source=source, **kw)
 
     @host_only
     def setup_container_host(self, container: Container):

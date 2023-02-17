@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type, cast
+from typing import TYPE_CHECKING, Optional, Sequence, Type, cast
 
 import git
 
@@ -31,11 +31,6 @@ re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>
 
 
 class DebianSource(Source):
-    @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
-        yield from super().list_build_options()
-        yield "build_profile", "space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE"
-
     def get_build_class(self) -> Type["Build"]:
         from ..build.debian import Debian
         return Debian
@@ -125,7 +120,14 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
     """
     Debian git working directory that does not use git-buildpackage.
 
-    If no tarball can be found, one is generated with `git archive`
+    This is autoselected if the `debian/` directory exists, but there is no
+    `debian/gbp.conf`.
+
+    An upstream `orig.tar.gz` tarball is searched on `..` and on the artifacts
+    directory, and used if found.
+
+    If no existing upstream tarball is found, one is generated using
+    `git archive HEAD . ":(exclude)debian"`, as a last-resort measure.
     """
     NAME = "debian-git-plain"
 
@@ -260,8 +262,20 @@ class DebianGBPTestUpstream(DebianGBP):
     Merge the current upstream working directory into the packaging branch for
     the build distro.
 
-    We can attempt to build a source package by looking for a gbp-buildpackage
-    branch, and merging the current upstream branch into it
+    This will look for a packaging branch corresponding to the distribution
+    used by the current build image (for example, `debian/bullseye` when
+    running on a Debian 11 image, or `ubuntu/jammy` when running on an Ubuntu
+    22.04 image.
+
+    It will then check it out, merge the source branch into it, and build the
+    resulting package.
+
+    This is autoselected if either:
+
+    * the git commit being built is a git tag but does not contain a `debian/`
+      directory (i.e. testing packaging of a tagged upstream branch)
+    * the git commit being built is not a git tag, and does not contain a `debian/`
+      directory (i.e. testing packaging of an upstream branch)
     """
     NAME = "debian-gbp-upstream"
 
@@ -307,6 +321,12 @@ class DebianGBPTestUpstream(DebianGBP):
 class DebianGBPRelease(DebianGBP):
     """
     Debian git working directory checked out to a tagged release branch.
+
+    This is autoselected if the git commit being built is a git tag, and it
+    contains a `debian/` directory.
+
+    `git-buildpackage` is invoked with `--git-upstream-tree=tag`, to build the
+    release version of a package.
     """
     NAME = "debian-gbp-release"
 
@@ -324,6 +344,16 @@ class DebianGBPRelease(DebianGBP):
 class DebianGBPTestDebian(DebianGBP):
     """
     Debian git working directory checked out to an untagged Debian branch.
+
+    This is autoselected if the git commit being built is not a tag, and it
+    contains a `debian/` directory.
+
+    The upstream branch is read from `debian/gbp.conf`, and merged into the
+    current branch. After which, git-buildpackage is run with
+    `--git-upstream-tree=branch`.
+
+    This is used to test the Debian packaging against its intended upstream
+    branch.
     """
     NAME = "debian-gbp-test"
 

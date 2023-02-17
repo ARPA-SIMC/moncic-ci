@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple, Optional
 
 from .. import context
@@ -86,7 +86,15 @@ def get_file_list(path: str) -> list[str]:
 
 @dataclass
 class Debian(Build):
-    build_profile: str = ""
+    """
+    Build Debian packages
+    """
+    build_profile: str = field(
+            default="",
+            metadata={
+                "doc": """
+                    space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE
+                    """})
 
     def __post_init__(self):
         # This is only set in guest systems, and after self.build_source() has
