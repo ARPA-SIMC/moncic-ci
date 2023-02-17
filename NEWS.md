@@ -34,6 +34,8 @@
 * Set hostname of containers to the machine name
 * `monci images` does not require root to run
 * Create the `--artifacts` directory if it does not exist
+* Allow to use a YAML file to customize the build. See [YAML configuration for
+  CI builds](doc/build-config.md)
 
 # Version 0.7
 
