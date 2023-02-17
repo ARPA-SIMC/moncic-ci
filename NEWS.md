@@ -36,6 +36,8 @@
 * Create the `--artifacts` directory if it does not exist
 * Allow to use a YAML file to customize the build. See [YAML configuration for
   CI builds](doc/build-config.md)
+* Always print JSON build results even if the build failed
+* Added [post-build actions](doc/post-build.actions.md) (#85)
 
 # Version 0.7
 

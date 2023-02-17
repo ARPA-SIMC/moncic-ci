@@ -84,8 +84,11 @@ class CI(SourceCommand):
 
                     builder = Builder(system, build)
 
+                    if self.args.shell:
+                        build.on_end.append("@shell")
+
                     try:
-                        builder.run_build(shell=self.args.shell)
+                        builder.run_build()
                     finally:
                         class ResultEncoder(json.JSONEncoder):
                             def default(self, obj):

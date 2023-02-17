@@ -118,3 +118,4 @@ ubuntu:jammy       jammy, ubuntu:22.04
 * [YAML configuration for CI builds](doc/build-config.md)
 * [Source styles](doc/source-styles.md) that Moncic-CI knows how to build
 * [Build styles](doc/build-styles.md) and their options
+* [Post-build actionss](doc/post-build-actions.md)
