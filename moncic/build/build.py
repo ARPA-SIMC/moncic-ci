@@ -46,6 +46,36 @@ class Build:
                     binary packages
                 """})
 
+    on_success: list[str] = field(
+            default_factory=list,
+            metadata={
+                "doc": """
+                    Zero or more scripts or actions to execute after a
+                    successful build.
+
+                    See [Post-build actions](post-build.actions.md) for documentation of possible values.
+                """})
+
+    on_fail: list[str] = field(
+            default_factory=list,
+            metadata={
+                "doc": """
+                    Zero or more scripts or actions to execute after a
+                    failed build.
+
+                    See [Post-build actions](post-build.actions.md) for documentation of possible values.
+                """})
+
+    on_end: list[str] = field(
+            default_factory=list,
+            metadata={
+                "doc": """
+                    Zero or more scripts or actions to execute after a
+                    build, regardless of its result.
+
+                    See [Post-build actions](post-build.actions.md) for documentation of possible values.
+                """})
+
     def load_yaml(self, pathname: str) -> None:
         """
         Load build configuration from the given YAML file.

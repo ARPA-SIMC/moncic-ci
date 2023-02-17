@@ -35,6 +35,8 @@ class CI(SourceCommand):
                             help="only build source packages")
         parser.add_argument("--shell", action="store_true",
                             help="open a shell after the build")
+        parser.add_argument("--linger", action="store_true",
+                            help="do not shut down the container on exit")
         parser.add_argument("--option", "-O", action=BuildOptionAction,
                             help="key=value option for the build. See `-s list` for a list of"
                                  " available option for each build style")
@@ -84,18 +86,24 @@ class CI(SourceCommand):
 
                     builder = Builder(system, build)
 
-                    builder.run_build(shell=self.args.shell)
+                    if self.args.linger:
+                        build.on_end.append("@linger")
+                    if self.args.shell:
+                        build.on_end.append("@shell")
 
-                    class ResultEncoder(json.JSONEncoder):
-                        def default(self, obj):
-                            if dataclasses.is_dataclass(obj):
-                                return dataclasses.asdict(obj)
-                            elif isinstance(obj, InputSource):
-                                return obj.source
-                            else:
-                                return super().default(obj)
-                    json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
-                    sys.stdout.write("\n")
+                    try:
+                        builder.run_build()
+                    finally:
+                        class ResultEncoder(json.JSONEncoder):
+                            def default(self, obj):
+                                if dataclasses.is_dataclass(obj):
+                                    return dataclasses.asdict(obj)
+                                elif isinstance(obj, InputSource):
+                                    return obj.source
+                                else:
+                                    return super().default(obj)
+                        json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
+                        sys.stdout.write("\n")
 
 
 @main_command

@@ -9,6 +9,7 @@ from typing import IO, TYPE_CHECKING, Optional
 from ..container import ContainerConfig
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
+from ..utils.run import run
 from . import build
 from .analyze import Analyzer
 from .utils import link_or_copy
@@ -109,7 +110,7 @@ class Builder(contextlib.ExitStack):
                 self.log_capture_end()
 
     @host_only
-    def run_build(self, shell: bool = False) -> None:
+    def run_build(self) -> None:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
@@ -140,13 +141,49 @@ class Builder(contextlib.ExitStack):
                 if artifacts_dir:
                     self.collect_artifacts(container, artifacts_dir)
             finally:
-                if shell:
-                    run_config = container.config.run_config()
-                    run_config.interactive = True
-                    run_config.check = False
-                    run_config.user = UserConfig.root()
-                    run_config.cwd = "/srv/moncic-ci/build"
-                    container.run_shell(config=run_config)
+                self._after_build(container)
+
+    @host_only
+    def _after_build(self, container: Container):
+        """
+        Run configured commands after the build ended
+        """
+        if self.build.success:
+            for cmd in self.build.on_success:
+                self._run_command(container, cmd)
+        else:
+            for cmd in self.build.on_fail:
+                self._run_command(container, cmd)
+        for cmd in self.build.on_end:
+            self._run_command(container, cmd)
+
+    @host_only
+    def _run_command(self, container: Container, cmd: str):
+        """
+        Run a command after a build
+        """
+        if cmd.startswith("@"):
+            if cmd == "@shell":
+                run_config = container.config.run_config()
+                run_config.interactive = True
+                run_config.check = False
+                run_config.user = UserConfig.root()
+                run_config.cwd = "/srv/moncic-ci/build"
+                container.run_shell(config=run_config)
+            elif cmd == "@linger":
+                container.linger = True
+            else:
+                log.error("%r: unsupported post-build command", cmd)
+        else:
+            env = dict(os.environ)
+            env["MONCIC_ARTIFACTS_DIR"] = self.build.artifacts_dir or ""
+            env["MONCIC_CONTAINER_NAME"] = container.instance_name
+            env["MONCIC_IMAGE"] = self.system.config.name
+            env["MONCIC_CONTAINER_ROOT"] = container.get_root()
+            env["MONCIC_PACKAGE_NAME"] = self.build.name or ""
+            env["MONCIC_RESULT"] = "success" if self.build.success else "fail"
+            env["MONCIC_SOURCE"] = self.build.source.source.source
+            run(["/bin/sh", "-c", cmd], env=env)
 
     @guest_only
     def build_in_container(self) -> build.Build:

@@ -324,6 +324,8 @@ class Container(ContextManager, Protocol):
     """
     system: System
     config: ContainerConfig
+    # Default to False, set to True to leave the container running on exit
+    linger: bool
 
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
         """
@@ -403,6 +405,7 @@ class ContainerBase:
         global machine_name_sequence_pid, machine_name_sequence
         super().__init__()
         self.system = system
+        self.linger = False
 
         if instance_name is None:
             current_pid = os.getpid()
@@ -439,7 +442,7 @@ class ContainerBase:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.started:
+        if self.started and not self.linger:
             self._stop()
 
     def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
