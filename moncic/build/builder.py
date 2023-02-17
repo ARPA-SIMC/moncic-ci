@@ -163,7 +163,6 @@ class Builder(contextlib.ExitStack):
         Run a command after a build
         """
         if cmd.startswith("@"):
-            # TODO: @linger
             if cmd == "@shell":
                 run_config = container.config.run_config()
                 run_config.interactive = True
@@ -171,6 +170,8 @@ class Builder(contextlib.ExitStack):
                 run_config.user = UserConfig.root()
                 run_config.cwd = "/srv/moncic-ci/build"
                 container.run_shell(config=run_config)
+            elif cmd == "@linger":
+                container.linger = True
             else:
                 log.error("%r: unsupported post-build command", cmd)
         else:
