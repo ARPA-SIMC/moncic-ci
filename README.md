@@ -115,3 +115,5 @@ ubuntu:jammy       jammy, ubuntu:22.04
 
 * [Moncic-CI configuration](doc/moncic-ci-config.md)
 * [YAML configuration for custom OS images](doc/image-config.md)
+* [Source styles](doc/source-styles.md) that Moncic-CI knows how to build
+* [Build styles](doc/build-styles.md) and their options
