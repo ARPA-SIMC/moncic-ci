@@ -37,8 +37,8 @@ machine_name_sequence: int = 0
 # Convert PIDs to machine names
 machine_name_generator = libbanana.Codec(
         alphabets=(
-            "bcdfgjklmnprstvwxz",
-            "aeiouy",
+            "bcdfgjklmnprstvwxyz",
+            "aeiou",
         )).encode
 
 
