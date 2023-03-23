@@ -82,7 +82,8 @@ class CI(SourceCommand):
                         setattr(build, k, v)
 
                     if build.artifacts_dir:
-                        os.makedirs(build.artifacts_dir, exist_ok=True)
+                        with self.moncic.privs.user():
+                            os.makedirs(build.artifacts_dir, exist_ok=True)
 
                     builder = Builder(system, build)
 
