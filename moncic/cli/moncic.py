@@ -185,6 +185,7 @@ class ImageActionCommand(MoncicCommand):
                 if not system.is_bootstrapped():
                     raise Fail(f"{system.name!r} has not been bootstrapped")
 
+                workdir_bind_type = None
                 with checkout(system, self.args.clone) as workdir:
                     if workdir is None:
                         if self.args.workdir:
@@ -193,6 +194,8 @@ class ImageActionCommand(MoncicCommand):
                         elif self.args.workdir_volatile:
                             workdir = self.args.workdir_volatile
                             workdir_bind_type = "volatile"
+                    elif self.args.clone and workdir_bind_type is None:
+                        workdir_bind_type = "volatile"
 
                     config = ContainerConfig(
                             ephemeral=not self.args.maintenance)
