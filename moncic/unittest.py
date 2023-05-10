@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from moncic import imagestorage
     from moncic.distro import Distro
 
-TEST_CHROOTS = ["centos7", "centos8", "rocky8", "rocky9", "fedora32", "fedora34", "fedora36", "buster", "bookworm", "bullseye"]
+TEST_CHROOTS = ["centos7", "centos8", "rocky8", "rocky9", "fedora32", "fedora34", "fedora36", "fedora38", "buster", "bookworm", "bullseye"]
 
 log = logging.getLogger(__name__)
 
