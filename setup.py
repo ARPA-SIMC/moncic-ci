@@ -14,7 +14,7 @@ setup(
     author_email='enrico@enricozini.org',
     url='https://github.com/ARPA-SIMC/moncic-ci/',
     license="GPLV2+",
-    # It does not make muc sense to run pip install without installing also
+    # It does not make much sense to run pip install without installing also
     # coloredlogs and texttable, although moncic-ci is able to work without
     # them
     install_requires=["pyyaml", "ruamel.yaml", "coloredlogs", "texttable", "requests", "tblib", "GitPython"],

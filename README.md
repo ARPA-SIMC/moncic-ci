@@ -84,6 +84,8 @@ $ monci distros
 Name               Shortcuts
 centos:7           centos7
 centos:8           centos8
+debian:jessie      jessie, debian:8
+debian:stretch     stretch, debian:9
 debian:buster      buster, debian:10
 debian:bullseye    bullseye, debian:11
 debian:bookworm    bookworm, debian:12
@@ -97,7 +99,10 @@ fedora:33          fedora33
 fedora:34          fedora34
 fedora:35          fedora35
 fedora:36          fedora36
+fedora:37          fedora37
+fedora:38          fedora38
 rocky:8            rocky8
+rocky:9            rocky9
 ubuntu:xenial      xenial, ubuntu:16.04
 ubuntu:bionic      bionic, ubuntu:18.04
 ubuntu:focal       focal, ubuntu:20.04
