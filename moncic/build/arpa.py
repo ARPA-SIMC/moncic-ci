@@ -29,8 +29,7 @@ class RPM(Build):
     """
     specfile: Optional[str] = None
 
-    def __init__(self, **kw):
-        super().__init__(**kw)
+    def __post_init__(self):
         from ..distro.rpm import DnfDistro, YumDistro
         if isinstance(self.system.distro, YumDistro):
             self.builddep = ["yum-builddep"]
