@@ -70,10 +70,10 @@ class CI(SourceCommand):
                 with self.source(system.distro, self.args.source) as source:
                     log.info("Source type: %s", source.NAME)
 
-                    # Create a build with system-configured defaults
+                    # Create a Build object with system-configured defaults
                     build = source.make_build(**build_kwargs_system)
 
-                    # Load YAML configuration
+                    # Load YAML configuration for the build
                     if self.args.build_config:
                         build.load_yaml(self.args.build_config)
 

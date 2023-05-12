@@ -259,9 +259,10 @@ debian-branch=debian/unstable
                 src = isrc.detect_source(SID)
                 self.assertIsInstance(src, debian.DebianGBPRelease)
 
-    def test_build_source(self):
-        with source.InputSource.create(self.git.root) as isrc:
+    def _test_build_source(self, path):
+        with source.InputSource.create(path) as isrc:
             src = isrc.detect_source(SID)
+            self.assertIsInstance(src, debian.DebianGBPRelease)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build()
             with make_moncic().session():
@@ -271,6 +272,13 @@ debian-branch=debian/unstable
                         self.assertCountEqual(os.listdir(container.source_dir), [])
 
                     self.assertEqual(src.gbp_args, ["--git-upstream-tree=tag"])
+
+    def test_build_source_git(self):
+        self._test_build_source(self.git.root)
+
+    def test_build_source_url(self):
+        with self.git.serve() as url:
+            self._test_build_source(url)
 
 
 class TestDebianGBPTestDebian(GitFixtureMixin, unittest.TestCase):
@@ -381,7 +389,7 @@ Files:
                         ])
 
 
-class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
+class TesttARPA(GitFixtureMixin, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -389,9 +397,15 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
         with open(travis_yml, "wt") as out:
             print("foo foo simc/stable bar bar", file=out)
 
+        # Initial upstream
+        cls.git.add(".travis.yml", """
+foo foo simc/stable bar bar
+""")
+        cls.git.commit()
+
     def test_detect_local(self):
-        with source.InputSource.create(self.workdir) as isrc:
-            self.assertIsInstance(isrc, source.LocalDir)
+        with source.InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, source.LocalGit)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(SID)
@@ -399,8 +413,19 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
             src = isrc.detect_source(ROCKY9)
             self.assertIsInstance(src, rpm.ARPASource)
 
-    def test_build_source(self):
-        with source.InputSource.create(self.workdir) as isrc:
+    def test_detect_url(self):
+        with self.git.serve() as url:
+            with source.InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, source.URL)
+
+                with self.assertRaises(Fail):
+                    isrc.detect_source(SID)
+
+                src = isrc.detect_source(ROCKY9)
+                self.assertIsInstance(src, rpm.ARPASource)
+
+    def _test_build_source(self, path):
+        with source.InputSource.create(path) as isrc:
             src = isrc.detect_source(ROCKY9)
             self.assertEqual(src.get_build_class().__name__, "ARPA")
             build = src.make_build()
@@ -411,3 +436,10 @@ class TesttARPA(WorkdirFixtureMixin, unittest.TestCase):
                         self.assertCountEqual(os.listdir(container.source_dir), [])
                 # TODO: @guest_only
                 # TODO: def build_source_package(self) -> str:
+
+    def test_build_source_git(self):
+        self._test_build_source(self.git.root)
+
+    def test_build_source_url(self):
+        with self.git.serve() as url:
+            self._test_build_source(url)
