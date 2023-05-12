@@ -1,41 +1,18 @@
 from __future__ import annotations
 
-import contextlib
 import os
-import tempfile
 import unittest
 
 from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
-from moncic.source import debian, rpm, source
+from moncic.source import debian, rpm, source, WorkdirFixtureMixin, GitFixtureMixin
 from moncic.unittest import make_moncic
 
-from .source import GitRepo, MockBuilder
+from .source import MockBuilder
 
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")
-
-
-class WorkdirFixtureMixin:
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.stack = contextlib.ExitStack()
-        cls.stack.__enter__()
-        cls.workdir = cls.stack.enter_context(tempfile.TemporaryDirectory())
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.stack.__exit__(None, None, None)
-        super().tearDownClass()
-
-
-class GitFixtureMixin(WorkdirFixtureMixin):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.git = cls.stack.enter_context(GitRepo(os.path.join(cls.workdir, "repo")))
 
 
 class DebianSourceDirMixin(WorkdirFixtureMixin):
@@ -265,6 +242,7 @@ debian-branch=debian/unstable
             self.assertIsInstance(src, debian.DebianGBPRelease)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build()
+            self.assertTrue(os.path.isdir(build.source.host_path))
             with make_moncic().session():
                 with MockBuilder("sid", build) as builder:
                     with builder.container() as container:
@@ -429,6 +407,7 @@ foo foo simc/stable bar bar
             src = isrc.detect_source(ROCKY9)
             self.assertEqual(src.get_build_class().__name__, "ARPA")
             build = src.make_build()
+            self.assertTrue(os.path.isdir(build.source.host_path))
             with make_moncic().session():
                 with MockBuilder("rocky9", build) as builder:
                     with builder.container() as container:

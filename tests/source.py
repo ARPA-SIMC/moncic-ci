@@ -126,3 +126,24 @@ class GitRepo(contextlib.ExitStack):
             finally:
                 httpd.shutdown()
                 server.join()
+
+
+class WorkdirFixtureMixin:
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.stack = contextlib.ExitStack()
+        cls.stack.__enter__()
+        cls.workdir = cls.stack.enter_context(tempfile.TemporaryDirectory())
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.stack.__exit__(None, None, None)
+        super().tearDownClass()
+
+
+class GitFixtureMixin(WorkdirFixtureMixin):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.git = cls.stack.enter_context(GitRepo(os.path.join(cls.workdir, "repo")))

@@ -220,7 +220,7 @@ class LocalGit(InputSource):
         Clone this URL into a local git repository
         """
         workdir = _git_clone(self, self.repo.working_dir, branch)
-        return LocalGit(self.source, workdir, copy=True, orig_path=self.orig_path)
+        return self.enter_context(LocalGit(self.source, workdir, copy=True, orig_path=self.orig_path))
 
     def branch(self, branch: Optional[str]) -> "InputSource":
         if self.repo.active_branch == branch:
@@ -253,7 +253,7 @@ class URL(InputSource):
         Clone this URL into a local git repository
         """
         workdir = _git_clone(self, self.source, branch)
-        return LocalGit(self.source, workdir, copy=True, orig_path=None)
+        return self.enter_context(LocalGit(self.source, workdir, copy=True, orig_path=None))
 
     def branch(self, branch: Optional[str]) -> "InputSource":
         return self.clone(branch).branch(branch)

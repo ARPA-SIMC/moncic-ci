@@ -8,7 +8,7 @@ from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
 from moncic.source import debian, source
 
-from .source import GitRepo
+from .source import GitFixtureMixin
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")
@@ -97,42 +97,114 @@ class TestInputSource(unittest.TestCase):
                 with self.assertRaises(Fail):
                     isrc.detect_source(ROCKY9)
 
-    def test_git_dir(self):
-        with GitRepo() as git:
-            git.add("testfile")
-            git.commit()
-            with source.InputSource.create(git.root) as isrc:
-                self.assertIsInstance(isrc, source.LocalGit)
-                self.assertEqual(isrc.source, git.root)
-                self.assertEqual(isrc.repo.working_dir, git.root)
-                self.assertFalse(isrc.copy)
-                self.assertEqual(isrc.orig_path, git.root)
 
-            with source.InputSource.create("file:" + git.root) as isrc:
-                self.assertIsInstance(isrc, source.LocalGit)
-                self.assertEqual(isrc.source, "file:" + git.root)
-                self.assertEqual(isrc.repo.working_dir, git.root)
-                self.assertFalse(isrc.copy)
-                self.assertEqual(isrc.orig_path, git.root)
-                # src = isrc.detect_source(MockBuilder("sid"))
-                # self.assertIsInstance(src, debian.DebianSourceDir)
+class TestLocalGit(GitFixtureMixin, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.git.add("testfile")
+        cls.git.commit("Initial")
+
+        # Debian branch
+        cls.git.git("checkout", "-b", "branch1")
+        cls.git.add("test-branch1")
+        cls.git.commit()
+
+        # New changes to upstream branch
+        cls.git.git("checkout", "main")
+        cls.git.add("test-main")
+        cls.git.commit()
+
+    def test_create_path(self):
+        with source.InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, source.LocalGit)
+            self.assertEqual(isrc.source, self.git.root)
+            self.assertEqual(isrc.repo.working_dir, self.git.root)
+            self.assertFalse(isrc.copy)
+            self.assertEqual(isrc.orig_path, self.git.root)
+
+    def test_create_file_url(self):
+        with source.InputSource.create("file:" + self.git.root) as isrc:
+            self.assertIsInstance(isrc, source.LocalGit)
+            self.assertEqual(isrc.source, "file:" + self.git.root)
+            self.assertEqual(isrc.repo.working_dir, self.git.root)
+            self.assertFalse(isrc.copy)
+            self.assertEqual(isrc.orig_path, self.git.root)
+
+    def test_clone(self):
+        with source.InputSource.create(self.git.root) as isrc:
+            clone = isrc.clone()
+            self.assertIsInstance(clone, source.LocalGit)
+            self.assertNotEqual(clone.repo.working_dir, self.git.root)
+            self.assertTrue(clone.copy)
+            self.assertEqual(isrc.orig_path, self.git.root)
+            self.assertEqual(isrc.repo.active_branch.name, "main")
+            self.assertEqual(clone.repo.active_branch.name, "main")
+            self.assertTrue(os.path.exists(clone.repo.working_dir))
+
+        self.assertTrue(os.path.exists(isrc.repo.working_dir))
+        self.assertFalse(os.path.exists(clone.repo.working_dir))
+
+    def test_clone_branch(self):
+        with source.InputSource.create(self.git.root) as isrc:
+            clone = isrc.clone("branch1").branch("branch1")
+            self.assertIsInstance(clone, source.LocalGit)
+            self.assertNotEqual(clone.repo.working_dir, self.git.root)
+            self.assertTrue(clone.copy)
+            self.assertEqual(isrc.orig_path, self.git.root)
+            self.assertEqual(isrc.repo.active_branch.name, "main")
+            self.assertEqual(clone.repo.active_branch.name, "branch1")
+            self.assertTrue(os.path.exists(clone.repo.working_dir))
+
+        self.assertTrue(os.path.exists(isrc.repo.working_dir))
+        self.assertFalse(os.path.exists(clone.repo.working_dir))
+
+    def test_branch(self):
+        with source.InputSource.create(self.git.root) as isrc:
+            clone = isrc.branch("branch1")
+            self.assertIsInstance(clone, source.LocalGit)
+            self.assertNotEqual(clone.repo.working_dir, self.git.root)
+            self.assertTrue(clone.copy)
+            self.assertEqual(isrc.orig_path, self.git.root)
+            self.assertEqual(isrc.repo.active_branch.name, "main")
+            self.assertEqual(clone.repo.active_branch.name, "branch1")
+            self.assertTrue(os.path.exists(clone.repo.working_dir))
+
+        self.assertTrue(os.path.exists(isrc.repo.working_dir))
+        self.assertFalse(os.path.exists(clone.repo.working_dir))
+
+
+class TestURL(GitFixtureMixin, unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.git.add("testfile")
+        cls.git.commit("Initial")
+
+        # Debian branch
+        cls.git.git("checkout", "-b", "branch1")
+        cls.git.add("test-branch1")
+        cls.git.commit()
+
+        # New changes to upstream branch
+        cls.git.git("checkout", "main")
+        cls.git.add("test-main")
+        cls.git.commit()
+
+    def test_url(self):
+        with self.git.serve() as url:
+            with source.InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, source.URL)
+                self.assertEqual(isrc.source, url)
+                self.assertEqual(isrc.parsed.scheme, "http")
+                self.assertEqual(isrc.parsed.path, "/.git")
 
                 clone = isrc.clone()
                 self.assertIsInstance(clone, source.LocalGit)
-                self.assertNotEqual(clone.repo.working_dir, git.root)
-                self.assertTrue(clone.copy)
-                self.assertEqual(isrc.orig_path, git.root)
+                self.assertEqual(clone.repo.active_branch.name, "main")
+                self.assertIsNone(clone.orig_path)
 
-            self.assertTrue(os.path.exists(isrc.repo.working_dir))
-            self.assertFalse(os.path.exists(clone.repo.working_dir))
-
-    def test_url(self):
-        url = "http://localhost/test"
-
-        with source.InputSource.create(url) as isrc:
-            self.assertIsInstance(isrc, source.URL)
-            self.assertEqual(isrc.source, url)
-            self.assertEqual(isrc.parsed.scheme, "http")
-            self.assertEqual(isrc.parsed.path, "/test")
-            # with self.assertRaises(Fail):
-            #     isrc.detect_source(MockBuilder("sid"))
+                clone = isrc.clone("branch1")
+                self.assertIsInstance(clone, source.LocalGit)
+                self.assertEqual(clone.repo.active_branch.name, "branch1")
+                self.assertIsNone(clone.orig_path)
