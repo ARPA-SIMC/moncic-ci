@@ -46,7 +46,7 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
         with source.InputSource.create(self.pkg_root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
-            build = src.make_build()
+            build = src.make_build(distro=SID)
             with make_moncic().session():
                 with MockBuilder("sid", build) as builder:
                     with builder.container() as container:
@@ -105,7 +105,7 @@ class DebianPlainGitMixin(GitFixtureMixin):
         with source.InputSource.create(self.git.root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
-            build = src.make_build()
+            build = src.make_build(distro=SID)
             with make_moncic().session():
                 with MockBuilder("sid", build) as builder:
                     with builder.container() as container:
@@ -176,7 +176,7 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
         with source.InputSource.create(self.git.root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
-            build = src.make_build()
+            build = src.make_build(distro=SID)
             with make_moncic().session():
                 with MockBuilder("sid", build) as builder:
                     with builder.container() as container:
@@ -241,7 +241,7 @@ debian-branch=debian/unstable
             src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianGBPRelease)
             self.assertEqual(src.get_build_class().__name__, "Debian")
-            build = src.make_build()
+            build = src.make_build(distro=SID)
             self.assertTrue(os.path.isdir(build.source.host_path))
             with make_moncic().session():
                 with MockBuilder("sid", build) as builder:
@@ -311,7 +311,7 @@ debian-branch=debian/unstable
         with source.InputSource.create(self.git.root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
-            build = src.make_build()
+            build = src.make_build(distro=SID)
             with make_moncic().session():
                 with MockBuilder("sid", build) as builder:
                     with builder.container() as container:
@@ -355,7 +355,7 @@ Files:
         with source.InputSource.create(self.dsc_file) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
-            build = src.make_build()
+            build = src.make_build(distro=SID)
             with make_moncic().session():
                 with MockBuilder("sid", build) as builder:
                     with builder.container() as container:
@@ -367,7 +367,7 @@ Files:
                         ])
 
 
-class TesttARPA(GitFixtureMixin, unittest.TestCase):
+class TestARPA(GitFixtureMixin, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -379,6 +379,7 @@ class TesttARPA(GitFixtureMixin, unittest.TestCase):
         cls.git.add(".travis.yml", """
 foo foo simc/stable bar bar
 """)
+        cls.git.add("fedora/SPECS/test.spec")
         cls.git.commit()
 
     def test_detect_local(self):
@@ -406,7 +407,7 @@ foo foo simc/stable bar bar
         with source.InputSource.create(path) as isrc:
             src = isrc.detect_source(ROCKY9)
             self.assertEqual(src.get_build_class().__name__, "ARPA")
-            build = src.make_build()
+            build = src.make_build(distro=ROCKY9)
             self.assertTrue(os.path.isdir(build.source.host_path))
             with make_moncic().session():
                 with MockBuilder("rocky9", build) as builder:
