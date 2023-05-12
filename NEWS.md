@@ -1,4 +1,4 @@
-# Version UNRELEASED
+# Version 0.8
 
 * Support a variety of [source styles](doc/source-styles.md). See also
   [Building Debian Packages](doc/build-debian.md) (#63, #64)
@@ -38,6 +38,7 @@
   CI builds](doc/build-config.md)
 * Always print JSON build results even if the build failed
 * Added [post-build actions](doc/post-build.actions.md) (#85)
+* Added Rocky Linux 9, Fedora 37, Fedora 38 to supported builds
 
 # Version 0.7
 

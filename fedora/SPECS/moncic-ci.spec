@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.7
+Version:        0.8
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -17,11 +17,13 @@ BuildRequires:  python3
 BuildRequires:  python3-setuptools
 BuildRequires:  python3-devel
 BuildRequires:  python3-yaml
+BuildRequires:  python3-ruamel-yaml
 BuildRequires:  python3-tblib
 BuildRequires:  python3-GitPython
 
 Requires:       python3
 Requires:       python3-yaml
+Requires:       python3-ruamel-yaml
 Requires:       btrfs-progs
 Requires:       systemd-container
 Requires:       python3-GitPython
@@ -63,6 +65,47 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Wed May 10 2023 Daniele Branchini <dbranchini@arpae.it> - 0.8-1
+- Support a variety of [source styles](doc/source-styles.md). See also
+  [Building Debian Packages](doc/build-debian.md) (#63, #64)
+- Support options specific to different [build styles](doc/build-styles.md)
+- `ci --build-style` is replaced by `ci --source-type`, and it is autodetected
+  by default
+- Fixed a typo that broke DebianPlain builds
+- Allow relative paths in `ci --artifacts`
+- Reuse an existing tarball if one is found above the source directory, or in
+  the artifacts directory (#48)
+- Save a build log among output artifacts (#67)
+- Added `ci --source-only` to do source-only builds
+- Changes in `monci ci` command line: `-s` is now short for `--build-style`,
+  and the system name is given as first argument (#73)
+- Added experimental `monci analyze` that runs consistency checks on source
+  directories
+- Implemented `monci remove --purge` to also remove the config file (#74)
+- Implemented `monci image [name] distro` to create a new image (#74)
+- Implemented `monci image [name] extends` to create a new image (#74)
+- Implemented `monci image [name] setup` to add a maintscript line to an image (#74)
+- Implemented `monci image [name] edit` to edit an image's config file (#74)
+- Implemented `monci image [name] install [packages...] to add packages to
+  the image's package list
+- Implemented `monci image [name] build-dep` to add build dependencies of a
+  source directory (#76)
+- Implemented `monci image [name] describe` to get a detailed description of
+  how the image has been build (#77)
+- Allow to configure a list of packages in [image configuration](doc/image-config.md)
+  instead of manually invoking the package manager in the maintscript
+- Propagate options to subcommands, so they can be used anywhere in the command
+  line
+- Try out easier to type machine names (#78)
+- Set hostname of containers to the machine name
+- `monci images` does not require root to run
+- Create the `--artifacts` directory if it does not exist
+- Allow to use a YAML file to customize the build. See [YAML configuration for
+  CI builds](doc/build-config.md)
+- Always print JSON build results even if the build failed
+- Added [post-build actions](doc/post-build.actions.md) (#85)
+- Added Rocky Linux 9, Fedora 37 and Fedora 38 to supported builds
+
 * Fri Sep  2 2022 Daniele Branchini <dbranchini@arpae.it> - 0.7-1
 - Removed support for a btrfs filesystem in a file (#41)
 - Prototype `Builder` for building Debian packages (#47)
