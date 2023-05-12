@@ -31,9 +31,9 @@ class RPM(Build):
 
     def __post_init__(self):
         from ..distro.rpm import DnfDistro, YumDistro
-        if isinstance(self.system.distro, YumDistro):
+        if isinstance(self.distro, YumDistro):
             self.builddep = ["yum-builddep"]
-        elif isinstance(self.system.distro, DnfDistro):
+        elif isinstance(self.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {self.system.distro.name}")

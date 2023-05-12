@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Generator, Optional, Type
 
 import yaml
 
+from ..distro import Distro
 from ..exceptions import Fail
 from ..source import Source
 from ..utils.guest import guest_only, host_only
@@ -24,6 +25,8 @@ class Build:
     """
     # Path to source to be built
     source: Source
+    # Distribution on which to build
+    distro: Distro
     # Package name (optional when not yet set)
     name: Optional[str] = None
     # True if the build was successful
@@ -150,8 +153,8 @@ class Build:
         Return a list of all available build classes, including intermediate
         classes in class hierarchies
         """
+        from .arpa import ARPA, RPM
         from .debian import Debian
-        from .arpa import RPM, ARPA
         return [
             Build,
             Debian,

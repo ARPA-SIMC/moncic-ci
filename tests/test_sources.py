@@ -5,10 +5,10 @@ import unittest
 
 from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
-from moncic.source import debian, rpm, source, WorkdirFixtureMixin, GitFixtureMixin
+from moncic.source import debian, rpm, source
 from moncic.unittest import make_moncic
 
-from .source import MockBuilder
+from .source import MockBuilder, WorkdirFixtureMixin, GitFixtureMixin
 
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")

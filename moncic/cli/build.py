@@ -7,6 +7,7 @@ import os
 import sys
 
 from ..build import Analyzer, Builder
+from ..distro import Distro
 from ..source.source import InputSource
 from .base import Command
 from .moncic import SourceCommand, main_command
@@ -71,7 +72,7 @@ class CI(SourceCommand):
                     log.info("Source type: %s", source.NAME)
 
                     # Create a Build object with system-configured defaults
-                    build = source.make_build(**build_kwargs_system)
+                    build = source.make_build(distro=system.distro, **build_kwargs_system)
 
                     # Load YAML configuration for the build
                     if self.args.build_config:
@@ -101,6 +102,8 @@ class CI(SourceCommand):
                                     return dataclasses.asdict(obj)
                                 elif isinstance(obj, InputSource):
                                     return obj.source
+                                elif isinstance(obj, Distro):
+                                    return obj.name
                                 else:
                                     return super().default(obj)
                         json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
