@@ -37,7 +37,7 @@ class RPM(Build):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {self.system.distro.name}")
-        self.specfile = self.locate_specfile(self.source)
+        self.specfile = self.locate_specfile(self.source.host_path)
         self.name = os.path.basename(self.specfile)[:-5]
 
     def locate_specfile(self, srcdir: str) -> str:
