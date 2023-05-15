@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.9
+Version:        0.10
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -71,6 +71,10 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon May 15 2023 Daniele Branchini <dbranchini@arpae.it> - 0.10-1
+- Removed reference to ARPA.system property (#92)
+- Added check section to spec (#93)
+
 * Mon May 15 2023 Daniele Branchini <dbranchini@arpae.it> - 0.9-1
 - Fixed builds on RPM distros (#91)
 

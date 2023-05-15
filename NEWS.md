@@ -1,3 +1,7 @@
+# Version 0.10
+
+* Removed reference to ARPA.system property (#92)
+
 # Version 0.9
 
 * Fixed builds on RPM distros (#91)
