@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.8
+Version:        0.9
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -65,6 +65,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon May 15 2023 Daniele Branchini <dbranchini@arpae.it> - 0.9-1
+- Fixed builds on RPM distros (#91)
+
 * Wed May 10 2023 Daniele Branchini <dbranchini@arpae.it> - 0.8-1
 - Support a variety of [source styles](doc/source-styles.md). See also
   [Building Debian Packages](doc/build-debian.md) (#63, #64)

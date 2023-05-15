@@ -1,3 +1,7 @@
+# Version 0.9
+
+* Fixed builds on RPM distros (#91)
+
 # Version 0.8
 
 * Support a variety of [source styles](doc/source-styles.md). See also
