@@ -9,6 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 
+from .. import context
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
@@ -120,7 +121,7 @@ class ARPA(RPM):
                     for fn in fnames:
                         shutil.copy(os.path.join(root, fn), "/root/rpmbuild/SOURCES/")
             with open(f"/root/rpmbuild/SOURCES/{pkgname}.tar", "wb") as fd:
-                with self.system.images.session.moncic.privs.user():
+                with context.moncic.get().privs.user():
                     run(["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD"],
                         stdout=fd)
             run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
