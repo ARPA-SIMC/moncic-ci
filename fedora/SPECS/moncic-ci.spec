@@ -21,6 +21,10 @@ BuildRequires:  python3-ruamel-yaml
 BuildRequires:  python3-tblib
 BuildRequires:  python3-GitPython
 
+# for tests
+BuildRequires:  systemd-container
+BuildRequires:  btrfs-progs
+
 Requires:       python3
 Requires:       python3-yaml
 Requires:       python3-ruamel-yaml
@@ -59,6 +63,8 @@ as you would run it on your normal system, keeping iteration lags low.
 [ "%{buildroot}" != / ] && rm -rf "%{buildroot}"
 %py3_install
 
+%check
+%pytest
 
 %files
 %{_bindir}/monci
