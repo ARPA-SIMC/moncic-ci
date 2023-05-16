@@ -365,16 +365,17 @@ class ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """
-        if path == MACHINECTL_PATH:
-            if is_btrfs(path):
-                return BtrfsMachineImageStorage(session)
+        if os.path.isdir(path):
+            if path == MACHINECTL_PATH:
+                if is_btrfs(path):
+                    return BtrfsMachineImageStorage(session)
+                else:
+                    return PlainMachineImageStorage(session)
             else:
-                return PlainMachineImageStorage(session)
-        elif os.path.isdir(path):
-            if is_btrfs(path):
-                return BtrfsImageStorage(session, path)
-            else:
-                return PlainImageStorage(session, path)
+                if is_btrfs(path):
+                    return BtrfsImageStorage(session, path)
+                else:
+                    return PlainImageStorage(session, path)
         else:
             raise RuntimeError(f"images path {path!r} does not point to a directory")
 
