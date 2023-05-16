@@ -26,6 +26,7 @@ BuildRequires:  python3-pytest
 BuildRequires:  python3-requests
 BuildRequires:  systemd-container
 BuildRequires:  btrfs-progs
+BuildRequires:  dnf
 
 Requires:       python3
 Requires:       python3-yaml
