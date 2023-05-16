@@ -22,6 +22,7 @@ BuildRequires:  python3-tblib
 BuildRequires:  python3-GitPython
 
 # for tests
+BuildRequires:  python3-pytest
 BuildRequires:  systemd-container
 BuildRequires:  btrfs-progs
 
