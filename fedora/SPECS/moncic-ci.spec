@@ -1,4 +1,4 @@
-%global releaseno 1
+%global releaseno 2
 # Note: define _srcarchivename in Travis build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
@@ -73,6 +73,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Tue May 16 2023 Daniele Branchini <dbranchini@arpae.it> - 0.10-2
+- Deal with a missing /var/lib/machines in tests (#95)
+
 * Mon May 15 2023 Daniele Branchini <dbranchini@arpae.it> - 0.10-1
 - Removed reference to ARPA.system property (#92)
 - Added check section to spec (#93)

@@ -1,6 +1,7 @@
 # Version 0.10
 
 * Removed reference to ARPA.system property (#92)
+* Deal with a missing /var/lib/machines in tests (#95)
 
 # Version 0.9
 
