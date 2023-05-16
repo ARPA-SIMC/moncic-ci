@@ -18,13 +18,13 @@ class BootstrapTestMixin(DistroTestMixin):
             with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("distro: fedora34", file=fd)
 
-            with self.mock() as run_log:
-                moncic = make_moncic(mconfig)
-                with moncic.session() as session:
-                    images = session.images
-                    images.bootstrap_system("test")
-                    with images.system("test") as system:
-                        path = system.path
+            with (self.mock() as run_log,
+                    make_moncic(mconfig) as moncic,
+                    moncic.session() as session):
+                images = session.images
+                images.bootstrap_system("test")
+                with images.system("test") as system:
+                    path = system.path
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')
@@ -39,12 +39,12 @@ class BootstrapTestMixin(DistroTestMixin):
                 print("distro: fedora34", file=fd)
                 print(f"forward_user: {user.user_name}", file=fd)
 
-            with self.mock() as run_log:
-                moncic = make_moncic(mconfig)
-                with moncic.session() as session:
-                    images = session.images
-                    with images.maintenance_system("test") as system:
-                        system.update()
+            with (self.mock() as run_log,
+                    make_moncic(mconfig) as moncic,
+                    moncic.session() as session):
+                images = session.images
+                with images.maintenance_system("test") as system:
+                    system.update()
 
         run_log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
         run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
@@ -63,13 +63,13 @@ class BootstrapTestMixin(DistroTestMixin):
             with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
                 print("extends: rocky8", file=fd)
 
-            with self.mock() as run_log:
-                moncic = make_moncic(mconfig)
-                with moncic.session() as session:
-                    images = session.images
-                    images.bootstrap_system("test")
-                    with images.system("test") as system:
-                        path = system.path
+            with (self.mock() as run_log,
+                    make_moncic(mconfig) as moncic,
+                    moncic.session() as session):
+                images = session.images
+                images.bootstrap_system("test")
+                with images.system("test") as system:
+                    path = system.path
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume snapshot {parent_dir} {path}.new')
@@ -92,13 +92,13 @@ class BootstrapTestMixin(DistroTestMixin):
                 print("maintscript: echo test", file=fd)
             os.mkdir(test_dir)
 
-            with self.mock() as run_log:
-                moncic = make_moncic(mconfig)
-                with moncic.session() as session:
-                    images = session.images
-                    with images.maintenance_system("test") as system:
-                        system.update()
-                        path = system.path[:-4]
+            with (self.mock() as run_log,
+                    make_moncic(mconfig) as moncic,
+                    moncic.session() as session):
+                images = session.images
+                with images.maintenance_system("test") as system:
+                    system.update()
+                    path = system.path[:-4]
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
@@ -123,13 +123,13 @@ class BootstrapTestMixin(DistroTestMixin):
                 print("maintscript: echo base", file=fd)
             os.mkdir(base_dir)
 
-            with self.mock() as run_log:
-                moncic = make_moncic(mconfig)
-                with moncic.session() as session:
-                    images = session.images
-                    with images.maintenance_system("test") as system:
-                        system.update()
-                        path = system.path[:-4]
+            with (self.mock() as run_log,
+                    make_moncic(mconfig) as moncic,
+                    moncic.session() as session):
+                images = session.images
+                with images.maintenance_system("test") as system:
+                    system.update()
+                    path = system.path[:-4]
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
@@ -153,13 +153,13 @@ class BootstrapTestMixin(DistroTestMixin):
                 print("maintscript: echo base", file=fd)
             os.mkdir(base_dir)
 
-            with self.mock() as run_log:
-                moncic = make_moncic(mconfig)
-                with moncic.session() as session:
-                    images = session.images
-                    with images.maintenance_system("test") as system:
-                        system.update()
-                        path = system.path[:-4]
+            with (self.mock() as run_log,
+                    make_moncic(mconfig) as moncic,
+                    moncic.session() as session):
+                images = session.images
+                with images.maintenance_system("test") as system:
+                    system.update()
+                    path = system.path[:-4]
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume snapshot {path} {path}.new')
@@ -179,13 +179,13 @@ class BootstrapTestMixin(DistroTestMixin):
                 print("distro: fedora34", file=fd)
                 print("compression: zstd:9", file=fd)
 
-            with self.mock() as run_log:
-                moncic = make_moncic(mconfig)
-                with moncic.session() as session:
-                    images = session.images
-                    images.bootstrap_system("test")
-                    with images.system("test") as system:
-                        path = system.path
+            with (self.mock() as run_log,
+                    make_moncic(mconfig) as moncic,
+                    moncic.session() as session):
+                images = session.images
+                images.bootstrap_system("test")
+                with images.system("test") as system:
+                    path = system.path
 
         if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
             run_log.assertPopFirst(f'btrfs -q subvolume create {path}.new')

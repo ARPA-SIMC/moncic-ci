@@ -18,7 +18,7 @@ class TestMaintenance(unittest.TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.cls_exit_stack = contextlib.ExitStack()
-        cls.moncic = make_moncic()
+        cls.moncic = cls.cls_exit_stack.enter_context(make_moncic())
         cls.session = cls.cls_exit_stack.enter_context(cls.moncic.session())
         cls.images = cls.session.images
         cls.test_image_config_file = os.path.join(cls.images.imagedir, test_image_name) + ".yaml"

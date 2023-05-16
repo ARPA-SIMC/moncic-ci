@@ -41,7 +41,8 @@ privs = SudoTestSuite()
 privs.drop()
 
 
-def make_moncic(config: Optional[MoncicConfig] = None):
+@contextlib.contextmanager
+def make_moncic(config: Optional[MoncicConfig] = None) -> Generator[Moncic]:
     """
     Create a Moncic instance configured to work with the test suite.
     """
@@ -51,7 +52,12 @@ def make_moncic(config: Optional[MoncicConfig] = None):
     else:
         config = MoncicConfig.load()
 
-    return Moncic(config=config, privs=privs)
+    if not os.path.isdir(config.imagedir):
+        with tempfile.TemporaryDirectory() as imagedir:
+            config.imagedir = imagedir
+            yield Moncic(config=config, privs=privs)
+    else:
+        yield Moncic(config=config, privs=privs)
 
 
 class MockRunLog:
@@ -263,9 +269,8 @@ class DistroTestMixin:
 
     @contextlib.contextmanager
     def make_images(self, distro: Distro) -> Generator[imagestorage.Images, None, None]:
-        with self.config() as mconfig:
-            moncic = make_moncic(mconfig)
-
+        with (self.config() as mconfig,
+                make_moncic(mconfig) as moncic):
             def _load(mconfig: MoncicConfig, imagedir: str, name: str):
                 return SystemConfig(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
 
