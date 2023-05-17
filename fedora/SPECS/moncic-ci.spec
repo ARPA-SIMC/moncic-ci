@@ -1,4 +1,4 @@
-%global releaseno 2
+%global releaseno 3
 # Note: define _srcarchivename in Travis build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
@@ -74,6 +74,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Wed May 17 2023 Daniele Branchini <dbranchini@arpae.it> - 0.10-3
+- dnf builddep less quiet (#96)
+
 * Tue May 16 2023 Daniele Branchini <dbranchini@arpae.it> - 0.10-2
 - Deal with a missing /var/lib/machines in tests (#95)
 

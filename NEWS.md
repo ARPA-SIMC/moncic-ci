@@ -2,6 +2,7 @@
 
 * Removed reference to ARPA.system property (#92)
 * Deal with a missing /var/lib/machines in tests (#95)
+* dnf builddep less quiet (#96)
 
 # Version 0.9
 
