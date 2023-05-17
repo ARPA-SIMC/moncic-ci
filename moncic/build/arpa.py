@@ -112,7 +112,7 @@ class ARPA(RPM):
             os.makedirs(f"/root/rpmbuild/{name}")
 
         # Install build dependencies
-        run(self.builddep + ["-q", "-y", self.specfile])
+        run(self.builddep + ["-y", self.specfile])
 
         if self.specfile.startswith("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
