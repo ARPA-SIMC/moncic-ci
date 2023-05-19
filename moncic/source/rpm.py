@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Union, Type
 
 from ..exceptions import Fail
-from .source import URL, InputSource, LocalDir, LocalGit, Source, register
+from .inputsource import URL, InputSource, LocalDir, LocalGit
+from .source import Source, register
 
 if TYPE_CHECKING:
     from ..build import Build
@@ -47,7 +48,7 @@ class ARPASource(RPMSource):
         return cls(source, source.path)
 
     @classmethod
-    def create(cls, source: InputSource) -> "ARPASource":
+    def create(cls, distro: Distro, source: InputSource) -> "ARPASource":
         if isinstance(source, (LocalGit, LocalDir)):
             return cls(source, source.path)
         elif isinstance(source, URL):

@@ -33,6 +33,8 @@ class Build:
     success: bool = False
     # List of container paths for artifacts
     artifacts: list[str] = field(default_factory=list)
+    # Commands that can be used to recreate this build
+    trace_log: list[str] = field(default_factory=list)
 
     artifacts_dir: Optional[str] = field(
             default=None,
