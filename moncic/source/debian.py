@@ -321,7 +321,7 @@ class DebianGBPTestUpstream(DebianGBP):
         run(cmd, cwd=source.repo.working_dir)
 
         cmd = ["git", "-c", "user.email=moncic-ci@example.org", "-c",
-               "user.name=Moncic-CI", "merge", str(active_branch), "--quiet", "-m", "CI merge"]
+               "user.name=Moncic-CI", "--quiet", "merge", str(active_branch), "-m", "CI merge"]
         res.add_trace_log(*cmd)
         run(cmd, cwd=source.repo.working_dir)
 
