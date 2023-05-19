@@ -172,3 +172,11 @@ class Build:
         for f in fields(cls):
             if (doc := f.metadata.get("doc")):
                 yield f.name, inspect.cleandoc(doc)
+
+    @host_only
+    def collect_artifacts(self, container: Container, destdir: str):
+        """
+        Look for artifacts created by the build, copy them to ``destdir``, add
+        their names to self.artifacts
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.collect_artifacts not implemented")

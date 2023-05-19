@@ -141,7 +141,7 @@ class ARPA(RPM):
         self.success = True
 
     @host_only
-    def collect_artifacts(self, container: Container, build_info: RPM, destdir: str):
+    def collect_artifacts(self, container: Container, destdir: str):
         container_root = container.get_root()
 
         user = UserConfig.from_sudoer()
@@ -155,4 +155,4 @@ class ARPA(RPM):
                 filename = os.path.basename(file)
                 log.info("Copying %s to %s", filename, destdir)
                 link_or_copy(file, destdir, user=user)
-                build_info.artifacts.append(filename)
+                self.artifacts.append(filename)

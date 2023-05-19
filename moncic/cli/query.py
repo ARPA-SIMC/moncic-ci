@@ -71,7 +71,7 @@ class Images(MoncicCommand):
                             help="machine readable output in CSV format")
         return parser
 
-    def run(self):
+    def run(self) -> None:
         if self.args.csv or not HAVE_TEXTTABLE:
             output = CSVOutput(sys.stdout)
         else:

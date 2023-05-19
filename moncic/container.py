@@ -326,6 +326,9 @@ class Container(ContextManager, Protocol):
     config: ContainerConfig
     # Default to False, set to True to leave the container running on exit
     linger: bool
+    # Name of the running container instance, which can be used to access it
+    # with normal user commands
+    instance_name: str
 
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
         """

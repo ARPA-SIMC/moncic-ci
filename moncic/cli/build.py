@@ -48,7 +48,7 @@ class CI(SourceCommand):
                                  " Default: the current directory")
         return parser
 
-    def run(self):
+    def run(self) -> None:
         # Defaults before loading YAML
         build_kwargs_system: dict[str, str] = {
             "artifacts_dir": self.moncic.config.build_artifacts_dir,
@@ -69,7 +69,7 @@ class CI(SourceCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 with self.source(system.distro, self.args.source) as source:
-                    log.info("Source type: %s", source.NAME)
+                    log.info("Source type: %s", source.get_name())
 
                     # Create a Build object with system-configured defaults
                     build = source.make_build(distro=system.distro, **build_kwargs_system)

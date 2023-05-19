@@ -30,7 +30,7 @@ class Builder(contextlib.ExitStack):
         # System used for the build
         self.system = system
         # Build object that is being built
-        self.build: Optional[build.Build] = build
+        self.build: Build = build
         # User to use for the build
         self.user = UserConfig.from_sudoer()
         # Build log file
@@ -203,6 +203,8 @@ class Builder(contextlib.ExitStack):
         self.build.collect_artifacts(container, destdir)
 
         user = UserConfig.from_sudoer()
+        if self.build.name is None:
+            raise RuntimeError("build name not set")
         build_log_name = self.build.name + ".buildlog"
         if os.path.exists(logfile := os.path.join(container.get_root(), "srv", "moncic-ci", "buildlog")):
             self.log_capture_end()
@@ -218,6 +220,7 @@ class Builder(contextlib.ExitStack):
         Run consistency checks on the given source directory, using all
         available build styles
         """
-        cls.builders["debian"].analyze(analyzer)
-        cls.builders["rpm"].analyze(analyzer)
-        # TODO: check that NEWS.md version matches upstream version
+        raise NotImplementedError("analyze")
+        # cls.builders["debian"].analyze(analyzer)
+        # cls.builders["rpm"].analyze(analyzer)
+        # # TODO: check that NEWS.md version matches upstream version
