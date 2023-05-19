@@ -104,11 +104,11 @@ class DebianGitSource(DebianSource):
             return DebianGBPTestDebian._create_from_repo(distro, source)
 
     @classmethod
-    def create(cls, source: InputSource) -> "DebianGitSource":
+    def create(cls, distro: Distro, source: InputSource) -> "DebianGitSource":
         if isinstance(source, LocalGit):
-            return cls(source.source, source.repo.working_dir)
+            return cls._create_from_repo(distro, source)
         elif isinstance(source, URL):
-            return cls.create(source.clone())
+            return cls._create_from_repo(distro, source.clone())
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
@@ -139,7 +139,9 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
                     source.repo.working_dir)
             source = source.clone()
 
-        return cls(source, source.repo.working_dir)
+        res = cls(source, source.repo.working_dir)
+        res.add_trace_log("git", "clone", "-b", source.repo.active_branch.name, source.source)
+        return res
 
     @host_only
     def gather_sources_from_host(self, build: Build, container: Container) -> None:
@@ -299,18 +301,30 @@ class DebianGBPTestUpstream(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
+        res = cls(source, source.repo.working_dir)
+
         # Make a temporary merge of active_branch on the debian branch
         log.info("merge packaging branch %s for test build", branch)
         active_branch = source.repo.active_branch.name
         if active_branch is None:
             log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
-            run(["git", "checkout", "-b", "moncic-ci"], cwd=source.repo.working_dir)
+            res.add_trace_log("git", "clone", source.source)
+            cmd = ["git", "checkout", source.repo.head.commit.hexsha, "-b", "moncic-ci"]
+            res.add_trace_log(*cmd)
+            run(cmd, cwd=source.repo.working_dir)
             active_branch = "moncic-ci"
-        run(["git", "checkout", "--quiet", branch], cwd=source.repo.working_dir)
-        run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", active_branch, "--quiet", "-m", "CI merge"], cwd=source.repo.working_dir)
+        else:
+            res.add_trace_log("git", "clone", "-b", active_branch, source.source)
 
-        res = cls(source, source.repo.working_dir)
+        cmd = ["git", "checkout", "--quiet", branch]
+        res.add_trace_log(*cmd)
+        run(cmd, cwd=source.repo.working_dir)
+
+        cmd = ["git", "-c", "user.email=moncic-ci@example.org", "-c",
+               "user.name=Moncic-CI", "merge", str(active_branch), "--quiet", "-m", "CI merge"]
+        res.add_trace_log(*cmd)
+        run(cmd, cwd=source.repo.working_dir)
+
         res.gbp_args.append("--git-upstream-tree=branch")
         res.gbp_args.append("--git-upstream-branch=" + active_branch)
         return res
@@ -372,12 +386,16 @@ class DebianGBPTestDebian(DebianGBP):
 
         cls.ensure_local_branch_exists(source.repo, upstream_branch)
 
+        res = cls(source, source.repo.working_dir)
+        res.add_trace_log("git", "clone", "-b", cls.repo.active_branch, source.source)
+
         # Merge the upstream branch into the debian branch
         log.info("merge upstream branch %s into build branch", upstream_branch)
-        run(["git", "-c", "user.email=moncic-ci@example.org", "-c",
-             "user.name=Moncic-CI", "merge", upstream_branch, "--quiet", "-m", "CI merge"], cwd=source.repo.working_dir)
+        cmd = ["git", "-c", "user.email=moncic-ci@example.org", "-c", "user.name=Moncic-CI",
+               "merge", upstream_branch, "--quiet", "-m", "CI merge"]
+        res.add_trace_log(*cmd)
+        run(cmd, cwd=source.repo.working_dir)
 
-        res = cls(source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=branch")
         return res
 
@@ -391,15 +409,15 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
     NAME = "debian-dir"
 
     @classmethod
-    def create(cls, source: InputSource) -> "DebianSourceDir":
+    def create(cls, distro: Distro, source: InputSource) -> "DebianSourceDir":
         if isinstance(source, LocalDir):
-            return cls(source, source.path)
+            return cls._create_from_dir(distro, source)
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
 
     @classmethod
-    def _create_from_dir(cls, source: LocalDir) -> "DebianSourceDir":
+    def _create_from_dir(cls, distro: Distro, source: LocalDir) -> "DebianSourceDir":
         return cls(source, source.path)
 
     @host_only
@@ -439,15 +457,15 @@ class DebianDsc(DebianSource):
     NAME = "debian-dsc"
 
     @classmethod
-    def create(cls, source: InputSource) -> "DebianDsc":
+    def create(cls, distro: Distro, source: InputSource) -> "DebianDsc":
         if isinstance(source, LocalFile):
-            return cls(source, source.path)
+            return cls._create_from_file(distro, source)
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
 
     @classmethod
-    def _create_from_file(cls, source: LocalFile) -> "DebianDsc":
+    def _create_from_file(cls, distro: Distro, source: LocalFile) -> "DebianDsc":
         return cls(source, source.path)
 
     @host_only

@@ -99,7 +99,7 @@ class LocalFile(InputSource):
         if isinstance(distro, DebianDistro):
             if self.source.endswith(".dsc"):
                 from .debian import DebianDsc
-                return DebianDsc._create_from_file(self)
+                return DebianDsc._create_from_file(distro, self)
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:
@@ -126,7 +126,7 @@ class LocalDir(InputSource):
 
         if isinstance(distro, DebianDistro):
             if os.path.isdir(os.path.join(self.path, "debian")):
-                return DebianSourceDir._create_from_dir(self)
+                return DebianSourceDir._create_from_dir(distro, self)
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:

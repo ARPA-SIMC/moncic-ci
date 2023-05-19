@@ -48,7 +48,7 @@ class ARPASource(RPMSource):
         return cls(source, source.path)
 
     @classmethod
-    def create(cls, source: InputSource) -> "ARPASource":
+    def create(cls, distro: Distro, source: InputSource) -> "ARPASource":
         if isinstance(source, (LocalGit, LocalDir)):
             return cls(source, source.path)
         elif isinstance(source, URL):
