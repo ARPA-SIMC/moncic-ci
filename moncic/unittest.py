@@ -42,7 +42,7 @@ privs.drop()
 
 
 @contextlib.contextmanager
-def make_moncic(config: Optional[MoncicConfig] = None) -> Generator[Moncic]:
+def make_moncic(config: Optional[MoncicConfig] = None) -> Generator[Moncic, None, None]:
     """
     Create a Moncic instance configured to work with the test suite.
     """

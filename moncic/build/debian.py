@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import importlib.resources
+# import importlib.resources
 import logging
 import os
-import shutil
+# import shutil
 import subprocess
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, NamedTuple, Optional
@@ -96,26 +96,27 @@ class Debian(Build):
                     space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE
                     """})
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # This is only set in guest systems, and after self.build_source() has
         # been called
         self.srcinfo: Optional[SourceInfo] = None
 
-    @host_only
-    def get_build_deps(self) -> list[str]:
-        with self.container() as container:
-            # Inject a perl script that uses libdpkg-perl to compute the dependency list
-            with importlib.resources.open_binary("moncic.build", "debian-dpkg-listbuilddeps") as fdin:
-                with open(os.path.join(container.get_root(), "srv", "moncic-ci", "dpkg-listbuilddeps"), "wb") as fdout:
-                    shutil.copyfileobj(fdin, fdout)
-                    os.fchmod(fdout.fileno(), 0o755)
+    # @host_only
+    # def get_build_deps(self) -> list[str]:
+    #     with self.container() as container:
+    #         # Inject a perl script that uses libdpkg-perl to compute the dependency list
+    #         with importlib.resources.open_binary("moncic.build", "debian-dpkg-listbuilddeps") as fdin:
+    #             with open(
+    #                     os.path.join(container.get_root(), "srv", "moncic-ci", "dpkg-listbuilddeps"), "wb") as fdout:
+    #                 shutil.copyfileobj(fdin, fdout)
+    #                 os.fchmod(fdout.fileno(), 0o755)
 
-            # Build run config
-            run_config = container.config.run_config()
+    #         # Build run config
+    #         run_config = container.config.run_config()
 
-            return container.run_callable(
-                    self.get_build_deps_in_container,
-                    run_config).result()
+    #         return container.run_callable(
+    #                 self.get_build_deps_in_container,
+    #                 run_config).result()
 
     @guest_only
     def get_build_deps_in_container(self):
@@ -147,6 +148,9 @@ class Debian(Build):
         with context.moncic.get().privs.user():
             self.srcinfo = get_source_info(self.source.guest_path)
             dsc_fname = self.source.build_source_package()
+
+        if self.srcinfo is None:
+            raise RuntimeError("source information has not been detected")
 
         self.name = self.srcinfo.srcname
 

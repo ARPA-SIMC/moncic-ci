@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from typing import TYPE_CHECKING, Iterable, NamedTuple, Optional, Type
+from typing import TYPE_CHECKING, Iterable, List, NamedTuple, Optional, Type
 
 from ..utils.osrelease import parse_osrelase
 
@@ -126,7 +126,7 @@ class DistroFamily:
         """
         raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
 
-    def list_distros(self) -> list[DistroInfo]:
+    def list_distros(self) -> List[DistroInfo]:
         """
         Return a list of distros available in this family
         """

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from configparser import ConfigParser
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Sequence, Type
 
 import git
@@ -49,7 +50,7 @@ class DebianDirMixin(Source):
         """
         Find the Debian tarball and copy it to the source directory in the container
         """
-        tarball_search_dirs = []
+        tarball_search_dirs: list[str] = []
         tarball_search_dirs.extend(search_dirs)
         if (artifacts_dir := build.artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
@@ -89,11 +90,14 @@ class DebianGitSource(DebianSource):
 
     @classmethod
     def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
-        if not os.path.isdir(os.path.join(source.repo.working_dir, "debian")):
+        if source.repo.working_dir is None:
+            raise RuntimeError(f"{source} has no working directory")
+        debian_path = Path(source.repo.working_dir) / "debian"
+        if not debian_path.is_dir():
             # There is no debian/directory, the current branch is upstream
             return DebianGBPTestUpstream._create_from_repo(distro, source)
 
-        if not os.path.exists(os.path.join(source.repo.working_dir, "debian", "gbp.conf")):
+        if not (debian_path / "gbp.conf").exists():
             return DebianPlainGit._create_from_repo(distro, source)
 
         if source.repo.head.commit.hexsha in [t.commit.hexsha for t in source.repo.tags]:
@@ -139,6 +143,9 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
                     source.repo.working_dir)
             source = source.clone()
 
+        if source.repo.working_dir is None:
+            raise RuntimeError(f"{source} repository has no working directory")
+
         res = cls(source, source.repo.working_dir)
         res.add_trace_log("git", "clone", "-b", source.repo.active_branch.name, source.source)
         return res
@@ -165,6 +172,8 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
 
         This function is run from a clean source directory
         """
+        if self.tarball_filename is None:
+            raise RuntimeError("tarball file not found")
         source_dir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
         source_stat = os.stat(source_dir)
         dest_tarball = os.path.join(source_dir, self.tarball_filename)

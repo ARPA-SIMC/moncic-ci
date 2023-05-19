@@ -49,15 +49,15 @@ class RPM(Build):
         """
         raise NotImplementedError(f"{self.__class__.__name__}.locate_specfile() is not implemented")
 
-    @host_only
-    def get_build_deps(self) -> list[str]:
-        with self.container() as container:
-            # Build run config
-            run_config = container.config.run_config()
+    # @host_only
+    # def get_build_deps(self) -> list[str]:
+    #     with self.container() as container:
+    #         # Build run config
+    #         run_config = container.config.run_config()
 
-            return container.run_callable(
-                    self.get_build_deps_in_container,
-                    run_config).result()
+    #         return container.run_callable(
+    #                 self.get_build_deps_in_container,
+    #                 run_config).result()
 
     @guest_only
     def get_build_deps_in_container(self) -> list[str]:
@@ -106,6 +106,8 @@ class ARPA(RPM):
 
     @guest_only
     def build(self) -> None:
+        if self.specfile is None:
+            raise RuntimeError("specfile location has not been detected")
         pkgname = os.path.basename(self.specfile)[:-5]
 
         for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"):

@@ -198,7 +198,7 @@ class DebianDistro(Distro):
             if (mo := re_inst.match(line)):
                 base.add(mo.group(1))
 
-        result = defaultdict(dict)
+        result: dict[str, dict[str, str]] = defaultdict(dict)
 
         # Get a list of packages that would be installed when the given package
         # list is installed
