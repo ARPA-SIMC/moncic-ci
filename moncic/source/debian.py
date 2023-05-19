@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from configparser import ConfigParser
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional, Sequence, Type, cast
+from typing import TYPE_CHECKING, Optional, Sequence, Type
 
 import git
 
@@ -219,26 +219,6 @@ class DebianGBP(DebianGitSource):
         cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
         return cfg.get("DEFAULT", "upstream-branch", fallback=None)
 
-    @classmethod
-    def ensure_local_branch_exists(cls, repo: git.Repo, branch: str):
-        """
-        Make sure the upstream branch exists as a local branch.
-
-        Cloning a repository only creates one local branch for the active
-        branch, and all other branches remain as origin/*
-
-        This methods creates a local branch for the given origin/ branch
-        """
-        # Make a local branch for the upstream branch in gbp.conf, if it
-        # does not already exist
-
-        # Not sure how to fit the type of gitrepo.branches here, but it behaves
-        # like a list of strings
-        if branch not in cast(list[str], repo.branches):
-            remote = repo.remotes["origin"]
-            remote_branch = remote.refs[branch]
-            repo.create_head(branch, remote_branch)
-
     @guest_only
     def build_source_package(self) -> str:
         """
@@ -384,10 +364,8 @@ class DebianGBPTestDebian(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
-        cls.ensure_local_branch_exists(source.repo, upstream_branch)
-
         res = cls(source, source.repo.working_dir)
-        res.add_trace_log("git", "clone", "-b", cls.repo.active_branch, source.source)
+        res.add_trace_log("git", "clone", "-b", str(source.repo.active_branch), source.source)
 
         # Merge the upstream branch into the debian branch
         log.info("merge upstream branch %s into build branch", upstream_branch)

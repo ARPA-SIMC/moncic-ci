@@ -36,7 +36,20 @@ def _git_clone(stack: contextlib.ExitStack, repository: str, branch: Optional[st
     names = os.listdir(workdir)
     if len(names) != 1:
         raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
-    return os.path.join(workdir, names[0])
+
+    repo_path = os.path.join(workdir, names[0])
+
+    # Recreate remote branches
+    repo = git.Repo(repo_path)
+    for ref in repo.remote().refs:
+        name = ref.remote_head
+        if name == "HEAD":
+            continue
+        if name in repo.refs:
+            continue
+        repo.create_head(name, ref)
+
+    return repo_path
 
 
 class InputSource(contextlib.ExitStack):
