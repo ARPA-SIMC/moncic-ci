@@ -8,7 +8,7 @@ import sys
 
 from ..build import Analyzer, Builder
 from ..distro import Distro
-from ..source.source import InputSource
+from ..source import InputSource
 from .base import Command
 from .moncic import SourceCommand, main_command
 from .utils import BuildOptionAction

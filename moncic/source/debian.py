@@ -17,8 +17,8 @@ from ..build.utils import link_or_copy
 from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
 from ..utils.run import log_run, run
-from .source import (URL, InputSource, LocalDir, LocalFile, LocalGit, Source,
-                     register)
+from .inputsource import URL, InputSource, LocalDir, LocalFile, LocalGit
+from .source import Source, register
 
 if TYPE_CHECKING:
     from ..build import Build

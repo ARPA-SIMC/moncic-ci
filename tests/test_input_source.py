@@ -6,7 +6,7 @@ import unittest
 
 from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
-from moncic.source import debian, source
+from moncic.source import debian, inputsource, InputSource
 
 from .source import GitFixtureMixin
 
@@ -21,15 +21,15 @@ class TestInputSource(unittest.TestCase):
             with open(random_file, "wt"):
                 pass
 
-            with source.InputSource.create(random_file) as isrc:
-                self.assertIsInstance(isrc, source.LocalFile)
+            with InputSource.create(random_file) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalFile)
                 self.assertEqual(isrc.source, random_file)
                 self.assertEqual(isrc.path, random_file)
                 with self.assertRaises(Fail):
                     isrc.detect_source(SID)
 
-            with source.InputSource.create("file:" + random_file) as isrc:
-                self.assertIsInstance(isrc, source.LocalFile)
+            with InputSource.create("file:" + random_file) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalFile)
                 self.assertEqual(isrc.source, "file:" + random_file)
                 self.assertEqual(isrc.path, random_file)
                 with self.assertRaises(Fail):
@@ -41,8 +41,8 @@ class TestInputSource(unittest.TestCase):
             with open(dsc_file, "wt"):
                 pass
 
-            with source.InputSource.create(dsc_file) as isrc:
-                self.assertIsInstance(isrc, source.LocalFile)
+            with InputSource.create(dsc_file) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalFile)
                 self.assertEqual(isrc.source, dsc_file)
                 self.assertEqual(isrc.path, dsc_file)
                 src = isrc.detect_source(SID)
@@ -50,8 +50,8 @@ class TestInputSource(unittest.TestCase):
                 with self.assertRaises(Fail):
                     isrc.detect_source(ROCKY9)
 
-            with source.InputSource.create("file:" + dsc_file) as isrc:
-                self.assertIsInstance(isrc, source.LocalFile)
+            with InputSource.create("file:" + dsc_file) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalFile)
                 self.assertEqual(isrc.source, "file:" + dsc_file)
                 self.assertEqual(isrc.path, dsc_file)
                 src = isrc.detect_source(SID)
@@ -61,15 +61,15 @@ class TestInputSource(unittest.TestCase):
 
     def test_random_dir(self):
         with tempfile.TemporaryDirectory() as workdir:
-            with source.InputSource.create(workdir) as isrc:
-                self.assertIsInstance(isrc, source.LocalDir)
+            with InputSource.create(workdir) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalDir)
                 self.assertEqual(isrc.source, workdir)
                 self.assertEqual(isrc.path, workdir)
                 with self.assertRaises(Fail):
                     isrc.detect_source(SID)
 
-            with source.InputSource.create("file:" + workdir) as isrc:
-                self.assertIsInstance(isrc, source.LocalDir)
+            with InputSource.create("file:" + workdir) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalDir)
                 self.assertEqual(isrc.source, "file:" + workdir)
                 self.assertEqual(isrc.path, workdir)
                 with self.assertRaises(Fail):
@@ -79,8 +79,8 @@ class TestInputSource(unittest.TestCase):
         with tempfile.TemporaryDirectory() as workdir:
             os.mkdir(os.path.join(workdir, "debian"))
 
-            with source.InputSource.create(workdir) as isrc:
-                self.assertIsInstance(isrc, source.LocalDir)
+            with InputSource.create(workdir) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalDir)
                 self.assertEqual(isrc.source, workdir)
                 self.assertEqual(isrc.path, workdir)
                 src = isrc.detect_source(SID)
@@ -88,8 +88,8 @@ class TestInputSource(unittest.TestCase):
                 with self.assertRaises(Fail):
                     isrc.detect_source(ROCKY9)
 
-            with source.InputSource.create("file:" + workdir) as isrc:
-                self.assertIsInstance(isrc, source.LocalDir)
+            with InputSource.create("file:" + workdir) as isrc:
+                self.assertIsInstance(isrc, inputsource.LocalDir)
                 self.assertEqual(isrc.source, "file:" + workdir)
                 self.assertEqual(isrc.path, workdir)
                 src = isrc.detect_source(SID)
@@ -116,25 +116,25 @@ class TestLocalGit(GitFixtureMixin, unittest.TestCase):
         cls.git.commit()
 
     def test_create_path(self):
-        with source.InputSource.create(self.git.root) as isrc:
-            self.assertIsInstance(isrc, source.LocalGit)
+        with InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalGit)
             self.assertEqual(isrc.source, self.git.root)
             self.assertEqual(isrc.repo.working_dir, self.git.root)
             self.assertFalse(isrc.copy)
             self.assertEqual(isrc.orig_path, self.git.root)
 
     def test_create_file_url(self):
-        with source.InputSource.create("file:" + self.git.root) as isrc:
-            self.assertIsInstance(isrc, source.LocalGit)
+        with InputSource.create("file:" + self.git.root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalGit)
             self.assertEqual(isrc.source, "file:" + self.git.root)
             self.assertEqual(isrc.repo.working_dir, self.git.root)
             self.assertFalse(isrc.copy)
             self.assertEqual(isrc.orig_path, self.git.root)
 
     def test_clone(self):
-        with source.InputSource.create(self.git.root) as isrc:
+        with InputSource.create(self.git.root) as isrc:
             clone = isrc.clone()
-            self.assertIsInstance(clone, source.LocalGit)
+            self.assertIsInstance(clone, inputsource.LocalGit)
             self.assertNotEqual(clone.repo.working_dir, self.git.root)
             self.assertTrue(clone.copy)
             self.assertEqual(isrc.orig_path, self.git.root)
@@ -146,9 +146,9 @@ class TestLocalGit(GitFixtureMixin, unittest.TestCase):
         self.assertFalse(os.path.exists(clone.repo.working_dir))
 
     def test_clone_branch(self):
-        with source.InputSource.create(self.git.root) as isrc:
+        with InputSource.create(self.git.root) as isrc:
             clone = isrc.clone("branch1").branch("branch1")
-            self.assertIsInstance(clone, source.LocalGit)
+            self.assertIsInstance(clone, inputsource.LocalGit)
             self.assertNotEqual(clone.repo.working_dir, self.git.root)
             self.assertTrue(clone.copy)
             self.assertEqual(isrc.orig_path, self.git.root)
@@ -160,9 +160,9 @@ class TestLocalGit(GitFixtureMixin, unittest.TestCase):
         self.assertFalse(os.path.exists(clone.repo.working_dir))
 
     def test_branch(self):
-        with source.InputSource.create(self.git.root) as isrc:
+        with InputSource.create(self.git.root) as isrc:
             clone = isrc.branch("branch1")
-            self.assertIsInstance(clone, source.LocalGit)
+            self.assertIsInstance(clone, inputsource.LocalGit)
             self.assertNotEqual(clone.repo.working_dir, self.git.root)
             self.assertTrue(clone.copy)
             self.assertEqual(isrc.orig_path, self.git.root)
@@ -193,18 +193,18 @@ class TestURL(GitFixtureMixin, unittest.TestCase):
 
     def test_url(self):
         with self.git.serve() as url:
-            with source.InputSource.create(url) as isrc:
-                self.assertIsInstance(isrc, source.URL)
+            with InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, inputsource.URL)
                 self.assertEqual(isrc.source, url)
                 self.assertEqual(isrc.parsed.scheme, "http")
                 self.assertEqual(isrc.parsed.path, "/.git")
 
                 clone = isrc.clone()
-                self.assertIsInstance(clone, source.LocalGit)
+                self.assertIsInstance(clone, inputsource.LocalGit)
                 self.assertEqual(clone.repo.active_branch.name, "main")
                 self.assertIsNone(clone.orig_path)
 
                 clone = isrc.clone("branch1")
-                self.assertIsInstance(clone, source.LocalGit)
+                self.assertIsInstance(clone, inputsource.LocalGit)
                 self.assertEqual(clone.repo.active_branch.name, "branch1")
                 self.assertIsNone(clone.orig_path)

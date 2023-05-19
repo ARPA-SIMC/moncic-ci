@@ -5,7 +5,7 @@ import unittest
 
 from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
-from moncic.source import debian, rpm, source
+from moncic.source import debian, rpm, inputsource, InputSource
 from moncic.unittest import make_moncic
 
 from .source import MockBuilder, WorkdirFixtureMixin, GitFixtureMixin
@@ -33,8 +33,8 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
             pass
 
     def test_detect_local(self):
-        with source.InputSource.create(self.pkg_root) as isrc:
-            self.assertIsInstance(isrc, source.LocalDir)
+        with InputSource.create(self.pkg_root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalDir)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(ROCKY9)
@@ -43,7 +43,7 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
             self.assertIsInstance(src, debian.DebianSourceDir)
 
     def test_build_source(self):
-        with source.InputSource.create(self.pkg_root) as isrc:
+        with InputSource.create(self.pkg_root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
@@ -82,8 +82,8 @@ class DebianPlainGitMixin(GitFixtureMixin):
                 pass
 
     def test_detect_local(self):
-        with source.InputSource.create(self.git.root) as isrc:
-            self.assertIsInstance(isrc, source.LocalGit)
+        with InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalGit)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(ROCKY9)
@@ -93,8 +93,8 @@ class DebianPlainGitMixin(GitFixtureMixin):
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            with source.InputSource.create(url) as isrc:
-                self.assertIsInstance(isrc, source.URL)
+            with InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, inputsource.URL)
 
                 with self.assertRaises(Fail):
                     isrc.detect_source(ROCKY9)
@@ -103,7 +103,7 @@ class DebianPlainGitMixin(GitFixtureMixin):
                 self.assertIsInstance(src, debian.DebianPlainGit)
 
     def test_build_source(self):
-        with source.InputSource.create(self.git.root) as isrc:
+        with InputSource.create(self.git.root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
@@ -154,8 +154,8 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
         # TODO: add gdb.conf
 
     def test_detect_local(self):
-        with source.InputSource.create(self.git.root) as isrc:
-            self.assertIsInstance(isrc, source.LocalGit)
+        with InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalGit)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(ROCKY9)
@@ -165,8 +165,8 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            with source.InputSource.create(url) as isrc:
-                self.assertIsInstance(isrc, source.URL)
+            with InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, inputsource.URL)
 
                 with self.assertRaises(Fail):
                     isrc.detect_source(ROCKY9)
@@ -175,7 +175,7 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
                 self.assertIsInstance(src, debian.DebianGBPTestUpstream)
 
     def test_build_source(self):
-        with source.InputSource.create(self.git.root) as isrc:
+        with InputSource.create(self.git.root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
@@ -219,8 +219,8 @@ debian-branch=debian/unstable
         cls.git.git("tag", "debian/0.1.0-1")
 
     def test_detect_local(self):
-        with source.InputSource.create(self.git.root) as isrc:
-            self.assertIsInstance(isrc, source.LocalGit)
+        with InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalGit)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(ROCKY9)
@@ -230,8 +230,8 @@ debian-branch=debian/unstable
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            with source.InputSource.create(url) as isrc:
-                self.assertIsInstance(isrc, source.URL)
+            with InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, inputsource.URL)
 
                 with self.assertRaises(Fail):
                     isrc.detect_source(ROCKY9)
@@ -240,7 +240,7 @@ debian-branch=debian/unstable
                 self.assertIsInstance(src, debian.DebianGBPRelease)
 
     def _test_build_source(self, path):
-        with source.InputSource.create(path) as isrc:
+        with InputSource.create(path) as isrc:
             src = isrc.detect_source(SID)
             self.assertIsInstance(src, debian.DebianGBPRelease)
             self.assertEqual(src.get_build_class().__name__, "Debian")
@@ -291,8 +291,8 @@ debian-branch=debian/unstable
         cls.git.git("checkout", "debian/unstable")
 
     def test_detect_local(self):
-        with source.InputSource.create(self.git.root) as isrc:
-            self.assertIsInstance(isrc, source.LocalGit)
+        with InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalGit)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(ROCKY9)
@@ -302,8 +302,8 @@ debian-branch=debian/unstable
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            with source.InputSource.create(url) as isrc:
-                self.assertIsInstance(isrc, source.URL)
+            with InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, inputsource.URL)
 
                 with self.assertRaises(Fail):
                     isrc.detect_source(ROCKY9)
@@ -312,7 +312,7 @@ debian-branch=debian/unstable
                 self.assertIsInstance(src, debian.DebianGBPTestDebian)
 
     def test_build_source(self):
-        with source.InputSource.create(self.git.root) as isrc:
+        with InputSource.create(self.git.root) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
@@ -347,8 +347,8 @@ Files:
             pass
 
     def test_detect_local(self):
-        with source.InputSource.create(self.dsc_file) as isrc:
-            self.assertIsInstance(isrc, source.LocalFile)
+        with InputSource.create(self.dsc_file) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalFile)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(ROCKY9)
@@ -357,7 +357,7 @@ Files:
             self.assertIsInstance(src, debian.DebianDsc)
 
     def test_build_source(self):
-        with source.InputSource.create(self.dsc_file) as isrc:
+        with InputSource.create(self.dsc_file) as isrc:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
@@ -389,8 +389,8 @@ foo foo simc/stable bar bar
         cls.git.commit()
 
     def test_detect_local(self):
-        with source.InputSource.create(self.git.root) as isrc:
-            self.assertIsInstance(isrc, source.LocalGit)
+        with InputSource.create(self.git.root) as isrc:
+            self.assertIsInstance(isrc, inputsource.LocalGit)
 
             with self.assertRaises(Fail):
                 isrc.detect_source(SID)
@@ -400,8 +400,8 @@ foo foo simc/stable bar bar
 
     def test_detect_url(self):
         with self.git.serve() as url:
-            with source.InputSource.create(url) as isrc:
-                self.assertIsInstance(isrc, source.URL)
+            with InputSource.create(url) as isrc:
+                self.assertIsInstance(isrc, inputsource.URL)
 
                 with self.assertRaises(Fail):
                     isrc.detect_source(SID)
@@ -410,7 +410,7 @@ foo foo simc/stable bar bar
                 self.assertIsInstance(src, rpm.ARPASource)
 
     def _test_build_source(self, path):
-        with source.InputSource.create(path) as isrc:
+        with InputSource.create(path) as isrc:
             src = isrc.detect_source(ROCKY9)
             self.assertEqual(src.get_build_class().__name__, "ARPA")
             build = src.make_build(distro=ROCKY9)

@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Union, Type
 
 from ..exceptions import Fail
-from .source import URL, InputSource, LocalDir, LocalGit, Source, register
+from .inputsource import URL, InputSource, LocalDir, LocalGit
+from .source import Source, register
 
 if TYPE_CHECKING:
     from ..build import Build
