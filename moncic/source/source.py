@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+import shlex
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Optional, Type
 
 from ..utils.guest import guest_only, host_only
@@ -62,6 +63,8 @@ class Source:
     host_path: str
     # Path to the unpacked sources in the guest system
     guest_path: Optional[str] = None
+    # Commands that can be used to recreate this source
+    trace_log: list[str] = field(default_factory=list)
 
     @classmethod
     def get_name(cls) -> str:
@@ -71,6 +74,12 @@ class Source:
         if (name := cls.__dict__.get("NAME")):
             return name
         return cls.__name__.lower()
+
+    def add_trace_log(self, *args: str) -> None:
+        """
+        Add a command to the trace log
+        """
+        self.trace_log.append(" ".join(shlex.quote(c) for c in args))
 
     def get_build_class(self) -> Type["Build"]:
         """
