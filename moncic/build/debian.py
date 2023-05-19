@@ -15,7 +15,6 @@ from ..utils.deb import apt_get_cmd
 from ..utils.fs import cd
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
-from .analyze import Analyzer
 from .build import Build
 from .utils import link_or_copy
 
@@ -210,26 +209,3 @@ class Debian(Build):
             log.info("Copying %s to %s", path, destdir)
             link_or_copy(os.path.join(container_root, path.lstrip("/")), destdir, user=user)
         self.artifacts = [os.path.basename(path) for path in self.artifacts]
-
-    @classmethod
-    def analyze(cls, analyzer: Analyzer):
-        upstream_version = analyzer.upstream_version
-        debian_version = Analyzer.same_values(analyzer.version_from_debian_branches)
-
-        # Check that debian/changelog versions are in sync with upstream
-        if upstream_version is not None and debian_version is not None:
-            if upstream_version not in debian_version:
-                analyzer.warning(f"Debian version {debian_version!r} is out of sync"
-                                 f" with upstream version {upstream_version!r}")
-            # if debian_version is None:
-            #     analyzer.warning("Cannot univocally determine debian version")
-
-        # Check upstream merge status of the various debian branches
-        upstream_branch = analyzer.repo.references[analyzer.main_branch]
-        for name, branch_name in analyzer.debian_packaging_branches.items():
-            debian_branch = analyzer.repo.references[branch_name]
-            if not analyzer.repo.is_ancestor(upstream_branch, debian_branch):
-                analyzer.warning(f"Upstream branch {analyzer.main_branch!r} is not merged in {name!r}")
-
-        # TODO: check tags present for one distro but not for the other
-        # TODO: check that upstream tag exists if debian/changelog is not UNRELEASED

@@ -6,10 +6,10 @@ import logging
 import os
 import sys
 
-from ..build import Analyzer, Builder
+from ..analyze import Analyzer
+from ..build import Builder
 from ..distro import Distro
 from ..source import InputSource
-from .base import Command
 from .moncic import SourceCommand, main_command
 from .utils import BuildOptionAction
 
@@ -111,7 +111,7 @@ class CI(SourceCommand):
 
 
 @main_command
-class Lint(Command):
+class Lint(SourceCommand):
     """
     Run consistency checks on a source directory using all available build
     styles
@@ -120,13 +120,24 @@ class Lint(Command):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("repo", nargs="?", default=".",
-                            help="path or url of the repository to build. Default: the current directory")
+        parser.add_argument("system", action="store",
+                            help="name or path of the system used for checking")
+        parser.add_argument("source", nargs="?", default=".",
+                            help="path or url of the repository or source package to check."
+                                 " Default: the current directory")
         return parser
 
     def run(self):
-        analyzer = Analyzer(self.args.repo)
-        Builder.analyze(analyzer)
+        with self.moncic.session() as session:
+            images = session.images
+            with images.system(self.args.system) as system:
+                with self.source(system.distro, self.args.source) as source:
+                    analyzer = Analyzer()
+                    source.analyze(analyzer)
+
+        # cls.builders["debian"].analyze(analyzer)
+        # cls.builders["rpm"].analyze(analyzer)
+        # # TODO: check that NEWS.md version matches upstream version
 
 
 @main_command

@@ -11,7 +11,6 @@ from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from . import build
-from .analyze import Analyzer
 from .utils import link_or_copy
 
 if TYPE_CHECKING:
@@ -213,14 +212,3 @@ class Builder(contextlib.ExitStack):
                     filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)
             self.build.artifacts.append(build_log_name)
-
-    @classmethod
-    def analyze(cls, analyzer: Analyzer):
-        """
-        Run consistency checks on the given source directory, using all
-        available build styles
-        """
-        raise NotImplementedError("analyze")
-        # cls.builders["debian"].analyze(analyzer)
-        # cls.builders["rpm"].analyze(analyzer)
-        # # TODO: check that NEWS.md version matches upstream version

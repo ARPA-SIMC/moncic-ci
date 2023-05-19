@@ -9,9 +9,8 @@ import git
 
 
 class Analyzer:
-    def __init__(self, path: str):
-        self.path = path
-        self.repo = git.Repo(path)
+    def __init__(self):
+        pass
 
     def error(self, message: str):
         print(message)
@@ -95,71 +94,6 @@ class Analyzer:
         return res
 
     @cached_property
-    def version_from_sources(self) -> Dict[str, str]:
-        """
-        Get the program version from sources.
-
-        Return a dict mapping version type to version
-        """
-        main_branch = self.repo.references[self.main_branch]
-        autotools: Optional[git.objects.blob] = None
-        meson: Optional[git.objects.blob] = None
-        cmake: Optional[git.objects.blob] = None
-        news: Optional[git.objects.blob] = None
-        for blob in main_branch.commit.tree.blobs:
-            if blob.name == "configure.ac":
-                autotools = blob
-            elif blob.name == "meson.build":
-                meson = blob
-            elif blob.name == "CMakeLists.txt":
-                cmake = blob
-            elif blob.name == "NEWS.md":
-                news = blob
-
-        versions: Dict[str, str] = {}
-
-        if autotools:
-            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
-            for line in autotools.data_stream.read().decode().splitlines():
-                if (mo := re_autotools.match(line)):
-                    versions["autotools"] = mo.group(1).strip()
-                    break
-
-        if meson:
-            re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
-            for line in meson.data_stream.read().decode().splitlines():
-                if (mo := re_meson.match(line)):
-                    versions["meson"] = mo.group(1).strip()
-                    break
-
-        if cmake:
-            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
-            for line in cmake.data_stream.read().decode().splitlines():
-                if (mo := re_cmake.match(line)):
-                    versions["cmake"] = mo.group(1).strip()
-                    break
-
-        if news:
-            re_news = re.compile(r"# New in version (.+)")
-            for line in news.data_stream.read().decode().splitlines():
-                if (mo := re_news.match(line)):
-                    versions["news"] = mo.group(1).strip()
-                    break
-
-        # TODO: check setup.py
-        # TODO: can it be checked without checking out the branch and executing it?
-
-        # Check for mismatches
-        by_version: Dict[str, List[str]] = defaultdict(list)
-        for name, version in versions.items():
-            by_version[version].append(name)
-        if len(by_version) > 1:
-            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            self.warning(f"Versions mismatch: {'; '.join(descs)}")
-
-        return versions
-
-    @cached_property
     def upstream_version(self) -> Optional[str]:
         """
         Return the upstream version, if it can be univocally determined, else
@@ -235,7 +169,7 @@ class Analyzer:
         return None
 
     @classmethod
-    def same_values(cls, versions: Dict[str, str]) -> Optional[str]:
+    def same_values(cls, versions: dict[str, str]) -> Optional[str]:
         """
         If all the dict's entries have the same value, return that value.
 

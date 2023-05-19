@@ -84,6 +84,12 @@ class Images:
                 return tarball_path
         return None
 
+    def system_config(self, name: str) -> SystemConfig:
+        """
+        Return the configuration for the named system
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.system_config is not implemented")
+
     def system(self, name: str) -> ContextManager[System]:
         """
         Instantiate a System that can only be used for the duration
@@ -159,12 +165,16 @@ class PlainImages(Images):
     """
     Images stored in a non-btrfs filesystem
     """
-    @contextlib.contextmanager
-    def system(self, name: str) -> Generator[System, None, None]:
+    def system_config(self, name: str) -> SystemConfig:
         system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
+        return system_config
+
+    @contextlib.contextmanager
+    def system(self, name: str) -> Generator[System, None, None]:
+        system_config = self.system_config(name)
         yield System(self, system_config)
 
     @contextlib.contextmanager
@@ -218,9 +228,12 @@ class BtrfsImages(Images):
     """
     Images stored in a btrfs filesystem
     """
+    def system_config(self, name: str) -> SystemConfig:
+        return SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+        system_config = self.system_config(name)
         yield System(self, system_config)
 
     @contextlib.contextmanager

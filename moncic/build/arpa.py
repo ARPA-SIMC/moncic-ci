@@ -13,7 +13,6 @@ from .. import context
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
-from .analyze import Analyzer
 from .build import Build
 from .utils import link_or_copy
 
@@ -69,16 +68,6 @@ class RPM(Build):
             if line.startswith("BuildRequires: "):
                 packages.append(line[15:].strip())
         return packages
-
-    @classmethod
-    def analyze(cls, analyzer: Analyzer):
-        # Check that spec version is in sync with upstream
-        upstream_version = Analyzer.same_values(analyzer.version_from_sources)
-        spec_version = analyzer.version_from_arpa_specfile
-        if upstream_version and upstream_version != spec_version:
-            analyzer.warning(f"Upstream version {upstream_version!r} is different than specfile {spec_version!r}")
-
-        # TODO: check that upstream tag exists
 
 
 @dataclass
