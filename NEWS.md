@@ -1,3 +1,8 @@
+# Version 0.11
+
+* Do not accidentally skip source directory setup when specifying build type explicitly (#97)
+* Always recreate all remote branches when cloning (#98)
+
 # Version 0.10
 
 * Removed reference to ARPA.system property (#92)

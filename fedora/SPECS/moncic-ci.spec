@@ -1,10 +1,10 @@
-%global releaseno 3
+%global releaseno 1
 # Note: define _srcarchivename in Travis build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
 
 Name:           moncic-ci
-Version:        0.10
+Version:        0.11
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,10 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon May 22 2023 Daniele Branchini <dbranchini@arpae.it> - 0.11-1
+- Do not accidentally skip source directory setup when specifying build type explicitly (#97)
+- Always recreate all remote branches when cloning (#98)
+
 * Wed May 17 2023 Daniele Branchini <dbranchini@arpae.it> - 0.10-3
 - dnf builddep less quiet (#96)
 
