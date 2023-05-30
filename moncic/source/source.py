@@ -70,6 +70,9 @@ class Source:
     # Commands that can be used to recreate this source
     trace_log: list[str] = field(default_factory=list)
 
+    def __post_init__(self) -> None:
+        self.trace_log.extend(self.source.trace_log)
+
     @classmethod
     def get_name(cls) -> str:
         """

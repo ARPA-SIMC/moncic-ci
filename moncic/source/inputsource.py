@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
+import shlex
 import tempfile
 import urllib.parse
 from typing import TYPE_CHECKING, Optional
@@ -19,17 +20,18 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def _git_clone(stack: contextlib.ExitStack, repository: str, branch: Optional[str] = None) -> str:
+def _git_clone(inputsource: "InputSource", repository: str, branch: Optional[str] = None) -> str:
     """
     Clone a git repository into a temporary working directory.
 
     Return the path of the new cloned working directory
     """
     # Git checkout in a temporary directory
-    workdir = stack.enter_context(tempfile.TemporaryDirectory())
+    workdir = inputsource.enter_context(tempfile.TemporaryDirectory())
     cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]
     if branch is not None:
         cmd += ["--branch", branch]
+    inputsource.add_trace_log(*cmd)
     run(cmd, cwd=workdir)
 
     # Look for the directory that git created
@@ -49,6 +51,12 @@ def _git_clone(stack: contextlib.ExitStack, repository: str, branch: Optional[st
             continue
         repo.create_head(name, ref)
 
+    # If we cloned a detached head, create a local branch for it
+    if branch and repo.head.is_detached:
+        local_branch = repo.create_head("moncic-ci")
+        local_branch.checkout()
+        inputsource.add_trace_log("git", "checkout", "-b", "moncic-ci")
+
     return repo_path
 
 
@@ -59,12 +67,20 @@ class InputSource(contextlib.ExitStack):
     def __init__(self, source: str):
         super().__init__()
         self.source = source
+        # Commands that can be used to recreate this InputSource
+        self.trace_log: list[str] = []
 
     def __str__(self) -> str:
         return self.source
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.source})"
+
+    def add_trace_log(self, *args: str) -> None:
+        """
+        Add a command to the trace log
+        """
+        self.trace_log.append(" ".join(shlex.quote(c) for c in args))
 
     @classmethod
     def create(self, source: str) -> "InputSource":
@@ -193,10 +209,12 @@ class LocalGit(InputSource):
         Clone this URL into a local git repository
         """
         workdir = _git_clone(self, self.repo.working_dir, branch)
-        return self.enter_context(LocalGit(self.source, workdir, copy=True, orig_path=self.orig_path))
+        res = self.enter_context(LocalGit(self.source, workdir, copy=True, orig_path=self.orig_path))
+        res.trace_log.extend(self.trace_log)
+        return res
 
     def branch(self, branch: Optional[str]) -> "InputSource":
-        if self.repo.active_branch == branch:
+        if not self.repo.head.is_detached and self.repo.active_branch == branch:
             return self
         return self.clone(branch)
 
@@ -226,10 +244,12 @@ class URL(InputSource):
         Clone this URL into a local git repository
         """
         workdir = _git_clone(self, self.source, branch)
-        return self.enter_context(LocalGit(self.source, workdir, copy=True, orig_path=None))
+        res = self.enter_context(LocalGit(self.source, workdir, copy=True, orig_path=None))
+        res.trace_log.extend(self.trace_log)
+        return res
 
     def branch(self, branch: Optional[str]) -> "InputSource":
-        return self.clone(branch).branch(branch)
+        return self.clone(branch)
 
     def detect_source(self, distro: Distro) -> "Source":
         return self.clone().detect_source(distro)
