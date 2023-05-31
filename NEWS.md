@@ -1,3 +1,7 @@
+# Version 0.12
+
+* Build from tag when using a remote repository (#99)
+
 # Version 0.11
 
 * Do not accidentally skip source directory setup when specifying build type explicitly (#97)

@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.11
+Version:        0.12
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Wed May 31 2023 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.12-1
+- Build from tag when using a remote repository (#99)
+
 * Mon May 22 2023 Daniele Branchini <dbranchini@arpae.it> - 0.11-1
 - Do not accidentally skip source directory setup when specifying build type explicitly (#97)
 - Always recreate all remote branches when cloning (#98)
