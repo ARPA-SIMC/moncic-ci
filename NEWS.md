@@ -1,3 +1,8 @@
+# Version *unreleased*
+
+* `monci ci`: update/upgrade the container before a build, unless `--quick` is
+  specified (#100)
+
 # Version 0.12
 
 * Build from tag when using a remote repository (#99)
