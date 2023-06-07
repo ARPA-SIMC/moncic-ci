@@ -199,7 +199,7 @@ class Distro:
 
     def get_upgrade_system_script(self, system: System) -> list[list[str]]:
         """
-        Get the sequence of commands to use to update package information
+        Get the sequence of commands to use to upgrade system packages
         """
         return []
 
