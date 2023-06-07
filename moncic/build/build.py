@@ -34,6 +34,9 @@ class Build:
     distro: Distro
     # Package name (optional when not yet set)
     name: Optional[str] = None
+    # Set to True for faster builds, that assume that the container is already
+    # up to date
+    quick: bool = False
     # True if the build was successful
     success: bool = False
     # List of container paths for artifacts
@@ -156,15 +159,14 @@ class Build:
         """
         Set up the build environment in the container
         """
-        # TODO: skip if we are in developer mode
+        if not self.quick:
+            # Update package databases
+            for cmd in system.distro.get_update_pkgdb_script(system):
+                self.trace_run(cmd)
 
-        # Update package databases
-        for cmd in system.distro.get_update_pkgdb_script(system):
-            self.trace_run(cmd)
-
-        # Upgrade system packages
-        for cmd in system.distro.get_upgrade_system_script(system):
-            self.trace_run(cmd)
+            # Upgrade system packages
+            for cmd in system.distro.get_upgrade_system_script(system):
+                self.trace_run(cmd)
 
     @classmethod
     def get_name(cls) -> str:
