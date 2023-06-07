@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import inspect
 import logging
+import shlex
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, Generator, Optional, Type
+from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type
 
 import yaml
 
@@ -11,9 +12,13 @@ from ..distro import Distro
 from ..exceptions import Fail
 from ..source import Source
 from ..utils.guest import guest_only, host_only
+from ..utils.run import run
 
 if TYPE_CHECKING:
+    import subprocess
+
     from ..container import Container
+    from ..system import System
 
 log = logging.getLogger(__name__)
 
@@ -29,6 +34,9 @@ class Build:
     distro: Distro
     # Package name (optional when not yet set)
     name: Optional[str] = None
+    # Set to True for faster builds, that assume that the container is already
+    # up to date
+    quick: bool = False
     # True if the build was successful
     success: bool = False
     # List of container paths for artifacts
@@ -81,6 +89,12 @@ class Build:
                     See [Post-build actions](post-build.actions.md) for documentation of possible values.
                 """})
 
+    def add_trace_log(self, *args: str) -> None:
+        """
+        Add a command to the trace log
+        """
+        self.trace_log.append(" ".join(shlex.quote(c) for c in args))
+
     def load_yaml(self, pathname: str) -> None:
         """
         Load build configuration from the given YAML file.
@@ -112,6 +126,13 @@ class Build:
                 else:
                     setattr(self, key, val)
 
+    def trace_run(self, cmd: Sequence[str], check: bool = True, **kw) -> subprocess.CompletedProcess:
+        """
+        Run a command, adding it to trace_log
+        """
+        self.add_trace_log(*cmd)
+        run(cmd, check=check, **kw)
+
     @guest_only
     def build(self):
         """
@@ -134,11 +155,18 @@ class Build:
         pass
 
     @guest_only
-    def setup_container_guest(self):
+    def setup_container_guest(self, system: System):
         """
         Set up the build environment in the container
         """
-        pass
+        if not self.quick:
+            # Update package databases
+            for cmd in system.distro.get_update_pkgdb_script(system):
+                self.trace_run(cmd)
+
+            # Upgrade system packages
+            for cmd in system.distro.get_upgrade_system_script(system):
+                self.trace_run(cmd)
 
     @classmethod
     def get_name(cls) -> str:

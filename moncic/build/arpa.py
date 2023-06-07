@@ -113,21 +113,22 @@ class ARPA(RPM):
                         shutil.copy(os.path.join(root, fn), "/root/rpmbuild/SOURCES/")
             with open(f"/root/rpmbuild/SOURCES/{pkgname}.tar", "wb") as fd:
                 with context.moncic.get().privs.user():
-                    run(["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD"],
+                    self.trace_run(
+                        ["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD"],
                         stdout=fd)
-            run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
-            run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", self.specfile])
+            self.trace_run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
+            self.trace_run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", self.specfile])
             if self.source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"
-            run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", self.specfile])
+            self.trace_run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", self.specfile])
         else:
             # Convenzione SIMC per i repo con solo rpm
             for f in glob.glob("*.patch"):
                 shutil.copy(f, "/root/rpmbuild/SOURCES/")
-            run(["spectool", "-g", "-R", self.specfile])
-            run(["rpmbuild", "-ba", self.specfile])
+            self.trace_run(["spectool", "-g", "-R", self.specfile])
+            self.trace_run(["rpmbuild", "-ba", self.specfile])
 
         self.success = True
 

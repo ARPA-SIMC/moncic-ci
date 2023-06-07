@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+from typing import Any
 
 from ..analyze import Analyzer
 from ..build import Builder
@@ -41,6 +42,8 @@ class CI(SourceCommand):
         parser.add_argument("--option", "-O", action=BuildOptionAction,
                             help="key=value option for the build. See `-s list` for a list of"
                                  " available option for each build style")
+        parser.add_argument("--quick", action="store_true",
+                            help="quild quickly, assuming the container is up to date")
         parser.add_argument("system", action="store",
                             help="name or path of the system used to build")
         parser.add_argument("source", nargs="?", default=".",
@@ -50,12 +53,13 @@ class CI(SourceCommand):
 
     def run(self) -> None:
         # Defaults before loading YAML
-        build_kwargs_system: dict[str, str] = {
+        build_kwargs_system: dict[str, Any] = {
             "artifacts_dir": self.moncic.config.build_artifacts_dir,
+            "quick": self.args.quick,
         }
 
         # Overrides after loading YAML
-        build_kwargs_cmd: dict[str, str] = {
+        build_kwargs_cmd: dict[str, Any] = {
             "source_only": self.args.source_only,
         }
 

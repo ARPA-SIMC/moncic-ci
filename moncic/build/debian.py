@@ -20,6 +20,7 @@ from .utils import link_or_copy
 
 if TYPE_CHECKING:
     from ..container import Container
+    from ..system import System
 
 log = logging.getLogger(__name__)
 
@@ -125,8 +126,8 @@ class Debian(Build):
         return [name.strip() for name in res.stdout.strip().splitlines()]
 
     @guest_only
-    def setup_container_guest(self):
-        super().setup_container_guest()
+    def setup_container_guest(self, system: System):
+        super().setup_container_guest(system)
 
         # TODO: run apt update if the apt index is older than some threshold
 
@@ -172,7 +173,7 @@ class Debian(Build):
         if self.srcinfo is None:
             raise RuntimeError("source information not collected at build_binary time")
         with cd("/srv/moncic-ci/build"):
-            run(["dpkg-source", "-x", dsc_fname])
+            self.trace_run(["dpkg-source", "-x", dsc_fname])
 
             # Find the newly created build directory
             with os.scandir(".") as it:
@@ -187,7 +188,7 @@ class Debian(Build):
                 # Install build dependencies
                 env = dict(os.environ)
                 env.update(DEBIAN_FRONTEND="noninteractive")
-                run(apt_get_cmd("build-dep", "./"), env=env)
+                self.trace_run(apt_get_cmd("build-dep", "./"), env=env)
 
                 # Build dependencies are installed, we don't need internet
                 # anymore: Debian packages are required to build without
@@ -199,7 +200,7 @@ class Debian(Build):
 
                 # Build
                 # Use unshare to disable networking
-                run(["dpkg-buildpackage", "--no-sign"])
+                self.trace_run(["dpkg-buildpackage", "--no-sign"])
 
     @host_only
     def collect_artifacts(self, container: Container, destdir: str):

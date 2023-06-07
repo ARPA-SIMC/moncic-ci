@@ -189,7 +189,7 @@ class Builder(contextlib.ExitStack):
         """
         Run the build
         """
-        self.build.setup_container_guest()
+        self.build.setup_container_guest(self.system)
         self.build.build()
         return self.build
 
