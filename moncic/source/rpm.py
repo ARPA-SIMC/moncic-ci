@@ -32,7 +32,7 @@ class RPMSource(Source):
                     return ARPASource._create_from_repo(source)
         except FileNotFoundError:
             pass
-        raise Fail("but simc/stable not found in .travis.yml for ARPA builds")
+        raise Fail("simc/stable not found in .travis.yml for ARPA builds")
 
     def analyze(self, analyzer: Analyzer):
         super().analyze(analyzer)
