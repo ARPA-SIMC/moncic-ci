@@ -26,7 +26,7 @@ Example:
 imagedir: ~/.local/share/moncic-ci/
 ```
 
-The only keyword currently supported is:
+The keywords currently supported are:
 
 * `imagedir`: directory that contains OS images. Note that this needs to be on
   a BTRFS file system. It will be expanded with `os.path.expanduser`, so `~`
