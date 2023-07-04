@@ -3,16 +3,15 @@ from __future__ import annotations
 import logging
 import re
 import shlex
-from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Type
 
-from ..analyze import Analyzer
 from ..utils.guest import guest_only, host_only
 
 if TYPE_CHECKING:
     from ..build import Build
+    from ..linter import Linter
     from ..container import Container
     from .inputsource import InputSource
 
@@ -94,6 +93,12 @@ class Source:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.get_build_class is not implemented")
 
+    def get_linter_class(self) -> Type["Linter"]:
+        """
+        Return the Linter subclass used to check this source
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.get_linter_class is not implemented")
+
     def make_build(self, **kwargs: Any) -> "Build":
         """
         Create a Build to build this Source
@@ -164,17 +169,3 @@ class Source:
         # TODO: check specfile in a subclass
 
         return versions
-
-    def analyze(self, analyzer: Analyzer):
-        """
-        lint-check the sources, using analyzer to output results
-        """
-        # Check for version mismatches
-        versions = self.find_versions()
-
-        by_version: dict[str, list[str]] = defaultdict(list)
-        for name, version in versions.items():
-            by_version[version].append(name)
-        if len(by_version) > 1:
-            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            analyzer.warning(f"Versions mismatch: {'; '.join(descs)}")

@@ -5,7 +5,7 @@ import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Type, Union
 
-from ..analyze import Analyzer
+from .. import lint
 from ..exceptions import Fail
 from .inputsource import URL, InputSource, LocalDir, LocalGit
 from .source import Source, register
@@ -34,16 +34,6 @@ class RPMSource(Source):
             pass
         raise Fail("simc/stable not found in .travis.yml for ARPA builds")
 
-    def analyze(self, analyzer: Analyzer):
-        super().analyze(analyzer)
-        # # Check that spec version is in sync with upstream
-        # upstream_version = Analyzer.same_values(analyzer.version_from_sources)
-        # spec_version = analyzer.version_from_arpa_specfile
-        # if upstream_version and upstream_version != spec_version:
-        #     analyzer.warning(f"Upstream version {upstream_version!r} is different than specfile {spec_version!r}")
-
-        # TODO: check that upstream tag exists
-
 
 @register
 @dataclass
@@ -71,3 +61,6 @@ class ARPASource(RPMSource):
     def get_build_class(self) -> Type["Build"]:
         from ..build.arpa import ARPA
         return ARPA
+
+    def get_linter_class(self) -> Type["lint.Linter"]:
+        return lint.ARPALinter

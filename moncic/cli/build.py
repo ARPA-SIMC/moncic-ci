@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Any
 
-from ..analyze import Analyzer
 from ..build import Builder
 from ..distro import Distro
 from ..source import InputSource
@@ -136,8 +135,9 @@ class Lint(SourceCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 with self.source(system.distro, self.args.source) as source:
-                    analyzer = Analyzer()
-                    source.analyze(analyzer)
+                    linter_cls = source.get_linter_class()
+                    linter = linter_cls(system, source)
+                    linter.lint()
 
         # cls.builders["debian"].analyze(analyzer)
         # cls.builders["rpm"].analyze(analyzer)
