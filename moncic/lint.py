@@ -38,7 +38,7 @@ class Linter(contextlib.ExitStack):
         """
         Get the source path
         """
-        return Path(self.source.source.path)
+        return Path(self.source.host_path)
 
     def find_versions(self) -> dict[str, str]:
         """

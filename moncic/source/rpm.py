@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import glob
+import itertools
 import logging
 import os
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Type, Union
 
 from .. import lint
-from ..exceptions import Fail
 from .inputsource import URL, InputSource, LocalDir, LocalGit
 from .source import Source, register
 
@@ -22,17 +23,17 @@ class RPMSource(Source):
     """
     Git working directory with a Debian package
     """
-    # TODO: locate specfile
+    def locate_specfile(self) -> str:
+        """
+        Locate the specfile inside the source directory.
+
+        Return its path relative to the sources root
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.locate_specfile() is not implemented")
+
     @classmethod
     def detect(cls, distro: Distro, source: Union[LocalGit, LocalDir]) -> "RPMSource":
-        travis_yml = os.path.join(source.path, ".travis.yml")
-        try:
-            with open(travis_yml, "rt") as fd:
-                if 'simc/stable' in fd.read():
-                    return ARPASource._create_from_repo(source)
-        except FileNotFoundError:
-            pass
-        raise Fail("simc/stable not found in .travis.yml for ARPA builds")
+        return ARPASource._create_from_repo(source)
 
 
 @register
@@ -64,3 +65,16 @@ class ARPASource(RPMSource):
 
     def get_linter_class(self) -> Type["lint.Linter"]:
         return lint.ARPALinter
+
+    def locate_specfile(self) -> str:
+        srcdir = self.host_path
+        spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
+        specs = list(itertools.chain.from_iterable(glob.glob(os.path.join(srcdir, g)) for g in spec_globs))
+
+        if not specs:
+            raise RuntimeError("Spec file not found")
+
+        if len(specs) > 1:
+            raise RuntimeError(f"{len(specs)} .spec files found")
+
+        return os.path.relpath(specs[0], start=srcdir)
