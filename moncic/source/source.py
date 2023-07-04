@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import logging
-import re
 import shlex
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Type
 
 from ..utils.guest import guest_only, host_only
@@ -121,51 +119,3 @@ class Source:
         the main file of the source package fileset
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package is not implemented")
-
-    def find_versions(self) -> dict[str, str]:
-        """
-        Get the program version from sources.
-
-        Return a dict mapping version type to version strings
-        """
-        versions: dict[str, str] = {}
-
-        path = Path(self.source.path)
-        if (autotools := path / "configure.ac").exists():
-            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
-            with autotools.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_autotools.match(line)):
-                        versions["autotools"] = mo.group(1).strip()
-                        break
-
-        if (meson := path / "meson.build").exists():
-            re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
-            with meson.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_meson.match(line)):
-                        versions["meson"] = mo.group(1).strip()
-                        break
-
-        if (cmake := path / "CMakeLists.txt").exists():
-            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
-            with cmake.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_cmake.match(line)):
-                        versions["cmake"] = mo.group(1).strip()
-                        break
-
-        if (news := path / "NEWS.md").exists():
-            re_news = re.compile(r"# New in version (.+)")
-            with news.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_news.match(line)):
-                        versions["news"] = mo.group(1).strip()
-                        break
-
-        # TODO: check setup.py
-        # TODO: can it be checked without checking out the branch and executing it?
-        # TODO: check debian/changelog in a subclass
-        # TODO: check specfile in a subclass
-
-        return versions
