@@ -95,8 +95,8 @@ class DebianGitSource(DebianSource):
     def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
         if source.repo.working_dir is None:
             raise RuntimeError(f"{source} has no working directory")
-        debian_path = Path(source.repo.working_dir) / "debian"
-        if not debian_path.is_dir():
+        debian_path = Path(source.repo.working_dir) / "debian" / "changelog"
+        if not debian_path.exists():
             # There is no debian/directory, the current branch is upstream
             return DebianGBPTestUpstream._create_from_repo(distro, source)
 
