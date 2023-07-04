@@ -31,6 +31,13 @@ class Linter(contextlib.ExitStack):
     def warning(self, message: str):
         print(message)
 
+    @cached_property
+    def source_path(self) -> Path:
+        """
+        Get the source path
+        """
+        return Path(self.source.source.path)
+
     def find_versions(self) -> dict[str, str]:
         """
         Get the program version from sources.
@@ -39,7 +46,7 @@ class Linter(contextlib.ExitStack):
         """
         versions: dict[str, str] = {}
 
-        path = Path(self.source.source.path)
+        path = self.source_path
         if (autotools := path / "configure.ac").exists():
             re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
             with autotools.open("rt") as fd:
@@ -74,8 +81,6 @@ class Linter(contextlib.ExitStack):
 
         # TODO: check setup.py
         # TODO: can it be checked without checking out the branch and executing it?
-        # TODO: check debian/changelog in a subclass
-        # TODO: check specfile in a subclass
 
         return versions
 
@@ -258,6 +263,12 @@ class Linter(contextlib.ExitStack):
 
 
 class ARPALinter(Linter):
+    def find_versions(self) -> dict[str, str]:
+        versions = super().find_versions()
+        # TODO: check specfile in a subclass
+        # TODO: run in container: rpmspec --parse file.spec
+        return versions
+
     def lint(self):
         super().lint()
         # # Check that spec version is in sync with upstream
@@ -270,6 +281,23 @@ class ARPALinter(Linter):
 
 
 class DebianLinter(Linter):
+    def find_versions(self) -> dict[str, str]:
+        versions = super().find_versions()
+
+        changelog = self.source_path / "debian" / "changelog"
+
+        re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
+
+        try:
+            for line in changelog.read_text().splitlines():
+                if (mo := re_changelog.match(line)):
+                    versions["debian"] = mo.group(1)
+                    break
+        except FileNotFoundError:
+            pass
+
+        return versions
+
     def lint(self):
         super().lint()
         # upstream_version = analyzer.upstream_version
