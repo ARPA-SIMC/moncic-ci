@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Optional
 
 import git
 
+from .container import ContainerConfig
+
 if TYPE_CHECKING:
     from ..container import System
     from ..source.source import Source
@@ -79,8 +81,16 @@ class Linter(contextlib.ExitStack):
                         versions["news"] = mo.group(1).strip()
                         break
 
-        # TODO: check setup.py
-        # TODO: can it be checked without checking out the branch and executing it?
+        # Check setup.py by executing it with --version inside the container
+        if (path / "setup.py").exists():
+            cconfig = ContainerConfig()
+            cconfig.configure_workdir(self.source_path, bind_type="ro")
+            with self.system.create_container(config=cconfig) as container:
+                res = container.run(["/usr/bin/python3", "setup.py", "--version"])
+            if res.returncode == 0:
+                versions["setup.py"] = res.stdout.splitlines()[-1].strip().decode()
+
+        # TODO: check git tag
 
         return versions
 

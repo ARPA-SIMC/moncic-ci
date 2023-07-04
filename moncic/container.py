@@ -13,10 +13,11 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
-                    Iterator, List, NoReturn, Optional, Protocol, Tuple, TypeVar)
+from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Iterator,
+                    NoReturn, Optional, Protocol, Tuple, TypeVar)
 
-from .runner import RunConfig, CompletedCallable, SetnsCallableRunner, UserConfig
+from .runner import (CompletedCallable, RunConfig, SetnsCallableRunner,
+                     UserConfig)
 from .utils import libbanana
 from .utils.deb import apt_get_cmd
 from .utils.nspawn import escape_bind_ro
@@ -75,7 +76,7 @@ class BindConfig:
     # idmap and noidmap control if the bind mount should use filesystem id
     # mappings. Using this option requires support by the source filesystem
     # for id mappings. Defaults to "noidmap".
-    mount_options: List[str] = dataclasses.field(default_factory=list)
+    mount_options: list[str] = dataclasses.field(default_factory=list)
 
     # If true, use this as the default working directory when running code or
     # programs in the container
@@ -261,7 +262,7 @@ class ContainerConfig:
     tmpfs: Optional[bool] = None
 
     # List of bind mounts requested on the container
-    binds: List[BindConfig] = dataclasses.field(default_factory=list)
+    binds: list[BindConfig] = dataclasses.field(default_factory=list)
 
     # Make sure this user exists in the container.
     # Cannot be used when ephemeral is False
@@ -348,7 +349,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run(self, command: List[str], config: Optional[RunConfig] = None) -> CompletedCallable:
+    def run(self, command: list[str], config: Optional[RunConfig] = None) -> CompletedCallable:
         """
         Run the given command inside the running system.
 
@@ -375,7 +376,7 @@ class Container(ContextManager, Protocol):
 
     def run_callable_raw(
             self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
             ) -> CompletedCallable[Result]:
         """
         Run the given callable in a separate process inside the running
@@ -385,7 +386,7 @@ class Container(ContextManager, Protocol):
 
     def run_callable(
             self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
             ) -> Result:
         """
         Run the given callable in a separate process inside the running
@@ -448,18 +449,18 @@ class ContainerBase:
         if self.started and not self.linger:
             self._stop()
 
-    def run(self, command: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def run(self, command: list[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         raise NotImplementedError(f"{self.__class__}._run not implemented")
 
     def run_callable_raw(
             self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
             ) -> CompletedCallable[Result]:
         raise NotImplementedError(f"{self.__class__}._run_callable_raw not implemented")
 
     def run_callable(
             self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
             ) -> Result:
         completed = self.run_callable_raw(func, config, args, kwargs)
         return completed.result()
@@ -494,7 +495,7 @@ class NspawnContainer(ContainerBase):
         # machinectl properties of the running machine
         self.properties: dict[str, str] = {}
         # Bind mounts used by this container
-        self.active_binds: List[BindConfig] = []
+        self.active_binds: list[BindConfig] = []
 
     def get_root(self) -> str:
         return self.properties["RootDirectory"]
@@ -502,7 +503,7 @@ class NspawnContainer(ContainerBase):
     def binds(self) -> Iterator[BindConfig]:
         yield from self.active_binds
 
-    def _run_nspawn(self, cmd: List[str]):
+    def _run_nspawn(self, cmd: list[str]):
         """
         Run the given systemd-nspawn command line, contained into its own unit
         using systemd-run
@@ -656,10 +657,10 @@ class NspawnContainer(ContainerBase):
             time.sleep(0.1)
         self.started = False
 
-    def run(self, command: List[str], config: Optional[RunConfig] = None) -> CompletedCallable:
+    def run(self, command: list[str], config: Optional[RunConfig] = None) -> CompletedCallable:
         run_config = self.config.run_config(config)
 
-        exec_func: Callable[[str, List[str]], NoReturn]
+        exec_func: Callable[[str, list[str]], NoReturn]
         if run_config.use_path:
             exec_func = os.execvp
         else:
@@ -699,7 +700,7 @@ class NspawnContainer(ContainerBase):
 
     def run_callable_raw(
             self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[Dict[str, Any]] = None,
+            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
             ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
