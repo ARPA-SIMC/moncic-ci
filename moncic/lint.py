@@ -275,8 +275,31 @@ class Linter(contextlib.ExitStack):
 class ARPALinter(Linter):
     def find_versions(self) -> dict[str, str]:
         versions = super().find_versions()
-        # TODO: check specfile in a subclass
-        # TODO: run in container: rpmspec --parse file.spec
+
+        spec_path = self.source.locate_specfile()
+
+        # Run in container: rpmspec --parse file.spec
+        if (self.source_path / spec_path).exists():
+            cconfig = ContainerConfig()
+            cconfig.configure_workdir(self.source_path, bind_type="ro")
+            with self.system.create_container(config=cconfig) as container:
+                res = container.run(["/usr/bin/rpmspec", "--parse", spec_path])
+            if res.returncode == 0:
+                version: Optional[str] = None
+                release: Optional[str] = None
+                for line in res.stdout.splitlines():
+                    if line.startswith(b"Version:"):
+                        if version is None:
+                            version = line[8:].strip().decode()
+                    if line.startswith(b"Release:"):
+                        if release is None:
+                            release = line[8:].strip().decode()
+
+                if version is not None:
+                    versions["spec-upstream"] = version
+                    if release is not None:
+                        versions["spec-release"] = version + "-" + release
+
         return versions
 
     def lint(self):
@@ -301,7 +324,14 @@ class DebianLinter(Linter):
         try:
             for line in changelog.read_text().splitlines():
                 if (mo := re_changelog.match(line)):
-                    versions["debian"] = mo.group(1)
+                    debversion = mo.group(1)
+                    if "-" in debversion:
+                        upstream, release = debversion.split("-")
+                    else:
+                        upstream, release = debversion, None
+                    versions["debian-upstream"] = upstream
+                    if release is not None:
+                        versions["debian-release"] = upstream + "-" + release
                     break
         except FileNotFoundError:
             pass
