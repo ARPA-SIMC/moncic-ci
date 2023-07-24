@@ -6,7 +6,8 @@ import os
 import shlex
 import tempfile
 import urllib.parse
-from typing import TYPE_CHECKING, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Union
 
 import git
 
@@ -83,10 +84,12 @@ class InputSource(contextlib.ExitStack):
         self.trace_log.append(" ".join(shlex.quote(c) for c in args))
 
     @classmethod
-    def create(self, source: str) -> "InputSource":
+    def create(self, source: Union[str, Path]) -> "InputSource":
         """
         Create an InputSource from a user argument
         """
+        if isinstance(source, Path):
+            source = source.as_posix()
         parsed = urllib.parse.urlparse(source)
         if parsed.scheme in ("", "file"):
             if os.path.isdir(parsed.path):

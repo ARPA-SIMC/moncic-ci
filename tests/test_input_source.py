@@ -124,9 +124,9 @@ class TestLocalGit(GitFixtureMixin, unittest.TestCase):
             self.assertEqual(isrc.orig_path, self.git.root)
 
     def test_create_file_url(self):
-        with InputSource.create("file:" + self.git.root) as isrc:
+        with InputSource.create("file:" + self.git.root.as_posix()) as isrc:
             self.assertIsInstance(isrc, inputsource.LocalGit)
-            self.assertEqual(isrc.source, "file:" + self.git.root)
+            self.assertEqual(isrc.source, "file:" + self.git.root.as_posix())
             self.assertEqual(isrc.repo.working_dir, self.git.root)
             self.assertFalse(isrc.copy)
             self.assertEqual(isrc.orig_path, self.git.root)
