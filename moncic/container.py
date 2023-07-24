@@ -706,3 +706,37 @@ class NspawnContainer(ContainerBase):
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
         completed = runner.execute()
         return completed
+
+
+class MockContainer(ContainerBase):
+    """
+    Mock container used for tests
+    """
+    def get_root(self) -> str:
+        return self.properties["RootDirectory"]
+
+    def _start(self):
+        self.system.images.session.mock_log(
+            system=self.system.name, action="container start")
+        self.started = True
+
+    def _stop(self):
+        self.system.images.session.mock_log(
+            system=self.system.name, action="container stop")
+        self.started = False
+
+    def run(self, command: list[str], config: Optional[RunConfig] = None) -> CompletedCallable:
+        run_config = self.config.run_config(config)
+        self.system.images.session.mock_log(
+            system=self.system.name, action="run", config=run_config, cmd=command)
+        return self.system.images.session.get_process_result(args=command)
+
+    def run_callable_raw(
+            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
+            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
+            ) -> CompletedCallable[Result]:
+        run_config = self.config.run_config(config)
+        self.system.images.session.mock_log(
+            system=self.system.name, action="run callable", config=run_config,
+            func=func.__name__, desc=func.__doc__, args=args, kwargs=kwargs)
+        return CompletedCallable(args=func.__name__, returncode=0)
