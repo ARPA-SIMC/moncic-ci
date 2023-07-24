@@ -94,7 +94,7 @@ class InputSource(contextlib.ExitStack):
         if parsed.scheme in ("", "file"):
             if os.path.isdir(parsed.path):
                 if os.path.isdir(os.path.join(parsed.path, ".git")):
-                    return LocalGit(source, parsed.path, copy=False, orig_path=os.path.abspath(parsed.path))
+                    return LocalGit(source, parsed.path, copy=False, orig_path=Path(parsed.path).absolute())
                 else:
                     return LocalDir(source, parsed.path)
             else:
@@ -170,7 +170,7 @@ class LocalGit(InputSource):
     """
     Source specified as a local git working directory
     """
-    def __init__(self, source: str, path: str, copy: bool, orig_path: Optional[str] = None):
+    def __init__(self, source: str, path: str, copy: bool, orig_path: Optional[Path] = None):
         super().__init__(source)
         self.repo = git.Repo(path)
         self.copy = copy
