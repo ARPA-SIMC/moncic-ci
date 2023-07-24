@@ -5,9 +5,10 @@ import itertools
 import logging
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Type, Union
+from typing import TYPE_CHECKING, Optional, Type, Union
 
 from .. import lint
+from ..exceptions import Fail
 from .inputsource import URL, InputSource, LocalDir, LocalGit
 from .source import Source, register
 
@@ -23,6 +24,13 @@ class RPMSource(Source):
     """
     Git working directory with a Debian package
     """
+    specfile_path: Optional[str] = None
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.specfile_path is None:
+            self.specfile_path = self.locate_specfile()
+
     def locate_specfile(self) -> str:
         """
         Locate the specfile inside the source directory.
@@ -72,9 +80,9 @@ class ARPASource(RPMSource):
         specs = list(itertools.chain.from_iterable(glob.glob(os.path.join(srcdir, g)) for g in spec_globs))
 
         if not specs:
-            raise RuntimeError("Spec file not found")
+            raise Fail("Spec file not found")
 
         if len(specs) > 1:
-            raise RuntimeError(f"{len(specs)} .spec files found")
+            raise Fail(f"{len(specs)} .spec files found")
 
         return os.path.relpath(specs[0], start=srcdir)
