@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import re
+import shlex
 import subprocess
 import sys
 from functools import cached_property
@@ -95,7 +97,7 @@ class MockSession(Session):
     def __init__(self, moncic: Moncic):
         super().__init__(moncic)
         self.log: list[dict[str, Any]] = []
-        self.process_result_queue: list[subprocess.CompletedProcess] = []
+        self.process_result_queue: dict[str, subprocess.CompletedProcess] = {}
 
     def mock_log(self, **kwargs: Any):
         caller_stack = sys._getframe(1)
@@ -103,20 +105,21 @@ class MockSession(Session):
         self.log.append(kwargs)
 
     def get_process_result(self, *, args: list[str]) -> subprocess.CompletedProcess:
-        if self.process_result_queue:
-            res = self.process_result_queue.pop(0)
-            res.args = args
-            return res
-        else:
-            return subprocess.CompletedProcess(args=args, returncode=0)
+        cmdline = ' '.join(shlex.quote(c) for c in args)
+        for regex, result in self.process_result_queue.items():
+            if re.search(regex, cmdline):
+                self.process_result_queue.pop(regex)
+                result.args = args
+                return result
+        return subprocess.CompletedProcess(args=args, returncode=0)
 
-    def enqueue_process_result(
-            self, *,
+    def set_process_result(
+            self, regex: str, *,
             returncode: int = 0,
             stdout: Union[str, bytes, None] = None,
             stderr: Union[str, bytes, None] = None):
-        self.process_result_queue.append(
-            subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr))
+        self.process_result_queue[regex] = subprocess.CompletedProcess(
+                args=[], returncode=returncode, stdout=stdout, stderr=stderr)
 
     def _instantiate_imagestorage(self) -> imagestorage.ImageStorage:
         return imagestorage.ImageStorage.create_mock(self)
