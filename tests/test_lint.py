@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import contextlib
 import unittest
+from unittest import mock
 
 from moncic.distro import DistroFamily
+from moncic.lint import Linter
 from moncic.source import InputSource
 from moncic.unittest import make_moncic
 
 from .source import GitFixtureMixin, WorkdirFixtureMixin
-
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")
@@ -104,3 +105,18 @@ Release: 1rocky9
             'spec-upstream': '1.6',
             'spec-release': '1.6-1rocky9',
         })
+
+
+class TestLint(unittest.TestCase):
+    def test_versions(self):
+        linter = Linter(None, None)
+        versions = {
+            "autotools": "1.1",
+            "meson": "1.2",
+            'debian-release': '1.2-1',
+            'spec-release': '1.2-1rocky9',
+        }
+        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
+              mock.patch("moncic.lint.Linter.warning") as warnings):
+            linter.lint()
+            warnings.assert_called_with("Versions mismatch: 1.1 in autotools; 1.2 in meson")
