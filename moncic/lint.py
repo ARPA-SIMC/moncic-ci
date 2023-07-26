@@ -97,7 +97,9 @@ class Linter(contextlib.ExitStack):
             with self.system.create_container(config=cconfig) as container:
                 res = container.run(["/usr/bin/python3", "setup.py", "--version"])
             if res.returncode == 0:
-                versions["setup.py"] = res.stdout.splitlines()[-1].strip().decode()
+                lines = res.stdout.splitlines()
+                if lines:
+                    versions["setup.py"] = lines[-1].strip().decode()
 
         # Git-specific detection
         try:
