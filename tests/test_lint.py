@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import unittest
+from typing import TYPE_CHECKING
 from unittest import mock
 
 from moncic.distro import DistroFamily
@@ -9,7 +10,11 @@ from moncic.lint import Linter
 from moncic.source import InputSource
 from moncic.unittest import make_moncic
 
-from .source import GitFixtureMixin, WorkdirFixtureMixin
+from .source import GitRepo, WorkdirFixtureMixin
+
+if TYPE_CHECKING:
+    from moncic.distro import Distro
+
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")
@@ -69,15 +74,6 @@ class TestFindVersionsDebian(FindVersionsCommon, unittest.TestCase):
             'debian-release': '1.6-1',
         })
 
-        # Consistency between tag and version/release in the spec file: a
-        # specific tag must be consistent with the Version and Release fields
-        # set in the spec file.
-
-        # Consistency between tags and commit history: the changes between two
-        # releases of the same upstream version (e.g. v${VERSION}-${RELEASE}
-        # and v${VERSION}-${RELEASE-1} should affect only the package files
-        # (spec, patch)
-
 
 class TestFindVersionsARPA(FindVersionsCommon, unittest.TestCase):
     @classmethod
@@ -120,3 +116,76 @@ class TestLint(unittest.TestCase):
               mock.patch("moncic.lint.Linter.warning") as warnings):
             linter.lint()
             warnings.assert_called_with("Versions mismatch: 1.1 in autotools; 1.2 in meson")
+
+
+class TestGit(unittest.TestCase):
+    def setUp(self):
+        super().setUp()
+        self.method_stack = contextlib.ExitStack()
+        self.method_stack.__enter__()
+        self.moncic = self.method_stack.enter_context(make_moncic())
+        self.session = self.method_stack.enter_context(self.moncic.mock_session())
+
+    def _find_versions(self, gitrepo: GitRepo, dist: Distro) -> dict[str, str]:
+        with InputSource.create(gitrepo.root) as isrc:
+            src = isrc.detect_source(dist)
+            linter_cls = src.get_linter_class()
+            with self.session.images.system(dist.name) as system:
+                linter = linter_cls(system, src)
+                return linter.find_versions()
+
+    def test_tag_version(self):
+        repo = GitRepo()
+        repo.add("meson.build", "project('test', 'cpp', version: '1.2')\n")
+        repo.commit("initial")
+        repo.git("tag", "v1.2")
+
+        repo.git("checkout", "-b", "debian/sid")
+        repo.add("debian/changelog", "test (1.1-1) UNRELEASED; urgency=low")
+        repo.commit("packaged for debian")
+        repo.git("tag", "debian/1.2-1")
+
+        repo.git("checkout", "main")
+        repo.add("fedora/SPECS/test.spec", """
+%global releaseno 1
+Name:           test
+Version:        1.2
+Release:        %{releaseno}%{dist}
+""")
+        repo.commit("packaged for fedora/ARPA")
+        repo.git("tag", "v1.2-1")
+
+        repo.git("checkout", "debian/sid")
+        versions = self._find_versions(repo, SID)
+        self.assertEqual(versions, {
+            "debian-release": "1.1-1",
+            "debian-upstream": "1.1",
+            "meson": "1.2",
+            "tag-debian": "1.2",
+            "tag-debian-release": "1.2-1",
+        })
+
+        repo.git("checkout", "main")
+        self.session.set_process_result(r"rpmspec", stdout=b"""
+Version: 1.2
+Release: 2rocky9
+""")
+        versions = self._find_versions(repo, ROCKY9)
+        self.assertEqual(versions, {
+            "meson": "1.2",
+            "tag-arpa": "1.2",
+            "tag-arpa-release": "1.2-1",
+            'spec-release': '1.2-2rocky9',
+            'spec-upstream': '1.2',
+        })
+
+        # Checks in git history:
+
+        # Consistency between tag and version/release in the spec file: a
+        # specific tag must be consistent with the Version and Release fields
+        # set in the spec file.
+
+        # Consistency between tags and commit history: the changes between two
+        # releases of the same upstream version (e.g. v${VERSION}-${RELEASE}
+        # and v${VERSION}-${RELEASE-1} should affect only the package files
+        # (spec, patch)

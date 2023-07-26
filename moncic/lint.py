@@ -5,7 +5,7 @@ import re
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Iterator, Optional
 
 import git
 
@@ -39,6 +39,15 @@ class Linter(contextlib.ExitStack):
         Get the source path
         """
         return Path(self.source.host_path)
+
+    @staticmethod
+    def _list_tags(repo: git.Repo, commit: git.objects.Commit) -> Iterator[str]:
+        """
+        List tags for the given commit
+        """
+        for tag in repo.tags:
+            if tag.object == commit:
+                yield tag.name
 
     def find_versions(self) -> dict[str, str]:
         """
@@ -90,7 +99,30 @@ class Linter(contextlib.ExitStack):
             if res.returncode == 0:
                 versions["setup.py"] = res.stdout.splitlines()[-1].strip().decode()
 
-        # TODO: check git tag
+        # Git-specific detection
+        try:
+            repo = git.Repo(path)
+        except git.exc.InvalidGitRepositoryError:
+            repo = None
+        if repo is not None:
+            re_versioned_tag = re.compile(r"^v?([0-9].+)")
+
+            # List tags for the current commit
+            for tag in self._list_tags(repo, repo.head.commit):
+                if tag.startswith("debian/"):
+                    version = tag[7:]
+                    if "-" in version:
+                        versions["tag-debian"] = version.split("-", 1)[0]
+                        versions["tag-debian-release"] = version
+                    else:
+                        versions["tag-debian"] = version
+                elif (mo := re_versioned_tag.match(tag)):
+                    version = mo.group(1)
+                    if "-" in version:
+                        versions["tag-arpa"] = version.split("-", 1)[0]
+                        versions["tag-arpa-release"] = version
+                    else:
+                        versions["tag"] = version
 
         return versions
 
