@@ -115,7 +115,51 @@ class TestLint(unittest.TestCase):
         with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
               mock.patch("moncic.lint.Linter.warning") as warnings):
             linter.lint()
-            warnings.assert_called_with("Versions mismatch: 1.1 in autotools; 1.2 in meson")
+            warnings.assert_called_with(
+                "Versions mismatch: 1.1 in autotools; 1.2 in meson, debian-release, spec-release")
+
+    def test_versions_tag(self):
+        linter = Linter(None, None)
+        versions = {
+            "autotools": "1.2",
+            "meson": "1.2",
+            "tag": "1.3",
+            'debian-release': '1.2-1',
+            'spec-release': '1.2-1rocky9',
+        }
+        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
+              mock.patch("moncic.lint.Linter.warning") as warnings):
+            linter.lint()
+            warnings.assert_called_with(
+                "Versions mismatch: 1.2 in autotools, meson, debian-release, spec-release; 1.3 in tag")
+
+    def test_versions_tag_debian(self):
+        linter = Linter(None, None)
+        versions = {
+            "autotools": "1.2",
+            "meson": "1.2",
+            'tag-debian': '1.3',
+            'tag-debian-release': '1.3-1',
+        }
+        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
+              mock.patch("moncic.lint.Linter.warning") as warnings):
+            linter.lint()
+            warnings.assert_called_with(
+                "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-debian, tag-debian-release")
+
+    def test_versions_tag_arpa(self):
+        linter = Linter(None, None)
+        versions = {
+            "autotools": "1.2",
+            "meson": "1.2",
+            'tag-arpa': '1.3',
+            'tag-arpa-release': '1.3-1',
+        }
+        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
+              mock.patch("moncic.lint.Linter.warning") as warnings):
+            linter.lint()
+            warnings.assert_called_with(
+                "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-arpa, tag-arpa-release")
 
 
 class TestGit(unittest.TestCase):

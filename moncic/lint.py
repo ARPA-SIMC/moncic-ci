@@ -301,8 +301,9 @@ class Linter(contextlib.ExitStack):
         by_version: dict[str, list[str]] = defaultdict(list)
         for name, version in versions.items():
             if name.endswith("-release"):
-                continue
-            by_version[version].append(name)
+                by_version[version.split("-", 1)[0]].append(name)
+            else:
+                by_version[version].append(name)
         if len(by_version) > 1:
             descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
             self.warning(f"Versions mismatch: {'; '.join(descs)}")
