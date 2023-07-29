@@ -361,6 +361,13 @@ class DebianGBPRelease(DebianGBP):
     def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPRelease":
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
+
+        # If we are still working on an uncloned repository, create a temporary
+        # clone to work on a clean one
+        if not source.copy:
+            log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
+            source = source.clone()
+
         res = cls(source, source.repo.working_dir)
         res.gbp_args.append("--git-upstream-tree=tag")
         return res
