@@ -266,6 +266,36 @@ debian-branch=debian/sid
         self.repo.git("tag", "debian/1.2-2")
         self.assertEqual(self._lint(SID), (["file: upstream file affected by debian branch"], []))
 
+    def test_packaging_changes_arpa(self):
+        self.repo.add("fedora/SPECS/test.spec", """
+%global releaseno 1
+Name:           test
+Version:        1.2
+Release:        %{releaseno}%{dist}
+""")
+        self.repo.commit("packaged for fedora/ARPA")
+        self.repo.git("tag", "v1.2-1")
+        self.session.set_process_result(r"rpmspec", stdout=b"""
+Version: 1.2
+Release: 1rocky9
+""")
+        self.assertEqual(self._lint(ROCKY9), ([], []))
+
+        self.repo.add("file", "contents")
+        self.repo.commit("change to upstream")
+        self.session.set_process_result(r"rpmspec", stdout=b"""
+Version: 1.2
+Release: 1rocky9
+""")
+        self.assertEqual(self._lint(ROCKY9), ([], []))
+
+        self.repo.git("tag", "v1.2-2")
+        self.session.set_process_result(r"rpmspec", stdout=b"""
+Version: 1.2
+Release: 2rocky9
+""")
+        self.assertEqual(self._lint(ROCKY9), (["file: upstream file affected by packaging changes"], []))
+
         # ------------
         # TODO: Checks in git history:
 

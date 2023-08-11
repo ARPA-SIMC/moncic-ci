@@ -3,6 +3,7 @@ from __future__ import annotations
 import itertools
 import logging
 import os
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Type, Union
@@ -132,3 +133,55 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
     @classmethod
     def _create_from_repo(cls, source: LocalGit) -> "ARPAGitSource":
         return cls(source, Path(source.path))
+
+    def _check_arpa_commits(self, linter: "lint.Linter"):
+        repo = self.source.repo
+
+        # Get the latest version tag
+        res = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0", "--match=v[0-9]*"],
+            cwd=repo.working_dir,
+            text=True, capture_output=True, check=True)
+        last_tag = res.stdout.strip()
+
+        if "-" not in last_tag:
+            return
+
+        # Look for a previous version tag
+        uv, rv = last_tag[1:].split("-", 1)
+        if (last_ver := int(rv)) == 1:
+            return
+
+        prev_ver: Optional[int] = None
+        prev_tag: Optional[str] = None
+        prefix = f"v{uv}-"
+        for tag in repo.tags:
+            if tag.name.startswith(prefix):
+                ver = int(tag.name[len(prefix):])
+                if ver < last_ver:
+                    if prev_ver is None or prev_ver < ver:
+                        prev_ver = ver
+                        prev_tag = tag.name
+
+        if prev_ver is None:
+            linter.warning(f"Found tag {last_tag} but no earlier release tag for the same upstream version")
+            return
+
+        # Check that the diff between the two tags only affects files under the
+        # same directory as the specfile
+        changes_root = os.path.dirname(self.specfile_path)
+        prev = repo.commit(prev_tag)
+        last = repo.commit(last_tag)
+        upstream_affected: set[str] = set()
+        for diff in prev.diff(last):
+            if diff.a_path is not None and not diff.a_path.startswith(changes_root):
+                upstream_affected.add(diff.a_path)
+            if diff.b_path is not None and not diff.b_path.startswith(changes_root):
+                upstream_affected.add(diff.b_path)
+
+        for name in sorted(upstream_affected):
+            linter.warning(f"{name}: upstream file affected by packaging changes")
+
+    def lint(self, linter: "lint.Linter"):
+        super().lint(linter)
+        self._check_arpa_commits(linter)
