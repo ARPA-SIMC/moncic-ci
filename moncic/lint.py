@@ -38,7 +38,7 @@ class Linter(contextlib.ExitStack):
         """
         Get the source path
         """
-        return Path(self.source.host_path)
+        return self.source.host_path
 
     @staticmethod
     def _list_tags(repo: git.Repo, commit: git.objects.Commit) -> Iterator[str]:

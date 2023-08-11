@@ -19,7 +19,7 @@ from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
 from ..utils.run import log_run, run
 from .inputsource import URL, InputSource, LocalDir, LocalFile, LocalGit
-from .source import Source, register
+from .source import Source, register, GitCommitInfo, GitSource
 
 if TYPE_CHECKING:
     from ..build import Build
@@ -58,7 +58,7 @@ class DebianDirMixin(Source):
         if (artifacts_dir := build.artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 
-        with open(os.path.join(self.host_path, "debian", "changelog"), "rt") as fd:
+        with (self.host_path / "debian" / "changelog").open("rt") as fd:
             if (mo := re_debchangelog_head.match(next(fd))):
                 src_name = mo.group("name")
                 tar_version = mo.group("tar_version")
@@ -84,12 +84,10 @@ class DebianDirMixin(Source):
                 self.tarball_filename = tarball_match + ".xz"
 
 
-class DebianGitSource(DebianSource):
+class DebianGitSource(DebianSource, GitSource):
     """
     Debian sources from a git repository
     """
-    # Redefine specialized as LocalGit
-    source: LocalGit
 
     @classmethod
     def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
@@ -149,7 +147,7 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
         if source.repo.working_dir is None:
             raise RuntimeError(f"{source} repository has no working directory")
 
-        res = cls(source, source.repo.working_dir)
+        res = cls(source, Path(source.repo.working_dir))
         res.add_trace_log("git", "clone", "-b", source.repo.active_branch.name, source.source)
         return res
 
@@ -293,7 +291,7 @@ class DebianGBPTestUpstream(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
-        res = cls(source, source.repo.working_dir)
+        res = cls(source, Path(source.repo.working_dir))
 
         # Make a temporary merge of active_branch on the debian branch
         log.info("merge packaging branch %s for test build", branch)
@@ -347,7 +345,7 @@ class DebianGBPRelease(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
-        res = cls(source, source.repo.working_dir)
+        res = cls(source, Path(source.repo.working_dir))
         res.gbp_args.append("--git-upstream-tree=tag")
         return res
 
@@ -383,7 +381,7 @@ class DebianGBPTestDebian(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
-        res = cls(source, source.repo.working_dir)
+        res = cls(source, Path(source.repo.working_dir))
         res.add_trace_log("git", "clone", "-b", str(source.repo.active_branch), source.source)
 
         # Merge the upstream branch into the debian branch
@@ -415,7 +413,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
 
     @classmethod
     def _create_from_dir(cls, distro: Distro, source: LocalDir) -> "DebianSourceDir":
-        return cls(source, source.path)
+        return cls(source, Path(source.path))
 
     @host_only
     def gather_sources_from_host(self, build: Build, container: Container) -> None:
@@ -463,7 +461,7 @@ class DebianDsc(DebianSource):
 
     @classmethod
     def _create_from_file(cls, distro: Distro, source: LocalFile) -> "DebianDsc":
-        return cls(source, source.path)
+        return cls(source, Path(source.path))
 
     @host_only
     def gather_sources_from_host(self, build: Build, container: Container) -> None:
@@ -477,8 +475,8 @@ class DebianDsc(DebianSource):
         re_file = re.compile(r"^\s+\S+\s+\d+\s+(\S+)\s*$")
 
         # Parse .dsc to get the list of assets
-        file_list = [os.path.basename(self.host_path)]
-        with open(self.host_path, "rt") as fd:
+        file_list = [self.host_path.name]
+        with self.host_path.open("rt") as fd:
             files_section = False
             for line in fd:
                 if not files_section:
@@ -491,12 +489,12 @@ class DebianDsc(DebianSource):
                     file_list.append(mo.group(1))
 
         # Copy .dsc and its assets to the container
-        srcdir = os.path.dirname(self.host_path)
+        srcdir = self.host_path.parent
         dstdir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
         for fname in file_list:
-            link_or_copy(os.path.join(srcdir, fname), dstdir)
+            link_or_copy(srcdir / fname, dstdir)
 
-        self.guest_path = os.path.join("/srv/moncic-ci/source", os.path.basename(self.host_path))
+        self.guest_path = os.path.join("/srv/moncic-ci/source", self.host_path.name)
 
     @guest_only
     def build_source_package(self) -> str:

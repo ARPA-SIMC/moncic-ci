@@ -243,7 +243,7 @@ debian-branch=debian/unstable
             self.assertIsInstance(src, debian.DebianGBPRelease)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
-            self.assertTrue(os.path.isdir(build.source.host_path))
+            self.assertTrue(build.source.host_path.is_dir())
             with (make_moncic() as moncic,
                     moncic.session(),
                     MockBuilder("sid", build) as builder,
@@ -409,7 +409,7 @@ foo foo simc/stable bar bar
             src = isrc.detect_source(ROCKY9)
             self.assertEqual(src.get_build_class().__name__, "ARPA")
             build = src.make_build(distro=ROCKY9)
-            self.assertTrue(os.path.isdir(build.source.host_path))
+            self.assertTrue(build.source.host_path.is_dir())
             with (make_moncic() as moncic,
                     moncic.session(),
                     MockBuilder("rocky9", build) as builder,

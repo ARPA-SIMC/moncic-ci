@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import glob
 import itertools
 import logging
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Type, Union
 
 from .. import lint
@@ -55,7 +55,7 @@ class ARPASource(RPMSource):
 
     @classmethod
     def _create_from_repo(cls, source: Union[LocalGit, LocalDir]) -> "ARPASource":
-        return cls(source, source.path)
+        return cls(source, Path(source.path))
 
     @classmethod
     def create(cls, distro: Distro, source: InputSource) -> "ARPASource":
@@ -77,7 +77,7 @@ class ARPASource(RPMSource):
     def locate_specfile(self) -> str:
         srcdir = self.host_path
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
-        specs = list(itertools.chain.from_iterable(glob.glob(os.path.join(srcdir, g)) for g in spec_globs))
+        specs = list(itertools.chain.from_iterable(srcdir.glob(g) for g in spec_globs))
 
         if not specs:
             raise Fail("Spec file not found")

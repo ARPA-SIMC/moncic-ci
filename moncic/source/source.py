@@ -3,14 +3,16 @@ from __future__ import annotations
 import logging
 import shlex
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Optional, Type
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Type
 
 from ..utils.guest import guest_only, host_only
+from .inputsource import LocalGit
 
 if TYPE_CHECKING:
     from ..build import Build
-    from ..linter import Linter
     from ..container import Container
+    from ..linter import Linter
     from .inputsource import InputSource
 
 log = logging.getLogger(__name__)
@@ -61,7 +63,7 @@ class Source:
     # Original source as specified by the user
     source: InputSource
     # Path to the unpacked sources in the host system
-    host_path: str
+    host_path: Path
     # Path to the unpacked sources in the guest system
     guest_path: Optional[str] = None
     # Commands that can be used to recreate this source
@@ -119,3 +121,11 @@ class Source:
         the main file of the source package fileset
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package is not implemented")
+
+
+class GitSource(Source):
+    """
+    Source backed by a Git repo
+    """
+    # Redefine source specialized as LocalGit
+    source: LocalGit

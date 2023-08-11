@@ -97,9 +97,9 @@ class Builder(contextlib.ExitStack):
         # Set it as the default current directory in the container
         # Mounted volatile to prevent changes to it
         mountpoint = "/srv/moncic-ci/source"
-        self.build.source.guest_path = os.path.join(mountpoint, os.path.basename(self.build.source.host_path))
+        self.build.source.guest_path = os.path.join(mountpoint, self.build.source.host_path.name)
         container_config.configure_workdir(
-                self.build.source.host_path, bind_type="volatile", mountpoint=mountpoint)
+                self.build.source.host_path.as_posix(), bind_type="volatile", mountpoint=mountpoint)
         container = self.system.create_container(config=container_config)
         with container:
             self.setup_container_host(container)
