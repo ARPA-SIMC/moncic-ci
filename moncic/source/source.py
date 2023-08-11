@@ -6,7 +6,7 @@ import shlex
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterator, NamedTuple, Optional, Type
+from typing import TYPE_CHECKING, Any, Optional, Type
 
 from ..container import ContainerConfig
 from ..utils.guest import guest_only, host_only
@@ -203,14 +203,11 @@ class GitSource(Source):
     # Redefine source specialized as LocalGit
     source: LocalGit
 
-    @staticmethod
-    def _list_tags(repo: git.Repo, commit: git.objects.Commit) -> Iterator[str]:
-        """
-        List tags for the given commit
-        """
-        for tag in repo.tags:
-            if tag.object == commit:
-                yield tag.name
+    def _get_tags_by_hexsha(self) -> dict[str, git.objects.Commit]:
+        res: dict[str, list[git.objects.Commit]] = defaultdict(list)
+        for tag in self.source.repo.tags:
+            res[tag.object.hexsha].append(tag)
+        return res
 
     def find_versions(self, system: System) -> dict[str, str]:
         versions = super().find_versions(system)
@@ -219,16 +216,18 @@ class GitSource(Source):
 
         repo = self.source.repo
 
+        _tags_by_hexsha = self._get_tags_by_hexsha()
+
         # List tags for the current commit
-        for tag in self._list_tags(repo, repo.head.commit):
-            if tag.startswith("debian/"):
-                version = tag[7:]
+        for tag in _tags_by_hexsha.get(repo.head.commit.hexsha, ()):
+            if tag.name.startswith("debian/"):
+                version = tag.name[7:]
                 if "-" in version:
                     versions["tag-debian"] = version.split("-", 1)[0]
                     versions["tag-debian-release"] = version
                 else:
                     versions["tag-debian"] = version
-            elif (mo := re_versioned_tag.match(tag)):
+            elif (mo := re_versioned_tag.match(tag.name)):
                 version = mo.group(1)
                 if "-" in version:
                     versions["tag-arpa"] = version.split("-", 1)[0]
