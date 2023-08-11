@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Optional, Type, Union
 from .. import lint
 from ..exceptions import Fail
 from .inputsource import URL, InputSource, LocalDir, LocalGit
-from .source import Source, register
+from .source import Source, GitSource, register
 
 if TYPE_CHECKING:
     from ..build import Build
@@ -41,32 +41,19 @@ class RPMSource(Source):
 
     @classmethod
     def detect(cls, distro: Distro, source: Union[LocalGit, LocalDir]) -> "RPMSource":
-        return ARPASource._create_from_repo(source)
-
-
-@register
-@dataclass
-class ARPASource(RPMSource):
-    """
-    ARPA/SIMC git repository, building RPM packages using the logic previously
-    configured for travis
-    """
-    NAME = "rpm-arpa"
-
-    @classmethod
-    def _create_from_repo(cls, source: Union[LocalGit, LocalDir]) -> "ARPASource":
-        return cls(source, Path(source.path))
-
-    @classmethod
-    def create(cls, distro: Distro, source: InputSource) -> "ARPASource":
-        if isinstance(source, (LocalGit, LocalDir)):
-            return cls(source, source.path)
-        elif isinstance(source, URL):
-            return cls.create(source.clone())
+        if isinstance(source, LocalGit):
+            return ARPAGitSource._create_from_repo(source)
+        elif isinstance(source, LocalDir):
+            return ARPASource._create_from_repo(source)
         else:
             raise RuntimeError(
                     f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
 
+
+class ARPASourceMixin(RPMSource):
+    """
+    Base class for ARPA sources
+    """
     def get_build_class(self) -> Type["Build"]:
         from ..build.arpa import ARPA
         return ARPA
@@ -86,3 +73,31 @@ class ARPASource(RPMSource):
             raise Fail(f"{len(specs)} .spec files found")
 
         return os.path.relpath(specs[0], start=srcdir)
+
+
+@register
+@dataclass
+class ARPASource(ARPASourceMixin, RPMSource):
+    """
+    ARPA/SIMC source directory, building RPM packages using the logic
+    previously configured for travis
+    """
+    NAME = "rpm-arpa"
+
+    @classmethod
+    def _create_from_repo(cls, source: LocalDir) -> "ARPASource":
+        return cls(source, Path(source.path))
+
+
+@register
+@dataclass
+class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
+    """
+    ARPA/SIMC git repository, building RPM packages using the logic previously
+    configured for travis
+    """
+    NAME = "rpm-arpa-git"
+
+    @classmethod
+    def _create_from_repo(cls, source: LocalGit) -> "ARPAGitSource":
+        return cls(source, Path(source.path))

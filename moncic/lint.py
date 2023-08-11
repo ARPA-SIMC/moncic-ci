@@ -5,7 +5,7 @@ import re
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Optional
+from typing import TYPE_CHECKING, Optional
 
 import git
 
@@ -40,93 +40,13 @@ class Linter(contextlib.ExitStack):
         """
         return self.source.host_path
 
-    @staticmethod
-    def _list_tags(repo: git.Repo, commit: git.objects.Commit) -> Iterator[str]:
-        """
-        List tags for the given commit
-        """
-        for tag in repo.tags:
-            if tag.object == commit:
-                yield tag.name
-
     def find_versions(self) -> dict[str, str]:
         """
         Get the program version from sources.
 
         Return a dict mapping version type to version strings
         """
-        versions: dict[str, str] = {}
-
-        path = self.source_path
-        if (autotools := path / "configure.ac").exists():
-            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
-            with autotools.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_autotools.match(line)):
-                        versions["autotools"] = mo.group(1).strip()
-                        break
-
-        if (meson := path / "meson.build").exists():
-            re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
-            with meson.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_meson.match(line)):
-                        versions["meson"] = mo.group(1).strip()
-                        break
-
-        if (cmake := path / "CMakeLists.txt").exists():
-            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
-            with cmake.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_cmake.match(line)):
-                        versions["cmake"] = mo.group(1).strip()
-                        break
-
-        if (news := path / "NEWS.md").exists():
-            re_news = re.compile(r"# New in version (.+)")
-            with news.open("rt") as fd:
-                for line in fd:
-                    if (mo := re_news.match(line)):
-                        versions["news"] = mo.group(1).strip()
-                        break
-
-        # Check setup.py by executing it with --version inside the container
-        if (path / "setup.py").exists():
-            cconfig = ContainerConfig()
-            cconfig.configure_workdir(self.source_path, bind_type="ro")
-            with self.system.create_container(config=cconfig) as container:
-                res = container.run(["/usr/bin/python3", "setup.py", "--version"])
-            if res.returncode == 0:
-                lines = res.stdout.splitlines()
-                if lines:
-                    versions["setup.py"] = lines[-1].strip().decode()
-
-        # Git-specific detection
-        try:
-            repo = git.Repo(path)
-        except git.exc.InvalidGitRepositoryError:
-            repo = None
-        if repo is not None:
-            re_versioned_tag = re.compile(r"^v?([0-9].+)")
-
-            # List tags for the current commit
-            for tag in self._list_tags(repo, repo.head.commit):
-                if tag.startswith("debian/"):
-                    version = tag[7:]
-                    if "-" in version:
-                        versions["tag-debian"] = version.split("-", 1)[0]
-                        versions["tag-debian-release"] = version
-                    else:
-                        versions["tag-debian"] = version
-                elif (mo := re_versioned_tag.match(tag)):
-                    version = mo.group(1)
-                    if "-" in version:
-                        versions["tag-arpa"] = version.split("-", 1)[0]
-                        versions["tag-arpa-release"] = version
-                    else:
-                        versions["tag"] = version
-
-        return versions
+        return self.source.find_versions(self.system)
 
     def check_local_remote_sync(self, name: str) -> str:
         """

@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 import logging
+import re
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, Optional, Type
+from typing import TYPE_CHECKING, Any, Iterator, NamedTuple, Optional, Type
 
+from ..container import ContainerConfig
 from ..utils.guest import guest_only, host_only
 from .inputsource import LocalGit
 
 if TYPE_CHECKING:
+    import git
+
     from ..build import Build
-    from ..container import Container
+    from ..container import Container, System
     from ..linter import Linter
     from .inputsource import InputSource
 
@@ -122,6 +126,63 @@ class Source:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package is not implemented")
 
+    def find_versions(self, system: System) -> dict[str, str]:
+        """
+        Get the program version from sources.
+
+        Return a dict mapping version type to version strings
+        """
+        versions: dict[str, str] = {}
+
+        path = self.host_path
+        if (autotools := path / "configure.ac").exists():
+            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
+            with autotools.open("rt") as fd:
+                for line in fd:
+                    if (mo := re_autotools.match(line)):
+                        versions["autotools"] = mo.group(1).strip()
+                        break
+
+        if (meson := path / "meson.build").exists():
+            re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
+            with meson.open("rt") as fd:
+                for line in fd:
+                    if (mo := re_meson.match(line)):
+                        versions["meson"] = mo.group(1).strip()
+                        break
+
+        if (cmake := path / "CMakeLists.txt").exists():
+            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
+            with cmake.open("rt") as fd:
+                for line in fd:
+                    if (mo := re_cmake.match(line)):
+                        versions["cmake"] = mo.group(1).strip()
+                        break
+
+        if (news := path / "NEWS.md").exists():
+            re_news = re.compile(r"# New in version (.+)")
+            with news.open("rt") as fd:
+                for line in fd:
+                    if (mo := re_news.match(line)):
+                        versions["news"] = mo.group(1).strip()
+                        break
+
+        # Check setup.py by executing it with --version inside the container
+        if (path / "setup.py").exists():
+            cconfig = ContainerConfig()
+            cconfig.configure_workdir(path, bind_type="ro")
+            with system.create_container(config=cconfig) as container:
+                res = container.run(["/usr/bin/python3", "setup.py", "--version"])
+            if res.returncode == 0:
+                lines = res.stdout.splitlines()
+                if lines:
+                    versions["setup.py"] = lines[-1].strip().decode()
+
+        return versions
+
+    def lint(self, linter: Linter):
+        pass
+
 
 class GitSource(Source):
     """
@@ -129,3 +190,38 @@ class GitSource(Source):
     """
     # Redefine source specialized as LocalGit
     source: LocalGit
+
+    @staticmethod
+    def _list_tags(repo: git.Repo, commit: git.objects.Commit) -> Iterator[str]:
+        """
+        List tags for the given commit
+        """
+        for tag in repo.tags:
+            if tag.object == commit:
+                yield tag.name
+
+    def find_versions(self, system: System) -> dict[str, str]:
+        versions = super().find_versions(system)
+
+        re_versioned_tag = re.compile(r"^v?([0-9].+)")
+
+        repo = self.source.repo
+
+        # List tags for the current commit
+        for tag in self._list_tags(repo, repo.head.commit):
+            if tag.startswith("debian/"):
+                version = tag[7:]
+                if "-" in version:
+                    versions["tag-debian"] = version.split("-", 1)[0]
+                    versions["tag-debian-release"] = version
+                else:
+                    versions["tag-debian"] = version
+            elif (mo := re_versioned_tag.match(tag)):
+                version = mo.group(1)
+                if "-" in version:
+                    versions["tag-arpa"] = version.split("-", 1)[0]
+                    versions["tag-arpa-release"] = version
+                else:
+                    versions["tag"] = version
+
+        return versions

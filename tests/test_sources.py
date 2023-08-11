@@ -391,7 +391,7 @@ foo foo simc/stable bar bar
                 isrc.detect_source(SID)
 
             src = isrc.detect_source(ROCKY9)
-            self.assertIsInstance(src, rpm.ARPASource)
+            self.assertIsInstance(src, rpm.ARPAGitSource)
 
     def test_detect_url(self):
         with self.git.serve() as url:
@@ -402,7 +402,7 @@ foo foo simc/stable bar bar
                     isrc.detect_source(SID)
 
                 src = isrc.detect_source(ROCKY9)
-                self.assertIsInstance(src, rpm.ARPASource)
+                self.assertIsInstance(src, rpm.ARPAGitSource)
 
     def _test_build_source(self, path):
         with InputSource.create(path) as isrc:
