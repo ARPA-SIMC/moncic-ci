@@ -7,7 +7,7 @@ from unittest import mock
 
 from moncic.distro import DistroFamily
 from moncic.lint import Linter
-from moncic.source import InputSource
+from moncic.source import InputSource, Source
 from moncic.unittest import make_moncic
 
 from .source import GitRepo, WorkdirFixtureMixin
@@ -103,63 +103,48 @@ Release: 1rocky9
         })
 
 
-class TestLint(unittest.TestCase):
+class TestVersions(unittest.TestCase):
+    def assertWarns(self, versions: dict[str, str], message: str):
+        with mock.patch("moncic.source.Source.__post_init__"):
+            source = Source(None, None, None)
+        linter = Linter(None, source)
+        with (mock.patch("moncic.source.Source.find_versions", return_value=versions),
+              mock.patch("moncic.lint.Linter.warning") as warnings):
+            linter.lint()
+            warnings.assert_called_with(message)
+
     def test_versions(self):
-        linter = Linter(None, None)
-        versions = {
+        self.assertWarns({
             "autotools": "1.1",
             "meson": "1.2",
             'debian-release': '1.2-1',
             'spec-release': '1.2-1rocky9',
-        }
-        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
-              mock.patch("moncic.lint.Linter.warning") as warnings):
-            linter.lint()
-            warnings.assert_called_with(
-                "Versions mismatch: 1.1 in autotools; 1.2 in meson, debian-release, spec-release")
+        }, "Versions mismatch: 1.1 in autotools; 1.2 in meson, debian-release, spec-release")
 
     def test_versions_tag(self):
-        linter = Linter(None, None)
-        versions = {
+        self.assertWarns({
             "autotools": "1.2",
             "meson": "1.2",
             "tag": "1.3",
             'debian-release': '1.2-1',
             'spec-release': '1.2-1rocky9',
-        }
-        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
-              mock.patch("moncic.lint.Linter.warning") as warnings):
-            linter.lint()
-            warnings.assert_called_with(
-                "Versions mismatch: 1.2 in autotools, meson, debian-release, spec-release; 1.3 in tag")
+        }, "Versions mismatch: 1.2 in autotools, meson, debian-release, spec-release; 1.3 in tag")
 
     def test_versions_tag_debian(self):
-        linter = Linter(None, None)
-        versions = {
+        self.assertWarns({
             "autotools": "1.2",
             "meson": "1.2",
             'tag-debian': '1.3',
             'tag-debian-release': '1.3-1',
-        }
-        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
-              mock.patch("moncic.lint.Linter.warning") as warnings):
-            linter.lint()
-            warnings.assert_called_with(
-                "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-debian, tag-debian-release")
+        }, "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-debian, tag-debian-release")
 
     def test_versions_tag_arpa(self):
-        linter = Linter(None, None)
-        versions = {
+        self.assertWarns({
             "autotools": "1.2",
             "meson": "1.2",
             'tag-arpa': '1.3',
             'tag-arpa-release': '1.3-1',
-        }
-        with (mock.patch("moncic.lint.Linter.find_versions", return_value=versions),
-              mock.patch("moncic.lint.Linter.warning") as warnings):
-            linter.lint()
-            warnings.assert_called_with(
-                "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-arpa, tag-arpa-release")
+        }, "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-arpa, tag-arpa-release")
 
 
 class TestGit(unittest.TestCase):

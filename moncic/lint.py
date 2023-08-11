@@ -213,18 +213,7 @@ class Linter(contextlib.ExitStack):
         """
         lint-check the sources, using analyzer to output results
         """
-        # Check for version mismatches
-        versions = self.find_versions()
-
-        by_version: dict[str, list[str]] = defaultdict(list)
-        for name, version in versions.items():
-            if name.endswith("-release"):
-                by_version[version.split("-", 1)[0]].append(name)
-            else:
-                by_version[version].append(name)
-        if len(by_version) > 1:
-            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            self.warning(f"Versions mismatch: {'; '.join(descs)}")
+        self.source.lint(self)
 
 
 class ARPALinter(Linter):

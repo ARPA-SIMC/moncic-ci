@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import shlex
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterator, NamedTuple, Optional, Type
@@ -181,7 +182,18 @@ class Source:
         return versions
 
     def lint(self, linter: Linter):
-        pass
+        # Check for version mismatches
+        versions = self.find_versions(linter.system)
+
+        by_version: dict[str, list[str]] = defaultdict(list)
+        for name, version in versions.items():
+            if name.endswith("-release"):
+                by_version[version.split("-", 1)[0]].append(name)
+            else:
+                by_version[version].append(name)
+        if len(by_version) > 1:
+            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
+            linter.warning(f"Versions mismatch: {'; '.join(descs)}")
 
 
 class GitSource(Source):
