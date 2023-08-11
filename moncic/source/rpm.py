@@ -8,12 +8,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Type, Union
 
 from .. import lint
+from ..container import ContainerConfig
 from ..exceptions import Fail
-from .inputsource import URL, InputSource, LocalDir, LocalGit
-from .source import Source, GitSource, register
+from .inputsource import LocalDir, LocalGit
+from .source import GitSource, Source, register
 
 if TYPE_CHECKING:
     from ..build import Build
+    from ..container import System
     from ..distro import Distro
 
 log = logging.getLogger(__name__)
@@ -73,6 +75,35 @@ class ARPASourceMixin(RPMSource):
             raise Fail(f"{len(specs)} .spec files found")
 
         return os.path.relpath(specs[0], start=srcdir)
+
+    def find_versions(self, system: System) -> dict[str, str]:
+        versions = super().find_versions(system)
+
+        spec_path = self.specfile_path
+
+        # Run in container: rpmspec --parse file.spec
+        if (self.host_path / spec_path).exists():
+            cconfig = ContainerConfig()
+            cconfig.configure_workdir(self.host_path, bind_type="ro")
+            with system.create_container(config=cconfig) as container:
+                res = container.run(["/usr/bin/rpmspec", "--parse", spec_path])
+            if res.returncode == 0:
+                version: Optional[str] = None
+                release: Optional[str] = None
+                for line in res.stdout.splitlines():
+                    if line.startswith(b"Version:"):
+                        if version is None:
+                            version = line[8:].strip().decode()
+                    if line.startswith(b"Release:"):
+                        if release is None:
+                            release = line[8:].strip().decode()
+
+                if version is not None:
+                    versions["spec-upstream"] = version
+                    if release is not None:
+                        versions["spec-release"] = version + "-" + release
+
+        return versions
 
 
 @register

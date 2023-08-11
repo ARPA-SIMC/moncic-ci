@@ -23,7 +23,7 @@ from .source import Source, register, GitCommitInfo, GitSource
 
 if TYPE_CHECKING:
     from ..build import Build
-    from ..container import Container
+    from ..container import Container, System
     from ..distro import Distro
 
 log = logging.getLogger(__name__)
@@ -38,6 +38,30 @@ class DebianSource(Source):
 
     def get_linter_class(self) -> Type["lint.Linter"]:
         return lint.DebianLinter
+
+    def find_versions(self, system: System) -> dict[str, str]:
+        versions = super().find_versions(system)
+
+        changelog = self.host_path / "debian" / "changelog"
+
+        re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
+
+        try:
+            for line in changelog.read_text().splitlines():
+                if (mo := re_changelog.match(line)):
+                    debversion = mo.group(1)
+                    if "-" in debversion:
+                        upstream, release = debversion.split("-")
+                    else:
+                        upstream, release = debversion, None
+                    versions["debian-upstream"] = upstream
+                    if release is not None:
+                        versions["debian-release"] = upstream + "-" + release
+                    break
+        except FileNotFoundError:
+            pass
+
+        return versions
 
 
 @dataclass

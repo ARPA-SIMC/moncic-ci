@@ -9,8 +9,6 @@ from typing import TYPE_CHECKING, Optional
 
 import git
 
-from .container import ContainerConfig
-
 if TYPE_CHECKING:
     from ..container import System
     from ..source.source import Source
@@ -230,35 +228,6 @@ class Linter(contextlib.ExitStack):
 
 
 class ARPALinter(Linter):
-    def find_versions(self) -> dict[str, str]:
-        versions = super().find_versions()
-
-        spec_path = self.source.locate_specfile()
-
-        # Run in container: rpmspec --parse file.spec
-        if (self.source_path / spec_path).exists():
-            cconfig = ContainerConfig()
-            cconfig.configure_workdir(self.source_path, bind_type="ro")
-            with self.system.create_container(config=cconfig) as container:
-                res = container.run(["/usr/bin/rpmspec", "--parse", spec_path])
-            if res.returncode == 0:
-                version: Optional[str] = None
-                release: Optional[str] = None
-                for line in res.stdout.splitlines():
-                    if line.startswith(b"Version:"):
-                        if version is None:
-                            version = line[8:].strip().decode()
-                    if line.startswith(b"Release:"):
-                        if release is None:
-                            release = line[8:].strip().decode()
-
-                if version is not None:
-                    versions["spec-upstream"] = version
-                    if release is not None:
-                        versions["spec-release"] = version + "-" + release
-
-        return versions
-
     def lint(self):
         super().lint()
         # # Check that spec version is in sync with upstream
@@ -271,30 +240,6 @@ class ARPALinter(Linter):
 
 
 class DebianLinter(Linter):
-    def find_versions(self) -> dict[str, str]:
-        versions = super().find_versions()
-
-        changelog = self.source_path / "debian" / "changelog"
-
-        re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
-
-        try:
-            for line in changelog.read_text().splitlines():
-                if (mo := re_changelog.match(line)):
-                    debversion = mo.group(1)
-                    if "-" in debversion:
-                        upstream, release = debversion.split("-")
-                    else:
-                        upstream, release = debversion, None
-                    versions["debian-upstream"] = upstream
-                    if release is not None:
-                        versions["debian-release"] = upstream + "-" + release
-                    break
-        except FileNotFoundError:
-            pass
-
-        return versions
-
     def lint(self):
         super().lint()
         # upstream_version = analyzer.upstream_version
