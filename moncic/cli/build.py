@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
 from ..build import Builder
@@ -107,6 +108,8 @@ class CI(SourceCommand):
                                     return obj.source
                                 elif isinstance(obj, Distro):
                                     return obj.name
+                                elif isinstance(obj, Path):
+                                    return str(obj)
                                 else:
                                     return super().default(obj)
                         json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
