@@ -1,7 +1,10 @@
 # Version *unreleased*
 
+# Version 0.13
+
 * `monci ci`: update/upgrade the container before a build, unless `--quick` is
   specified (#100)
+* Static checks for sources (monci lint) (#101)
 
 # Version 0.12
 
