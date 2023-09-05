@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.12
+Version:        0.13
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,11 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Tue Sep  5 2023 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.13-1
+- `monci ci`: update/upgrade the container before a build, unless `--quick` is
+  specified (#100)
+- `monci lint`: static checks for sources (#101)
+
 * Wed May 31 2023 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.12-1
 - Build from tag when using a remote repository (#99)
 

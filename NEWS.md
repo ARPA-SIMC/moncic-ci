@@ -4,7 +4,7 @@
 
 * `monci ci`: update/upgrade the container before a build, unless `--quick` is
   specified (#100)
-* Static checks for sources (monci lint) (#101)
+* `monci lint`: static checks for sources (#101)
 
 # Version 0.12
 
