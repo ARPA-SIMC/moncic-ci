@@ -6,7 +6,8 @@ import os
 import shlex
 import tempfile
 import urllib.parse
-from typing import TYPE_CHECKING, Optional
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional, Union
 
 import git
 
@@ -83,15 +84,17 @@ class InputSource(contextlib.ExitStack):
         self.trace_log.append(" ".join(shlex.quote(c) for c in args))
 
     @classmethod
-    def create(self, source: str) -> "InputSource":
+    def create(self, source: Union[str, Path]) -> "InputSource":
         """
         Create an InputSource from a user argument
         """
+        if isinstance(source, Path):
+            source = source.as_posix()
         parsed = urllib.parse.urlparse(source)
         if parsed.scheme in ("", "file"):
             if os.path.isdir(parsed.path):
                 if os.path.isdir(os.path.join(parsed.path, ".git")):
-                    return LocalGit(source, parsed.path, copy=False, orig_path=os.path.abspath(parsed.path))
+                    return LocalGit(source, parsed.path, copy=False, orig_path=Path(parsed.path).absolute())
                 else:
                     return LocalDir(source, parsed.path)
             else:
@@ -167,7 +170,7 @@ class LocalGit(InputSource):
     """
     Source specified as a local git working directory
     """
-    def __init__(self, source: str, path: str, copy: bool, orig_path: Optional[str] = None):
+    def __init__(self, source: str, path: str, copy: bool, orig_path: Optional[Path] = None):
         super().__init__(source)
         self.repo = git.Repo(path)
         self.copy = copy

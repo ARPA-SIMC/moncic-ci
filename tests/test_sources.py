@@ -21,16 +21,15 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.pkg_root = os.path.join(cls.workdir, "moncic-ci")
-        debian_dir = os.path.join(cls.pkg_root, "debian")
+        cls.pkg_root = cls.workdir / "moncic-ci"
+        debian_dir = cls.pkg_root / "debian"
         os.makedirs(debian_dir, exist_ok=True)
 
         with open(os.path.join(debian_dir, "changelog"), "wt") as fd:
             print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
 
         # Create mock tarball
-        with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
-            pass
+        (cls.workdir / cls.tarball_name).write_bytes(b"")
 
     def test_detect_local(self):
         with InputSource.create(self.pkg_root) as isrc:
@@ -78,8 +77,7 @@ class DebianPlainGitMixin(GitFixtureMixin):
         cls.git.commit("Debianized")
         # Create mock tarball
         if not cls.skip_tarball:
-            with open(os.path.join(cls.workdir, cls.tarball_name), "wb"):
-                pass
+            (cls.workdir / cls.tarball_name).write_bytes(b"")
 
     def test_detect_local(self):
         with InputSource.create(self.git.root) as isrc:
@@ -245,7 +243,7 @@ debian-branch=debian/unstable
             self.assertIsInstance(src, debian.DebianGBPRelease)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
-            self.assertTrue(os.path.isdir(build.source.host_path))
+            self.assertTrue(build.source.host_path.is_dir())
             with (make_moncic() as moncic,
                     moncic.session(),
                     MockBuilder("sid", build) as builder,
@@ -330,9 +328,8 @@ class TestDebianDsc(WorkdirFixtureMixin, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.dsc_file = os.path.join(cls.workdir, "moncic-ci_0.1.0-1.dsc")
-        with open(cls.dsc_file, "wt") as fd:
-            fd.write("""Format: 3.0 (quilt)
+        cls.dsc_file = cls.workdir / "moncic-ci_0.1.0-1.dsc"
+        cls.dsc_file.write_text("""Format: 3.0 (quilt)
 Source: moncic-ci
 Binary: moncic-ci
 Version: 0.1.0-1
@@ -341,10 +338,8 @@ Files:
  d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
 """)
 
-        with open(os.path.join(cls.workdir, "moncic-ci_0.1.0.orig.tar.gz"), "wb"):
-            pass
-        with open(os.path.join(cls.workdir, "moncic-ci_0.1.0-1.debian.tar.xz"), "wb"):
-            pass
+        (cls.workdir / "moncic-ci_0.1.0.orig.tar.gz").write_bytes(b"")
+        (cls.workdir / "moncic-ci_0.1.0-1.debian.tar.xz").write_bytes(b"")
 
     def test_detect_local(self):
         with InputSource.create(self.dsc_file) as isrc:
@@ -396,7 +391,7 @@ foo foo simc/stable bar bar
                 isrc.detect_source(SID)
 
             src = isrc.detect_source(ROCKY9)
-            self.assertIsInstance(src, rpm.ARPASource)
+            self.assertIsInstance(src, rpm.ARPAGitSource)
 
     def test_detect_url(self):
         with self.git.serve() as url:
@@ -407,14 +402,14 @@ foo foo simc/stable bar bar
                     isrc.detect_source(SID)
 
                 src = isrc.detect_source(ROCKY9)
-                self.assertIsInstance(src, rpm.ARPASource)
+                self.assertIsInstance(src, rpm.ARPAGitSource)
 
     def _test_build_source(self, path):
         with InputSource.create(path) as isrc:
             src = isrc.detect_source(ROCKY9)
             self.assertEqual(src.get_build_class().__name__, "ARPA")
             build = src.make_build(distro=ROCKY9)
-            self.assertTrue(os.path.isdir(build.source.host_path))
+            self.assertTrue(build.source.host_path.is_dir())
             with (make_moncic() as moncic,
                     moncic.session(),
                     MockBuilder("rocky9", build) as builder,

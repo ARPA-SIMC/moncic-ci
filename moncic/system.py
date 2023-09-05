@@ -4,7 +4,7 @@ import dataclasses
 import logging
 import os
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import yaml
 
@@ -38,11 +38,11 @@ class SystemConfig:
     # If missing, this image needs to be created by bootstrapping from scratch
     extends: Optional[str] = None
     # List of packages to install
-    packages: List[str] = dataclasses.field(default_factory=list)
+    packages: list[str] = dataclasses.field(default_factory=list)
     # Contents of a script to run for system maintenance
     maintscript: Optional[str] = None
     # List of users to propagate from host to image during maintenance
-    forward_users: List[str] = dataclasses.field(default_factory=list)
+    forward_users: list[str] = dataclasses.field(default_factory=list)
     # When False, a CACHEDIR.TAG is created in the container image as a hint
     # for backup programs to skip backing up an image that can be recreated
     # from scratch
@@ -184,7 +184,7 @@ class System:
         """
         return os.path.exists(self.path)
 
-    def local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def local_run(self, cmd: list[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
 
@@ -194,7 +194,7 @@ class System:
         from .runner import LocalRunner
         return LocalRunner.run(self.log, cmd, config, self.config)
 
-    def _container_chain_forwards_users(self) -> List[str]:
+    def _container_chain_forwards_users(self) -> list[str]:
         """
         Check if any container in the chain forwards users
         """
@@ -204,7 +204,7 @@ class System:
                 res.update(parent._container_chain_forwards_users())
         return sorted(res)
 
-    def _container_chain_package_list(self) -> List[str]:
+    def _container_chain_package_list(self) -> list[str]:
         """
         Concatenate the requested package lists for all containers in the
         chain
@@ -217,7 +217,7 @@ class System:
         res.extend(self.config.packages)
         return res
 
-    def _container_chain_config_package_list(self) -> List[str]:
+    def _container_chain_config_package_list(self) -> list[str]:
         """
         Concatenate the requested package lists for all containers in the
         chain
@@ -229,7 +229,7 @@ class System:
         res.extend(self.config.packages)
         return res
 
-    def _container_chain_maintscripts(self) -> List[str]:
+    def _container_chain_maintscripts(self) -> list[str]:
         """
         Build a script with the concatenation of all scripts coming from
         calling distro.get_{name}_script on all the containers in the chain
@@ -263,8 +263,8 @@ class System:
             container.run(cmd)
 
         # Build list of packages to install, removing duplicates
-        packages: List[str] = []
-        seen: Set[str] = set()
+        packages: list[str] = []
+        seen: set[str] = set()
         for pkg in self._container_chain_package_list():
             if pkg in seen:
                 continue
@@ -290,7 +290,7 @@ class System:
             res["users_forwarded"] = users_forwarded
 
         # Build list of packages to install, removing duplicates
-        packages: Set[str] = set()
+        packages: set[str] = set()
         for pkg in self._container_chain_config_package_list():
             packages.add(pkg)
 
@@ -350,10 +350,7 @@ class System:
         return NspawnContainer(self, config, instance_name)
 
 
-class MaintenanceSystem(System):
-    """
-    System used to do maintenance on an OS image
-    """
+class MaintenanceMixin(System):
     def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
         config = super().container_config(config)
         # Force ephemeral to False in maintenance systems
@@ -386,3 +383,33 @@ class MaintenanceSystem(System):
                     print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
                     print("# This file hints to backup software that they can skip this directory.", file=fd)
                     print("# See https://bford.info/cachedir/", file=fd)
+
+
+class MaintenanceSystem(MaintenanceMixin, System):
+    """
+    System used to do maintenance on an OS image
+    """
+
+
+class MockSystem(System):
+    def local_run(self, cmd: list[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        """
+        Run a command on the host system.
+
+        This is used for bootstrapping or removing a system.
+        """
+        self.images.session.mock_log(system=self.name, action="local_run", config=config, cmd=cmd)
+        return self.images.session.get_process_result(args=cmd)
+
+    def create_container(
+            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+        """
+        Boot a container with this system
+        """
+        from .container import MockContainer
+        config = self.container_config(config)
+        return MockContainer(self, config, instance_name)
+
+
+class MockMaintenanceSystem(MaintenanceMixin, MockSystem):
+    pass

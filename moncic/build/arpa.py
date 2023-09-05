@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import glob
-import itertools
 import logging
 import os
 import shutil
@@ -37,16 +36,8 @@ class RPM(Build):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {self.system.distro.name}")
-        self.specfile = self.locate_specfile(self.source.host_path)
+        self.specfile = self.source.locate_specfile()
         self.name = os.path.basename(self.specfile)[:-5]
-
-    def locate_specfile(self, srcdir: str) -> str:
-        """
-        Locate the specfile in the given source directory.
-
-        Return its path relative to srcdir
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.locate_specfile() is not implemented")
 
     # @host_only
     # def get_build_deps(self) -> list[str]:
@@ -76,22 +67,6 @@ class ARPA(RPM):
     ARPA/SIMC builder, building RPM packages using the logic previously
     configured for travis
     """
-    def locate_specfile(self, srcdir: str) -> str:
-        """
-        Locate the specfile in the given source directory.
-
-        Return its path relative to srcdir
-        """
-        spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
-        specs = list(itertools.chain.from_iterable(glob.glob(os.path.join(srcdir, g)) for g in spec_globs))
-
-        if not specs:
-            raise RuntimeError("Spec file not found")
-
-        if len(specs) > 1:
-            raise RuntimeError(f"{len(specs)} .spec files found")
-
-        return os.path.relpath(specs[0], start=srcdir)
 
     @guest_only
     def build(self) -> None:

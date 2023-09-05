@@ -8,11 +8,11 @@ import shutil
 import stat
 import subprocess
 from collections import defaultdict
-from typing import TYPE_CHECKING, ContextManager, Generator, List, Optional
+from typing import TYPE_CHECKING, ContextManager, Generator, Optional
 
 from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 from .distro import DistroFamily
-from .system import MaintenanceSystem, System, SystemConfig
+from .system import MaintenanceSystem, System, SystemConfig, MockMaintenanceSystem, MockSystem
 from .runner import LocalRunner
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class Images:
         self.session = session
         self.imagedir = imagedir
 
-    def list_images(self, skip_unaccessible: bool = False) -> List[str]:
+    def list_images(self, skip_unaccessible: bool = False) -> list[str]:
         """
         List the names of images found in image directories
         """
@@ -65,7 +65,7 @@ class Images:
 
         return sorted(res)
 
-    def local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
+    def local_run(self, system_config: SystemConfig, cmd: list[str]) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
         """
@@ -137,7 +137,7 @@ class Images:
             log.info("%s: removing image configuration file", path)
             os.unlink(path)
 
-    def add_dependencies(self, images: List[str]) -> List[str]:
+    def add_dependencies(self, images: list[str]) -> list[str]:
         """
         Add dependencies to the given list of images, returning the extended
         list.
@@ -161,6 +161,66 @@ class Images:
         pass
 
 
+class MockImages(Images):
+    """
+    Mock image storage, used for testing
+    """
+    def local_run(self, system_config: SystemConfig, cmd: list[str]) -> subprocess.CompletedProcess:
+        self.session.mock_log(system=system_config.name, cmd=cmd)
+        return self.session.get_process_result(args=cmd)
+
+    def system_config(self, name: str) -> SystemConfig:
+        return SystemConfig(
+                name=name,
+                path="/tmp/mock-moncic-ci",
+                distro=name)
+
+    @contextlib.contextmanager
+    def system(self, name: str) -> Generator[System, None, None]:
+        system_config = self.system_config(name)
+        yield MockSystem(self, system_config)
+
+    @contextlib.contextmanager
+    def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
+        system_config = self.system_config(name)
+        yield MockMaintenanceSystem(self, system_config)
+
+    def bootstrap_system(self, name: str):
+        system_config = self.system_config(name)
+        if os.path.exists(system_config.path):
+            return
+
+        log.info("%s: bootstrapping directory", name)
+
+        path = os.path.join(self.imagedir, name)
+        work_path = path + ".new"
+        system_config.path = work_path
+
+        try:
+            if system_config.extends is not None:
+                with self.system(system_config.extends) as parent:
+                    self.local_run(system_config, ["cp", "--reflink=auto", "-a", parent.path, work_path])
+            else:
+                tarball_path = self.get_distro_tarball(system_config.distro)
+                if tarball_path is not None:
+                    # Shortcut in case we have a chroot in a tarball
+                    self.session.mock_log(system=name, action="mkdir", arg=tarball_path)
+                    self.local_run(system_config, ["tar", "-C", work_path, "-axf", tarball_path])
+                else:
+                    system = MaintenanceSystem(self, system_config)
+                    distro = DistroFamily.lookup_distro(system_config.distro)
+                    distro.bootstrap(system)
+        except BaseException:
+            self.session.mock_log(system=name, action="rmtree", arg=work_path)
+            raise
+        else:
+            self.session.mock_log(system=name, action="mv", src=work_path, dst=path)
+
+    def remove_system(self, name: str):
+        path = os.path.join(self.imagedir, name)
+        self.session.mock_log(system=name, action="rmtree", arg=path)
+
+
 class PlainImages(Images):
     """
     Images stored in a non-btrfs filesystem
@@ -179,10 +239,7 @@ class PlainImages(Images):
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
-        # Force using tmpfs backing for ephemeral containers, since we cannot
-        # use snapshots
-        system_config.tmpfs = True
+        system_config = self.system_config(name)
         yield MaintenanceSystem(self, system_config)
 
     def bootstrap_system(self, name: str):
@@ -398,6 +455,26 @@ class ImageStorage:
         Instantiate a default ImageStorage in case no path has been provided
         """
         return cls.create(session, MACHINECTL_PATH)
+
+    @classmethod
+    def create_mock(cls, session: Session) -> "ImageStorage":
+        """
+        Instantiate a default ImageStorage in case no path has been provided
+        """
+        return MockImageStorage(session, MACHINECTL_PATH)
+
+
+class MockImageStorage(ImageStorage):
+    """
+    Store images in a non-btrfs directory
+    """
+    def __init__(self, session: Session, imagedir: str):
+        super().__init__(session)
+        self.imagedir = imagedir
+
+    @contextlib.contextmanager
+    def images(self) -> Generator[Images, None, None]:
+        yield MockImages(self.session, self.imagedir)
 
 
 class PlainImageStorage(ImageStorage):

@@ -5,9 +5,9 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 from typing import Any
 
-from ..analyze import Analyzer
 from ..build import Builder
 from ..distro import Distro
 from ..source import InputSource
@@ -108,6 +108,8 @@ class CI(SourceCommand):
                                     return obj.source
                                 elif isinstance(obj, Distro):
                                     return obj.name
+                                elif isinstance(obj, Path):
+                                    return str(obj)
                                 else:
                                     return super().default(obj)
                         json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
@@ -136,8 +138,9 @@ class Lint(SourceCommand):
             images = session.images
             with images.system(self.args.system) as system:
                 with self.source(system.distro, self.args.source) as source:
-                    analyzer = Analyzer()
-                    source.analyze(analyzer)
+                    linter_cls = source.get_linter_class()
+                    linter = linter_cls(system, source)
+                    linter.lint()
 
         # cls.builders["debian"].analyze(analyzer)
         # cls.builders["rpm"].analyze(analyzer)

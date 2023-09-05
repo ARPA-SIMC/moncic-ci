@@ -8,12 +8,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Type
 
-from ..analyze import Analyzer
+from ..container import ContainerConfig
 from ..utils.guest import guest_only, host_only
+from .inputsource import LocalGit
 
 if TYPE_CHECKING:
+    import git
+
     from ..build import Build
-    from ..container import Container
+    from ..container import Container, System
+    from ..linter import Linter
     from .inputsource import InputSource
 
 log = logging.getLogger(__name__)
@@ -64,7 +68,7 @@ class Source:
     # Original source as specified by the user
     source: InputSource
     # Path to the unpacked sources in the host system
-    host_path: str
+    host_path: Path
     # Path to the unpacked sources in the guest system
     guest_path: Optional[str] = None
     # Commands that can be used to recreate this source
@@ -94,6 +98,12 @@ class Source:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.get_build_class is not implemented")
 
+    def get_linter_class(self) -> Type["Linter"]:
+        """
+        Return the Linter subclass used to check this source
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.get_linter_class is not implemented")
+
     def make_build(self, **kwargs: Any) -> "Build":
         """
         Create a Build to build this Source
@@ -117,7 +127,7 @@ class Source:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package is not implemented")
 
-    def find_versions(self) -> dict[str, str]:
+    def find_versions(self, system: System) -> dict[str, str]:
         """
         Get the program version from sources.
 
@@ -125,7 +135,7 @@ class Source:
         """
         versions: dict[str, str] = {}
 
-        path = Path(self.source.path)
+        path = self.host_path
         if (autotools := path / "configure.ac").exists():
             re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
             with autotools.open("rt") as fd:
@@ -158,23 +168,71 @@ class Source:
                         versions["news"] = mo.group(1).strip()
                         break
 
-        # TODO: check setup.py
-        # TODO: can it be checked without checking out the branch and executing it?
-        # TODO: check debian/changelog in a subclass
-        # TODO: check specfile in a subclass
+        # Check setup.py by executing it with --version inside the container
+        if (path / "setup.py").exists():
+            cconfig = ContainerConfig()
+            cconfig.configure_workdir(path, bind_type="ro")
+            with system.create_container(config=cconfig) as container:
+                res = container.run(["/usr/bin/python3", "setup.py", "--version"])
+            if res.returncode == 0:
+                lines = res.stdout.splitlines()
+                if lines:
+                    versions["setup.py"] = lines[-1].strip().decode()
 
         return versions
 
-    def analyze(self, analyzer: Analyzer):
-        """
-        lint-check the sources, using analyzer to output results
-        """
+    def lint(self, linter: Linter):
         # Check for version mismatches
-        versions = self.find_versions()
+        versions = self.find_versions(linter.system)
 
         by_version: dict[str, list[str]] = defaultdict(list)
         for name, version in versions.items():
-            by_version[version].append(name)
+            if name.endswith("-release"):
+                by_version[version.split("-", 1)[0]].append(name)
+            else:
+                by_version[version].append(name)
         if len(by_version) > 1:
             descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            analyzer.warning(f"Versions mismatch: {'; '.join(descs)}")
+            linter.warning(f"Versions mismatch: {'; '.join(descs)}")
+
+
+class GitSource(Source):
+    """
+    Source backed by a Git repo
+    """
+    # Redefine source specialized as LocalGit
+    source: LocalGit
+
+    def _get_tags_by_hexsha(self) -> dict[str, git.objects.Commit]:
+        res: dict[str, list[git.objects.Commit]] = defaultdict(list)
+        for tag in self.source.repo.tags:
+            res[tag.object.hexsha].append(tag)
+        return res
+
+    def find_versions(self, system: System) -> dict[str, str]:
+        versions = super().find_versions(system)
+
+        re_versioned_tag = re.compile(r"^v?([0-9].+)")
+
+        repo = self.source.repo
+
+        _tags_by_hexsha = self._get_tags_by_hexsha()
+
+        # List tags for the current commit
+        for tag in _tags_by_hexsha.get(repo.head.commit.hexsha, ()):
+            if tag.name.startswith("debian/"):
+                version = tag.name[7:]
+                if "-" in version:
+                    versions["tag-debian"] = version.split("-", 1)[0]
+                    versions["tag-debian-release"] = version
+                else:
+                    versions["tag-debian"] = version
+            elif (mo := re_versioned_tag.match(tag.name)):
+                version = mo.group(1)
+                if "-" in version:
+                    versions["tag-arpa"] = version.split("-", 1)[0]
+                    versions["tag-arpa-release"] = version
+                else:
+                    versions["tag"] = version
+
+        return versions

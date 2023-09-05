@@ -18,8 +18,8 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Callable, Dict, Generic,
-                    List, NamedTuple, Optional, Tuple, Type, TypeVar, cast)
+from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic,
+                    NamedTuple, Optional, Type, TypeVar, cast)
 
 import tblib
 
@@ -167,7 +167,7 @@ class CompletedCallable(Generic[Result], subprocess.CompletedProcess):
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
         self.returnvalue: Optional[Result] = None
-        self.exc_info: Optional[Tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+        self.exc_info: Optional[tuple[Type[BaseException], BaseException, types.TracebackType]] = None
 
     def result(self) -> Result:
         """
@@ -188,9 +188,9 @@ class Runner:
         super().__init__()
         self.log = logger
         self.config = config
-        self.stdout: List[bytes] = []
-        self.stderr: List[bytes] = []
-        self.exc_info: Optional[Tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+        self.stdout: list[bytes] = []
+        self.stderr: list[bytes] = []
+        self.exc_info: Optional[tuple[Type[BaseException], BaseException, types.TracebackType]] = None
         self.has_result: bool = False
         self.result: Any = None
 
@@ -244,7 +244,7 @@ class Runner:
 
 
 class AsyncioRunner(Runner):
-    def __init__(self, logger: logging.Logger, config: RunConfig, cmd: List[str]):
+    def __init__(self, logger: logging.Logger, config: RunConfig, cmd: list[str]):
         super().__init__(logger, config)
         self.cmd = cmd
 
@@ -316,7 +316,7 @@ class LocalRunner(AsyncioRunner):
     def run(
             cls,
             logger: logging.Logger,
-            cmd: List[str],
+            cmd: list[str],
             config: Optional[RunConfig] = None,
             system_config: Optional[SystemConfig] = None):
         """
@@ -354,8 +354,8 @@ class SetnsCallableRunner(Generic[Result], Runner):
             container: NspawnContainer,
             config: RunConfig,
             func: Callable[..., Result],
-            args: Tuple = (),
-            kwargs: Optional[Dict[str, Any]] = None):
+            args: tuple[Any] = (),
+            kwargs: Optional[dict[str, Any]] = None):
         super().__init__(container.system.log, config)
         self.container = container
         self.leader_pid = int(container.properties["Leader"])

@@ -8,7 +8,7 @@ from typing import ContextManager, List, Optional
 
 import yaml
 
-from .session import Session
+from .session import MockSession, Session
 from .utils.privs import ProcessPrivs
 
 log = logging.getLogger(__name__)
@@ -162,3 +162,6 @@ class Moncic:
 
     def session(self) -> ContextManager[Session]:
         return Session(self)
+
+    def mock_session(self) -> ContextManager[Session]:
+        return MockSession(self)

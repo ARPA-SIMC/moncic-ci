@@ -13,18 +13,17 @@ from typing import TYPE_CHECKING, Optional, Sequence, Type
 
 import git
 
-from .. import context
-from ..analyze import Analyzer
+from .. import context, lint
 from ..build.utils import link_or_copy
 from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
 from ..utils.run import log_run, run
 from .inputsource import URL, InputSource, LocalDir, LocalFile, LocalGit
-from .source import Source, register
+from .source import Source, register, GitSource
 
 if TYPE_CHECKING:
     from ..build import Build
-    from ..container import Container
+    from ..container import Container, System
     from ..distro import Distro
 
 log = logging.getLogger(__name__)
@@ -37,28 +36,32 @@ class DebianSource(Source):
         from ..build.debian import Debian
         return Debian
 
-    def analyze(self, analyzer: Analyzer):
-        super().analyze(analyzer)
-        # upstream_version = analyzer.upstream_version
-        # debian_version = Analyzer.same_values(analyzer.version_from_debian_branches)
+    def get_linter_class(self) -> Type["lint.Linter"]:
+        return lint.DebianLinter
 
-        # # Check that debian/changelog versions are in sync with upstream
-        # if upstream_version is not None and debian_version is not None:
-        #     if upstream_version not in debian_version:
-        #         analyzer.warning(f"Debian version {debian_version!r} is out of sync"
-        #                          f" with upstream version {upstream_version!r}")
-        #     # if debian_version is None:
-        #     #     analyzer.warning("Cannot univocally determine debian version")
+    def find_versions(self, system: System) -> dict[str, str]:
+        versions = super().find_versions(system)
 
-        # # Check upstream merge status of the various debian branches
-        # upstream_branch = analyzer.repo.references[analyzer.main_branch]
-        # for name, branch_name in analyzer.debian_packaging_branches.items():
-        #     debian_branch = analyzer.repo.references[branch_name]
-        #     if not analyzer.repo.is_ancestor(upstream_branch, debian_branch):
-        #         analyzer.warning(f"Upstream branch {analyzer.main_branch!r} is not merged in {name!r}")
+        changelog = self.host_path / "debian" / "changelog"
 
-        # TODO: check tags present for one distro but not for the other
-        # TODO: check that upstream tag exists if debian/changelog is not UNRELEASED
+        re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
+
+        try:
+            for line in changelog.read_text().splitlines():
+                if (mo := re_changelog.match(line)):
+                    debversion = mo.group(1)
+                    if "-" in debversion:
+                        upstream, release = debversion.split("-")
+                    else:
+                        upstream, release = debversion, None
+                    versions["debian-upstream"] = upstream
+                    if release is not None:
+                        versions["debian-release"] = upstream + "-" + release
+                    break
+        except FileNotFoundError:
+            pass
+
+        return versions
 
 
 @dataclass
@@ -79,7 +82,7 @@ class DebianDirMixin(Source):
         if (artifacts_dir := build.artifacts_dir):
             tarball_search_dirs.append(artifacts_dir)
 
-        with open(os.path.join(self.host_path, "debian", "changelog"), "rt") as fd:
+        with (self.host_path / "debian" / "changelog").open("rt") as fd:
             if (mo := re_debchangelog_head.match(next(fd))):
                 src_name = mo.group("name")
                 tar_version = mo.group("tar_version")
@@ -105,31 +108,50 @@ class DebianDirMixin(Source):
                 self.tarball_filename = tarball_match + ".xz"
 
 
-class DebianGitSource(DebianSource):
+@dataclass
+class DebianGitSource(DebianSource, GitSource):
     """
     Debian sources from a git repository
     """
-    # Redefine specialized as LocalGit
-    source: LocalGit
+    debversion: str = ""
+
+    @classmethod
+    def read_changelog_version(cls, changelog_path: Path) -> str:
+        """
+        Read version from debian/changelog
+        """
+        re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
+        with changelog_path.open("rt") as fd:
+            for line in fd:
+                if (mo := re_changelog.match(line)):
+                    return mo.group(1)
+                break
+        raise RuntimeError("debian/changelog found but its first line cannot be parsed")
 
     @classmethod
     def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
         if source.repo.working_dir is None:
             raise RuntimeError(f"{source} has no working directory")
         debian_path = Path(source.repo.working_dir) / "debian"
-        if not debian_path.is_dir():
+        debian_changelog_path = debian_path / "changelog"
+        if not debian_changelog_path.exists():
             # There is no debian/directory, the current branch is upstream
             return DebianGBPTestUpstream._create_from_repo(distro, source)
 
-        if not (debian_path / "gbp.conf").exists():
-            return DebianPlainGit._create_from_repo(distro, source)
+        # Read version from debian/changelog
+        debversion = cls.read_changelog_version(debian_changelog_path)
+
+        # Check if it's a gbp-buildpackage source
+        gbp_conf_path = debian_path / "gbp.conf"
+        if not gbp_conf_path.exists():
+            return DebianPlainGit._create_from_repo(distro, source, debversion)
 
         if source.repo.head.commit.hexsha in [t.commit.hexsha for t in source.repo.tags]:
             # If branch to build is a tag, build a release from it
-            return DebianGBPRelease._create_from_repo(distro, source)
+            return DebianGBPRelease._create_from_repo(distro, source, debversion)
         else:
             # There is a debian/ directory, find upstream from gbp.conf
-            return DebianGBPTestDebian._create_from_repo(distro, source)
+            return DebianGBPTestDebian._create_from_repo(distro, source, debversion)
 
     @classmethod
     def create(cls, distro: Distro, source: InputSource) -> "DebianGitSource":
@@ -160,7 +182,7 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
     NAME = "debian-git-plain"
 
     @classmethod
-    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianPlainGit":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> "DebianPlainGit":
         if not source.copy:
             log.info(
                     "%s: cloning repository to avoid building a potentially dirty working directory",
@@ -170,7 +192,7 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
         if source.repo.working_dir is None:
             raise RuntimeError(f"{source} repository has no working directory")
 
-        res = cls(source, source.repo.working_dir)
+        res = cls(source, Path(source.repo.working_dir), debversion=debversion)
         res.add_trace_log("git", "clone", "-b", source.repo.active_branch.name, source.source)
         return res
 
@@ -239,7 +261,31 @@ class DebianGBP(DebianGitSource):
     """
     Debian git working directory with a git-buildpackage setup
     """
+    upstream_tag: str = ""
+    upstream_branch: str = ""
+    debian_tag: str = ""
     gbp_args: list[str] = field(default_factory=list)
+
+    @classmethod
+    def parse_gbp(cls, gbp_conf_path: Path, debversion: str) -> dict[str, str]:
+        """
+        Parse gbp.conf returning values for DebianGBP fields
+        """
+        res: dict[str, str] = {"debversion": debversion}
+
+        # Parse gbp.conf
+        cfg = ConfigParser()
+        cfg.read(gbp_conf_path)
+        res["upstream_branch"] = cfg.get("DEFAULT", "upstream-branch", fallback="upstream")
+        upstream_tag = cfg.get("DEFAULT", "upstream-branch", fallback="upstream/%(version)s")
+        debian_tag = cfg.get("DEFAULT", "debian-tag", fallback="debian/%(version)s")
+
+        if "-" in debversion:
+            uv, dv = debversion.split("-", 1)
+            res["upstream_tag"] = upstream_tag % {"version": uv}
+            res["debian_tag"] = debian_tag % {"version": debversion}
+
+        return res
 
     @classmethod
     def read_upstream_branch(cls, repo: git.Repo) -> Optional[str]:
@@ -251,6 +297,17 @@ class DebianGBP(DebianGitSource):
         cfg = ConfigParser()
         cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
         return cfg.get("DEFAULT", "upstream-branch", fallback=None)
+
+    @classmethod
+    def read_upstream_tag(cls, repo: git.Repo) -> Optional[str]:
+        """
+        Read the upstream tag from gbp.conf
+
+        Return the default value if gbp.conf does not exists or it does not specify an upstream tag
+        """
+        cfg = ConfigParser()
+        cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
+        return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
 
     @guest_only
     def build_source_package(self) -> str:
@@ -314,29 +371,37 @@ class DebianGBPTestUpstream(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
-        res = cls(source, source.repo.working_dir)
+        trace_log: list[Sequence[str, ...]] = []
 
         # Make a temporary merge of active_branch on the debian branch
         log.info("merge packaging branch %s for test build", branch)
         active_branch = source.repo.active_branch.name
         if active_branch is None:
             log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
-            res.add_trace_log("git", "clone", source.source)
+            trace_log.append(("git", "clone", source.source))
             cmd = ["git", "checkout", source.repo.head.commit.hexsha, "-b", "moncic-ci"]
-            res.add_trace_log(*cmd)
+            trace_log.append(cmd)
             run(cmd, cwd=source.repo.working_dir)
             active_branch = "moncic-ci"
         else:
-            res.add_trace_log("git", "clone", "-b", active_branch, source.source)
+            trace_log.append(("git", "clone", "-b", active_branch, source.source))
 
         cmd = ["git", "checkout", "--quiet", branch]
-        res.add_trace_log(*cmd)
+        trace_log.append(cmd)
         run(cmd, cwd=source.repo.working_dir)
 
         cmd = ["git", "-c", "user.email=moncic-ci@example.org", "-c",
                "user.name=Moncic-CI", "merge", "--quiet", str(active_branch), "-m", "CI merge"]
-        res.add_trace_log(*cmd)
+        trace_log.append(cmd)
         run(cmd, cwd=source.repo.working_dir)
+
+        path = Path(source.repo.working_dir)
+        debversion = cls.read_changelog_version(path / "debian" / "changelog")
+        gbp_args = cls.parse_gbp(path / "debian" / "gbp.conf", debversion)
+
+        res = cls(source, path, **gbp_args)
+        for args in trace_log:
+            res.add_trace_log(*args)
 
         res.gbp_args.append("--git-upstream-tree=branch")
         res.gbp_args.append("--git-upstream-branch=" + active_branch)
@@ -358,7 +423,7 @@ class DebianGBPRelease(DebianGBP):
     NAME = "debian-gbp-release"
 
     @classmethod
-    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPRelease":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> "DebianGBPRelease":
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
 
@@ -368,9 +433,33 @@ class DebianGBPRelease(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
-        res = cls(source, source.repo.working_dir)
+        path = Path(source.repo.working_dir)
+
+        gbp_args = cls.parse_gbp(path / "debian" / "gbp.conf", debversion)
+
+        res = cls(source, path, **gbp_args)
         res.gbp_args.append("--git-upstream-tree=tag")
         return res
+
+    def _check_debian_commits(self, linter: "lint.Linter"):
+        repo = self.source.repo
+
+        # Check files modified, ensure it's only in debian/
+        upstream = repo.commit(self.upstream_tag)
+        debian = repo.commit(self.debian_tag)
+        upstream_affected: set[str] = set()
+        for diff in upstream.diff(debian):
+            if diff.a_path is not None and not diff.a_path.startswith("debian/"):
+                upstream_affected.add(diff.a_path)
+            if diff.b_path is not None and not diff.b_path.startswith("debian/"):
+                upstream_affected.add(diff.b_path)
+
+        for name in sorted(upstream_affected):
+            linter.warning(f"{name}: upstream file affected by debian branch")
+
+    def lint(self, linter: "lint.Linter"):
+        super().lint(linter)
+        self._check_debian_commits(linter)
 
 
 @register
@@ -392,7 +481,7 @@ class DebianGBPTestDebian(DebianGBP):
     NAME = "debian-gbp-test"
 
     @classmethod
-    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPTestDebian":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> "DebianGBPTestDebian":
         # Read the upstream branch to use from gbp.conf
         upstream_branch = cls.read_upstream_branch(source.repo)
         if upstream_branch is None:
@@ -404,7 +493,11 @@ class DebianGBPTestDebian(DebianGBP):
             log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
             source = source.clone()
 
-        res = cls(source, source.repo.working_dir)
+        path = Path(source.repo.working_dir)
+
+        gbp_args = cls.parse_gbp(path / "debian" / "gbp.conf", debversion)
+
+        res = cls(source, path, **gbp_args)
         res.add_trace_log("git", "clone", "-b", str(source.repo.active_branch), source.source)
 
         # Merge the upstream branch into the debian branch
@@ -416,6 +509,26 @@ class DebianGBPTestDebian(DebianGBP):
 
         res.gbp_args.append("--git-upstream-tree=branch")
         return res
+
+    def _check_debian_commits(self, linter: "lint.Linter"):
+        repo = self.source.repo
+
+        # Check files modified, ensure it's only in debian/
+        upstream = repo.commit(self.upstream_tag)
+        debian = repo.head.commit
+        upstream_affected: set[str] = set()
+        for diff in upstream.diff(debian):
+            if diff.a_path is not None and not diff.a_path.startswith("debian/"):
+                upstream_affected.add(diff.a_path)
+            if diff.b_path is not None and not diff.b_path.startswith("debian/"):
+                upstream_affected.add(diff.b_path)
+
+        for name in sorted(upstream_affected):
+            linter.warning(f"{name}: upstream file affected by debian branch")
+
+    def lint(self, linter: "lint.Linter"):
+        super().lint(linter)
+        self._check_debian_commits(linter)
 
 
 @register
@@ -436,7 +549,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
 
     @classmethod
     def _create_from_dir(cls, distro: Distro, source: LocalDir) -> "DebianSourceDir":
-        return cls(source, source.path)
+        return cls(source, Path(source.path))
 
     @host_only
     def gather_sources_from_host(self, build: Build, container: Container) -> None:
@@ -484,7 +597,7 @@ class DebianDsc(DebianSource):
 
     @classmethod
     def _create_from_file(cls, distro: Distro, source: LocalFile) -> "DebianDsc":
-        return cls(source, source.path)
+        return cls(source, Path(source.path))
 
     @host_only
     def gather_sources_from_host(self, build: Build, container: Container) -> None:
@@ -498,8 +611,8 @@ class DebianDsc(DebianSource):
         re_file = re.compile(r"^\s+\S+\s+\d+\s+(\S+)\s*$")
 
         # Parse .dsc to get the list of assets
-        file_list = [os.path.basename(self.host_path)]
-        with open(self.host_path, "rt") as fd:
+        file_list = [self.host_path.name]
+        with self.host_path.open("rt") as fd:
             files_section = False
             for line in fd:
                 if not files_section:
@@ -512,12 +625,12 @@ class DebianDsc(DebianSource):
                     file_list.append(mo.group(1))
 
         # Copy .dsc and its assets to the container
-        srcdir = os.path.dirname(self.host_path)
+        srcdir = self.host_path.parent
         dstdir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
         for fname in file_list:
-            link_or_copy(os.path.join(srcdir, fname), dstdir)
+            link_or_copy(srcdir / fname, dstdir)
 
-        self.guest_path = os.path.join("/srv/moncic-ci/source", os.path.basename(self.host_path))
+        self.guest_path = os.path.join("/srv/moncic-ci/source", self.host_path.name)
 
     @guest_only
     def build_source_package(self) -> str:

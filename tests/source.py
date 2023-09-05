@@ -8,6 +8,7 @@ import socketserver
 import subprocess
 import tempfile
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Optional, Union
 
 from moncic.build import Build
@@ -53,12 +54,12 @@ class GitRepo(contextlib.ExitStack):
     """
     Temporary git repository used for testing
     """
-    def __init__(self, workdir: Optional[str] = None):
+    def __init__(self, workdir: Optional[Path] = None):
         super().__init__()
         if workdir is None:
-            self.root = self.enter_context(tempfile.TemporaryDirectory())
+            self.root = Path(self.enter_context(tempfile.TemporaryDirectory()))
         else:
-            os.makedirs(workdir, exist_ok=True)
+            workdir.mkdir(parents=True, exist_ok=True)
             self.root = workdir
 
         self.git("init", "-b", "main")
@@ -134,7 +135,7 @@ class WorkdirFixtureMixin:
         super().setUpClass()
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
-        cls.workdir = cls.stack.enter_context(tempfile.TemporaryDirectory())
+        cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory()))
 
     @classmethod
     def tearDownClass(cls):
@@ -146,4 +147,4 @@ class GitFixtureMixin(WorkdirFixtureMixin):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.git = cls.stack.enter_context(GitRepo(os.path.join(cls.workdir, "repo")))
+        cls.git = cls.stack.enter_context(GitRepo(cls.workdir / "repo"))
