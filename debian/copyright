@@ -4,9 +4,13 @@ Upstream-Contact: ARPAE-SIMC <urpsim@arpae.it>
 Source: https://github.com/ARPA-SIMC/moncic-ci/
 
 Files: *
-Copyright: 2021-2022 © ARPAE-SIMC <urpsim@arpae.it>
-License: GPL-3+
+Copyright: 2021-2023 © ARPAE-SIMC <urpsim@arpae.it>
+License: GPL-2+
+
+Files: moncic/utils/libbanana.py
+Copyright: 2020 © itec
+License: MIT
 
 Files: debian/*
-Copyright: 2021-2022 © ARPAE-SIMC <urpsim@arpae.it>
-License: GPL-3+
+Copyright: 2021-2023 © ARPAE-SIMC <urpsim@arpae.it>
+License: GPL-2+
