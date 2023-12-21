@@ -40,7 +40,7 @@ class CI(SourceCommand):
         parser.add_argument("--linger", action="store_true",
                             help="do not shut down the container on exit")
         parser.add_argument("--option", "-O", action=BuildOptionAction,
-                            help="key=value option for the build. See `-s list` for a list of"
+                            help="key=value option for the build. See `-O list` for a list of"
                                  " available option for each build style")
         parser.add_argument("--quick", action="store_true",
                             help="quild quickly, assuming the container is up to date")
