@@ -37,8 +37,7 @@ class MockContainer:
 class MockBuilder(contextlib.ExitStack):
     def __init__(self, distro: str, build: Build):
         super().__init__()
-        self.system = MockSystem(
-                distro=DistroFamily.lookup_distro(distro))
+        self.system = MockSystem(distro=DistroFamily.lookup_distro(distro))
         self.build = build
 
     def setup_build(self, *, source: Source, **kw):
@@ -54,6 +53,7 @@ class GitRepo(contextlib.ExitStack):
     """
     Temporary git repository used for testing
     """
+
     def __init__(self, workdir: Optional[Path] = None):
         super().__init__()
         if workdir is None:
@@ -74,7 +74,7 @@ class GitRepo(contextlib.ExitStack):
         cmd.extend(args)
         subprocess.run(cmd, cwd=self.root, check=True, capture_output=True)
 
-    def add(self, relpath: str, content: Union[str, bytes] = b''):
+    def add(self, relpath: str, content: Union[str, bytes] = b""):
         """
         Create a file and git add it
         """

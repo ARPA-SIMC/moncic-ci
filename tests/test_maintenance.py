@@ -27,12 +27,14 @@ class TestMaintenance(unittest.TestCase):
             if base_image_name not in cls.images.list_images():
                 raise unittest.SkipTest(f"Image {base_image_name} not available")
             with open(cls.test_image_config_file, "wt") as fd:
-                fd.write(f"""
+                fd.write(
+                    f"""
 extends: {base_image_name}
 maintscript: |
     # Prevent the default system update
     /bin/true
-""")
+"""
+                )
             cls.images.bootstrap_system(test_image_name)
 
     @classmethod
@@ -58,14 +60,13 @@ maintscript: |
                 self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
 
                 with system.create_container() as container:
+
                     def test_function():
                         with open("/root/token", "wt") as out:
                             out.write("test_transactional_updates")
                         return ("result", 123)
 
-                    self.assertEqual(
-                            container.run_callable(test_function),
-                            ("result", 123))
+                    self.assertEqual(container.run_callable(test_function), ("result", 123))
 
                 # The file has been written in a persistent way
                 self.assertTrue(os.path.exists(os.path.join(system.path, "root", "token")))
@@ -91,6 +92,7 @@ maintscript: |
                         self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
 
                         with system.create_container() as container:
+
                             def test_function():
                                 with open("/root/token", "wt") as out:
                                     out.write("test_transactional_updates")

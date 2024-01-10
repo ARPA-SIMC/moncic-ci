@@ -99,6 +99,10 @@ class Debian(Build):
                     """
         },
     )
+    include_source: bool = field(
+        default=False,
+        metadata={"doc": "Always include sources in upload (run `dpkg-buildpackage -sa`)"},
+    )
 
     def __post_init__(self) -> None:
         # This is only set in guest systems, and after self.build_source() has
@@ -207,8 +211,10 @@ class Debian(Build):
                 run(["ip", "link", "set", "dev", "lo", "up"])
 
                 # Build
-                # Use unshare to disable networking
-                self.trace_run(["dpkg-buildpackage", "--no-sign"])
+                cmd = ["dpkg-buildpackage", "--no-sign"]
+                if self.include_source:
+                    cmd.append("-sa")
+                self.trace_run(cmd)
 
     @host_only
     def collect_artifacts(self, container: Container, destdir: str):

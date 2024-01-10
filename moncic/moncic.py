@@ -159,8 +159,18 @@ class Moncic:
         res = subprocess.run(["systemctl", "--version"], check=True, capture_output=True, text=True)
         self.systemd_version = int(res.stdout.splitlines()[0].split()[1])
 
-    def session(self) -> ContextManager[Session]:
+    def session(self) -> Session:
+        """
+        Create a new work session.
+
+        Session is a context manager, so you can use this as `with moncic.session() as session:`
+        """
         return Session(self)
 
-    def mock_session(self) -> ContextManager[Session]:
+    def mock_session(self) -> Session:
+        """
+        Create a new mock session for tests.
+
+        Session is a context manager, so you can use this as `with moncic.mock_session() as session:`
+        """
         return MockSession(self)
