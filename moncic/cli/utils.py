@@ -35,10 +35,21 @@ class SourceTypeAction(argparse._StoreAction):
 
 
 class BuildOptionAction(argparse._AppendAction):
-    def __call__(self, parser, namespace, values, option_string=None):
-        if values == "list":
-            from ..build import Build
+    """
+    argparse action to collect build options.
 
+    Autodetect possible assignments from the Build class field list.
+
+    Support 'list' to list available assignments.
+
+    Namespace value is set to a dict that can be passed to constructors of
+    Build subclasses.
+    """
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        from ..build import Build
+
+        if values == "list":
             # Compute width for option names
             name_width = max(len(x) for cls in Build.list_build_classes() for x, doc in cls.list_build_options())
             help_wrapper = get_doc_wrapper(name_width + 4)
@@ -52,14 +63,23 @@ class BuildOptionAction(argparse._AppendAction):
                         else:
                             print(f"  {' ' * name_width}  {line}")
             raise Success()
-        elif "=" not in values:
-            raise ValueError(f"option --option={values!r} must be --option=key=value")
-        else:
-            k, v = values.split("=", 1)
-            if not k:
-                raise ValueError(f"option --option={values!r} must have an non-empty key")
 
-            if vals := getattr(namespace, self.dest, None):
-                vals[k] = v
-            else:
-                setattr(namespace, self.dest, {k: v})
+        if "=" not in values:
+            raise ValueError(f"option --option={values!r} must be --option=key=value")
+
+        k, v = values.split("=", 1)
+        if not k:
+            raise ValueError(f"option --option={values!r} must have an non-empty key")
+
+        allowed_keys: set[str] = set()
+        for cls in Build.list_build_classes():
+            for name, doc in cls.list_build_options():
+                allowed_keys.add(name)
+
+        if k not in allowed_keys:
+            raise ValueError(f"option --option={values!r} has unsupported key {k!r}")
+
+        if vals := getattr(namespace, self.dest, None):
+            vals[k] = v
+        else:
+            setattr(namespace, self.dest, {k: v})
