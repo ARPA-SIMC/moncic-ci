@@ -1,5 +1,10 @@
 # Version *unreleased*
 
+* Added `--option include_source=true` to `monci ci` for Debian builds, to run
+  `dpkg-buildpackage` with the `-sa` option. (105)
+* Validate `--option` based on available options for the selected build, and
+  their type
+
 # Version 0.13
 
 * `monci ci`: update/upgrade the container before a build, unless `--quick` is
