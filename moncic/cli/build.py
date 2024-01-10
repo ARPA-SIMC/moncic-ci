@@ -12,7 +12,7 @@ from ..build import Builder
 from ..distro import Distro
 from ..source import InputSource
 from .moncic import SourceCommand, main_command
-from .utils import BuildOptionAction
+from .utils import BuildOptionAction, set_build_option_action
 
 log = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class CI(SourceCommand):
 
                     # Update values with command line arguments
                     for k, v in build_kwargs_cmd.items():
-                        setattr(build, k, v)
+                        set_build_option_action(build, k, v)
 
                     if build.artifacts_dir:
                         with self.moncic.privs.user():
