@@ -14,7 +14,9 @@ class TestBuild(unittest.TestCase):
         self.assertEqual([x[0] for x in Build.list_build_options()], COMMON_BUILD_PROFILES)
 
     def test_debian(self):
-        self.assertEqual([x[0] for x in Debian.list_build_options()], COMMON_BUILD_PROFILES + ["build_profile"])
+        self.assertEqual(
+            [x[0] for x in Debian.list_build_options()], COMMON_BUILD_PROFILES + ["build_profile", "include_source"]
+        )
 
     def test_rpm(self):
         self.assertEqual([x[0] for x in RPM.list_build_options()], COMMON_BUILD_PROFILES)
