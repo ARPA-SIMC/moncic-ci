@@ -46,10 +46,12 @@ class DebianSourceDirMixin(WorkdirFixtureMixin):
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
-            with (make_moncic() as moncic,
-                    moncic.session(),
-                    MockBuilder("sid", build) as builder,
-                    builder.container() as container):
+            with (
+                make_moncic() as moncic,
+                moncic.session(),
+                MockBuilder("sid", build) as builder,
+                builder.container() as container,
+            ):
                 src.gather_sources_from_host(builder.build, container)
                 self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
                 # TODO: @guest_only
@@ -105,10 +107,12 @@ class DebianPlainGitMixin(GitFixtureMixin):
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
-            with (make_moncic() as moncic,
-                    moncic.session(),
-                    MockBuilder("sid", build) as builder,
-                    builder.container() as container):
+            with (
+                make_moncic() as moncic,
+                moncic.session(),
+                MockBuilder("sid", build) as builder,
+                builder.container() as container,
+            ):
                 src.gather_sources_from_host(builder.build, container)
                 self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
                 # TODO: @guest_only
@@ -177,14 +181,16 @@ class DebianGBPTestUpstreamMixin(GitFixtureMixin):
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
-            with (make_moncic() as moncic,
-                    moncic.session(),
-                    MockBuilder("sid", build) as builder,
-                    builder.container() as container):
+            with (
+                make_moncic() as moncic,
+                moncic.session(),
+                MockBuilder("sid", build) as builder,
+                builder.container() as container,
+            ):
                 src.gather_sources_from_host(builder.build, container)
                 self.assertCountEqual(os.listdir(container.source_dir), [])
 
-            self.assertEqual(src.gbp_args, ['--git-upstream-tree=branch', '--git-upstream-branch=main'])
+            self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch", "--git-upstream-branch=main"])
 
 
 class TestDebianGBPTestUpstreamUnstable(DebianGBPTestUpstreamMixin, unittest.TestCase):
@@ -207,12 +213,15 @@ class TestDebianGBPRelease(GitFixtureMixin, unittest.TestCase):
         # Debian branch
         cls.git.git("checkout", "-b", "debian/unstable")
         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
-        cls.git.add("debian/gbp.conf", """
+        cls.git.add(
+            "debian/gbp.conf",
+            """
 [DEFAULT]
 upstream-branch=main
 upstream-tag=%(version)s
 debian-branch=debian/unstable
-""")
+""",
+        )
         cls.git.commit()
         cls.git.git("tag", "debian/0.1.0-1")
 
@@ -244,10 +253,12 @@ debian-branch=debian/unstable
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
             self.assertTrue(build.source.host_path.is_dir())
-            with (make_moncic() as moncic,
-                    moncic.session(),
-                    MockBuilder("sid", build) as builder,
-                    builder.container() as container):
+            with (
+                make_moncic() as moncic,
+                moncic.session(),
+                MockBuilder("sid", build) as builder,
+                builder.container() as container,
+            ):
                 src.gather_sources_from_host(builder.build, container)
                 self.assertCountEqual(os.listdir(container.source_dir), [])
 
@@ -272,12 +283,15 @@ class TestDebianGBPTestDebian(GitFixtureMixin, unittest.TestCase):
         # Debian branch
         cls.git.git("checkout", "-b", "debian/unstable")
         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
-        cls.git.add("debian/gbp.conf", """
+        cls.git.add(
+            "debian/gbp.conf",
+            """
 [DEFAULT]
 upstream-branch=main
 upstream-tag=%(version)s
 debian-branch=debian/unstable
-""")
+""",
+        )
         cls.git.commit()
 
         # New changes to upstream branch
@@ -314,10 +328,12 @@ debian-branch=debian/unstable
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
-            with (make_moncic() as moncic,
-                    moncic.session(),
-                    MockBuilder("sid", build) as builder,
-                    builder.container() as container):
+            with (
+                make_moncic() as moncic,
+                moncic.session(),
+                MockBuilder("sid", build) as builder,
+                builder.container() as container,
+            ):
                 src.gather_sources_from_host(builder.build, container)
                 self.assertCountEqual(os.listdir(container.source_dir), [])
 
@@ -329,14 +345,16 @@ class TestDebianDsc(WorkdirFixtureMixin, unittest.TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.dsc_file = cls.workdir / "moncic-ci_0.1.0-1.dsc"
-        cls.dsc_file.write_text("""Format: 3.0 (quilt)
+        cls.dsc_file.write_text(
+            """Format: 3.0 (quilt)
 Source: moncic-ci
 Binary: moncic-ci
 Version: 0.1.0-1
 Files:
  d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0.orig.tar.gz
  d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
-""")
+"""
+        )
 
         (cls.workdir / "moncic-ci_0.1.0.orig.tar.gz").write_bytes(b"")
         (cls.workdir / "moncic-ci_0.1.0-1.debian.tar.xz").write_bytes(b"")
@@ -356,16 +374,21 @@ Files:
             src = isrc.detect_source(SID)
             self.assertEqual(src.get_build_class().__name__, "Debian")
             build = src.make_build(distro=SID)
-            with (make_moncic() as moncic,
-                    moncic.session(),
-                    MockBuilder("sid", build) as builder,
-                    builder.container() as container):
+            with (
+                make_moncic() as moncic,
+                moncic.session(),
+                MockBuilder("sid", build) as builder,
+                builder.container() as container,
+            ):
                 src.gather_sources_from_host(builder.build, container)
-                self.assertCountEqual(os.listdir(container.source_dir), [
-                    "moncic-ci_0.1.0-1.dsc",
-                    "moncic-ci_0.1.0.orig.tar.gz",
-                    "moncic-ci_0.1.0-1.debian.tar.xz",
-                ])
+                self.assertCountEqual(
+                    os.listdir(container.source_dir),
+                    [
+                        "moncic-ci_0.1.0-1.dsc",
+                        "moncic-ci_0.1.0.orig.tar.gz",
+                        "moncic-ci_0.1.0-1.debian.tar.xz",
+                    ],
+                )
 
 
 class TestARPA(GitFixtureMixin, unittest.TestCase):
@@ -377,9 +400,12 @@ class TestARPA(GitFixtureMixin, unittest.TestCase):
             print("foo foo simc/stable bar bar", file=out)
 
         # Initial upstream
-        cls.git.add(".travis.yml", """
+        cls.git.add(
+            ".travis.yml",
+            """
 foo foo simc/stable bar bar
-""")
+""",
+        )
         cls.git.add("fedora/SPECS/test.spec")
         cls.git.commit()
 
@@ -410,10 +436,12 @@ foo foo simc/stable bar bar
             self.assertEqual(src.get_build_class().__name__, "ARPA")
             build = src.make_build(distro=ROCKY9)
             self.assertTrue(build.source.host_path.is_dir())
-            with (make_moncic() as moncic,
-                    moncic.session(),
-                    MockBuilder("rocky9", build) as builder,
-                    builder.container() as container):
+            with (
+                make_moncic() as moncic,
+                moncic.session(),
+                MockBuilder("rocky9", build) as builder,
+                builder.container() as container,
+            ):
                 src.gather_sources_from_host(builder.build, container)
                 self.assertCountEqual(os.listdir(container.source_dir), [])
                 # TODO: @guest_only
