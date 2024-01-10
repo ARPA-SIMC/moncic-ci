@@ -34,6 +34,7 @@ re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>
 class DebianSource(Source):
     def get_build_class(self) -> Type["Build"]:
         from ..build.debian import Debian
+
         return Debian
 
     def get_linter_class(self) -> Type["lint.Linter"]:
@@ -48,7 +49,7 @@ class DebianSource(Source):
 
         try:
             for line in changelog.read_text().splitlines():
-                if (mo := re_changelog.match(line)):
+                if mo := re_changelog.match(line):
                     debversion = mo.group(1)
                     if "-" in debversion:
                         upstream, release = debversion.split("-")
@@ -69,6 +70,7 @@ class DebianDirMixin(Source):
     """
     Plain Debian source directory
     """
+
     tarball_filename: Optional[str] = None
     tarball_source: Optional[str] = None
 
@@ -79,11 +81,11 @@ class DebianDirMixin(Source):
         """
         tarball_search_dirs: list[str] = []
         tarball_search_dirs.extend(search_dirs)
-        if (artifacts_dir := build.artifacts_dir):
+        if artifacts_dir := build.artifacts_dir:
             tarball_search_dirs.append(artifacts_dir)
 
         with (self.host_path / "debian" / "changelog").open("rt") as fd:
-            if (mo := re_debchangelog_head.match(next(fd))):
+            if mo := re_debchangelog_head.match(next(fd)):
                 src_name = mo.group("name")
                 tar_version = mo.group("tar_version")
                 tarball_match = f"{src_name}_{tar_version}.orig.tar"
@@ -113,6 +115,7 @@ class DebianGitSource(DebianSource, GitSource):
     """
     Debian sources from a git repository
     """
+
     debversion: str = ""
 
     @classmethod
@@ -123,7 +126,7 @@ class DebianGitSource(DebianSource, GitSource):
         re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
         with changelog_path.open("rt") as fd:
             for line in fd:
-                if (mo := re_changelog.match(line)):
+                if mo := re_changelog.match(line):
                     return mo.group(1)
                 break
         raise RuntimeError("debian/changelog found but its first line cannot be parsed")
@@ -161,7 +164,8 @@ class DebianGitSource(DebianSource, GitSource):
             return cls._create_from_repo(distro, source.clone())
         else:
             raise RuntimeError(
-                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+                f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}"
+            )
 
 
 @register
@@ -179,14 +183,16 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
     If no existing upstream tarball is found, one is generated using
     `git archive HEAD . ":(exclude)debian"`, as a last-resort measure.
     """
+
     NAME = "debian-git-plain"
 
     @classmethod
     def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> "DebianPlainGit":
         if not source.copy:
             log.info(
-                    "%s: cloning repository to avoid building a potentially dirty working directory",
-                    source.repo.working_dir)
+                "%s: cloning repository to avoid building a potentially dirty working directory",
+                source.repo.working_dir,
+            )
             source = source.clone()
 
         if source.repo.working_dir is None:
@@ -225,7 +231,6 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
         dest_tarball = os.path.join(source_dir, self.tarball_filename)
         with lzma.open(dest_tarball, "wb") as out:
             with context.moncic.get().privs.user():
-
                 # This is a last-resort measure, trying to build an approximation of an
                 # upstream tarball when none was found
                 log.info("Building tarball from source directory")
@@ -261,6 +266,7 @@ class DebianGBP(DebianGitSource):
     """
     Debian git working directory with a git-buildpackage setup
     """
+
     upstream_tag: str = ""
     upstream_branch: str = ""
     debian_tag: str = ""
@@ -315,8 +321,7 @@ class DebianGBP(DebianGitSource):
         Build a source package in /srv/moncic-ci/source returning the name of
         the main file of the source package fileset
         """
-        cmd = ["gbp", "buildpackage", "--git-ignore-new",
-               "-d", "-S", "--no-sign", "--no-pre-clean"]
+        cmd = ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S", "--no-sign", "--no-pre-clean"]
         cmd += self.gbp_args
         run(cmd, cwd=self.guest_path)
 
@@ -349,6 +354,7 @@ class DebianGBPTestUpstream(DebianGBP):
     * the git commit being built is not a git tag, and does not contain a `debian/`
       directory (i.e. testing packaging of an upstream branch)
     """
+
     NAME = "debian-gbp-upstream"
 
     @classmethod
@@ -359,8 +365,9 @@ class DebianGBPTestUpstream(DebianGBP):
             if source.find_branch(branch) is not None:
                 break
         else:
-            raise Fail(f"Packaging branch not found for distribution '{distro}'."
-                       f" Tried: {', '.join(candidate_branches)} ")
+            raise Fail(
+                f"Packaging branch not found for distribution '{distro}'." f" Tried: {', '.join(candidate_branches)} "
+            )
 
         # TODO: find common ancestor between current and packaging, and merge
         #       packaging branch from that?
@@ -390,8 +397,18 @@ class DebianGBPTestUpstream(DebianGBP):
         trace_log.append(cmd)
         run(cmd, cwd=source.repo.working_dir)
 
-        cmd = ["git", "-c", "user.email=moncic-ci@example.org", "-c",
-               "user.name=Moncic-CI", "merge", "--quiet", str(active_branch), "-m", "CI merge"]
+        cmd = [
+            "git",
+            "-c",
+            "user.email=moncic-ci@example.org",
+            "-c",
+            "user.name=Moncic-CI",
+            "merge",
+            "--quiet",
+            str(active_branch),
+            "-m",
+            "CI merge",
+        ]
         trace_log.append(cmd)
         run(cmd, cwd=source.repo.working_dir)
 
@@ -420,6 +437,7 @@ class DebianGBPRelease(DebianGBP):
     `git-buildpackage` is invoked with `--git-upstream-tree=tag`, to build the
     release version of a package.
     """
+
     NAME = "debian-gbp-release"
 
     @classmethod
@@ -478,6 +496,7 @@ class DebianGBPTestDebian(DebianGBP):
     This is used to test the Debian packaging against its intended upstream
     branch.
     """
+
     NAME = "debian-gbp-test"
 
     @classmethod
@@ -502,8 +521,18 @@ class DebianGBPTestDebian(DebianGBP):
 
         # Merge the upstream branch into the debian branch
         log.info("merge upstream branch %s into build branch", upstream_branch)
-        cmd = ["git", "-c", "user.email=moncic-ci@example.org", "-c", "user.name=Moncic-CI",
-               "merge", upstream_branch, "--quiet", "-m", "CI merge"]
+        cmd = [
+            "git",
+            "-c",
+            "user.email=moncic-ci@example.org",
+            "-c",
+            "user.name=Moncic-CI",
+            "merge",
+            upstream_branch,
+            "--quiet",
+            "-m",
+            "CI merge",
+        ]
         res.add_trace_log(*cmd)
         run(cmd, cwd=source.repo.working_dir)
 
@@ -537,6 +566,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
     """
     Unpacked debian source
     """
+
     NAME = "debian-dir"
 
     @classmethod
@@ -545,7 +575,8 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
             return cls._create_from_dir(distro, source)
         else:
             raise RuntimeError(
-                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+                f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}"
+            )
 
     @classmethod
     def _create_from_dir(cls, distro: Distro, source: LocalDir) -> "DebianSourceDir":
@@ -585,6 +616,7 @@ class DebianDsc(DebianSource):
     """
     Debian source .dsc
     """
+
     NAME = "debian-dsc"
 
     @classmethod
@@ -593,7 +625,8 @@ class DebianDsc(DebianSource):
             return cls._create_from_file(distro, source)
         else:
             raise RuntimeError(
-                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+                f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}"
+            )
 
     @classmethod
     def _create_from_file(cls, distro: Distro, source: LocalFile) -> "DebianDsc":

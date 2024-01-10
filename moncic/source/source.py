@@ -48,8 +48,8 @@ def register(source_cls: Type["Source"]) -> Type["Source"]:
 
 
 def registry() -> dict[str, Type["Source"]]:
-    from . import (  # noqa: import them so they are registered as builders
-        debian, rpm)
+    from . import debian, rpm  # noqa: import them so they are registered as builders
+
     return source_types
 
 
@@ -65,6 +65,7 @@ class Source:
     """
     Sources to be built
     """
+
     # Original source as specified by the user
     source: InputSource
     # Path to the unpacked sources in the host system
@@ -82,7 +83,7 @@ class Source:
         """
         Return the user-facing name for this class
         """
-        if (name := cls.__dict__.get("NAME")):
+        if name := cls.__dict__.get("NAME"):
             return name
         return cls.__name__.lower()
 
@@ -140,7 +141,7 @@ class Source:
             re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
             with autotools.open("rt") as fd:
                 for line in fd:
-                    if (mo := re_autotools.match(line)):
+                    if mo := re_autotools.match(line):
                         versions["autotools"] = mo.group(1).strip()
                         break
 
@@ -148,7 +149,7 @@ class Source:
             re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
             with meson.open("rt") as fd:
                 for line in fd:
-                    if (mo := re_meson.match(line)):
+                    if mo := re_meson.match(line):
                         versions["meson"] = mo.group(1).strip()
                         break
 
@@ -156,7 +157,7 @@ class Source:
             re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
             with cmake.open("rt") as fd:
                 for line in fd:
-                    if (mo := re_cmake.match(line)):
+                    if mo := re_cmake.match(line):
                         versions["cmake"] = mo.group(1).strip()
                         break
 
@@ -164,7 +165,7 @@ class Source:
             re_news = re.compile(r"# New in version (.+)")
             with news.open("rt") as fd:
                 for line in fd:
-                    if (mo := re_news.match(line)):
+                    if mo := re_news.match(line):
                         versions["news"] = mo.group(1).strip()
                         break
 
@@ -200,6 +201,7 @@ class GitSource(Source):
     """
     Source backed by a Git repo
     """
+
     # Redefine source specialized as LocalGit
     source: LocalGit
 
@@ -227,7 +229,7 @@ class GitSource(Source):
                     versions["tag-debian-release"] = version
                 else:
                     versions["tag-debian"] = version
-            elif (mo := re_versioned_tag.match(tag.name)):
+            elif mo := re_versioned_tag.match(tag.name):
                 version = mo.group(1)
                 if "-" in version:
                     versions["tag-arpa"] = version.split("-", 1)[0]

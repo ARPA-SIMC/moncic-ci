@@ -27,6 +27,7 @@ class RPMSource(Source):
     """
     Git working directory with a Debian package
     """
+
     specfile_path: Optional[str] = None
 
     def __post_init__(self) -> None:
@@ -50,15 +51,18 @@ class RPMSource(Source):
             return ARPASource._create_from_repo(source)
         else:
             raise RuntimeError(
-                    f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}")
+                f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}"
+            )
 
 
 class ARPASourceMixin(RPMSource):
     """
     Base class for ARPA sources
     """
+
     def get_build_class(self) -> Type["Build"]:
         from ..build.arpa import ARPA
+
         return ARPA
 
     def get_linter_class(self) -> Type["lint.Linter"]:
@@ -114,6 +118,7 @@ class ARPASource(ARPASourceMixin, RPMSource):
     ARPA/SIMC source directory, building RPM packages using the logic
     previously configured for travis
     """
+
     NAME = "rpm-arpa"
 
     @classmethod
@@ -128,6 +133,7 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
     ARPA/SIMC git repository, building RPM packages using the logic previously
     configured for travis
     """
+
     NAME = "rpm-arpa-git"
 
     @classmethod
@@ -141,7 +147,10 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
         res = subprocess.run(
             ["git", "describe", "--tags", "--abbrev=0", "--match=v[0-9]*"],
             cwd=repo.working_dir,
-            text=True, capture_output=True, check=True)
+            text=True,
+            capture_output=True,
+            check=True,
+        )
         last_tag = res.stdout.strip()
 
         if "-" not in last_tag:
@@ -157,7 +166,7 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
         prefix = f"v{uv}-"
         for tag in repo.tags:
             if tag.name.startswith(prefix):
-                ver = int(tag.name[len(prefix):])
+                ver = int(tag.name[len(prefix) :])
                 if ver < last_ver:
                     if prev_ver is None or prev_ver < ver:
                         prev_ver = ver

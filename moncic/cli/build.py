@@ -24,31 +24,35 @@ class CI(SourceCommand):
     requested OS chroot executing a build in the cloned source tree
     according to .travis-build.sh script (or <buildscript> if set)
     """
+
     NAME = "ci"
 
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("-B", "--build-config", metavar="file.yaml", action="store",
-                            help="YAML file with build configuration")
-        parser.add_argument("-a", "--artifacts", metavar="dir", action="store",
-                            help="directory where build artifacts will be stored")
-        parser.add_argument("--source-only", action="store_true",
-                            help="only build source packages")
-        parser.add_argument("--shell", action="store_true",
-                            help="open a shell after the build")
-        parser.add_argument("--linger", action="store_true",
-                            help="do not shut down the container on exit")
-        parser.add_argument("--option", "-O", action=BuildOptionAction,
-                            help="key=value option for the build. See `-O list` for a list of"
-                                 " available option for each build style")
-        parser.add_argument("--quick", action="store_true",
-                            help="quild quickly, assuming the container is up to date")
-        parser.add_argument("system", action="store",
-                            help="name or path of the system used to build")
-        parser.add_argument("source", nargs="?", default=".",
-                            help="path or url of the repository or source package to build."
-                                 " Default: the current directory")
+        parser.add_argument(
+            "-B", "--build-config", metavar="file.yaml", action="store", help="YAML file with build configuration"
+        )
+        parser.add_argument(
+            "-a", "--artifacts", metavar="dir", action="store", help="directory where build artifacts will be stored"
+        )
+        parser.add_argument("--source-only", action="store_true", help="only build source packages")
+        parser.add_argument("--shell", action="store_true", help="open a shell after the build")
+        parser.add_argument("--linger", action="store_true", help="do not shut down the container on exit")
+        parser.add_argument(
+            "--option",
+            "-O",
+            action=BuildOptionAction,
+            help="key=value option for the build. See `-O list` for a list of" " available option for each build style",
+        )
+        parser.add_argument("--quick", action="store_true", help="quild quickly, assuming the container is up to date")
+        parser.add_argument("system", action="store", help="name or path of the system used to build")
+        parser.add_argument(
+            "source",
+            nargs="?",
+            default=".",
+            help="path or url of the repository or source package to build." " Default: the current directory",
+        )
         return parser
 
     def run(self) -> None:
@@ -100,6 +104,7 @@ class CI(SourceCommand):
                     try:
                         builder.run_build()
                     finally:
+
                         class ResultEncoder(json.JSONEncoder):
                             def default(self, obj):
                                 if dataclasses.is_dataclass(obj):
@@ -112,6 +117,7 @@ class CI(SourceCommand):
                                     return str(obj)
                                 else:
                                     return super().default(obj)
+
                         json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
                         sys.stdout.write("\n")
 
@@ -126,11 +132,13 @@ class Lint(SourceCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("system", action="store",
-                            help="name or path of the system used for checking")
-        parser.add_argument("source", nargs="?", default=".",
-                            help="path or url of the repository or source package to check."
-                                 " Default: the current directory")
+        parser.add_argument("system", action="store", help="name or path of the system used for checking")
+        parser.add_argument(
+            "source",
+            nargs="?",
+            default=".",
+            help="path or url of the repository or source package to check." " Default: the current directory",
+        )
         return parser
 
     def run(self):
@@ -152,15 +160,19 @@ class QuerySource(SourceCommand):
     """
     Query informations about a source
     """
+
     NAME = "query-source"
 
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("system", action="store",
-                            help="name or path of the system used to query the package")
-        parser.add_argument("source", nargs="?", default=".",
-                            help="path or url of the repository to build. Default: the current directory")
+        parser.add_argument("system", action="store", help="name or path of the system used to query the package")
+        parser.add_argument(
+            "source",
+            nargs="?",
+            default=".",
+            help="path or url of the repository to build. Default: the current directory",
+        )
         return parser
 
     def run(self):

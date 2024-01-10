@@ -13,13 +13,16 @@ class Bootstrap(MoncicCommand):
     """
     Create or update the whole set of OS images for the CI
     """
+
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--recreate", action="store_true",
-                            help="delete the images and recreate them from scratch")
-        parser.add_argument("systems", nargs="*",
-                            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
+        parser.add_argument("--recreate", action="store_true", help="delete the images and recreate them from scratch")
+        parser.add_argument(
+            "systems",
+            nargs="*",
+            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+        )
         return parser
 
     def run(self):
@@ -57,11 +60,15 @@ class Update(MoncicCommand):
     """
     Update existing OS images
     """
+
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("systems", nargs="*",
-                            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
+        parser.add_argument(
+            "systems",
+            nargs="*",
+            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+        )
         return parser
 
     def run(self):
@@ -100,13 +107,16 @@ class Remove(MoncicCommand):
     """
     Remove existing OS images
     """
+
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("systems", nargs="+",
-                            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images")
-        parser.add_argument("--purge", "-P", action="store_true",
-                            help="also remove the image configuration file")
+        parser.add_argument(
+            "systems",
+            nargs="+",
+            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+        )
+        parser.add_argument("--purge", "-P", action="store_true", help="also remove the image configuration file")
         return parser
 
     def run(self):
@@ -123,6 +133,7 @@ class Dedup(MoncicCommand):
     """
     Deduplicate disk usage in image directories
     """
+
     def run(self):
         with self.moncic.session() as session:
             session.images.deduplicate()

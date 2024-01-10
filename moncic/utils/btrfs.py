@@ -21,6 +21,7 @@ class Subvolume:
     """
     Low-level functions to access and maintain a btrfs subvolume
     """
+
     def __init__(self, system_config: SystemConfig, mconfig: MoncicConfig):
         self.log = system_config.logger
         self.system_config = system_config
@@ -52,6 +53,7 @@ class Subvolume:
         """
         # Import here to avoid dependency loops
         from ..runner import LocalRunner
+
         return LocalRunner.run(self.log, cmd, system_config=self.system_config)
 
     @contextlib.contextmanager
@@ -97,8 +99,8 @@ class Subvolume:
         # names
         re_btrfslist = re.compile(r"^ID (\d+) gen \d+ top level \d+ path (.+)$")
         res = subprocess.run(
-                ["btrfs", "subvolume", "list", "-o", self.path],
-                check=True, text=True, capture_output=True)
+            ["btrfs", "subvolume", "list", "-o", self.path], check=True, text=True, capture_output=True
+        )
         to_delete = []
         for line in res.stdout.splitlines():
             if mo := re_btrfslist.match(line):
@@ -115,7 +117,7 @@ class Subvolume:
         self.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
 
 
-FIDEDUPERANGE = 0xc0189436
+FIDEDUPERANGE = 0xC0189436
 
 
 def ioctl_fideduperange(src_fd: int, s: bytes) -> Tuple[int, int]:
@@ -151,9 +153,7 @@ def do_dedupe(src_file: str, dst_file: str, size: int):
             for offset in range(0, size, chunk_size):
                 src_len = min(chunk_size, size - offset)
 
-                s = struct.pack("QQHHIqQQiH", offset, src_len, 1,
-                                0, 0, dst_fd, offset,
-                                0, 0, 0)
+                s = struct.pack("QQHHIqQQiH", offset, src_len, 1, 0, 0, dst_fd, offset, 0, 0, 0)
                 bytes_deduped, status = ioctl_fideduperange(src_fd, s)
                 total_bytes_deduped += bytes_deduped
         finally:

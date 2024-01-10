@@ -65,6 +65,7 @@ class InputSource(contextlib.ExitStack):
     """
     Input source as specified by the user
     """
+
     def __init__(self, source: str):
         super().__init__()
         self.source = source
@@ -119,6 +120,7 @@ class LocalFile(InputSource):
     """
     Source specified as a local file
     """
+
     def __init__(self, source: str, path: str):
         super().__init__(source)
         self.path = path
@@ -128,9 +130,11 @@ class LocalFile(InputSource):
 
     def detect_source(self, distro: Distro) -> "Source":
         from ..distro.debian import DebianDistro
+
         if isinstance(distro, DebianDistro):
             if self.source.endswith(".dsc"):
                 from .debian import DebianDsc
+
                 return DebianDsc._create_from_file(distro, self)
             else:
                 raise Fail(f"{self.source!r}: cannot detect source type")
@@ -145,6 +149,7 @@ class LocalDir(InputSource):
     """
     Source specified as a local directory, that is not a git working directory
     """
+
     def __init__(self, source: str, path: str):
         super().__init__(source)
         self.path = path
@@ -163,6 +168,7 @@ class LocalDir(InputSource):
                 raise Fail(f"{self.source!r}: cannot detect source type")
         else:
             from .rpm import RPMSource
+
             return RPMSource.detect(distro, self)
 
 
@@ -170,6 +176,7 @@ class LocalGit(InputSource):
     """
     Source specified as a local git working directory
     """
+
     def __init__(self, source: str, path: str, copy: bool, orig_path: Optional[Path] = None):
         super().__init__(source)
         self.repo = git.Repo(path)
@@ -224,11 +231,14 @@ class LocalGit(InputSource):
     def detect_source(self, distro: Distro) -> "Source":
         from ..distro.debian import DebianDistro
         from ..distro.rpm import RpmDistro
+
         if isinstance(distro, DebianDistro):
             from .debian import DebianGitSource
+
             return DebianGitSource.detect(distro, self)
         elif isinstance(distro, RpmDistro):
             from .rpm import RPMSource
+
             return RPMSource.detect(distro, self)
         else:
             raise NotImplementedError(f"No suitable builder found for distribution {distro!r}")
@@ -238,6 +248,7 @@ class URL(InputSource):
     """
     Source specified as a URL
     """
+
     def __init__(self, source: str, parsed: urllib.parse.ParseResult):
         super().__init__(source)
         self.parsed = parsed

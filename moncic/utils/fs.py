@@ -11,12 +11,8 @@ log = logging.getLogger(__name__)
 
 @contextlib.contextmanager
 def atomic_writer(
-        fname: str,
-        mode: str = "w+b",
-        chmod: Optional[int] = 0o664,
-        sync: bool = True,
-        use_umask: bool = False,
-        **kw):
+    fname: str, mode: str = "w+b", chmod: Optional[int] = 0o664, sync: bool = True, use_umask: bool = False, **kw
+):
     """
     open/tempfile wrapper to atomically write to a file, by writing its
     contents to a temporary file in the same directory, and renaming it at the

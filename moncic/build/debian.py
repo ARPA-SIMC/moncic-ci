@@ -3,6 +3,7 @@ from __future__ import annotations
 # import importlib.resources
 import logging
 import os
+
 # import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -44,9 +45,9 @@ def get_source_info(path=".") -> SourceInfo:
         pkg_version = None
         res = run(["dpkg-parsechangelog"], stdout=subprocess.PIPE, text=True)
         for line in res.stdout.splitlines():
-            if line.startswith('Source: '):
+            if line.startswith("Source: "):
                 pkg_srcname = line[8:].strip()
-            elif line.startswith('Version: '):
+            elif line.startswith("Version: "):
                 pkg_version = line[9:].strip()
 
         if not pkg_srcname or not pkg_version:
@@ -89,12 +90,15 @@ class Debian(Build):
     """
     Build Debian packages
     """
+
     build_profile: str = field(
-            default="",
-            metadata={
-                "doc": """
+        default="",
+        metadata={
+            "doc": """
                     space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE
-                    """})
+                    """
+        },
+    )
 
     def __post_init__(self) -> None:
         # This is only set in guest systems, and after self.build_source() has
@@ -121,8 +125,12 @@ class Debian(Build):
     @guest_only
     def get_build_deps_in_container(self):
         res = subprocess.run(
-                ["/srv/moncic-ci/dpkg-listbuilddeps"],
-                stdout=subprocess.PIPE, text=True, check=True, cwd=self.source.guest_path)
+            ["/srv/moncic-ci/dpkg-listbuilddeps"],
+            stdout=subprocess.PIPE,
+            text=True,
+            check=True,
+            cwd=self.source.guest_path,
+        )
         return [name.strip() for name in res.stdout.strip().splitlines()]
 
     @guest_only

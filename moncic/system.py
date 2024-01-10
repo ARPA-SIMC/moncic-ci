@@ -27,6 +27,7 @@ class SystemConfig:
     """
     Configuration for a system
     """
+
     # Image name
     name: str
     # Path to the image on disk
@@ -192,6 +193,7 @@ class System:
         """
         # Import here to avoid dependency loops
         from .runner import LocalRunner
+
         return LocalRunner.run(self.log, cmd, config, self.config)
 
     def _container_chain_forwards_users(self) -> list[str]:
@@ -286,7 +288,7 @@ class System:
         res: Dict[str, Any] = {}
 
         # Forward users if needed
-        if (users_forwarded := self._container_chain_forwards_users()):
+        if users_forwarded := self._container_chain_forwards_users():
             res["users_forwarded"] = users_forwarded
 
         # Build list of packages to install, removing duplicates
@@ -299,15 +301,16 @@ class System:
         if packages:
             with self.create_container() as container:
                 try:
-                    res["packages_installed"] = dict(container.run_callable(
-                            self.distro.get_versions, args=(res["packages_required"],)).result())
+                    res["packages_installed"] = dict(
+                        container.run_callable(self.distro.get_versions, args=(res["packages_required"],)).result()
+                    )
                 except NotImplementedError as e:
                     self.log.info("cannot get details of how package requirements have been resolved: %s", e)
         else:
             res["packages_installed"] = {}
 
         # Describe maintscripts
-        if (scripts := self._container_chain_maintscripts()):
+        if scripts := self._container_chain_maintscripts():
             res["maintscripts"] = scripts
 
         return res
@@ -339,7 +342,8 @@ class System:
         return config
 
     def create_container(
-            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+        self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None
+    ) -> Container:
         """
         Boot a container with this system
         """
@@ -347,6 +351,7 @@ class System:
 
         # Import here to avoid an import loop
         from .container import NspawnContainer
+
         return NspawnContainer(self, config, instance_name)
 
 
@@ -402,11 +407,13 @@ class MockSystem(System):
         return self.images.session.get_process_result(args=cmd)
 
     def create_container(
-            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+        self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None
+    ) -> Container:
         """
         Boot a container with this system
         """
         from .container import MockContainer
+
         config = self.container_config(config)
         return MockContainer(self, config, instance_name)
 

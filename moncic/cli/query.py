@@ -9,6 +9,7 @@ from typing import Any, NamedTuple, Sequence, Set, TextIO
 
 try:
     from texttable import Texttable
+
     HAVE_TEXTTABLE = True
 except ModuleNotFoundError:
     HAVE_TEXTTABLE = False
@@ -37,8 +38,8 @@ class CSVOutput(RowOutput):
 
 class TextColumn(NamedTuple):
     title: str
-    dtype: str = 't'
-    align: str = 'l'
+    dtype: str = "t"
+    align: str = "l"
 
 
 class TableOutput(RowOutput):
@@ -62,13 +63,13 @@ class Images(MoncicCommand):
     """
     List OS images
     """
+
     NEEDS_ROOT = False
 
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--csv", action="store_true",
-                            help="machine readable output in CSV format")
+        parser.add_argument("--csv", action="store_true", help="machine readable output in CSV format")
         return parser
 
     def run(self) -> None:
@@ -76,16 +77,13 @@ class Images(MoncicCommand):
             output = CSVOutput(sys.stdout)
         else:
             output = TableOutput(
-                    sys.stdout,
-                    TextColumn("Name"),
-                    TextColumn("Distro"),
-                    TextColumn("Boostrapped"),
-                    TextColumn("Path"))
+                sys.stdout, TextColumn("Name"), TextColumn("Distro"), TextColumn("Boostrapped"), TextColumn("Path")
+            )
 
         # List images that have been bootstrapped
         res = subprocess.run(
-                ["machinectl", "list-images", "--no-pager", "--no-legend"],
-                check=True, stdout=subprocess.PIPE, text=True)
+            ["machinectl", "list-images", "--no-pager", "--no-legend"], check=True, stdout=subprocess.PIPE, text=True
+        )
         bootstrapped: Set[str] = set()
         for line in res.stdout.splitlines():
             bootstrapped.add(line.split()[0])
@@ -104,21 +102,18 @@ class Distros(MoncicCommand):
     """
     List OS images
     """
+
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--csv", action="store_true",
-                            help="machine readable output in CSV format")
+        parser.add_argument("--csv", action="store_true", help="machine readable output in CSV format")
         return parser
 
     def run(self):
         if self.args.csv or not HAVE_TEXTTABLE:
             output = CSVOutput(sys.stdout)
         else:
-            output = TableOutput(
-                    sys.stdout,
-                    TextColumn("Name"),
-                    TextColumn("Shortcuts"))
+            output = TableOutput(sys.stdout, TextColumn("Name"), TextColumn("Shortcuts"))
 
         for family in sorted(DistroFamily.list(), key=lambda x: x.name):
             for info in family.list_distros():

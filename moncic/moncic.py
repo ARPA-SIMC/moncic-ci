@@ -30,6 +30,7 @@ class MoncicConfig:
     """
     Global Moncic-CI configuration
     """
+
     # Directory where images are stored
     imagedir: str = "/var/lib/machines"
     # Directories where image configuration can stored, if not found in
@@ -143,10 +144,8 @@ class Moncic:
     """
     General state of the Moncic-CI setup
     """
-    def __init__(
-            self,
-            config: MoncicConfig,
-            privs: Optional[ProcessPrivs] = None):
+
+    def __init__(self, config: MoncicConfig, privs: Optional[ProcessPrivs] = None):
         self.privs: ProcessPrivs
         if privs is None:
             self.privs = ProcessPrivs()

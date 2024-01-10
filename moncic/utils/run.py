@@ -13,7 +13,7 @@ def log_run(cmd: Sequence[str], **kw) -> None:
     """
     Log executing a command
     """
-    if (cwd := kw.get("cwd")):
+    if cwd := kw.get("cwd"):
         prompt = cwd
     else:
         prompt = os.getcwd()

@@ -26,9 +26,7 @@ def edit_yaml(buf: str, path: str) -> Optional[str]:
     error = None
 
     while True:
-        with tempfile.NamedTemporaryFile(
-                mode="wt",
-                suffix=".yaml") as tf:
+        with tempfile.NamedTemporaryFile(mode="wt", suffix=".yaml") as tf:
             # Write out the current buffer
             tf.write(current)
             # Write lines to communicate a parser error, if needed

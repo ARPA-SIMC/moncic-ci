@@ -16,7 +16,7 @@ class FileInfo(NamedTuple):
 
 
 class DebCache:
-    def __init__(self, cache_dir: str, cache_size: int = 512*1024*1024):
+    def __init__(self, cache_dir: str, cache_size: int = 512 * 1024 * 1024):
         self.cache_dir = cache_dir
         # Maximum cache size in bytes
         self.cache_size = cache_size
@@ -66,8 +66,7 @@ class DebCache:
                             st = de.stat()
                             self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
                             os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
-                            os.chown(
-                                de.name, 0, 0, dir_fd=dst_dir_fd)
+                            os.chown(de.name, 0, 0, dir_fd=dst_dir_fd)
 
                 try:
                     yield aptdir
@@ -80,8 +79,8 @@ class DebCache:
                                 if de.name not in self.debs:
                                     os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
                                 os.chown(
-                                    de.name, self.cache_user.user_id, self.cache_user.group_id,
-                                    dir_fd=self.src_dir_fd)
+                                    de.name, self.cache_user.user_id, self.cache_user.group_id, dir_fd=self.src_dir_fd
+                                )
                                 self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
 
 
@@ -95,10 +94,15 @@ def apt_get_cmd(*args) -> List[str]:
     if eatmydata:
         res.append(eatmydata)
 
-    res += ["apt-get", "--assume-yes", "--quiet", "--show-upgraded",
-            # The space after -o is odd but required, and I could
-            # not find a better working syntax
-            '-o Dpkg::Options::="--force-confnew"']
+    res += [
+        "apt-get",
+        "--assume-yes",
+        "--quiet",
+        "--show-upgraded",
+        # The space after -o is odd but required, and I could
+        # not find a better working syntax
+        '-o Dpkg::Options::="--force-confnew"',
+    ]
 
     res.extend(args)
 

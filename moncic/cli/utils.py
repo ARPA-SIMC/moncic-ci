@@ -17,6 +17,7 @@ class SourceTypeAction(argparse._StoreAction):
     def __call__(self, parser, namespace, values, option_string=None):
         if values == "list":
             from ..source import source
+
             source_types = source.registry()
 
             # Compute width for source names
@@ -58,7 +59,7 @@ class BuildOptionAction(argparse._AppendAction):
             if not k:
                 raise ValueError(f"option --option={values!r} must have an non-empty key")
 
-            if (vals := getattr(namespace, self.dest, None)):
+            if vals := getattr(namespace, self.dest, None):
                 vals[k] = v
             else:
                 setattr(namespace, self.dest, {k: v})

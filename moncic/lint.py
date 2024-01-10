@@ -18,6 +18,7 @@ class Linter(contextlib.ExitStack):
     """
     Scan sources for potential inconsistencies
     """
+
     def __init__(self, system: System, source: Source):
         super().__init__()
         # System used to analyze the sources
@@ -149,7 +150,7 @@ class Linter(contextlib.ExitStack):
                 continue
             changelog = branch.commit.tree["debian"]["changelog"]
             for line in changelog.data_stream.read().decode().splitlines():
-                if (mo := re_changelog.match(line)):
+                if mo := re_changelog.match(line):
                     versions[name] = mo.group(1)
                     break
 
@@ -186,12 +187,13 @@ class Linter(contextlib.ExitStack):
             return None
 
         if len(specs) > 1:
-            self.warning(f"Multiple specfiles found in {self.main_branch}:fedora/SPECS:"
-                         f" {', '.join(s.name for s in specs)}")
+            self.warning(
+                f"Multiple specfiles found in {self.main_branch}:fedora/SPECS:" f" {', '.join(s.name for s in specs)}"
+            )
             return None
 
         for line in specs[0].data_stream.read().decode().splitlines():
-            if (mo := re_version.match(line)):
+            if mo := re_version.match(line):
                 return mo.group(1)
 
         return None

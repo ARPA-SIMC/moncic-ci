@@ -37,9 +37,15 @@ class CreateCommand(MoncicCommand):
                     raise Fail(f"{self.args.name}: configuration already exists in {path}")
                 path = os.path.join(self.moncic.config.imageconfdirs[0], f"{self.args.name}.yaml")
                 with atomic_writer(path, "wt", use_umask=True) as fd:
-                    yaml.dump(contents, stream=fd, default_flow_style=False,
-                              allow_unicode=True, explicit_start=True,
-                              sort_keys=False, Dumper=yaml.CDumper)
+                    yaml.dump(
+                        contents,
+                        stream=fd,
+                        default_flow_style=False,
+                        allow_unicode=True,
+                        explicit_start=True,
+                        sort_keys=False,
+                        Dumper=yaml.CDumper,
+                    )
 
             log.info("%s: bootstrapping image", self.args.name)
             try:
@@ -134,8 +140,9 @@ class Setup(MaintCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("command", nargs=argparse.REMAINDER,
-                            help="run and record a maintenance command to setup the image")
+        parser.add_argument(
+            "command", nargs=argparse.REMAINDER, help="run and record a maintenance command to setup the image"
+        )
         return parser
 
     def run(self):
@@ -155,8 +162,7 @@ class Install(MaintCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("packages", nargs="+",
-                            help="packages to install in the image")
+        parser.add_argument("packages", nargs="+", help="packages to install in the image")
         return parser
 
     def run(self):
@@ -177,13 +183,18 @@ class BuildDep(SourceCommand):
     """
     install the build-dependencies of the given sources
     """
+
     NAME = "build-dep"
 
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("source", nargs="?", default=".",
-                            help="path or url of the repository to build. Default: the current directory")
+        parser.add_argument(
+            "source",
+            nargs="?",
+            default=".",
+            help="path or url of the repository to build. Default: the current directory",
+        )
         return parser
 
     def run(self):
@@ -238,6 +249,7 @@ class Cat(MoncicCommand):
     """
     show the image configuration
     """
+
     def run(self):
         with self.moncic.session() as session:
             if path := session.images.find_config(self.args.name):
@@ -251,15 +263,16 @@ class Describe(MoncicCommand):
     """
     show a description of the image
     """
+
     def run(self):
         ryaml = ruamel.yaml.YAML(typ="rt")
         with self.moncic.session() as session:
             with session.images.system(self.args.name) as system:
                 info = system.describe_container()
-                if (maintscripts := info.get("maintscripts")):
+                if maintscripts := info.get("maintscripts"):
                     info["maintscripts"] = [
-                        ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
-                        for maintscript in maintscripts]
+                        ruamel.yaml.scalarstring.LiteralScalarString(maintscript) for maintscript in maintscripts
+                    ]
                 ryaml.dump(info, sys.stdout)
 
 
@@ -272,8 +285,7 @@ class Image(MoncicCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("name",
-                            help="name of the image")
+        parser.add_argument("name", help="name of the image")
 
         subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
         Extends.make_subparser(subparsers)

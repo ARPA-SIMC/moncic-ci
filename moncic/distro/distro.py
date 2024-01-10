@@ -18,6 +18,7 @@ class DistroInfo(NamedTuple):
     """
     Information about a distribution
     """
+
     # Canonical name
     name: str
     shortcuts: list[str]
@@ -27,6 +28,7 @@ class DistroFamily:
     """
     Base class for handling a family of distributions
     """
+
     # Registry of known families
     families: dict[str, DistroFamily] = {}
 
@@ -130,15 +132,14 @@ class DistroFamily:
         """
         Return a list of distros available in this family
         """
-        return [
-            DistroInfo(name, [shortcut])
-            for shortcut, name in self.SHORTCUTS.items()]
+        return [DistroInfo(name, [shortcut]) for shortcut, name in self.SHORTCUTS.items()]
 
 
 class Distro:
     """
     Common base class for bootstrapping distributions
     """
+
     def __init__(self, name: str):
         self.name = name
 
@@ -167,13 +168,17 @@ class Distro:
         # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
         distro, release = self.name.split(":", 1)
         installroot = os.path.abspath(system.path)
-        base_packages = ','.join(self.get_base_packages())
+        base_packages = ",".join(self.get_base_packages())
         with tempfile.TemporaryDirectory() as workdir:
             cmd = [
-                "/usr/bin/mkosi", f"--distribution={distro}",
-                f"--release={release}", "--format=directory",
-                f"--output={installroot}", "--base-packages=true",
-                f"--package={base_packages}", f"--directory={workdir}",
+                "/usr/bin/mkosi",
+                f"--distribution={distro}",
+                f"--release={release}",
+                "--format=directory",
+                f"--output={installroot}",
+                "--base-packages=true",
+                f"--package={base_packages}",
+                f"--directory={workdir}",
                 "--force",
                 # f"--mirror={self.mirror}",
             ]
@@ -214,4 +219,5 @@ class Distro:
         Get the installed versions of packages described in the given list
         """
         raise NotImplementedError(
-                f"getting installed versions for package requirements is not implemented for {self.name}")
+            f"getting installed versions for package requirements is not implemented for {self.name}"
+        )
