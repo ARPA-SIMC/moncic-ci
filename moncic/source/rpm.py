@@ -142,8 +142,13 @@ class ARPASource(ARPASourceMixin, RPMSource):
 
     @classmethod
     def create(cls, distro: "Distro", source: "InputSource") -> "ARPASource":
+        if isinstance(source, LocalGit):
+            raise Fail(
+                f"Cannot use {cls.NAME} source type on a {type(source).__name__} source:"
+                f" maybe try {ARPAGitSource.NAME}?"
+            )
         if not isinstance(source, LocalDir):
-            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source)} source")
+            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source).__name__} source")
         return cls._create_from_repo(source)
 
 
@@ -163,8 +168,12 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
 
     @classmethod
     def create(cls, distro: "Distro", source: "InputSource") -> "ARPAGitSource":
+        if isinstance(source, LocalDir):
+            raise Fail(
+                f"Cannot use {cls.NAME} source type on a {type(source).__name__} source: maybe try {ARPASource.NAME}?"
+            )
         if not isinstance(source, LocalGit):
-            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source)} source")
+            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source).__name__} source")
         return cls._create_from_repo(source)
 
     def _check_arpa_commits(self, linter: "lint.Linter"):
