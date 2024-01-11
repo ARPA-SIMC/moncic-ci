@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+from abc import ABC, abstractmethod
 from configparser import ConfigParser
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -31,7 +32,11 @@ log = logging.getLogger(__name__)
 re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<tar_version>[^)-]+)(?:[^)]+)?\)")
 
 
-class DebianSource(Source):
+class DebianSource(Source, ABC):
+    """
+    Base class for Debian source packages
+    """
+
     def get_build_class(self) -> Type["Build"]:
         from ..build.debian import Debian
 
@@ -66,7 +71,7 @@ class DebianSource(Source):
 
 
 @dataclass
-class DebianDirMixin(Source):
+class DebianDirMixin(Source, ABC):
     """
     Plain Debian source directory
     """
@@ -133,6 +138,22 @@ class DebianGitSource(DebianSource, GitSource):
 
     @classmethod
     def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
+        """
+        Detect the style of packaging repository.
+
+        If the debian/directory does not exist, assume we're working on an
+        upstream branch to be temporarily merged into a Debian packaging branch.
+
+        If debian/gbp.conf does not exist, assume it's a checkout of a plain
+        Debian source package that does not use gbp-buildpackage.
+
+        If debian/gbp.conf exists, and the current commit is tagged, assume
+        that we're releasing the current branch.
+
+        If the current commit is not tagged, assume we are testing packaging
+        against the current upstream and temporarily merge upstream into this
+        branch.
+        """
         if source.repo.working_dir is None:
             raise RuntimeError(f"{source} has no working directory")
         debian_path = Path(source.repo.working_dir) / "debian"
@@ -160,12 +181,11 @@ class DebianGitSource(DebianSource, GitSource):
     def create(cls, distro: Distro, source: InputSource) -> "DebianGitSource":
         if isinstance(source, LocalGit):
             return cls._create_from_repo(distro, source)
-        elif isinstance(source, URL):
+        if isinstance(source, URL):
             return cls._create_from_repo(distro, source.clone())
-        else:
-            raise RuntimeError(
-                f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}"
-            )
+        raise RuntimeError(
+            f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}"
+        )
 
 
 @register

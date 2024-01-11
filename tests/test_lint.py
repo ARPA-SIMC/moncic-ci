@@ -117,12 +117,19 @@ Release: 1rocky9
 
 
 class TestVersions(unittest.TestCase):
-    def assertWarns(self, versions: dict[str, str], message: str):
+    def assertLintWarns(self, versions: dict[str, str], message: str):
+        """
+        Make sure we get the given lint warning given a set of detected versions
+        """
+
         class MockSource(Source):
             def get_build_class(self) -> Type["Build"]:
                 pass
 
             def get_linter_class(self) -> Type["Linter"]:
+                pass
+
+            def create(cls, distro: Distro, source: InputSource) -> "MockSource":
                 pass
 
         with mock.patch("moncic.source.Source.__post_init__"):
@@ -136,7 +143,7 @@ class TestVersions(unittest.TestCase):
             warnings.assert_called_with(message)
 
     def test_versions(self):
-        self.assertWarns(
+        self.assertLintWarns(
             {
                 "autotools": "1.1",
                 "meson": "1.2",
@@ -147,7 +154,7 @@ class TestVersions(unittest.TestCase):
         )
 
     def test_versions_tag(self):
-        self.assertWarns(
+        self.assertLintWarns(
             {
                 "autotools": "1.2",
                 "meson": "1.2",
@@ -159,7 +166,7 @@ class TestVersions(unittest.TestCase):
         )
 
     def test_versions_tag_debian(self):
-        self.assertWarns(
+        self.assertLintWarns(
             {
                 "autotools": "1.2",
                 "meson": "1.2",
@@ -170,7 +177,7 @@ class TestVersions(unittest.TestCase):
         )
 
     def test_versions_tag_arpa(self):
-        self.assertWarns(
+        self.assertLintWarns(
             {
                 "autotools": "1.2",
                 "meson": "1.2",

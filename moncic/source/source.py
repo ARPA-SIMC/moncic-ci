@@ -3,14 +3,14 @@ from __future__ import annotations
 import logging
 import re
 import shlex
-from abc import ABC, abstractmethod
+from abc import ABC, abstractclassmethod, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Type
 
-from ..container import ContainerConfig
-from ..utils.guest import guest_only, host_only
+from moncic.container import ContainerConfig
+from moncic.utils.guest import guest_only, host_only
 from .inputsource import LocalGit
 
 if TYPE_CHECKING:
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from ..build import Build
     from ..container import Container, System
+    from ..distro import Distro
     from ..lint import Linter
     from .inputsource import InputSource
 
@@ -107,6 +108,15 @@ class Source(ABC):
     def get_linter_class(self) -> Type["Linter"]:
         """
         Return the Linter subclass used to check this source
+        """
+
+    @abstractclassmethod
+    def create(cls, distro: "Distro", source: InputSource) -> "Source":
+        """
+        Create an instance of this source.
+
+        This is used to instantiate a source from a well known class, instead
+        of having it autodetected by InputSource
         """
 
     def make_build(self, **kwargs: Any) -> "Build":

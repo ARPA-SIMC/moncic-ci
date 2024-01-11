@@ -4,6 +4,7 @@ import itertools
 import logging
 import os
 import subprocess
+from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Type, Union
@@ -18,12 +19,13 @@ if TYPE_CHECKING:
     from ..build import Build
     from ..container import System
     from ..distro import Distro
+    from .inputsource import InputSource
 
 log = logging.getLogger(__name__)
 
 
 @dataclass
-class RPMSource(Source):
+class RPMSource(Source, ABC):
     """
     Git working directory with a Debian package
     """
@@ -45,6 +47,19 @@ class RPMSource(Source):
 
     @classmethod
     def detect(cls, distro: Distro, source: Union[LocalGit, LocalDir]) -> "RPMSource":
+        """
+        Auto detect the style of RPM source to build.
+
+        RPM source package layouts are not really standardized, as the specfile
+        is generally assumed to be outside the git repository.
+
+        This is not the case in ARPA (https://www.arpae.it/), so here we can
+        delegate to source styles implementing ARPA's local rules.
+
+        Should more RPM source styles emerge/standardize to contain a specfile
+        in the git repository, this is the place where support for them can be
+        added.
+        """
         if isinstance(source, LocalGit):
             return ARPAGitSource._create_from_repo(source)
         elif isinstance(source, LocalDir):
@@ -55,7 +70,7 @@ class RPMSource(Source):
             )
 
 
-class ARPASourceMixin(RPMSource):
+class ARPASourceMixin(RPMSource, ABC):
     """
     Base class for ARPA sources
     """
@@ -125,6 +140,17 @@ class ARPASource(ARPASourceMixin, RPMSource):
     def _create_from_repo(cls, source: LocalDir) -> "ARPASource":
         return cls(source, Path(source.path))
 
+    @classmethod
+    def create(cls, distro: "Distro", source: "InputSource") -> "ARPASource":
+        if isinstance(source, LocalGit):
+            raise Fail(
+                f"Cannot use {cls.NAME} source type on a {type(source).__name__} source:"
+                f" maybe try {ARPAGitSource.NAME}?"
+            )
+        if not isinstance(source, LocalDir):
+            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source).__name__} source")
+        return cls._create_from_repo(source)
+
 
 @register
 @dataclass
@@ -139,6 +165,16 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
     @classmethod
     def _create_from_repo(cls, source: LocalGit) -> "ARPAGitSource":
         return cls(source, Path(source.path))
+
+    @classmethod
+    def create(cls, distro: "Distro", source: "InputSource") -> "ARPAGitSource":
+        if isinstance(source, LocalDir):
+            raise Fail(
+                f"Cannot use {cls.NAME} source type on a {type(source).__name__} source: maybe try {ARPASource.NAME}?"
+            )
+        if not isinstance(source, LocalGit):
+            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source).__name__} source")
+        return cls._create_from_repo(source)
 
     def _check_arpa_commits(self, linter: "lint.Linter"):
         repo = self.source.repo
