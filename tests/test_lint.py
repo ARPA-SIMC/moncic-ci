@@ -118,8 +118,15 @@ Release: 1rocky9
 
 class TestVersions(unittest.TestCase):
     def assertWarns(self, versions: dict[str, str], message: str):
+        class MockSource(Source):
+            def get_build_class(self) -> Type["Build"]:
+                pass
+
+            def get_linter_class(self) -> Type["Linter"]:
+                pass
+
         with mock.patch("moncic.source.Source.__post_init__"):
-            source = Source(None, None, None)
+            source = MockSource(None, None, None)
         linter = Linter(None, source)
         with (
             mock.patch("moncic.source.Source.find_versions", return_value=versions),

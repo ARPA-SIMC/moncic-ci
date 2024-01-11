@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import shlex
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
     from ..build import Build
     from ..container import Container, System
-    from ..linter import Linter
+    from ..lint import Linter
     from .inputsource import InputSource
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,9 @@ def register(source_cls: Type["Source"]) -> Type["Source"]:
 
 
 def registry() -> dict[str, Type["Source"]]:
+    """
+    Return the registry of available source types
+    """
     from . import debian, rpm  # noqa: import them so they are registered as builders
 
     return source_types
@@ -61,7 +65,7 @@ def get_source_class(name: str) -> Type["Source"]:
 
 
 @dataclass
-class Source:
+class Source(ABC):
     """
     Sources to be built
     """
@@ -93,17 +97,17 @@ class Source:
         """
         self.trace_log.append(" ".join(shlex.quote(c) for c in args))
 
+    @abstractmethod
     def get_build_class(self) -> Type["Build"]:
         """
         Return the Build subclass used to build this source
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.get_build_class is not implemented")
 
+    @abstractmethod
     def get_linter_class(self) -> Type["Linter"]:
         """
         Return the Linter subclass used to check this source
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.get_linter_class is not implemented")
 
     def make_build(self, **kwargs: Any) -> "Build":
         """
