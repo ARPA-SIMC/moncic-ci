@@ -1,9 +1,10 @@
 # Version *unreleased*
 
 * Added `--option include_source=true` to `monci ci` for Debian builds, to run
-  `dpkg-buildpackage` with the `-sa` option. (105)
+  `dpkg-buildpackage` with the `-sa` option. (#105)
 * Validate `--option` based on available options for the selected build, and
   their type
+* Fixed using `--source-type` with `rpm-arpa*` sources (#103)
 
 # Version 0.13
 
