@@ -125,6 +125,9 @@ class TestVersions(unittest.TestCase):
             def get_linter_class(self) -> Type["Linter"]:
                 pass
 
+            def create(cls, distro: Distro, source: InputSource) -> "MockSource":
+                pass
+
         with mock.patch("moncic.source.Source.__post_init__"):
             source = MockSource(None, None, None)
         linter = Linter(None, source)
