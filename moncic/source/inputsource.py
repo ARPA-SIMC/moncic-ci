@@ -6,6 +6,7 @@ import os
 import shlex
 import tempfile
 import urllib.parse
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
@@ -61,7 +62,7 @@ def _git_clone(inputsource: "InputSource", repository: str, branch: Optional[str
     return repo_path
 
 
-class InputSource(contextlib.ExitStack):
+class InputSource(contextlib.ExitStack, ABC):
     """
     Input source as specified by the user
     """
@@ -103,17 +104,17 @@ class InputSource(contextlib.ExitStack):
         else:
             return URL(source, parsed)
 
+    @abstractmethod
     def branch(self, branch: Optional[str]) -> "InputSource":
         """
         Return an InputSource for the given branch
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.branch is not implemented")
 
+    @abstractmethod
     def detect_source(self, distro: Distro) -> "Source":
         """
         Autodetect the Source for this input
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.detect_source is not implemented")
 
 
 class LocalFile(InputSource):
