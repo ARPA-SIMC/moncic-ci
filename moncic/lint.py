@@ -25,12 +25,18 @@ class Linter(contextlib.ExitStack):
         self.system = system
         # Source to check
         self.source = source
+        # Number of errors found
+        self.error_count: int = 0
+        # Number of warnings found
+        self.warning_count: int = 0
 
     def error(self, message: str):
         print(message)
+        self.error_count += 1
 
     def warning(self, message: str):
         print(message)
+        self.warning_count += 1
 
     @cached_property
     def source_path(self) -> Path:

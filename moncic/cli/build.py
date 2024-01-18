@@ -149,6 +149,12 @@ class Lint(SourceCommand):
                     linter_cls = source.get_linter_class()
                     linter = linter_cls(system, source)
                     linter.lint()
+        if linter.error_count:
+            print(f"{linter.error_count} error(s), {linter.warning_count} warning(s)")
+            return 2
+        if linter.warning_count:
+            print(f"{linter.warning_count} warning(s)")
+            return 1
 
         # cls.builders["debian"].analyze(analyzer)
         # cls.builders["rpm"].analyze(analyzer)
