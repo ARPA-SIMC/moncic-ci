@@ -46,7 +46,7 @@ class DebCache:
         sdebs = sorted(self.debs.items(), key=lambda x: x[1].atime_ns, reverse=True)
         size = 0
         for name, info in sdebs:
-            if size > self.cache_size:
+            if size + info.size > self.cache_size:
                 os.unlink(name, dir_fd=self.src_dir_fd)
                 del self.debs[name]
             else:
@@ -72,6 +72,7 @@ class DebCache:
                     yield aptdir
                 finally:
                     # Hardlink new debs to cache dir
+                    os.lseek(dst_dir_fd, 0, os.SEEK_SET)
                     with os.scandir(dst_dir_fd) as it:
                         for de in it:
                             if de.name.endswith(".deb"):
