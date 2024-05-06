@@ -26,6 +26,7 @@ class Debian(DistroFamily):
         "10": "buster",
         "11": "bullseye",
         "12": "bookworm",
+        "13": "trixie",
     }
     EXTRA_SUITES = ("oldstable", "stable", "testing", "unstable")
     SHORTCUTS = {suite: f"debian:{suite}" for suite in list(VERSION_IDS.values()) + ["sid"]}
@@ -63,6 +64,10 @@ class Ubuntu(DistroFamily):
         "21.04": "hirsute",
         "21.10": "impish",
         "22.04": "jammy",
+        "22.10": "kinetic",
+        "23.04": "lunar",
+        "23.10": "mantic",
+        "24.04": "noble",
     }
     SHORTCUTS = {suite: f"ubuntu:{suite}" for suite in ("xenial", "bionic", "focal", "hirsute", "impish", "jammy")}
     LEGACY = ("xenial",)
