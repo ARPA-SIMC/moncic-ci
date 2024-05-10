@@ -5,6 +5,7 @@
 * Validate `--option` based on available options for the selected build, and
   their type
 * Fixed using `--source-type` with `rpm-arpa*` sources (#103)
+* Added Fedora 39 and 40 to supported distros
 
 # Version 0.13
 
