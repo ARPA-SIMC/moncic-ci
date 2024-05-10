@@ -1,4 +1,4 @@
-# Version *unreleased*
+# Version 0.14
 
 * Added `--option include_source=true` to `monci ci` for Debian builds, to run
   `dpkg-buildpackage` with the `-sa` option. (#105)
