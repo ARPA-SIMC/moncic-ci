@@ -13,7 +13,7 @@ import git
 from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
-from ..source import InputSource, Source, get_source_class
+from ..source import Source
 from ..utils.privs import ProcessPrivs
 from .base import Command
 from .utils import SourceTypeAction
@@ -267,18 +267,17 @@ class SourceCommand(MoncicCommand):
         return parser
 
     @contextlib.contextmanager
-    def source(self, distro: Distro, source: str) -> Generator[Source, None, None]:
+    def source(self, distro: Distro) -> Generator[Source, None, None]:
         """
         Instantiate a Source object
         """
         with self.moncic.privs.user():
-            with InputSource.create(self.args.source) as input_source:
-                if self.args.branch:
-                    input_source = input_source.branch(self.args.branch)
-                if self.args.source_type:
-                    source_cls = get_source_class(self.args.source_type)
-                    source = source_cls.create(distro, input_source)
-                else:
-                    source = input_source.detect_source(distro)
+            with Source.create(source=self.args.source, branch=self.args.branch) as source:
+                buildable = source.make_buildable(distro=distro, source_type=self.args.source_type)
+                # if self.args.source_type:
+                #     source_cls = get_source_class(self.args.source_type)
+                #     source = source_cls.create(distro, input_source)
+                # else:
+                #     source = input_source.detect_source(distro)
                 self.moncic.privs.regain()
-                yield source
+                yield buildable
