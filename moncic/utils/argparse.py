@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, Dict, NamedTuple, Tuple
+from typing import Any, NamedTuple
 
 
 class SharedArgument(NamedTuple):
@@ -10,8 +10,8 @@ class SharedArgument(NamedTuple):
     """
 
     action: argparse.Action
-    args: Tuple[Any]
-    kwargs: Dict[str, Any]
+    args: tuple[Any]
+    kwargs: dict[str, Any]
 
 
 class Namespace(argparse.Namespace):

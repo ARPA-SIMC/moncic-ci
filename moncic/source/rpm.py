@@ -7,7 +7,7 @@ import subprocess
 from abc import ABC
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Type, Union
+from typing import TYPE_CHECKING
 
 from .. import lint
 from ..container import ContainerConfig
@@ -30,7 +30,7 @@ class RPMSource(Source, ABC):
     Git working directory with a Debian package
     """
 
-    specfile_path: Optional[str] = None
+    specfile_path: str | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -46,7 +46,7 @@ class RPMSource(Source, ABC):
         raise NotImplementedError(f"{self.__class__.__name__}.locate_specfile() is not implemented")
 
     @classmethod
-    def detect(cls, distro: Distro, source: Union[LocalGit, LocalDir]) -> "RPMSource":
+    def detect(cls, distro: Distro, source: LocalGit | LocalDir) -> RPMSource:
         """
         Auto detect the style of RPM source to build.
 
@@ -75,12 +75,12 @@ class ARPASourceMixin(RPMSource, ABC):
     Base class for ARPA sources
     """
 
-    def get_build_class(self) -> Type["Build"]:
+    def get_build_class(self) -> type[Build]:
         from ..build.arpa import ARPA
 
         return ARPA
 
-    def get_linter_class(self) -> Type["lint.Linter"]:
+    def get_linter_class(self) -> type[lint.Linter]:
         return lint.ARPALinter
 
     def locate_specfile(self) -> str:
@@ -108,8 +108,8 @@ class ARPASourceMixin(RPMSource, ABC):
             with system.create_container(config=cconfig) as container:
                 res = container.run(["/usr/bin/rpmspec", "--parse", spec_path])
             if res.returncode == 0:
-                version: Optional[str] = None
-                release: Optional[str] = None
+                version: str | None = None
+                release: str | None = None
                 for line in res.stdout.splitlines():
                     if line.startswith(b"Version:"):
                         if version is None:
@@ -137,11 +137,11 @@ class ARPASource(ARPASourceMixin, RPMSource):
     NAME = "rpm-arpa"
 
     @classmethod
-    def _create_from_repo(cls, source: LocalDir) -> "ARPASource":
+    def _create_from_repo(cls, source: LocalDir) -> ARPASource:
         return cls(source, Path(source.path))
 
     @classmethod
-    def create(cls, distro: "Distro", source: "InputSource") -> "ARPASource":
+    def create(cls, distro: Distro, source: InputSource) -> ARPASource:
         if isinstance(source, LocalGit):
             raise Fail(
                 f"Cannot use {cls.NAME} source type on a {type(source).__name__} source:"
@@ -163,11 +163,11 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
     NAME = "rpm-arpa-git"
 
     @classmethod
-    def _create_from_repo(cls, source: LocalGit) -> "ARPAGitSource":
+    def _create_from_repo(cls, source: LocalGit) -> ARPAGitSource:
         return cls(source, Path(source.path))
 
     @classmethod
-    def create(cls, distro: "Distro", source: "InputSource") -> "ARPAGitSource":
+    def create(cls, distro: Distro, source: InputSource) -> ARPAGitSource:
         if isinstance(source, LocalDir):
             raise Fail(
                 f"Cannot use {cls.NAME} source type on a {type(source).__name__} source: maybe try {ARPASource.NAME}?"
@@ -176,7 +176,7 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
             raise Fail(f"Cannot use {cls.NAME} source type on a {type(source).__name__} source")
         return cls._create_from_repo(source)
 
-    def _check_arpa_commits(self, linter: "lint.Linter"):
+    def _check_arpa_commits(self, linter: lint.Linter):
         repo = self.source.repo
 
         # Get the latest version tag
@@ -197,8 +197,8 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
         if (last_ver := int(rv)) == 1:
             return
 
-        prev_ver: Optional[int] = None
-        prev_tag: Optional[str] = None
+        prev_ver: int | None = None
+        prev_tag: str | None = None
         prefix = f"v{uv}-"
         for tag in repo.tags:
             if tag.name.startswith(prefix):
@@ -227,6 +227,6 @@ class ARPAGitSource(ARPASourceMixin, RPMSource, GitSource):
         for name in sorted(upstream_affected):
             linter.warning(f"{name}: upstream file affected by packaging changes")
 
-    def lint(self, linter: "lint.Linter"):
+    def lint(self, linter: lint.Linter):
         super().lint(linter)
         self._check_arpa_commits(linter)

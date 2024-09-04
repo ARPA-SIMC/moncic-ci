@@ -4,7 +4,7 @@ import logging
 import os
 import shlex
 import subprocess
-from typing import Sequence
+from collections.abc import Sequence
 
 log = logging.getLogger("run")
 

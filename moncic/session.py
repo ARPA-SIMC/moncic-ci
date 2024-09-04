@@ -7,12 +7,11 @@ import shlex
 import subprocess
 import sys
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
-from . import imagestorage
+from . import context, imagestorage
 from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
-from . import context
 
 if TYPE_CHECKING:
     from .moncic import Moncic
@@ -26,8 +25,8 @@ class Session(contextlib.ExitStack):
     def __init__(self, moncic: Moncic):
         super().__init__()
         self.moncic = moncic
-        self.orig_moncic: Optional[contextvars.Token] = None
-        self.orig_session: Optional[contextvars.Token] = None
+        self.orig_moncic: contextvars.Token | None = None
+        self.orig_session: contextvars.Token | None = None
 
         # Storage for OS images
         self.image_storage = self._instantiate_imagestorage()
@@ -59,7 +58,7 @@ class Session(contextlib.ExitStack):
         return self.enter_context(self.image_storage.images())
 
     @cached_property
-    def debcache(self) -> Optional[DebCache]:
+    def debcache(self) -> DebCache | None:
         """
         Return the DebCache object to manage an apt package cache
         """
@@ -69,7 +68,7 @@ class Session(contextlib.ExitStack):
             return None
 
     @cached_property
-    def apt_archives(self) -> Optional[str]:
+    def apt_archives(self) -> str | None:
         """
         Return the path of a directory that can be bind-mounted as
         /var/cache/apt/archives in Debian containers
@@ -80,7 +79,7 @@ class Session(contextlib.ExitStack):
             return None
 
     @cached_property
-    def extra_packages_dir(self) -> Optional[str]:
+    def extra_packages_dir(self) -> str | None:
         """
         Return the path of a directory with extra packages to add as a source
         to containers
@@ -120,8 +119,8 @@ class MockSession(Session):
         regex: str,
         *,
         returncode: int = 0,
-        stdout: Union[str, bytes, None] = None,
-        stderr: Union[str, bytes, None] = None,
+        stdout: str | bytes | None = None,
+        stderr: str | bytes | None = None,
     ):
         self.process_result_queue[regex] = subprocess.CompletedProcess(
             args=[], returncode=returncode, stdout=stdout, stderr=stderr
@@ -131,14 +130,14 @@ class MockSession(Session):
         return imagestorage.ImageStorage.create_mock(self)
 
     @cached_property
-    def debcache(self) -> Optional[DebCache]:
+    def debcache(self) -> DebCache | None:
         """
         Return the DebCache object to manage an apt package cache
         """
         return None
 
     @cached_property
-    def apt_archives(self) -> Optional[str]:
+    def apt_archives(self) -> str | None:
         """
         Return the path of a directory that can be bind-mounted as
         /var/cache/apt/archives in Debian containers
@@ -146,7 +145,7 @@ class MockSession(Session):
         return None
 
     @cached_property
-    def extra_packages_dir(self) -> Optional[str]:
+    def extra_packages_dir(self) -> str | None:
         """
         Return the path of a directory with extra packages to add as a source
         to containers

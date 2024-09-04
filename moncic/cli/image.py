@@ -9,15 +9,16 @@ import shlex
 import shutil
 import stat
 import sys
-from typing import TYPE_CHECKING, Any, Dict, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Any
 
 import ruamel.yaml
 import yaml
 
 from ..build import Builder
 from ..exceptions import Fail
-from ..utils.fs import atomic_writer
 from ..utils.edit import edit_yaml
+from ..utils.fs import atomic_writer
 from .moncic import MoncicCommand, SourceCommand, main_command
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class CreateCommand(MoncicCommand):
-    def create(self, contents: Dict[str, Any]):
+    def create(self, contents: dict[str, Any]):
         """
         Create a configuration with the given contents
         """
@@ -99,7 +100,7 @@ class MaintCommand(MoncicCommand):
                 log.error("%s: cannot update image", self.args.name, exc_info=True)
 
     @contextlib.contextmanager
-    def edit_config(self) -> Generator[Dict[str, Any], None, None]:
+    def edit_config(self) -> Generator[dict[str, Any], None, None]:
         """
         Edit the image configuration file as a parsed yaml structure.
 
@@ -112,7 +113,7 @@ class MaintCommand(MoncicCommand):
                 if path := session.images.find_config(self.args.name):
                     # Use ruamel.yaml to preserve comments
                     ryaml = ruamel.yaml.YAML(typ="rt")
-                    with open(path, "rt") as fd:
+                    with open(path) as fd:
                         data = ryaml.load(fd)
                         st = os.fstat(fd.fileno())
                         mode = stat.S_IMODE(st.st_mode)
@@ -229,7 +230,7 @@ class Edit(MaintCommand):
         with self.moncic.session() as session:
             if path := session.images.find_config(self.args.name):
                 with self.moncic.privs.user():
-                    with open(path, "rt") as fd:
+                    with open(path) as fd:
                         buf = fd.read()
                         st = os.fstat(fd.fileno())
                         mode = stat.S_IMODE(st.st_mode)
@@ -255,7 +256,7 @@ class Cat(MoncicCommand):
             if path := session.images.find_config(self.args.name):
                 with self.moncic.privs.user():
                     print(f"# {path}")
-                    with open(path, "rt") as fd:
+                    with open(path) as fd:
                         shutil.copyfileobj(fd, sys.stdout)
 
 

@@ -31,7 +31,7 @@ class Debian(DistroFamily):
     EXTRA_SUITES = ("oldstable", "stable", "testing", "unstable")
     SHORTCUTS = {suite: f"debian:{suite}" for suite in list(VERSION_IDS.values()) + ["sid"]}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
 
@@ -72,7 +72,7 @@ class Ubuntu(DistroFamily):
     SHORTCUTS = {suite: f"ubuntu:{suite}" for suite in ("xenial", "bionic", "focal", "hirsute", "impish", "jammy")}
     LEGACY = ("xenial",)
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
 

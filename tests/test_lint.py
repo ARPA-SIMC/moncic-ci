@@ -123,13 +123,13 @@ class TestVersions(unittest.TestCase):
         """
 
         class MockSource(Source):
-            def get_build_class(self) -> Type["Build"]:
+            def get_build_class(self) -> Type[Build]:
                 pass
 
-            def get_linter_class(self) -> Type["Linter"]:
+            def get_linter_class(self) -> Type[Linter]:
                 pass
 
-            def create(cls, distro: Distro, source: InputSource) -> "MockSource":
+            def create(cls, distro: Distro, source: InputSource) -> MockSource:
                 pass
 
         with mock.patch("moncic.source.Source.__post_init__"):

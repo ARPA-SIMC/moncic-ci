@@ -8,12 +8,13 @@ import shutil
 import stat
 import subprocess
 from collections import defaultdict
-from typing import TYPE_CHECKING, ContextManager, Generator, Optional
+from collections.abc import Generator
+from typing import TYPE_CHECKING, ContextManager
 
-from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 from .distro import DistroFamily
-from .system import MaintenanceSystem, System, SystemConfig, MockMaintenanceSystem, MockSystem
 from .runner import LocalRunner
+from .system import MaintenanceSystem, MockMaintenanceSystem, MockSystem, System, SystemConfig
+from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 
 if TYPE_CHECKING:
     from .session import Session
@@ -72,7 +73,7 @@ class Images:
         """
         return LocalRunner.run(system_config.logger, cmd, system_config=system_config)
 
-    def get_distro_tarball(self, distro_name: str) -> Optional[str]:
+    def get_distro_tarball(self, distro_name: str) -> str | None:
         """
         Return the path to a tarball that can be used to bootstrap a chroot for
         this system.
@@ -121,7 +122,7 @@ class Images:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.remove_system is not implemented")
 
-    def find_config(self, name: str) -> Optional[str]:
+    def find_config(self, name: str) -> str | None:
         """
         Return the path of the config file of the given image, if it exists
         """
@@ -432,7 +433,7 @@ class ImageStorage:
         raise NotImplementedError(f"{self.__class__.__name__}.imagedir is not implemented")
 
     @classmethod
-    def create(cls, session: Session, path: str) -> "ImageStorage":
+    def create(cls, session: Session, path: str) -> ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """
@@ -451,14 +452,14 @@ class ImageStorage:
             raise RuntimeError(f"images path {path!r} does not point to a directory")
 
     @classmethod
-    def create_default(cls, session: Session) -> "ImageStorage":
+    def create_default(cls, session: Session) -> ImageStorage:
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
         return cls.create(session, MACHINECTL_PATH)
 
     @classmethod
-    def create_mock(cls, session: Session) -> "ImageStorage":
+    def create_mock(cls, session: Session) -> ImageStorage:
         """
         Instantiate a default ImageStorage in case no path has been provided
         """

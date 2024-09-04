@@ -8,10 +8,10 @@ import sys
 import tempfile
 import time
 import unittest
-from typing import Generator, Optional
+from collections.abc import Generator
 
-from moncic.system import System
 from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
+from moncic.system import System
 from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 
@@ -45,7 +45,7 @@ class RunTestCase:
                 yield system
 
     @contextlib.contextmanager
-    def container(self, config: Optional[ContainerConfig] = None) -> Generator[Container, None, None]:
+    def container(self, config: ContainerConfig | None = None) -> Generator[Container, None, None]:
         with self.system() as system:
             with system.create_container(config=config) as container:
                 yield container

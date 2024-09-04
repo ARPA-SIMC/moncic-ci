@@ -8,8 +8,9 @@ import socketserver
 import subprocess
 import tempfile
 import threading
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, Optional, Union
+from typing import TYPE_CHECKING
 
 from moncic.build import Build
 from moncic.distro import Distro, DistroFamily
@@ -54,7 +55,7 @@ class GitRepo(contextlib.ExitStack):
     Temporary git repository used for testing
     """
 
-    def __init__(self, workdir: Optional[Path] = None):
+    def __init__(self, workdir: Path | None = None):
         super().__init__()
         if workdir is None:
             self.root = Path(self.enter_context(tempfile.TemporaryDirectory()))
@@ -74,7 +75,7 @@ class GitRepo(contextlib.ExitStack):
         cmd.extend(args)
         subprocess.run(cmd, cwd=self.root, check=True, capture_output=True)
 
-    def add(self, relpath: str, content: Union[str, bytes] = b""):
+    def add(self, relpath: str, content: str | bytes = b""):
         """
         Create a file and git add it
         """

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import functools
 
-
 # Set to True when running in the guest system
 in_guest = False
 

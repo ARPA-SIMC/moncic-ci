@@ -6,7 +6,7 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from .. import context
 from ..runner import UserConfig
@@ -26,7 +26,7 @@ class RPM(Build):
     """
     Build RPM packages
     """
-    specfile: Optional[str] = None
+    specfile: str | None = None
 
     def __post_init__(self):
         from ..distro.rpm import DnfDistro, YumDistro

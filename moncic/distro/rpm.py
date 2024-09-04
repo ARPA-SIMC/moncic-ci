@@ -26,7 +26,7 @@ class Fedora(DistroFamily):
     VERSIONS = (32, 33, 34, 35, 36, 37, 38, 39, 40)
     SHORTCUTS = {f"fedora{version}": f"fedora:{version}" for version in VERSIONS}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         intver = int(version)
         if intver in self.VERSIONS:
             return FedoraDistro(f"fedora:{intver}", intver)
@@ -39,7 +39,7 @@ class Rocky(DistroFamily):
     VERSIONS = (8, 9)
     SHORTCUTS = {f"rocky{version}": f"rocky:{version}" for version in VERSIONS}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         major = int(version.split(".")[0])
         if major in self.VERSIONS:
             return RockyDistro(f"rocky:{major}", major)
@@ -52,7 +52,7 @@ class Centos(DistroFamily):
     VERSIONS = (7, 8)
     SHORTCUTS = {f"centos{version}": f"centos:{version}" for version in VERSIONS}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         intver = int(version)
         if intver == 7:
             return Centos7(f"centos:{intver}")
@@ -239,7 +239,7 @@ class Centos8(DnfDistro):
         # Fixup repository information to point at the vault
         for fn in glob.glob(os.path.join(system.path, "etc/yum.repos.d/CentOS-*")):
             log.info("Updating %r to point mirrors to the Vault", fn)
-            with open(fn, "rt") as fd:
+            with open(fn) as fd:
                 st = os.stat(fd.fileno())
                 with atomic_writer(fn, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
                     for line in fd:

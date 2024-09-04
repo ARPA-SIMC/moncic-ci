@@ -6,7 +6,7 @@ import unittest
 
 from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
-from moncic.source import debian, inputsource, InputSource
+from moncic.source import InputSource, debian, inputsource
 
 from .source import GitFixtureMixin
 

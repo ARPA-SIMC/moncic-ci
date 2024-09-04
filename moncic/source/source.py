@@ -7,10 +7,11 @@ from abc import ABC, abstractclassmethod, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Type
+from typing import TYPE_CHECKING, Any
 
 from moncic.container import ContainerConfig
 from moncic.utils.guest import guest_only, host_only
+
 from .inputsource import LocalGit
 
 if TYPE_CHECKING:
@@ -26,10 +27,10 @@ log = logging.getLogger(__name__)
 
 
 # Registry of known builders
-source_types: dict[str, Type["Source"]] = {}
+source_types: dict[str, type[Source]] = {}
 
 
-def register(source_cls: Type["Source"]) -> Type["Source"]:
+def register(source_cls: type[Source]) -> type[Source]:
     """
     Add a Build object to the Build registry
     """
@@ -49,7 +50,7 @@ def register(source_cls: Type["Source"]) -> Type["Source"]:
     return source_cls
 
 
-def registry() -> dict[str, Type["Source"]]:
+def registry() -> dict[str, type[Source]]:
     """
     Return the registry of available source types
     """
@@ -58,7 +59,7 @@ def registry() -> dict[str, Type["Source"]]:
     return source_types
 
 
-def get_source_class(name: str) -> Type["Source"]:
+def get_source_class(name: str) -> type[Source]:
     """
     Create a Build object by its name
     """
@@ -76,7 +77,7 @@ class Source(ABC):
     # Path to the unpacked sources in the host system
     host_path: Path
     # Path to the unpacked sources in the guest system
-    guest_path: Optional[str] = None
+    guest_path: str | None = None
     # Commands that can be used to recreate this source
     trace_log: list[str] = field(default_factory=list)
 
@@ -99,19 +100,19 @@ class Source(ABC):
         self.trace_log.append(" ".join(shlex.quote(c) for c in args))
 
     @abstractmethod
-    def get_build_class(self) -> Type["Build"]:
+    def get_build_class(self) -> type[Build]:
         """
         Return the Build subclass used to build this source
         """
 
     @abstractmethod
-    def get_linter_class(self) -> Type["Linter"]:
+    def get_linter_class(self) -> type[Linter]:
         """
         Return the Linter subclass used to check this source
         """
 
     @abstractclassmethod
-    def create(cls, distro: "Distro", source: InputSource) -> "Source":
+    def create(cls, distro: Distro, source: InputSource) -> Source:
         """
         Create an instance of this source.
 
@@ -119,7 +120,7 @@ class Source(ABC):
         of having it autodetected by InputSource
         """
 
-    def make_build(self, **kwargs: Any) -> "Build":
+    def make_build(self, **kwargs: Any) -> Build:
         """
         Create a Build to build this Source
         """
@@ -132,7 +133,6 @@ class Source(ABC):
         guest
         """
         # Do nothing by default
-        pass
 
     @guest_only
     def build_source_package(self) -> str:

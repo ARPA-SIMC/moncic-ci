@@ -6,7 +6,7 @@ import inspect
 import shutil
 import textwrap
 from dataclasses import fields
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..exceptions import Fail, Success
 
@@ -91,7 +91,7 @@ class BuildOptionAction(argparse._AppendAction):
             setattr(namespace, self.dest, {k: v})
 
 
-def set_build_option_action(build: "Build", key: str, val: Any) -> None:
+def set_build_option_action(build: Build, key: str, val: Any) -> None:
     """
     Set a build option action in a builder instance
     """

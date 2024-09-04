@@ -1,10 +1,11 @@
 from __future__ import annotations
+
 import os
 import re
 import unittest
 
-from moncic.unittest import DistroTestMixin, make_moncic
 from moncic.container import UserConfig
+from moncic.unittest import DistroTestMixin, make_moncic
 
 
 class BootstrapTestMixin(DistroTestMixin):

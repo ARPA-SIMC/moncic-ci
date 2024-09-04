@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from typing import TYPE_CHECKING, Iterable, List, NamedTuple, Optional, Type
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, NamedTuple
 
 from ..utils.osrelease import parse_osrelase
 
@@ -37,7 +38,7 @@ class DistroFamily:
     SHORTCUTS: dict[str, str] = {}
 
     @classmethod
-    def register(cls, family_cls: Type["DistroFamily"]) -> Type["DistroFamily"]:
+    def register(cls, family_cls: type[DistroFamily]) -> type[DistroFamily]:
         name = getattr(family_cls, "NAME", None)
         if name is None:
             name = family_cls.__name__.lower()
@@ -96,7 +97,7 @@ class DistroFamily:
         # https://www.freedesktop.org/software/systemd/man/os-release.html
 
         # TODO: check if "{path}.yaml" exists
-        info: Optional[dict[str, str]]
+        info: dict[str, str] | None
         try:
             info = parse_osrelase(os.path.join(path, "etc", "os-release"))
         except FileNotFoundError:
@@ -121,14 +122,14 @@ class DistroFamily:
     def __str__(self) -> str:
         return self.name
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         """
         Create a Distro object for a distribution in this family, given its
         version
         """
         raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
 
-    def list_distros(self) -> List[DistroInfo]:
+    def list_distros(self) -> list[DistroInfo]:
         """
         Return a list of distros available in this family
         """
@@ -158,7 +159,6 @@ class Distro:
         Hook to allow distro-specific container setup
         """
         # Do nothing by default
-        pass
 
     def bootstrap(self, system: System) -> None:
         """

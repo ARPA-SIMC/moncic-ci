@@ -4,7 +4,7 @@ import contextlib
 import dataclasses
 import logging
 import os
-from typing import IO, TYPE_CHECKING, Optional
+from typing import IO, TYPE_CHECKING
 
 from ..container import ContainerConfig
 from ..runner import UserConfig
@@ -33,9 +33,9 @@ class Builder(contextlib.ExitStack):
         # User to use for the build
         self.user = UserConfig.from_sudoer()
         # Build log file
-        self.buildlog_file: Optional[IO[str]] = None
+        self.buildlog_file: IO[str] | None = None
         # Log handler used to capture build output
-        self.buildlog_handler: Optional[logging.Handler] = None
+        self.buildlog_handler: logging.Handler | None = None
 
     @host_only
     def setup_container_host(self, container: Container):

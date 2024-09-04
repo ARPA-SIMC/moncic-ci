@@ -5,7 +5,7 @@ import re
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import git
 
@@ -129,7 +129,7 @@ class Linter(contextlib.ExitStack):
         return res
 
     @cached_property
-    def upstream_version(self) -> Optional[str]:
+    def upstream_version(self) -> str | None:
         """
         Return the upstream version, if it can be univocally determined, else
         None
@@ -171,7 +171,7 @@ class Linter(contextlib.ExitStack):
         return versions
 
     @cached_property
-    def version_from_arpa_specfile(self) -> Optional[str]:
+    def version_from_arpa_specfile(self) -> str | None:
         """
         Get the version from ARPA's specfile
         """
@@ -205,7 +205,7 @@ class Linter(contextlib.ExitStack):
         return None
 
     @classmethod
-    def same_values(cls, versions: dict[str, str]) -> Optional[str]:
+    def same_values(cls, versions: dict[str, str]) -> str | None:
         """
         If all the dict's entries have the same value, return that value.
 

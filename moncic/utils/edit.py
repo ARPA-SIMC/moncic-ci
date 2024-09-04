@@ -4,12 +4,11 @@ import io
 import os
 import subprocess
 import tempfile
-from typing import Optional
 
 import yaml
 
 
-def edit_yaml(buf: str, path: str) -> Optional[str]:
+def edit_yaml(buf: str, path: str) -> str | None:
     """
     Open an editor on buf and validate its result as YAML.
 
@@ -48,7 +47,7 @@ def edit_yaml(buf: str, path: str) -> Optional[str]:
 
             # Reopen by name in case the editor did not write on the same
             # inode
-            with open(tf.name, "rt") as fd:
+            with open(tf.name) as fd:
                 lines = []
                 for line in fd:
                     if line.startswith(ERROR_MARKER):

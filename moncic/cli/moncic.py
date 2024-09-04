@@ -5,7 +5,8 @@ import logging
 import os
 import tempfile
 import urllib.parse
-from typing import TYPE_CHECKING, Generator, List, Optional, Type
+from collections.abc import Generator
+from typing import TYPE_CHECKING
 
 import git
 
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-MAIN_COMMANDS: List[Type[Command]] = []
+MAIN_COMMANDS: list[type[Command]] = []
 
 
 def main_command(cls):
@@ -36,7 +37,7 @@ def main_command(cls):
 
 
 @contextlib.contextmanager
-def checkout(system: System, repo: Optional[str] = None, branch: Optional[str] = None):
+def checkout(system: System, repo: str | None = None, branch: str | None = None):
     if repo is None:
         yield None
         return

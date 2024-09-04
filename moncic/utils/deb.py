@@ -4,7 +4,8 @@ import contextlib
 import os
 import shutil
 import tempfile
-from typing import Dict, Generator, List, NamedTuple, Optional
+from collections.abc import Generator
+from typing import NamedTuple
 
 from ..runner import UserConfig
 from .fs import dirfd
@@ -21,8 +22,8 @@ class DebCache:
         # Maximum cache size in bytes
         self.cache_size = cache_size
         # Information about .deb files present in cache
-        self.debs: Dict[str, FileInfo] = {}
-        self.src_dir_fd: Optional[int] = None
+        self.debs: dict[str, FileInfo] = {}
+        self.src_dir_fd: int | None = None
         self.cache_user = UserConfig.from_sudoer()
 
     def __enter__(self):
@@ -85,7 +86,7 @@ class DebCache:
                                 self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
 
 
-def apt_get_cmd(*args) -> List[str]:
+def apt_get_cmd(*args) -> list[str]:
     """
     Build an apt-get command
     """

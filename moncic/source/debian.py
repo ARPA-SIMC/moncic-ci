@@ -6,11 +6,12 @@ import os
 import re
 import shutil
 import subprocess
-from abc import ABC, abstractmethod
+from abc import ABC
+from collections.abc import Sequence
 from configparser import ConfigParser
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Sequence, Type
+from typing import TYPE_CHECKING
 
 import git
 
@@ -20,7 +21,7 @@ from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
 from ..utils.run import log_run, run
 from .inputsource import URL, InputSource, LocalDir, LocalFile, LocalGit
-from .source import Source, register, GitSource
+from .source import GitSource, Source, register
 
 if TYPE_CHECKING:
     from ..build import Build
@@ -37,12 +38,12 @@ class DebianSource(Source, ABC):
     Base class for Debian source packages
     """
 
-    def get_build_class(self) -> Type["Build"]:
+    def get_build_class(self) -> type[Build]:
         from ..build.debian import Debian
 
         return Debian
 
-    def get_linter_class(self) -> Type["lint.Linter"]:
+    def get_linter_class(self) -> type[lint.Linter]:
         return lint.DebianLinter
 
     def find_versions(self, system: System) -> dict[str, str]:
@@ -76,8 +77,8 @@ class DebianDirMixin(Source, ABC):
     Plain Debian source directory
     """
 
-    tarball_filename: Optional[str] = None
-    tarball_source: Optional[str] = None
+    tarball_filename: str | None = None
+    tarball_source: str | None = None
 
     @host_only
     def _find_tarball(self, build: Build, container: Container, search_dirs: Sequence[str] = ()) -> None:
@@ -137,7 +138,7 @@ class DebianGitSource(DebianSource, GitSource):
         raise RuntimeError("debian/changelog found but its first line cannot be parsed")
 
     @classmethod
-    def detect(cls, distro: Distro, source: LocalGit) -> "DebianGitSource":
+    def detect(cls, distro: Distro, source: LocalGit) -> DebianGitSource:
         """
         Detect the style of packaging repository.
 
@@ -178,7 +179,7 @@ class DebianGitSource(DebianSource, GitSource):
             return DebianGBPTestDebian._create_from_repo(distro, source, debversion)
 
     @classmethod
-    def create(cls, distro: Distro, source: InputSource) -> "DebianGitSource":
+    def create(cls, distro: Distro, source: InputSource) -> DebianGitSource:
         if isinstance(source, LocalGit):
             return cls._create_from_repo(distro, source)
         if isinstance(source, URL):
@@ -207,7 +208,7 @@ class DebianPlainGit(DebianDirMixin, DebianGitSource):
     NAME = "debian-git-plain"
 
     @classmethod
-    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> "DebianPlainGit":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> DebianPlainGit:
         if not source.copy:
             log.info(
                 "%s: cloning repository to avoid building a potentially dirty working directory",
@@ -314,7 +315,7 @@ class DebianGBP(DebianGitSource):
         return res
 
     @classmethod
-    def read_upstream_branch(cls, repo: git.Repo) -> Optional[str]:
+    def read_upstream_branch(cls, repo: git.Repo) -> str | None:
         """
         Read the upstream branch from gbp.conf
 
@@ -325,7 +326,7 @@ class DebianGBP(DebianGitSource):
         return cfg.get("DEFAULT", "upstream-branch", fallback=None)
 
     @classmethod
-    def read_upstream_tag(cls, repo: git.Repo) -> Optional[str]:
+    def read_upstream_tag(cls, repo: git.Repo) -> str | None:
         """
         Read the upstream tag from gbp.conf
 
@@ -378,7 +379,7 @@ class DebianGBPTestUpstream(DebianGBP):
     NAME = "debian-gbp-upstream"
 
     @classmethod
-    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> "DebianGBPTestUpstream":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> DebianGBPTestUpstream:
         # find the right debian branch
         candidate_branches = distro.get_gbp_branches()
         for branch in candidate_branches:
@@ -461,7 +462,7 @@ class DebianGBPRelease(DebianGBP):
     NAME = "debian-gbp-release"
 
     @classmethod
-    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> "DebianGBPRelease":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> DebianGBPRelease:
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
 
@@ -479,7 +480,7 @@ class DebianGBPRelease(DebianGBP):
         res.gbp_args.append("--git-upstream-tree=tag")
         return res
 
-    def _check_debian_commits(self, linter: "lint.Linter"):
+    def _check_debian_commits(self, linter: lint.Linter):
         repo = self.source.repo
 
         # Check files modified, ensure it's only in debian/
@@ -495,7 +496,7 @@ class DebianGBPRelease(DebianGBP):
         for name in sorted(upstream_affected):
             linter.warning(f"{name}: upstream file affected by debian branch")
 
-    def lint(self, linter: "lint.Linter"):
+    def lint(self, linter: lint.Linter):
         super().lint(linter)
         self._check_debian_commits(linter)
 
@@ -520,7 +521,7 @@ class DebianGBPTestDebian(DebianGBP):
     NAME = "debian-gbp-test"
 
     @classmethod
-    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> "DebianGBPTestDebian":
+    def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> DebianGBPTestDebian:
         # Read the upstream branch to use from gbp.conf
         upstream_branch = cls.read_upstream_branch(source.repo)
         if upstream_branch is None:
@@ -559,7 +560,7 @@ class DebianGBPTestDebian(DebianGBP):
         res.gbp_args.append("--git-upstream-tree=branch")
         return res
 
-    def _check_debian_commits(self, linter: "lint.Linter"):
+    def _check_debian_commits(self, linter: lint.Linter):
         repo = self.source.repo
 
         # Check files modified, ensure it's only in debian/
@@ -575,7 +576,7 @@ class DebianGBPTestDebian(DebianGBP):
         for name in sorted(upstream_affected):
             linter.warning(f"{name}: upstream file affected by debian branch")
 
-    def lint(self, linter: "lint.Linter"):
+    def lint(self, linter: lint.Linter):
         super().lint(linter)
         self._check_debian_commits(linter)
 
@@ -590,7 +591,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
     NAME = "debian-dir"
 
     @classmethod
-    def create(cls, distro: Distro, source: InputSource) -> "DebianSourceDir":
+    def create(cls, distro: Distro, source: InputSource) -> DebianSourceDir:
         if isinstance(source, LocalDir):
             return cls._create_from_dir(distro, source)
         else:
@@ -599,7 +600,7 @@ class DebianSourceDir(DebianDirMixin, DebianSource):
             )
 
     @classmethod
-    def _create_from_dir(cls, distro: Distro, source: LocalDir) -> "DebianSourceDir":
+    def _create_from_dir(cls, distro: Distro, source: LocalDir) -> DebianSourceDir:
         return cls(source, Path(source.path))
 
     @host_only
@@ -640,7 +641,7 @@ class DebianDsc(DebianSource):
     NAME = "debian-dsc"
 
     @classmethod
-    def create(cls, distro: Distro, source: InputSource) -> "DebianDsc":
+    def create(cls, distro: Distro, source: InputSource) -> DebianDsc:
         if isinstance(source, LocalFile):
             return cls._create_from_file(distro, source)
         else:
@@ -649,7 +650,7 @@ class DebianDsc(DebianSource):
             )
 
     @classmethod
-    def _create_from_file(cls, distro: Distro, source: LocalFile) -> "DebianDsc":
+    def _create_from_file(cls, distro: Distro, source: LocalFile) -> DebianDsc:
         return cls(source, Path(source.path))
 
     @host_only

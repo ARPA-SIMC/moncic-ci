@@ -4,7 +4,8 @@ import inspect
 import logging
 import shlex
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, Generator, Optional, Sequence, Type
+from typing import TYPE_CHECKING
+from collections.abc import Generator, Sequence
 
 import yaml
 
@@ -33,7 +34,7 @@ class Build:
     # Distribution on which to build
     distro: Distro
     # Package name (optional when not yet set)
-    name: Optional[str] = None
+    name: str | None = None
     # Set to True for faster builds, that assume that the container is already
     # up to date
     quick: bool = False
@@ -44,7 +45,7 @@ class Build:
     # Commands that can be used to recreate this build
     trace_log: list[str] = field(default_factory=list)
 
-    artifacts_dir: Optional[str] = field(
+    artifacts_dir: str | None = field(
             default=None,
             metadata={
                 "doc": """
@@ -107,15 +108,15 @@ class Build:
         this object's inheritance tree. Notably, `build` key/value pairs are
         always set.
         """
-        with open(pathname, "rt") as fd:
+        with open(pathname) as fd:
             conf = yaml.load(fd, Loader=yaml.CLoader)
 
         if not isinstance(conf, dict):
             raise Fail(f"{pathname!r}: YAML file should contain a dict")
 
-        sections = set(cls.get_name() for cls in self.__class__.__mro__ if cls != object)
+        sections = {cls.get_name() for cls in self.__class__.__mro__ if cls != object}
 
-        valid_fields = set(f.name for f in fields(self))
+        valid_fields = {f.name for f in fields(self)}
 
         for section, values in conf.items():
             if section not in sections:
@@ -152,7 +153,6 @@ class Build:
         Hook to run setup functions in the host container
         """
         # TODO: remove in favour of something more specific
-        pass
 
     @guest_only
     def setup_container_guest(self, system: System):
@@ -178,7 +178,7 @@ class Build:
         return cls.__name__.lower()
 
     @classmethod
-    def list_build_classes(cls) -> list[Type["Build"]]:
+    def list_build_classes(cls) -> list[type[Build]]:
         """
         Return a list of all available build classes, including intermediate
         classes in class hierarchies

@@ -5,7 +5,8 @@ import logging
 import shutil
 import subprocess
 import sys
-from typing import Any, NamedTuple, Sequence, Set, TextIO
+from collections.abc import Sequence
+from typing import Any, NamedTuple, TextIO
 
 try:
     from texttable import Texttable
@@ -84,7 +85,7 @@ class Images(MoncicCommand):
         res = subprocess.run(
             ["machinectl", "list-images", "--no-pager", "--no-legend"], check=True, stdout=subprocess.PIPE, text=True
         )
-        bootstrapped: Set[str] = set()
+        bootstrapped: set[str] = set()
         for line in res.stdout.splitlines():
             bootstrapped.add(line.split()[0])
 

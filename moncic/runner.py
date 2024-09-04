@@ -18,7 +18,7 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic, NamedTuple, Optional, Type, TypeVar, cast
+from typing import IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic, NamedTuple, TypeVar, cast
 
 import tblib
 
@@ -146,11 +146,11 @@ class RunConfig:
 
     # Run in this working directory. Defaults to ContainerConfig.workdir, if
     # set. Else, to the user's home directory
-    cwd: Optional[str] = None
+    cwd: str | None = None
 
     # Run as the given user. Defaults to the owner of ContainerConfig.workdir,
     # if set
-    user: Optional[UserConfig] = None
+    user: UserConfig | None = None
 
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
@@ -168,8 +168,8 @@ class CompletedCallable(Generic[Result], subprocess.CompletedProcess):
 
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
-        self.returnvalue: Optional[Result] = None
-        self.exc_info: Optional[tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+        self.returnvalue: Result | None = None
+        self.exc_info: tuple[type[BaseException], BaseException, types.TracebackType] | None = None
 
     def result(self) -> Result:
         """
@@ -193,7 +193,7 @@ class Runner:
         self.config = config
         self.stdout: list[bytes] = []
         self.stderr: list[bytes] = []
-        self.exc_info: Optional[tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+        self.exc_info: tuple[type[BaseException], BaseException, types.TracebackType] | None = None
         self.has_result: bool = False
         self.result: Any = None
 
@@ -315,8 +315,8 @@ class LocalRunner(AsyncioRunner):
         cls,
         logger: logging.Logger,
         cmd: list[str],
-        config: Optional[RunConfig] = None,
-        system_config: Optional[SystemConfig] = None,
+        config: RunConfig | None = None,
+        system_config: SystemConfig | None = None,
     ):
         """
         Run a one-off command
@@ -355,7 +355,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
         config: RunConfig,
         func: Callable[..., Result],
         args: tuple[Any] = (),
-        kwargs: Optional[dict[str, Any]] = None,
+        kwargs: dict[str, Any] | None = None,
     ):
         super().__init__(container.system.log, config)
         self.container = container
@@ -375,7 +375,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
         transport, protocol = await loop.connect_read_pipe(lambda: reader_protocol, os.fdopen(fd))
         return reader
 
-    async def collect_output(self, stdout_r: Optional[int], stderr_r: Optional[int], result_r: int):
+    async def collect_output(self, stdout_r: int | None, stderr_r: int | None, result_r: int):
         # See https://gist.github.com/oconnor663/08c081904264043e55bf
         readers = []
         if stdout_r is not None:
@@ -529,8 +529,8 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 os.close(stderr_w)
             os.close(result_w)
 
-        stdout: Optional[bytes]
-        stderr: Optional[bytes]
+        stdout: bytes | None
+        stderr: bytes | None
         if catch_output:
             asyncio.run(self.collect_output(stdout_r, stderr_r, result_r))
             stdout = b"".join(self.stdout)

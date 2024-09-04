@@ -2,10 +2,10 @@
 
 import logging
 import sys
+
 import moncic
 from moncic import cli, exceptions
 from moncic.utils import argparse
-
 
 log = logging.getLogger(__name__)
 

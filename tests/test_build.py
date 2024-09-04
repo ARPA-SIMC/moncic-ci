@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import unittest
 
+from moncic.build.arpa import ARPA, RPM
 from moncic.build.build import Build
 from moncic.build.debian import Debian
-from moncic.build.arpa import RPM, ARPA
 
 COMMON_BUILD_PROFILES = ["artifacts_dir", "source_only", "on_success", "on_fail", "on_end"]
 

@@ -8,7 +8,7 @@ import re
 import struct
 import subprocess
 import tempfile
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
@@ -47,7 +47,7 @@ class Subvolume:
         old.path = stash_path
         old.remove()
 
-    def local_run(self, cmd: List[str]) -> subprocess.CompletedProcess:
+    def local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
         """
@@ -120,7 +120,7 @@ class Subvolume:
 FIDEDUPERANGE = 0xC0189436
 
 
-def ioctl_fideduperange(src_fd: int, s: bytes) -> Tuple[int, int]:
+def ioctl_fideduperange(src_fd: int, s: bytes) -> tuple[int, int]:
     """
     Wrapper for ioctl_fideduperange(2)
     """

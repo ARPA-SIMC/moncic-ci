@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from functools import cached_property
-from typing import Dict, List, Optional
 
 import git
 
@@ -59,7 +58,7 @@ class Analyzer:
         return "main"
 
     @cached_property
-    def debian_packaging_branches(self) -> Dict[str, str]:
+    def debian_packaging_branches(self) -> dict[str, str]:
         """
         List Debian/Ubuntu packaging branches found.
 
@@ -78,7 +77,7 @@ class Analyzer:
                 elif x.name.startswith(f"{distro}/"):
                     local_branches.add(x.name)
 
-        res: Dict[str, str] = {}
+        res: dict[str, str] = {}
 
         for name in local_branches - remote_branches:
             self.error(f"branch {name!r} exists locally but not in origin")
@@ -94,7 +93,7 @@ class Analyzer:
         return res
 
     @cached_property
-    def upstream_version(self) -> Optional[str]:
+    def upstream_version(self) -> str | None:
         """
         Return the upstream version, if it can be univocally determined, else
         None
@@ -105,14 +104,14 @@ class Analyzer:
         return upstream_version
 
     @cached_property
-    def version_from_debian_branches(self) -> Dict[str, str]:
+    def version_from_debian_branches(self) -> dict[str, str]:
         """
         Get the debian version from Debian branches
 
         Return a dict mapping version type to version
         """
         re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
-        versions: Dict[str, str] = {}
+        versions: dict[str, str] = {}
         to_check = list(self.debian_packaging_branches.items())
         to_check.append((self.main_branch, self.main_branch))
         for name, branch_name in to_check:
@@ -126,7 +125,7 @@ class Analyzer:
                     break
 
         # Check for mismatches
-        by_version: Dict[str, List[str]] = defaultdict(list)
+        by_version: dict[str, list[str]] = defaultdict(list)
         for name, version in versions.items():
             by_version[version].append(name)
         if len(by_version) > 1:
@@ -136,7 +135,7 @@ class Analyzer:
         return versions
 
     @cached_property
-    def version_from_arpa_specfile(self) -> Optional[str]:
+    def version_from_arpa_specfile(self) -> str | None:
         """
         Get the version from ARPA's specfile
         """
@@ -148,7 +147,7 @@ class Analyzer:
         except KeyError:
             return None
 
-        specs: List[git.objects.blob] = []
+        specs: list[git.objects.blob] = []
         for blob in specs_tree.blobs:
             if blob.name.endswith(".spec"):
                 specs.append(blob)
@@ -170,7 +169,7 @@ class Analyzer:
         return None
 
     @classmethod
-    def same_values(cls, versions: dict[str, str]) -> Optional[str]:
+    def same_values(cls, versions: dict[str, str]) -> str | None:
         """
         If all the dict's entries have the same value, return that value.
 

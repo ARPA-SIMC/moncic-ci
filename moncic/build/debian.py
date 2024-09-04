@@ -7,7 +7,7 @@ import os
 # import shutil
 import subprocess
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, NamedTuple, Optional
+from typing import TYPE_CHECKING, NamedTuple
 
 from .. import context
 from ..runner import UserConfig
@@ -67,7 +67,7 @@ def get_file_list(path: str) -> list[str]:
     """
     res: list[str] = []
     is_changes = path.endswith(".changes")
-    with open(path, "rt") as fd:
+    with open(path) as fd:
         in_files_section = False
         for line in fd:
             if in_files_section:
@@ -107,7 +107,7 @@ class Debian(Build):
     def __post_init__(self) -> None:
         # This is only set in guest systems, and after self.build_source() has
         # been called
-        self.srcinfo: Optional[SourceInfo] = None
+        self.srcinfo: SourceInfo | None = None
 
     # @host_only
     # def get_build_deps(self) -> list[str]:

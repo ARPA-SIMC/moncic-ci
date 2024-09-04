@@ -8,7 +8,7 @@ import tempfile
 import urllib.parse
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING
 
 import git
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def _git_clone(inputsource: "InputSource", repository: str, branch: Optional[str] = None) -> str:
+def _git_clone(inputsource: InputSource, repository: str, branch: str | None = None) -> str:
     """
     Clone a git repository into a temporary working directory.
 
@@ -86,7 +86,7 @@ class InputSource(contextlib.ExitStack, ABC):
         self.trace_log.append(" ".join(shlex.quote(c) for c in args))
 
     @classmethod
-    def create(self, source: Union[str, Path]) -> "InputSource":
+    def create(self, source: str | Path) -> InputSource:
         """
         Create an InputSource from a user argument
         """
@@ -105,13 +105,13 @@ class InputSource(contextlib.ExitStack, ABC):
             return URL(source, parsed)
 
     @abstractmethod
-    def branch(self, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: str | None) -> InputSource:
         """
         Return an InputSource for the given branch
         """
 
     @abstractmethod
-    def detect_source(self, distro: Distro) -> "Source":
+    def detect_source(self, distro: Distro) -> Source:
         """
         Autodetect the Source for this input
         """
@@ -126,10 +126,10 @@ class LocalFile(InputSource):
         super().__init__(source)
         self.path = path
 
-    def branch(self, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: str | None) -> InputSource:
         raise Fail("--branch does not make sense for local files")
 
-    def detect_source(self, distro: Distro) -> "Source":
+    def detect_source(self, distro: Distro) -> Source:
         from ..distro.debian import DebianDistro
 
         if isinstance(distro, DebianDistro):
@@ -155,10 +155,10 @@ class LocalDir(InputSource):
         super().__init__(source)
         self.path = path
 
-    def branch(self, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: str | None) -> InputSource:
         raise Fail("--branch does not make sense for non-git directories")
 
-    def detect_source(self, distro: Distro) -> "Source":
+    def detect_source(self, distro: Distro) -> Source:
         from ..distro.debian import DebianDistro
         from .debian import DebianSourceDir
 
@@ -178,7 +178,7 @@ class LocalGit(InputSource):
     Source specified as a local git working directory
     """
 
-    def __init__(self, source: str, path: str, copy: bool, orig_path: Optional[Path] = None):
+    def __init__(self, source: str, path: str, copy: bool, orig_path: Path | None = None):
         super().__init__(source)
         self.repo = git.Repo(path)
         self.copy = copy
@@ -191,7 +191,7 @@ class LocalGit(InputSource):
         """
         return self.repo.working_dir
 
-    def find_branch(self, name: str) -> Optional[git.refs.symbolic.SymbolicReference]:
+    def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:
         """
         Look for the named branch locally or in the origin repository.
 
@@ -215,7 +215,7 @@ class LocalGit(InputSource):
                 return ref
         return None
 
-    def clone(self, branch: Optional[str] = None) -> LocalGit:
+    def clone(self, branch: str | None = None) -> LocalGit:
         """
         Clone this URL into a local git repository
         """
@@ -224,12 +224,12 @@ class LocalGit(InputSource):
         res.trace_log.extend(self.trace_log)
         return res
 
-    def branch(self, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: str | None) -> InputSource:
         if not self.repo.head.is_detached and self.repo.active_branch == branch:
             return self
         return self.clone(branch)
 
-    def detect_source(self, distro: Distro) -> "Source":
+    def detect_source(self, distro: Distro) -> Source:
         from ..distro.debian import DebianDistro
         from ..distro.rpm import RpmDistro
 
@@ -254,7 +254,7 @@ class URL(InputSource):
         super().__init__(source)
         self.parsed = parsed
 
-    def clone(self, branch: Optional[str] = None) -> LocalGit:
+    def clone(self, branch: str | None = None) -> LocalGit:
         """
         Clone this URL into a local git repository
         """
@@ -263,8 +263,8 @@ class URL(InputSource):
         res.trace_log.extend(self.trace_log)
         return res
 
-    def branch(self, branch: Optional[str]) -> "InputSource":
+    def branch(self, branch: str | None) -> InputSource:
         return self.clone(branch)
 
-    def detect_source(self, distro: Distro) -> "Source":
+    def detect_source(self, distro: Distro) -> Source:
         return self.clone().detect_source(distro)
