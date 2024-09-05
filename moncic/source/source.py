@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Optional
 import git
 
 from moncic.container import ContainerConfig
+from moncic.exceptions import Fail
 from moncic.utils.guest import guest_only, host_only
 
 from ..utils.run import run
@@ -32,42 +33,6 @@ log = logging.getLogger(__name__)
 
 # Registry of known builders
 source_types: dict[str, type[Source]] = {}
-
-
-# def register(source_cls: type[Source]) -> type[Source]:
-#     """
-#     Add a Build object to the Build registry
-#     """
-#     name = getattr(source_cls, "NAME", None)
-#     if name is None:
-#         name = source_cls.__name__.lower()
-#     source_types[name] = source_cls
-#
-#     # Register extra_args callbacks.
-#     #
-#     # Only register callbacks that are in the class __dict__ to avoid
-#     # inheritance, which would register command line options from base
-#     # classes multiple times
-#     # if "add_arguments" in builder_cls.__dict__:
-#     #     cls.extra_args_callbacks.append(builder_cls.add_arguments)
-#
-#     return source_cls
-#
-#
-# def registry() -> dict[str, type[Source]]:
-#     """
-#     Return the registry of available source types
-#     """
-#     from . import debian, rpm  # noqa: import them so they are registered as builders
-#
-#     return source_types
-#
-#
-# def get_source_class(name: str) -> type[Source]:
-#     """
-#     Create a Build object by its name
-#     """
-#     return registry()[name.lower()]
 
 
 class CommandLog(list[str]):
@@ -96,6 +61,8 @@ class Source(abc.ABC):
     storage of temporary resources for the sources derived from it.
     """
 
+    #: User-provided name for this resource
+    name: str
     #: Source from which this one was generated. None if this is the original source
     parent: Optional["Source"]
     #: ExitStack to use for temporary state
@@ -109,7 +76,7 @@ class Source(abc.ABC):
     # guest_path: str | None = None
 
     @classmethod
-    def get_name(cls) -> str:
+    def get_source_type(cls) -> str:
         """
         Return the user-facing name for this class
         """
@@ -122,15 +89,26 @@ class Source(abc.ABC):
         super().__init_subclass__(**kwargs)
         if inspect.isabstract(cls):
             return
-        source_types[cls.get_name()] = cls
+        source_types[cls.get_source_type()] = cls
 
-    def __init__(self, *, parent: Source | None = None, command_log: CommandLog | None = None):
-        parent = parent
+    def __init__(self, *, name: str | None = None, parent: Source | None = None, command_log: CommandLog | None = None):
+        self.parent = parent
         if parent is None:
             self.stack = contextlib.ExitStack()
         else:
             self.stack = parent.stack
+            if name is None:
+                name = parent.name
+        if name is None:
+            raise AttributeError("name not provided, and no parent to use as a fallback")
+        self.name = name
         self.command_log = command_log or CommandLog()
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
 
     def __enter__(self) -> "Source":
         if self.parent is not None:
@@ -154,22 +132,26 @@ class Source(abc.ABC):
         # Convert the argument into a URL
         if isinstance(source, Path):
             url = urllib.parse.urlparse(source.as_posix())
+            name = source.as_posix()
         else:
             url = urllib.parse.urlparse(source)
+            name = source
 
         if url.scheme in ("", "file"):
             path = Path(url.path)
             if path.is_dir():
                 if (path / ".git").is_dir():
-                    return Git(path=path, branch=branch)
+                    return Git(name=name, path=path, branch=branch)
                 else:
-                    # TODO: raise if branch
-                    return Dir(path=path)
+                    if branch is not None:
+                        raise Fail("Cannot specify a branch when working on a non-git directory")
+                    return Dir(name=name, path=path)
             else:
-                # TODO: raise if branch
-                return File(path=path)
+                if branch is not None:
+                    raise Fail("Cannot specify a branch when working on a file")
+                return File(name=name, path=path)
         else:
-            return URL(url=url, branch=branch)
+            return URL(name=name, url=url, branch=branch)
 
     @abc.abstractmethod
     def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
@@ -226,12 +208,6 @@ class Source(abc.ABC):
 
         return Git(parent=self, path=new_path, repo=repo, branch=branch, readonly=False, command_log=command_log)
 
-
-#    def __str__(self) -> str:
-#        return self.source
-#
-#    def __repr__(self) -> str:
-#        return f"{self.__class__.__name__}({self.source})"
 
 #    @abstractmethod
 #    def get_build_class(self) -> type[Build]:

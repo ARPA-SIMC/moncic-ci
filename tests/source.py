@@ -8,6 +8,7 @@ import socketserver
 import subprocess
 import tempfile
 import threading
+import unittest
 from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -130,10 +131,13 @@ class GitRepo(contextlib.ExitStack):
                 server.join()
 
 
-class WorkdirFixtureMixin:
+class WorkdirFixture(unittest.TestCase):
+    workdir: Path
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # We have self.enterContext from Python 3.11
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
         cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory()))
@@ -144,7 +148,9 @@ class WorkdirFixtureMixin:
         super().tearDownClass()
 
 
-class GitFixtureMixin(WorkdirFixtureMixin):
+class GitFixture(WorkdirFixture):
+    git: GitRepo
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
