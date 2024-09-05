@@ -70,9 +70,9 @@ class Dir(Source):
 
             specfile_paths = ARPASourceDir.locate_specfiles(self.path)
             if not specfile_paths:
-                raise Fail(f"specfile not found in known locations inside {self.path}")
+                raise Fail(f"{self.path}: no specfiles found in well-known locations")
             if len(specfile_paths) > 1:
-                raise Fail(f"{len(specfile_paths)} specfiles found inside {self.path}")
+                raise Fail(f"{self.path}: {len(specfile_paths)} specfiles found")
 
             return ARPASourceDir(parent=self, path=self.path, specfile_path=specfile_paths[0])
 
