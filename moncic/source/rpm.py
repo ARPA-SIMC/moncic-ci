@@ -6,12 +6,12 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn, cast
 
 from .. import lint
 from ..container import ContainerConfig
 from ..exceptions import Fail
-from .local import Dir, Git
+from .local import Dir, Git, File
 from .source import Source
 
 if TYPE_CHECKING:
@@ -33,6 +33,42 @@ class RPMSource(Source, abc.ABC):
     def __init__(self, specfile_path: Path, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.specfile_path = specfile_path
+
+    @classmethod
+    def create_from_file(cls, parent: File) -> NoReturn:
+        if parent.path.suffix == ".dsc":
+            raise Fail(f"{parent.path}: cannot build Debian source package on a RPM distribution")
+        else:
+            raise Fail(f"{parent.path}: cannot detect source type")
+
+    @classmethod
+    def create_from_dir(cls, parent: Dir) -> "ARPASourceDir":
+        specfile_paths = ARPASourceDir.locate_specfiles(parent.path)
+        if not specfile_paths:
+            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
+        if len(specfile_paths) > 1:
+            raise Fail(f"{parent.path}: {len(specfile_paths)} specfiles found")
+        return ARPASourceDir(parent=parent, path=parent.path, specfile_path=specfile_paths[0])
+
+    @classmethod
+    def create_from_git(cls, parent: Git) -> "ARPASourceGit":
+        # Switch to the right branch first, if needed
+        parent = parent.get_branch()
+
+        specfile_paths = ARPASourceGit.locate_specfiles(parent.path)
+        if not specfile_paths:
+            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
+        if len(specfile_paths) > 1:
+            raise Fail(f"{parent.path}: {len(specfile_paths)} specfiles found")
+
+        # FIXME: cast not needed after python 3.11
+        return cast(
+            ARPASourceGit,
+            ARPASourceGit.derive_from_git(
+                parent,
+                specfile_path=specfile_paths[0],
+            ),
+        )
 
 
 #    @classmethod

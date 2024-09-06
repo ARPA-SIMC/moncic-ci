@@ -26,20 +26,22 @@ class File(Source):
 
     def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
         from ..distro.debian import DebianDistro
+        from ..distro.rpm import RpmDistro
+
+        new_source: Source
 
         if isinstance(distro, DebianDistro):
-            if self.path.suffix == ".dsc":
-                from .debian import DebianDsc
+            from .debian import DebianSource
 
-                # TODO: validate source_type
-                return DebianDsc(parent=self, path=self.path)
-            else:
-                raise Fail(f"{self.path}: cannot detect source type")
+            new_source = DebianSource.create_from_file(self)
+        elif isinstance(distro, RpmDistro):
+            from .rpm import RPMSource
+
+            new_source = RPMSource.create_from_file(self)
         else:
-            if self.path.suffix == ".dsc":
-                raise Fail(f"{self.path}: cannot build Debian source package on {distro}")
-            else:
-                raise Fail(f"{self.path}: cannot detect source type")
+            raise NotImplementedError(f"No suitable file builder found for distribution {distro!r}")
+
+        return new_source.make_buildable(distro=distro, source_type=source_type)
 
 
 class Dir(Source):
@@ -56,25 +58,22 @@ class Dir(Source):
 
     def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
         from ..distro.debian import DebianDistro
+        from ..distro.rpm import RpmDistro
+
+        new_source: Source
 
         if isinstance(distro, DebianDistro):
-            # TODO: validate source_type
-            if (self.path / "debian").is_dir():
-                from .debian import DebianSourceDir
+            from .debian import DebianSource
 
-                return DebianSourceDir(parent=self, path=self.path)
-            else:
-                raise Fail(f"{self.path}: cannot detect source type")
+            new_source = DebianSource.create_from_dir(self)
+        elif isinstance(distro, RpmDistro):
+            from .rpm import RPMSource
+
+            new_source = RPMSource.create_from_dir(self)
         else:
-            from .rpm import ARPASourceDir
+            raise NotImplementedError(f"No suitable directory builder found for distribution {distro!r}")
 
-            specfile_paths = ARPASourceDir.locate_specfiles(self.path)
-            if not specfile_paths:
-                raise Fail(f"{self.path}: no specfiles found in well-known locations")
-            if len(specfile_paths) > 1:
-                raise Fail(f"{self.path}: {len(specfile_paths)} specfiles found")
-
-            return ARPASourceDir(parent=self, path=self.path, specfile_path=specfile_paths[0])
+        return new_source.make_buildable(distro=distro, source_type=source_type)
 
 
 class Git(Dir):
@@ -97,6 +96,15 @@ class Git(Dir):
         self.branch = branch
         self.readonly = readonly
 
+    @classmethod
+    def derive_from_git(cls, parent: "Git", **kwargs) -> "Git":  # TODO: use Self from python 3.11
+        kwargs.setdefault("parent", parent)
+        kwargs.setdefault("path", parent.path)
+        kwargs.setdefault("repo", parent.repo)
+        kwargs.setdefault("branch", parent.branch)
+        kwargs.setdefault("readonly", parent.readonly)
+        return cls(**kwargs)
+
     def get_branch(self) -> Git:
         """
         Return a Git repo with self.branch as the current branch
@@ -113,32 +121,23 @@ class Git(Dir):
         return self._git_clone(self.path.as_posix(), self.branch)
 
     def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
-        # Switch to the right branch first, if needed
-        if (new_source := self.get_branch()) != self:
-            return new_source.make_buildable(distro=distro, source_type=source_type)
-
         from ..distro.debian import DebianDistro
         from ..distro.rpm import RpmDistro
 
+        new_source: Source
+
         if isinstance(distro, DebianDistro):
-            from .debian import DebianGit
+            from .debian import DebianSource
 
-            debian_src = DebianGit(parent=self, branch=self.branch, repo=self.repo, readonly=self.readonly)
-            return debian_src.make_buildable(distro=distro, source_type=source_type)
+            new_source = DebianSource.create_from_git(self)
         elif isinstance(distro, RpmDistro):
-            from .rpm import ARPASourceGit
+            from .rpm import RPMSource
 
-            specfile_paths = ARPASourceGit.locate_specfiles(self.path)
-            if not specfile_paths:
-                raise Fail(f"specfile not found in known locations inside {self.path}")
-            if len(specfile_paths) > 1:
-                raise Fail(f"{len(specfile_paths)} specfiles found inside {self.path}")
-
-            return ARPASourceGit(
-                parent=self, branch=self.branch, repo=self.repo, readonly=self.readonly, specfile_path=specfile_paths[0]
-            )
+            new_source = RPMSource.create_from_git(self)
         else:
             raise NotImplementedError(f"No suitable git builder found for distribution {distro!r}")
+
+        return new_source.make_buildable(distro=distro, source_type=source_type)
 
 
 #     def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:

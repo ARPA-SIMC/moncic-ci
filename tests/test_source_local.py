@@ -3,13 +3,12 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import File, Dir, Git
-from moncic.source.debian import DebianDsc, DebianSourceDir
-from moncic.source.rpm import ARPASourceDir
 
 from .source import WorkdirFixture, GitFixture
 
@@ -53,12 +52,14 @@ class TestFile(WorkdirFixture):
                 src.make_buildable(distro=SID)
 
     def test_dsc_file_make_buildable(self) -> None:
-        with Source.create(source=self.dsc) as src:
-            with self.assertRaisesRegexp(Fail, f"{self.dsc}: cannot build Debian source package on rocky:9"):
+        with Source.create(source=self.file) as src:
+            with mock.patch("moncic.source.rpm.RPMSource.create_from_file") as factory:
                 src.make_buildable(distro=ROCKY9)
+            factory.assert_called_once()
 
-            newsrc = src.make_buildable(distro=SID)
-            self.assertIsInstance(newsrc, DebianDsc)
+            with mock.patch("moncic.source.debian.DebianSource.create_from_file") as factory:
+                src.make_buildable(distro=SID)
+            factory.assert_called_once()
 
 
 class TestDir(WorkdirFixture):
@@ -88,10 +89,13 @@ class TestDir(WorkdirFixture):
 
     def test_make_buildable(self) -> None:
         with Source.create(source=self.path) as src:
-            with self.assertRaisesRegexp(Fail, f"{self.path}: no specfiles found in well-known locations"):
+            with mock.patch("moncic.source.rpm.RPMSource.create_from_dir") as factory:
                 src.make_buildable(distro=ROCKY9)
-            with self.assertRaisesRegexp(Fail, f"{self.path}: cannot detect source type"):
+            factory.assert_called_once()
+
+            with mock.patch("moncic.source.debian.DebianSource.create_from_dir") as factory:
                 src.make_buildable(distro=SID)
+            factory.assert_called_once()
 
 
 class TestDirWithPackaging(WorkdirFixture):
@@ -105,20 +109,15 @@ class TestDirWithPackaging(WorkdirFixture):
         (cls.path / "debian").mkdir()
         (cls.path / "source.spec").touch()
 
-    def test_make_buildable_debian(self) -> None:
+    def test_make_buildable(self) -> None:
         with Source.create(source=self.path) as src:
-            newsrc = src.make_buildable(distro=SID)
-            assert isinstance(newsrc, DebianSourceDir)
-            self.assertEqual(newsrc.name, self.path.as_posix())
-            self.assertEqual(newsrc.path, self.path)
+            with mock.patch("moncic.source.rpm.RPMSource.create_from_dir") as factory:
+                src.make_buildable(distro=ROCKY9)
+            factory.assert_called_once()
 
-    def test_make_buildable_rpm(self) -> None:
-        with Source.create(source=self.path) as src:
-            newsrc = src.make_buildable(distro=ROCKY9)
-            assert isinstance(newsrc, ARPASourceDir)
-            self.assertEqual(newsrc.name, self.path.as_posix())
-            self.assertEqual(newsrc.path, self.path)
-            self.assertEqual(newsrc.specfile_path, Path("source.spec"))
+            with mock.patch("moncic.source.debian.DebianSource.create_from_dir") as factory:
+                src.make_buildable(distro=SID)
+            factory.assert_called_once()
 
 
 class TestGit(GitFixture):
@@ -177,7 +176,14 @@ class TestGit(GitFixture):
             self.assertEqual(src.repo.active_branch.name, "main")
 
     def test_make_buildable(self) -> None:
-        raise NotImplementedError("test_make_buildable")
+        with Source.create(source=self.git.root) as src:
+            with mock.patch("moncic.source.rpm.RPMSource.create_from_git") as factory:
+                src.make_buildable(distro=ROCKY9)
+            factory.assert_called_once()
+
+            with mock.patch("moncic.source.debian.DebianSource.create_from_git") as factory:
+                src.make_buildable(distro=SID)
+            factory.assert_called_once()
 
 
 #     def test_create_path(self):
