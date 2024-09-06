@@ -13,7 +13,6 @@ from moncic.unittest import make_moncic
 
 from .source import GitFixture, MockBuilder, WorkdirFixture, GitRepo
 
-ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")
 
 
@@ -30,26 +29,26 @@ class TestDebianSource(WorkdirFixture):
     def test_from_file_plain(self) -> None:
         path = self.workdir / "file"
         path.touch()
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, File)
             with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
-                DebianSource.create_from_file(src)
+                DebianSource.create_from_file(src, distro=SID)
 
     def test_from_file_dsc(self) -> None:
         path = self.workdir / "file.dsc"
         path.touch()
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, File)
-            newsrc = DebianSource.create_from_file(src)
+            newsrc = DebianSource.create_from_file(src, distro=SID)
             assert isinstance(newsrc, DebianDsc)
 
     def test_from_dir_empty(self) -> None:
         path = self.workdir / "dir"
         path.mkdir()
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
             with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
-                DebianSource.create_from_dir(src)
+                DebianSource.create_from_dir(src, distro=SID)
 
     def test_from_dir_debian(self) -> None:
         path = self.workdir / "debsource-test"
@@ -61,9 +60,9 @@ class TestDebianSource(WorkdirFixture):
         changelog = debiandir / "changelog"
         changelog.write_text("debsource (0.1.0-1) UNRELEASED; urgency=low\n")
 
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            newsrc = DebianSource.create_from_dir(src)
+            newsrc = DebianSource.create_from_dir(src, distro=SID)
             assert isinstance(newsrc, DebianDir)
             self.assertEqual(newsrc.path, path)
             self.assertEqual(
@@ -79,10 +78,10 @@ class TestDebianSource(WorkdirFixture):
 
     def test_from_git_empty(self) -> None:
         git = self.make_git_repo("git")
-        with Source.create(source=git.root) as src:
+        with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
             with self.assertRaisesRegexp(Fail, f"{git.root}: cannot detect source type"):
-                DebianSource.create_from_git(src)
+                DebianSource.create_from_git(src, distro=SID)
 
     def test_from_git_debian_legacy(self) -> None:
         git = self.make_git_repo("gitlegacy")
@@ -91,13 +90,12 @@ class TestDebianSource(WorkdirFixture):
         git.add("debian/changelog", "gitlegacy (0.1.0-1) UNRELEASED; urgency=low\n")
         git.commit()
 
-        with Source.create(source=git.root) as src:
+        with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = DebianSource.create_from_git(src)
+            newsrc = DebianSource.create_from_git(src, distro=SID)
             assert isinstance(newsrc, DebianGitLegacy)
             self.assertEqual(newsrc.path, git.root)
             self.assertIs(newsrc.repo, src.repo)
-            self.assertEqual(newsrc.branch, src.branch)
             self.assertEqual(newsrc.readonly, src.readonly)
             self.assertEqual(
                 newsrc.source_info,

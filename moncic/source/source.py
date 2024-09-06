@@ -26,7 +26,8 @@ if TYPE_CHECKING:
     from ..container import Container, System
     from ..distro import Distro
     from ..lint import Linter
-    from .local import Git
+    from .local import LocalSource, Git
+    from .distro import DistroSource
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +46,23 @@ class CommandLog(list[str]):
         Add a command to the command log
         """
         self.append(" ".join(shlex.quote(c) for c in args))
+
+
+class SourceStack(contextlib.ExitStack):
+    """
+    ExitStack that raises an error if entered multiple times.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.entered: bool = False
+
+    def __enter__(self) -> "SourceStack":  # TODO: use Self from 3.11+
+        if self.entered:
+            raise RuntimeError("__enter__ called in multiple Sources of the same chain")
+        super().__enter__()
+        self.entered = True
+        return self
 
 
 class Source(abc.ABC):
@@ -94,7 +112,7 @@ class Source(abc.ABC):
     def __init__(self, *, name: str | None = None, parent: Source | None = None, command_log: CommandLog | None = None):
         self.parent = parent
         if parent is None:
-            self.stack = contextlib.ExitStack()
+            self.stack = SourceStack()
         else:
             self.stack = parent.stack
             if name is None:
@@ -111,57 +129,81 @@ class Source(abc.ABC):
         return f"{self.__class__.__name__}({self.name})"
 
     def __enter__(self) -> "Source":
-        if self.parent is not None:
-            raise RuntimeError("__enter__ called on non-root Source")
         self.stack.__enter__()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
-        if self.parent is not None:
-            raise RuntimeError("__exit__ called on non-root Source")
         return self.stack.__exit__(exc_type, exc_val, exc_tb)
 
     @classmethod
-    def create(self, *, source: str | Path, branch: str | None = None) -> "Source":
+    def create_local(cls, *, source: str | Path, branch: str | None = None) -> "LocalSource":
+        """
+        Create a distro-agnostic source from a user-defined string
+        """
+        base: Source
+
+        # Handle string arguments
+        if isinstance(source, str):
+            url = urllib.parse.urlparse(source)
+            if url.scheme not in ("", "file"):
+                from .remote import URL
+
+                base = URL(name=source, url=url)
+                return base.clone(branch)
+            name = source
+            source = Path(url.path)
+        else:
+            name = source.as_posix()
+
+        # Handle paths
+        if source.is_dir():
+            if (source / ".git").is_dir():
+                from .local import Git
+
+                base = Git(name=name, path=source)
+                if branch:
+                    return base.get_branch(branch)
+                else:
+                    return base
+            else:
+                from .local import Dir
+
+                if branch is not None:
+                    raise Fail("Cannot specify a branch when working on a non-git directory")
+                return Dir(name=name, path=source)
+        else:
+            from .local import File
+
+            if branch is not None:
+                raise Fail("Cannot specify a branch when working on a file")
+            return File(name=name, path=source)
+
+    @classmethod
+    def create(
+        cls, *, source: str | Path, branch: str | None = None, distro: Distro, style: str | None = None
+    ) -> "Source":
         """
         Create an initial Source from a user argument
         """
-        from .local import Dir, Git, File
-        from .remote import URL
+        distro_source_cls = cls.get_distro_source_class(distro=distro)
+        base = cls.create_local(source=source, branch=branch)
+        return distro_source_cls.create_from_local(base, distro=distro, style=style)
 
-        # Convert the argument into a URL
-        if isinstance(source, Path):
-            url = urllib.parse.urlparse(source.as_posix())
-            name = source.as_posix()
+    @classmethod
+    def get_distro_source_class(cls, *, distro: Distro) -> type["DistroSource"]:
+        from ..distro.debian import DebianDistro
+        from ..distro.rpm import RpmDistro
+
+        if isinstance(distro, DebianDistro):
+            from .debian import DebianSource
+
+            return DebianSource
+        elif isinstance(distro, RpmDistro):
+            from .rpm import RPMSource
+
+            return RPMSource
         else:
-            url = urllib.parse.urlparse(source)
-            name = source
-
-        if url.scheme in ("", "file"):
-            path = Path(url.path)
-            if path.is_dir():
-                if (path / ".git").is_dir():
-                    return Git(name=name, path=path, branch=branch)
-                else:
-                    if branch is not None:
-                        raise Fail("Cannot specify a branch when working on a non-git directory")
-                    return Dir(name=name, path=path)
-            else:
-                if branch is not None:
-                    raise Fail("Cannot specify a branch when working on a file")
-                return File(name=name, path=path)
-        else:
-            return URL(name=name, url=url, branch=branch)
-
-    @abc.abstractmethod
-    def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
-        """
-        Return version of this source buildable for the given distribution.
-
-        This may be the source itself, or a transformation of it.
-
-        The source type is autodetected, unless source_type is provided.
-        """
+            raise NotImplementedError(f"No suitable git builder found for distribution {distro!r}")
 
     def _git_clone(self, repository: str, branch: str | None = None) -> "Git":
         """
@@ -206,7 +248,7 @@ class Source(abc.ABC):
             local_branch.checkout()
             command_log.add_command("git", "checkout", "-b", branch)
 
-        return Git(parent=self, path=new_path, repo=repo, branch=branch, readonly=False, command_log=command_log)
+        return Git(parent=self, path=new_path, repo=repo, readonly=False, command_log=command_log)
 
 
 #    @abstractmethod

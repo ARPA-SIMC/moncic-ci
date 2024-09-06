@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -12,17 +13,23 @@ if TYPE_CHECKING:
     from ..distro import Distro
 
 
-class File(Source):
+class LocalSource(Source, abc.ABC):
     """
-    A local file
+    Locally-accessible source
     """
 
-    #: Path to the file
+    #: Path to the source in the filesystem
     path: Path
 
     def __init__(self, *, path: Path, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.path = path
+
+
+class File(LocalSource):
+    """
+    A local file
+    """
 
     def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
         from ..distro.debian import DebianDistro
@@ -44,17 +51,13 @@ class File(Source):
         return new_source.make_buildable(distro=distro, source_type=source_type)
 
 
-class Dir(Source):
+class Dir(LocalSource):
     """
     Local directory that is not a git working directory
     """
 
     #: Path to the directory
     path: Path
-
-    def __init__(self, *, path: Path, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.path = path
 
     def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
         from ..distro.debian import DebianDistro
@@ -83,17 +86,12 @@ class Git(Dir):
 
     #: Git repository
     repo: git.Repo
-    #: Branch to use (default: the current one)
-    branch: str | None
     #: False if the git repo is ephemeral and can be modified at will
     readonly: bool
 
-    def __init__(
-        self, *, branch: str | None = None, repo: git.Repo | None = None, readonly: bool = True, **kwargs
-    ) -> None:
+    def __init__(self, *, repo: git.Repo | None = None, readonly: bool = True, **kwargs) -> None:
         super().__init__(**kwargs)
         self.repo = repo or git.Repo(self.path)
-        self.branch = branch
         self.readonly = readonly
 
     @classmethod
@@ -101,43 +99,20 @@ class Git(Dir):
         kwargs.setdefault("parent", parent)
         kwargs.setdefault("path", parent.path)
         kwargs.setdefault("repo", parent.repo)
-        kwargs.setdefault("branch", parent.branch)
         kwargs.setdefault("readonly", parent.readonly)
         return cls(**kwargs)
 
-    def get_branch(self) -> Git:
+    def get_branch(self, branch: str) -> Git:
         """
         Return a Git repo with self.branch as the current branch
         """
-        if self.branch is None:
-            return self
-
-        if not self.repo.head.is_detached and self.repo.active_branch == self.branch:
+        if not self.repo.head.is_detached and self.repo.active_branch == branch:
             return self
 
         if not self.readonly:
             raise NotImplementedError("Checkout branch in place not yet implemented")
 
-        return self._git_clone(self.path.as_posix(), self.branch)
-
-    def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
-        from ..distro.debian import DebianDistro
-        from ..distro.rpm import RpmDistro
-
-        new_source: Source
-
-        if isinstance(distro, DebianDistro):
-            from .debian import DebianSource
-
-            new_source = DebianSource.create_from_git(self)
-        elif isinstance(distro, RpmDistro):
-            from .rpm import RPMSource
-
-            new_source = RPMSource.create_from_git(self)
-        else:
-            raise NotImplementedError(f"No suitable git builder found for distribution {distro!r}")
-
-        return new_source.make_buildable(distro=distro, source_type=source_type)
+        return self._git_clone(self.path.as_posix(), branch)
 
 
 #     def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:

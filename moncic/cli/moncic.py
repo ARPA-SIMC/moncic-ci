@@ -272,12 +272,8 @@ class SourceCommand(MoncicCommand):
         Instantiate a Source object
         """
         with self.moncic.privs.user():
-            with Source.create(source=self.args.source, branch=self.args.branch) as source:
-                buildable = source.make_buildable(distro=distro, source_type=self.args.source_type)
-                # if self.args.source_type:
-                #     source_cls = get_source_class(self.args.source_type)
-                #     source = source_cls.create(distro, input_source)
-                # else:
-                #     source = input_source.detect_source(distro)
+            with Source.create(
+                source=self.args.source, branch=self.args.branch, distro=distro, style=self.args.source_type
+            ) as source:
                 self.moncic.privs.regain()
-                yield buildable
+                yield source

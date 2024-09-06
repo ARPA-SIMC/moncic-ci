@@ -22,6 +22,7 @@ from ..utils.guest import guest_only, host_only
 from ..utils.run import log_run, run
 from .local import Dir, Git, File
 from .source import Source
+from .distro import DistroSource
 
 if TYPE_CHECKING:
     from ..build import Build
@@ -81,7 +82,7 @@ class SourceInfo(NamedTuple):
         return None
 
 
-class DebianSource(Source, abc.ABC):
+class DebianSource(DistroSource, abc.ABC):
     """
     Base class for Debian source packages
     """
@@ -96,23 +97,23 @@ class DebianSource(Source, abc.ABC):
         return tarball
 
     @classmethod
-    def create_from_file(cls, parent: File) -> "DebianDsc":
+    def create_from_file(cls, parent: File, *, distro: Distro, style: str | None = None) -> "DebianDsc":
         if parent.path.suffix == ".dsc":
-            return DebianDsc(parent=parent, path=parent.path)
+            return DebianDsc(parent=parent, path=parent.path, distro=distro)
         else:
             raise Fail(f"{parent.path}: cannot detect source type")
 
     @classmethod
-    def create_from_dir(cls, parent: Dir) -> "DebianDir":
+    def create_from_dir(cls, parent: Dir, *, distro: Distro, style: str | None = None) -> "DebianDir":
         if not (parent.path / "debian").is_dir():
             raise Fail(f"{parent.path}: cannot detect source type")
 
         source_info = SourceInfo.create_from_dir(parent.path)
         tarball = cls._find_tarball_for_unpacked_sources(parent.path, source_info)
-        return DebianDir(parent=parent, path=parent.path, source_info=source_info, tarball=tarball)
+        return DebianDir(parent=parent, path=parent.path, distro=distro, source_info=source_info, tarball=tarball)
 
     @classmethod
-    def create_from_git(cls, parent: Git) -> "DebianSource":
+    def create_from_git(cls, parent: Git, *, distro: Distro, style: str | None = None) -> "DebianSource":
         """
         Detect the style of packaging repository.
 
@@ -129,9 +130,6 @@ class DebianSource(Source, abc.ABC):
         against the current upstream and temporarily merge upstream into this
         branch.
         """
-        # Switch to the right branch first, if needed
-        parent = parent.get_branch()
-
         repo = parent.repo
         if repo.working_dir is None:
             raise RuntimeError(f"{parent.path} has no working directory")
@@ -154,6 +152,7 @@ class DebianSource(Source, abc.ABC):
                 DebianGitLegacy,
                 DebianGitLegacy.derive_from_git(
                     parent,
+                    distro=distro,
                     source_info=source_info,
                     tarball=tarball,
                 ),
@@ -404,55 +403,55 @@ class DebianGBP(DebianSource, Git, abc.ABC):
     Debian git working directory with a gbp-buildpackage setup
     """
 
+    # upstream_tag: str = ""
+    # upstream_branch: str = ""
+    # debian_tag: str = ""
+    # gbp_args: list[str] = field(default_factory=list)
 
-#    upstream_tag: str = ""
-#    upstream_branch: str = ""
-#    debian_tag: str = ""
-#    gbp_args: list[str] = field(default_factory=list)
-#
-#    @classmethod
-#    def parse_gbp(cls, gbp_conf_path: Path, debversion: str) -> dict[str, str]:
-#        """
-#        Parse gbp.conf returning values for DebianGBP fields
-#        """
-#        res: dict[str, str] = {"debversion": debversion}
-#
-#        # Parse gbp.conf
-#        cfg = ConfigParser()
-#        cfg.read(gbp_conf_path)
-#        res["upstream_branch"] = cfg.get("DEFAULT", "upstream-branch", fallback="upstream")
-#        upstream_tag = cfg.get("DEFAULT", "upstream-branch", fallback="upstream/%(version)s")
-#        debian_tag = cfg.get("DEFAULT", "debian-tag", fallback="debian/%(version)s")
-#
-#        if "-" in debversion:
-#            uv, dv = debversion.split("-", 1)
-#            res["upstream_tag"] = upstream_tag % {"version": uv}
-#            res["debian_tag"] = debian_tag % {"version": debversion}
-#
-#        return res
-#
-#    @classmethod
-#    def read_upstream_branch(cls, repo: git.Repo) -> str | None:
-#        """
-#        Read the upstream branch from gbp.conf
-#
-#        Return None if gbp.conf does not exists or it does not specify an upstream branch
-#        """
-#        cfg = ConfigParser()
-#        cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
-#        return cfg.get("DEFAULT", "upstream-branch", fallback=None)
-#
-#    @classmethod
-#    def read_upstream_tag(cls, repo: git.Repo) -> str | None:
-#        """
-#        Read the upstream tag from gbp.conf
-#
-#        Return the default value if gbp.conf does not exists or it does not specify an upstream tag
-#        """
-#        cfg = ConfigParser()
-#        cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
-#        return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
-#
+    @classmethod
+    def parse_gbp(cls, gbp_conf_path: Path, debversion: str) -> dict[str, str]:
+        """
+        Parse gbp.conf returning values for DebianGBP fields
+        """
+        res: dict[str, str] = {"debversion": debversion}
+
+        # Parse gbp.conf
+        cfg = ConfigParser()
+        cfg.read(gbp_conf_path)
+        res["upstream_branch"] = cfg.get("DEFAULT", "upstream-branch", fallback="upstream")
+        upstream_tag = cfg.get("DEFAULT", "upstream-branch", fallback="upstream/%(version)s")
+        debian_tag = cfg.get("DEFAULT", "debian-tag", fallback="debian/%(version)s")
+
+        if "-" in debversion:
+            uv, dv = debversion.split("-", 1)
+            res["upstream_tag"] = upstream_tag % {"version": uv}
+            res["debian_tag"] = debian_tag % {"version": debversion}
+
+        return res
+
+    @classmethod
+    def read_upstream_branch(cls, repo: git.Repo) -> str | None:
+        """
+        Read the upstream branch from gbp.conf
+
+        Return None if gbp.conf does not exists or it does not specify an upstream branch
+        """
+        cfg = ConfigParser()
+        cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
+        return cfg.get("DEFAULT", "upstream-branch", fallback=None)
+
+    @classmethod
+    def read_upstream_tag(cls, repo: git.Repo) -> str | None:
+        """
+        Read the upstream tag from gbp.conf
+
+        Return the default value if gbp.conf does not exists or it does not specify an upstream tag
+        """
+        cfg = ConfigParser()
+        cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
+        return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
+
+
 #    @guest_only
 #    def build_source_package(self) -> str:
 #        """

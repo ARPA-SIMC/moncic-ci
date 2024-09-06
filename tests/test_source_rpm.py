@@ -14,7 +14,6 @@ from moncic.unittest import make_moncic
 from .source import WorkdirFixture, GitFixture, MockBuilder, GitRepo
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
-SID = DistroFamily.lookup_distro("sid")
 
 
 class TestRPMSource(WorkdirFixture):
@@ -30,34 +29,34 @@ class TestRPMSource(WorkdirFixture):
     def test_from_file_plain(self) -> None:
         path = self.workdir / "file"
         path.touch()
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, File)
             with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
-                RPMSource.create_from_file(src)
+                RPMSource.create_from_file(src, distro=ROCKY9)
 
     def test_from_file_dsc(self) -> None:
         path = self.workdir / "file.dsc"
         path.touch()
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, File)
             with self.assertRaisesRegexp(Fail, f"{path}: cannot build Debian source package on a RPM distribution"):
-                RPMSource.create_from_file(src)
+                RPMSource.create_from_file(src, distro=ROCKY9)
 
     def test_from_dir_empty(self) -> None:
         path = self.workdir / "dir"
         path.mkdir()
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
             with self.assertRaisesRegexp(Fail, f"{path}: no specfiles found in well-known locations"):
-                RPMSource.create_from_dir(src)
+                RPMSource.create_from_dir(src, distro=ROCKY9)
 
     def test_from_dir_one_specfile_root(self) -> None:
         path = self.workdir / "onespecroot"
         path.mkdir()
         (path / "specfile.spec").touch()
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            newsrc = RPMSource.create_from_dir(src)
+            newsrc = RPMSource.create_from_dir(src, distro=ROCKY9)
             assert isinstance(newsrc, ARPASourceDir)
             self.assertEqual(newsrc.specfile_path, Path("specfile.spec"))
 
@@ -68,9 +67,9 @@ class TestRPMSource(WorkdirFixture):
         specdir.mkdir(parents=True)
         (specdir / "specfile.spec").touch()
 
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            newsrc = RPMSource.create_from_dir(src)
+            newsrc = RPMSource.create_from_dir(src, distro=ROCKY9)
             assert isinstance(newsrc, ARPASourceDir)
             self.assertEqual(newsrc.specfile_path, Path("fedora/SPECS/specfile.spec"))
 
@@ -82,25 +81,25 @@ class TestRPMSource(WorkdirFixture):
         specdir.mkdir(parents=True)
         (specdir / "specfile.spec").touch()
 
-        with Source.create(source=path) as src:
+        with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
             with self.assertRaisesRegexp(Fail, f"{path}: 2 specfiles found"):
-                RPMSource.create_from_dir(src)
+                RPMSource.create_from_dir(src, distro=ROCKY9)
 
     def test_from_git_empty(self) -> None:
         git = self.make_git_repo("git")
-        with Source.create(source=git.root) as src:
+        with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
             with self.assertRaisesRegexp(Fail, f"{git.root}: no specfiles found in well-known locations"):
-                RPMSource.create_from_git(src)
+                RPMSource.create_from_git(src, distro=ROCKY9)
 
     def test_from_git_one_specfile_root(self) -> None:
         git = self.make_git_repo("git_onespecroot")
         git.add("specfile.spec")
         git.commit("initial")
-        with Source.create(source=git.root) as src:
+        with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = RPMSource.create_from_git(src)
+            newsrc = RPMSource.create_from_git(src, distro=ROCKY9)
             assert isinstance(newsrc, ARPASourceGit)
             self.assertEqual(newsrc.specfile_path, Path("specfile.spec"))
 
@@ -108,9 +107,9 @@ class TestRPMSource(WorkdirFixture):
         git = self.make_git_repo("git_onespecsub")
         git.add("fedora/SPECS/specfile.spec")
         git.commit("initial")
-        with Source.create(source=git.root) as src:
+        with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = RPMSource.create_from_git(src)
+            newsrc = RPMSource.create_from_git(src, distro=ROCKY9)
             assert isinstance(newsrc, ARPASourceGit)
             self.assertEqual(newsrc.specfile_path, Path("fedora/SPECS/specfile.spec"))
 
@@ -119,10 +118,10 @@ class TestRPMSource(WorkdirFixture):
         git.add("specfile.spec")
         git.add("fedora/SPECS/specfile.spec")
         git.commit("initial")
-        with Source.create(source=git.root) as src:
+        with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
             with self.assertRaisesRegexp(Fail, f"{git.root}: 2 specfiles found"):
-                RPMSource.create_from_git(src)
+                RPMSource.create_from_git(src, distro=ROCKY9)
 
 
 # class TestARPA(GitFixtureMixin, unittest.TestCase):
