@@ -14,7 +14,9 @@ from moncic.source.debian import (
     DebianDsc,
     SourceInfo,
     DebianGitLegacy,
+    DebianGBPTestDebian,
     DebianGBPTestUpstream,
+    DebianGBPRelease,
     DSCInfo,
 )
 from moncic.unittest import make_moncic
@@ -156,9 +158,9 @@ Files:
             assert isinstance(src, Git)
             newsrc = DebianSource.create_from_git(src, distro=SID)
             assert isinstance(newsrc, DebianGBPTestUpstream)
-            self.assertEqual(newsrc.path, git.root)
-            self.assertIs(newsrc.repo, src.repo)
-            self.assertEqual(newsrc.readonly, src.readonly)
+            self.assertNotEqual(newsrc.path, git.root)
+            self.assertIsNot(newsrc.repo, src.repo)
+            self.assertFalse(newsrc.readonly)
             self.assertEqual(
                 newsrc.source_info,
                 SourceInfo(
@@ -168,7 +170,92 @@ Files:
                     tar_stem="gitgbpupstream_0.1.0.orig.tar",
                 ),
             )
-            self.assertEqual(newsrc.tarball, tar_path)
+
+    def test_from_git_debian_release(self) -> None:
+        git = self.make_git_repo("gitgbprelease")
+        # Initial upstream
+        git.add("testfile")
+        git.commit("Initial commit")
+        git.git("tag", "upstream/0.1.0")
+
+        # Debian branch
+        git.git("checkout", "-b", "debian/unstable")
+        git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
+        git.add(
+            "debian/gbp.conf",
+            """
+[DEFAULT]
+upstream-branch=main
+upstream-tag=%(version)s
+debian-branch=debian/unstable
+""",
+        )
+        git.commit()
+        git.git("tag", "debian/0.1.0-1")
+
+        with Source.create_local(source=git.root) as src:
+            assert isinstance(src, Git)
+            newsrc = DebianSource.create_from_git(src, distro=SID)
+            assert isinstance(newsrc, DebianGBPRelease)
+            self.assertNotEqual(newsrc.path, git.root)
+            self.assertIsNot(newsrc.repo, src.repo)
+            self.assertFalse(newsrc.readonly)
+            self.assertEqual(
+                newsrc.source_info,
+                SourceInfo(
+                    name="moncic-ci",
+                    version="0.1.0-1",
+                    dsc_filename="moncic-ci_0.1.0-1.dsc",
+                    tar_stem="moncic-ci_0.1.0.orig.tar",
+                ),
+            )
+
+    def test_from_git_debian_test(self) -> None:
+        git = self.make_git_repo("gitgbptest")
+
+        # Initial upstream
+        git.add("testfile")
+        git.commit("Initial commit")
+
+        # Debian branch
+        git.git("checkout", "-b", "debian/unstable")
+        git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
+        git.add(
+            "debian/gbp.conf",
+            """
+[DEFAULT]
+upstream-branch=main
+upstream-tag=%(version)s
+debian-branch=debian/unstable
+""",
+        )
+        git.commit()
+
+        # New changes to upstream branch
+        git.git("checkout", "main")
+        git.add("testfile", "test content")
+        git.commit("Updated testfile")
+
+        # Leave the packaging branch as current
+        git.git("checkout", "debian/unstable")
+
+        with Source.create_local(source=git.root) as src:
+            assert isinstance(src, Git)
+            newsrc = DebianSource.create_from_git(src, distro=SID)
+            self.assertIsInstance(newsrc, DebianGBPTestDebian)
+            assert isinstance(newsrc, DebianGBPTestDebian)
+            self.assertNotEqual(newsrc.path, git.root)
+            self.assertIsNot(newsrc.repo, src.repo)
+            self.assertFalse(newsrc.readonly)
+            self.assertEqual(
+                newsrc.source_info,
+                SourceInfo(
+                    name="moncic-ci",
+                    version="0.1.0-1",
+                    dsc_filename="moncic-ci_0.1.0-1.dsc",
+                    tar_stem="moncic-ci_0.1.0.orig.tar",
+                ),
+            )
 
 
 # class DebianSourceDirMixin(WorkdirFixtureMixin):
@@ -358,28 +445,6 @@ Files:
 #
 #
 # class TestDebianGBPRelease(GitFixtureMixin, unittest.TestCase):
-#     @classmethod
-#     def setUpClass(cls):
-#         super().setUpClass()
-#         # Initial upstream
-#         cls.git.add("testfile")
-#         cls.git.commit("Initial commit")
-#         cls.git.git("tag", "upstream/0.1.0")
-#
-#         # Debian branch
-#         cls.git.git("checkout", "-b", "debian/unstable")
-#         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
-#         cls.git.add(
-#             "debian/gbp.conf",
-#             """
-# [DEFAULT]
-# upstream-branch=main
-# upstream-tag=%(version)s
-# debian-branch=debian/unstable
-# """,
-#         )
-#         cls.git.commit()
-#         cls.git.git("tag", "debian/0.1.0-1")
 #
 #     def test_detect_local(self):
 #         with InputSource.create(self.git.root) as isrc:
