@@ -114,3 +114,21 @@ class TestGit(GitFixture):
             self.assertNotEqual(src.path, self.git.root)
             self.assertFalse(src.readonly)
             self.assertEqual(src.repo.active_branch.name, "moncic-ci")
+
+    def test_get_writable(self) -> None:
+        with Source.create_local(source=self.git.root) as src:
+            assert isinstance(src, Git)
+            self.assertTrue(src.readonly)
+            newsrc = src.get_writable()
+            assert isinstance(newsrc, Git)
+            self.assertFalse(newsrc.readonly)
+            self.assertNotEqual(src.path, newsrc.path)
+            self.assertIsNot(src.repo, newsrc.repo)
+
+    def test_find_branch(self) -> None:
+        with Source.create_local(source=self.git.root) as src:
+            assert isinstance(src, Git)
+            self.assertIsNotNone(src.find_branch("main"))
+            self.assertIsNotNone(src.find_branch("devel"))
+            self.assertIsNone(src.find_branch("1.0"))
+            self.assertIsNone(src.find_branch("does-not-exist"))

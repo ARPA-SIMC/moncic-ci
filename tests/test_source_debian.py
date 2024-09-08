@@ -8,7 +8,15 @@ from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import File, Dir, Git
-from moncic.source.debian import DebianSource, DebianDir, DebianDsc, SourceInfo, DebianGitLegacy
+from moncic.source.debian import (
+    DebianSource,
+    DebianDir,
+    DebianDsc,
+    SourceInfo,
+    DebianGitLegacy,
+    DebianGBPTestUpstream,
+    DSCInfo,
+)
 from moncic.unittest import make_moncic
 
 from .source import GitFixture, MockBuilder, WorkdirFixture, GitRepo
@@ -36,11 +44,29 @@ class TestDebianSource(WorkdirFixture):
 
     def test_from_file_dsc(self) -> None:
         path = self.workdir / "file.dsc"
-        path.touch()
+        path.write_text(
+            """Format: 3.0 (quilt)
+Source: moncic-ci
+Binary: moncic-ci
+Version: 0.1.0-1
+Files:
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0.orig.tar.gz
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
+"""
+        )
         with Source.create_local(source=path) as src:
             assert isinstance(src, File)
             newsrc = DebianSource.create_from_file(src, distro=SID)
             assert isinstance(newsrc, DebianDsc)
+            self.assertEqual(
+                newsrc.source_info,
+                DSCInfo(
+                    name="moncic-ci",
+                    version="0.1.0-1",
+                    dsc_filename="moncic-ci_0.1.0-1.dsc",
+                    tar_stem="moncic-ci_0.1.0.orig.tar",
+                ),
+            )
 
     def test_from_dir_empty(self) -> None:
         path = self.workdir / "dir"
@@ -108,22 +134,41 @@ class TestDebianSource(WorkdirFixture):
             )
             self.assertEqual(newsrc.tarball, tar_path)
 
+    def test_from_git_debian_from_upstream(self) -> None:
+        git = self.make_git_repo("gitgbpupstream")
+        # Initial upstream
+        git.add("testfile")
+        git.commit("Initial commit")
 
-#     def test_from_git_empty(self) -> None:
-#         path = self.workdir / "dir"
-#         path.mkdir()
-#         with Source.create(source=path) as src:
-#             assert isinstance(src, Dir)
-#             with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
-#                 DebianSource.create_from_dir(src)
-#
-#     def test_from_git_debian(self) -> None:
-#         path = self.workdir / "debian"
-#         path.mkdir()
-#         with Source.create(source=path) as src:
-#             assert isinstance(src, Dir)
-#             newsrc = DebianSource.create_from_dir(src)
-#             assert isinstance(newsrc, DebianDir)
+        # Debian branch
+        git.git("checkout", "-b", "debian/sid")
+        git.add("debian/changelog", "gitgbpupstream (0.1.0-1) UNRELEASED; urgency=low")
+        git.commit()
+
+        # New changes to upstream branch
+        git.git("checkout", "main")
+        git.add("testfile", "test content")
+        git.commit("Updated testfile")
+
+        # TODO: add gdb.conf
+
+        with Source.create_local(source=git.root) as src:
+            assert isinstance(src, Git)
+            newsrc = DebianSource.create_from_git(src, distro=SID)
+            assert isinstance(newsrc, DebianGBPTestUpstream)
+            self.assertEqual(newsrc.path, git.root)
+            self.assertIs(newsrc.repo, src.repo)
+            self.assertEqual(newsrc.readonly, src.readonly)
+            self.assertEqual(
+                newsrc.source_info,
+                SourceInfo(
+                    name="gitgbpupstream",
+                    version="0.1.0-1",
+                    dsc_filename="gitgbpupstream_0.1.0-1.dsc",
+                    tar_stem="gitgbpupstream_0.1.0.orig.tar",
+                ),
+            )
+            self.assertEqual(newsrc.tarball, tar_path)
 
 
 # class DebianSourceDirMixin(WorkdirFixtureMixin):

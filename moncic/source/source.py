@@ -6,12 +6,13 @@ import inspect
 import logging
 import re
 import shlex
+import subprocess
 import tempfile
 import urllib.parse
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import git
 
@@ -45,7 +46,14 @@ class CommandLog(list[str]):
         """
         Add a command to the command log
         """
-        self.append(" ".join(shlex.quote(c) for c in args))
+        self.append(shlex.join(args))
+
+    def run(self, cmd: Sequence[str], **kwargs) -> subprocess.CompletedProcess:
+        """
+        Run a command and append it to the command log
+        """
+        self.append(shlex.join(cmd))
+        return run(cmd, **kwargs)
 
 
 class SourceStack(contextlib.ExitStack):
@@ -221,8 +229,7 @@ class Source(abc.ABC):
         clone_cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]
         if branch is not None:
             clone_cmd += ["--branch", branch]
-        run(clone_cmd, cwd=workdir)
-        command_log.add_command(*clone_cmd)
+        command_log.run(clone_cmd, cwd=workdir)
 
         # Look for the directory that git created
         paths = list(workdir.iterdir())

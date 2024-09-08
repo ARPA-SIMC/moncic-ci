@@ -21,13 +21,14 @@ from ..exceptions import Fail
 from ..utils.guest import guest_only, host_only
 from ..utils.run import log_run, run
 from .local import Dir, Git, File
-from .source import Source
+from .source import Source, CommandLog
 from .distro import DistroSource
 
 if TYPE_CHECKING:
     from ..build import Build
     from ..container import Container, System
     from ..distro import Distro
+    from ..distro.debian import DebianDistro
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class SourceInfo(NamedTuple):
     tar_stem: str
 
     @classmethod
-    def create_from_dir(self, path: Path) -> "SourceInfo":
+    def create_from_dir(cls, path: Path) -> "SourceInfo":
         """
         Get source information from an unpacked Debian source
         """
@@ -60,14 +61,22 @@ class SourceInfo(NamedTuple):
             else:
                 raise Fail("Unparsable debian/changelog")
 
+        return cls(**cls._infer_args_from_name_version(name, version))
+
+    @classmethod
+    def _infer_args_from_name_version(cls, name: str, version: str) -> dict[str, str]:
+        res: dict[str, str] = {
+            "name": name,
+            "version": version,
+        }
         version_dsc = version.split(":", 1)[1] if ":" in version else version
         if "-" in version_dsc:
             upstream_version = version_dsc.split("-", 1)[0]
-            tar_stem = f"{name}_{upstream_version}.orig.tar"
+            res["tar_stem"] = f"{name}_{upstream_version}.orig.tar"
         else:
-            tar_stem = f"{name}_{version_dsc}.tar"
-
-        return SourceInfo(name=name, version=version, dsc_filename=f"{name}_{version_dsc}.dsc", tar_stem=tar_stem)
+            res["tar_stem"] = f"{name}_{version_dsc}.tar"
+        res["dsc_filename"] = f"{name}_{version_dsc}.dsc"
+        return res
 
     def find_tarball(self, search_dirs: Sequence[Path] = ()) -> Path | None:
         """
@@ -81,11 +90,67 @@ class SourceInfo(NamedTuple):
 
         return None
 
+    def parse_gbp(self, gbp_conf_path: Path) -> "GBPInfo":
+        """
+        Parse gbp.conf returning values for DebianGBP fields
+        """
+        # Parse gbp.conf
+        cfg = ConfigParser()
+        cfg.read(gbp_conf_path)
+        upstream_branch = cfg.get("DEFAULT", "upstream-branch", fallback="upstream")
+        upstream_tag = cfg.get("DEFAULT", "upstream-branch", fallback="upstream/%(version)s")
+        debian_tag = cfg.get("DEFAULT", "debian-tag", fallback="debian/%(version)s")
+
+        if "-" in self.version:
+            uv, dv = self.version.split("-", 1)
+            upstream_tag = upstream_tag % {"version": uv}
+            debian_tag = debian_tag % {"version": self.version}
+
+        return GBPInfo(upstream_branch=upstream_branch, upstream_tag=upstream_tag, debian_tag=debian_tag)
+
+
+class DSCInfo(SourceInfo):
+    """Information read from a .dsc file"""
+
+    @classmethod
+    def create_from_file(cls, path: Path) -> "DSCInfo":
+        name: str | None = None
+        version: str | None = None
+        with path.open() as fd:
+            for line in fd:
+                if line.startswith("Source: "):
+                    name = line[8:].strip()
+                elif line.startswith("Version: "):
+                    version = line[9:].strip()
+
+        if name is None:
+            raise Fail(f"{path}: Source: entry not found")
+        if version is None:
+            raise Fail(f"{path}: Version: entry not found")
+
+        return cls(**cls._infer_args_from_name_version(name, version))
+
+
+class GBPInfo(NamedTuple):
+    """
+    Information from a gbp.conf file
+    """
+
+    upstream_branch: str
+    upstream_tag: str
+    debian_tag: str
+
 
 class DebianSource(DistroSource, abc.ABC):
     """
     Base class for Debian source packages
     """
+
+    source_info: SourceInfo
+
+    def __init__(self, *, source_info: SourceInfo, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.source_info = source_info
 
     @classmethod
     def _find_tarball_for_unpacked_sources(cls, path: Path, source_info: SourceInfo) -> Path:
@@ -99,7 +164,8 @@ class DebianSource(DistroSource, abc.ABC):
     @classmethod
     def create_from_file(cls, parent: File, *, distro: Distro, style: str | None = None) -> "DebianDsc":
         if parent.path.suffix == ".dsc":
-            return DebianDsc(parent=parent, path=parent.path, distro=distro)
+            dsc_info = DSCInfo.create_from_file(parent.path)
+            return DebianDsc(parent=parent, path=parent.path, distro=distro, dsc_info=dsc_info)
         else:
             raise Fail(f"{parent.path}: cannot detect source type")
 
@@ -113,7 +179,7 @@ class DebianSource(DistroSource, abc.ABC):
         return DebianDir(parent=parent, path=parent.path, distro=distro, source_info=source_info, tarball=tarball)
 
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro, style: str | None = None) -> "DebianSource":
+    def create_from_git(cls, parent: Git, *, distro: DebianDistro, style: str | None = None) -> "DebianSource":
         """
         Detect the style of packaging repository.
 
@@ -138,7 +204,12 @@ class DebianSource(DistroSource, abc.ABC):
         if not debian_path.exists() or not (debian_path / "changelog").exists():
             # There is no debian/changelog: the current branch could be
             # upstream in a gbp repository
-            raise NotImplementedError("return DebianGBPTestUpstream._create_from_repo(distro, source)")
+            packaging_branch = DebianGBP.find_packaging_branch(parent, distro)
+            if packaging_branch is None:
+                raise Fail(f"{parent.path}: cannot detect source type")
+            return DebianGBPTestUpstream.create_from_git(
+                parent, distro=distro, packaging_branch=packaging_branch, style=style
+            )
 
         source_info = SourceInfo.create_from_dir(parent.path)
 
@@ -161,17 +232,10 @@ class DebianSource(DistroSource, abc.ABC):
         # Check if we are building a tagged commit
         if parent.repo.head.commit.hexsha in [t.commit.hexsha for t in parent.repo.tags]:
             # If branch to build is a tag, build a release from it
-            raise NotImplementedError("return DebianGBPRelease._create_from_repo(distro, source, debversion)")
+            return DebianGBPRelease.create_from_git(parent, distro=distro, source_info=source_info)
 
         # There is a debian/ directory, find upstream from gbp.conf
-        raise NotImplementedError("return DebianGBPTestDebian._create_from_repo(distro, source, debversion)")
-
-
-#    @classmethod
-#    def detect(cls, distro: Distro, source: LocalGit) -> DebianGitSource:
-#        debian_path = Path(source.repo.working_dir) / "debian"
-#        debian_changelog_path = debian_path / "changelog"
-#
+        return DebianGBPTestDebian.create_from_git(parent, distro=distro, source_info=source_info)
 
 
 #    def get_build_class(self) -> type[Build]:
@@ -213,6 +277,11 @@ class DebianDsc(DebianSource, File):
     """
 
     NAME = "debian-dsc"
+
+    source_info: DSCInfo
+
+    def __init__(self, *, dsc_info: DSCInfo, **kwargs) -> None:
+        super().__init__(source_info=dsc_info, **kwargs)
 
 
 #     @host_only
@@ -264,12 +333,10 @@ class DebianDir(DebianSource, Dir):
 
     NAME = "debian-dir"
 
-    source_info: SourceInfo
     tarball: Path
 
-    def __init__(self, *, source_info: SourceInfo, tarball: Path, **kwargs) -> None:
+    def __init__(self, *, tarball: Path, **kwargs) -> None:
         super().__init__(**kwargs)
-        self.source_info = source_info
         self.tarball = tarball
 
 
@@ -403,53 +470,52 @@ class DebianGBP(DebianSource, Git, abc.ABC):
     Debian git working directory with a gbp-buildpackage setup
     """
 
+    gbp_info: GBPInfo
+
+    def __init__(self, *, gbp_info: GBPInfo, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.gbp_info = gbp_info
+
     # upstream_tag: str = ""
     # upstream_branch: str = ""
     # debian_tag: str = ""
     # gbp_args: list[str] = field(default_factory=list)
 
     @classmethod
-    def parse_gbp(cls, gbp_conf_path: Path, debversion: str) -> dict[str, str]:
+    def find_packaging_branch(cls, source: Git, distro: DebianDistro) -> git.refs.symbolic.SymbolicReference | None:
         """
-        Parse gbp.conf returning values for DebianGBP fields
+        Find the Debian packaging branch for the given distro.
+
+        :return: the ref of the branch if found, else None
         """
-        res: dict[str, str] = {"debversion": debversion}
+        candidate_branches = distro.get_gbp_branches()
+        for branch in candidate_branches:
+            if (ref := source.find_branch(branch)) is not None:
+                return ref
+        return None
 
-        # Parse gbp.conf
-        cfg = ConfigParser()
-        cfg.read(gbp_conf_path)
-        res["upstream_branch"] = cfg.get("DEFAULT", "upstream-branch", fallback="upstream")
-        upstream_tag = cfg.get("DEFAULT", "upstream-branch", fallback="upstream/%(version)s")
-        debian_tag = cfg.get("DEFAULT", "debian-tag", fallback="debian/%(version)s")
 
-        if "-" in debversion:
-            uv, dv = debversion.split("-", 1)
-            res["upstream_tag"] = upstream_tag % {"version": uv}
-            res["debian_tag"] = debian_tag % {"version": debversion}
-
-        return res
-
-    @classmethod
-    def read_upstream_branch(cls, repo: git.Repo) -> str | None:
-        """
-        Read the upstream branch from gbp.conf
-
-        Return None if gbp.conf does not exists or it does not specify an upstream branch
-        """
-        cfg = ConfigParser()
-        cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
-        return cfg.get("DEFAULT", "upstream-branch", fallback=None)
-
-    @classmethod
-    def read_upstream_tag(cls, repo: git.Repo) -> str | None:
-        """
-        Read the upstream tag from gbp.conf
-
-        Return the default value if gbp.conf does not exists or it does not specify an upstream tag
-        """
-        cfg = ConfigParser()
-        cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
-        return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
+#     @classmethod
+#     def read_upstream_branch(cls, repo: git.Repo) -> str | None:
+#         """
+#         Read the upstream branch from gbp.conf
+#
+#         Return None if gbp.conf does not exists or it does not specify an upstream branch
+#         """
+#         cfg = ConfigParser()
+#         cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
+#         return cfg.get("DEFAULT", "upstream-branch", fallback=None)
+#
+#     @classmethod
+#     def read_upstream_tag(cls, repo: git.Repo) -> str | None:
+#         """
+#         Read the upstream tag from gbp.conf
+#
+#         Return the default value if gbp.conf does not exists or it does not specify an upstream tag
+#         """
+#         cfg = ConfigParser()
+#         cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
+#         return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
 
 
 #    @guest_only
@@ -492,73 +558,66 @@ class DebianGBPTestUpstream(DebianGBP):
 
     NAME = "debian-gbp-upstream"
 
+    @classmethod
+    def create_from_git(
+        cls,
+        parent: Git,
+        *,
+        distro: DebianDistro,
+        packaging_branch: git.refs.symbolic.SymbolicReference,
+        style: str | None = None,
+    ) -> "DebianGBPTestUpstream":
+        # TODO: find common ancestor between current and packaging, and merge
+        #       packaging branch from that?
 
-#    @classmethod
-#    def _create_from_repo(cls, distro: Distro, source: LocalGit) -> DebianGBPTestUpstream:
-#        # find the right debian branch
-#        candidate_branches = distro.get_gbp_branches()
-#        for branch in candidate_branches:
-#            if source.find_branch(branch) is not None:
-#                break
-#        else:
-#            raise Fail(
-#                f"Packaging branch not found for distribution '{distro}'." f" Tried: {', '.join(candidate_branches)} "
-#            )
-#
-#        # TODO: find common ancestor between current and packaging, and merge
-#        #       packaging branch from that?
-#
-#        # If we are still working on an uncloned repository, create a temporary
-#        # clone to avoid mangling it
-#        if not source.copy:
-#            log.info("%s: cloning repository to avoid mangling the original version", source.repo.working_dir)
-#            source = source.clone()
-#
-#        trace_log: list[Sequence[str, ...]] = []
-#
-#        # Make a temporary merge of active_branch on the debian branch
-#        log.info("merge packaging branch %s for test build", branch)
-#        active_branch = source.repo.active_branch.name
-#        if active_branch is None:
-#            log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
-#            trace_log.append(("git", "clone", source.source))
-#            cmd = ["git", "checkout", source.repo.head.commit.hexsha, "-b", "moncic-ci"]
-#            trace_log.append(cmd)
-#            run(cmd, cwd=source.repo.working_dir)
-#            active_branch = "moncic-ci"
-#        else:
-#            trace_log.append(("git", "clone", "-b", active_branch, source.source))
-#
-#        cmd = ["git", "checkout", "--quiet", branch]
-#        trace_log.append(cmd)
-#        run(cmd, cwd=source.repo.working_dir)
-#
-#        cmd = [
-#            "git",
-#            "-c",
-#            "user.email=moncic-ci@example.org",
-#            "-c",
-#            "user.name=Moncic-CI",
-#            "merge",
-#            "--quiet",
-#            str(active_branch),
-#            "-m",
-#            "CI merge",
-#        ]
-#        trace_log.append(cmd)
-#        run(cmd, cwd=source.repo.working_dir)
-#
-#        path = Path(source.repo.working_dir)
-#        debversion = cls.read_changelog_version(path / "debian" / "changelog")
-#        gbp_args = cls.parse_gbp(path / "debian" / "gbp.conf", debversion)
-#
-#        res = cls(source, path, **gbp_args)
-#        for args in trace_log:
-#            res.add_trace_log(*args)
-#
-#        res.gbp_args.append("--git-upstream-tree=branch")
-#        res.gbp_args.append("--git-upstream-branch=" + active_branch)
-#        return res
+        # If we are still working on an uncloned repository, create a temporary
+        # clone to avoid mangling it
+        parent = parent.get_writable()
+        branch = packaging_branch.name
+
+        command_log = CommandLog()
+
+        # Make a temporary merge of active_branch on the debian branch
+        log.info("merge packaging branch %s for test build", branch)
+        active_branch = parent.repo.active_branch.name
+        if active_branch is None:
+            log.info("repository is in detached head state, creating a 'moncic-ci' working branch from it")
+            cmd = ["git", "checkout", parent.repo.head.commit.hexsha, "-b", "moncic-ci"]
+            command_log.run(cmd, cwd=parent.repo.working_dir)
+            active_branch = "moncic-ci"
+
+        command_log.run(["git", "checkout", "--quiet", branch], cwd=parent.repo.working_dir)
+
+        command_log.run(
+            [
+                "git",
+                "-c",
+                "user.email=moncic-ci@example.org",
+                "-c",
+                "user.name=Moncic-CI",
+                "merge",
+                "--quiet",
+                active_branch,
+                "-m",
+                "CI merge",
+            ],
+            cwd=parent.repo.working_dir,
+        )
+
+        source_info = SourceInfo.create_from_dir(parent.path)
+        gbp_info = source_info.parse_gbp(parent.path / "debian" / "gbp.conf")
+
+        # TODO: remove cast from python 3.11+
+        res = cast(
+            DebianGBPTestUpstream,
+            cls.derive_from_git(
+                parent, distro=distro, source_info=source_info, gbp_info=gbp_info, command_log=command_log
+            ),
+        )
+
+        res.gbp_args.append("--git-upstream-tree=branch")
+        res.gbp_args.append(f"--git-upstream-branch={active_branch}")
+        return res
 
 
 class DebianGBPRelease(DebianGBP):

@@ -114,30 +114,40 @@ class Git(Dir):
 
         return self._git_clone(self.path.as_posix(), branch)
 
+    def get_writable(self) -> Git:
+        """
+        Return a Git repo that is not readonly.
 
-#     def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:
-#         """
-#         Look for the named branch locally or in the origin repository.
-#
-#         Return the branch object, or None if not found.
-#
-#         If the result is not None, `git checkout <name>` is expected to work
-#         """
-#         for branch in self.repo.branches:
-#             if branch.name == name:
-#                 return branch
-#
-#         for remote in self.repo.remotes:
-#             if remote.name == "origin":
-#                 break
-#         else:
-#             return None
-#
-#         ref_name = remote.name + "/" + name
-#         for ref in remote.refs:
-#             if ref.name == ref_name:
-#                 return ref
-#         return None
+        If this repo is not readonly, return it. Else, return a clone
+        """
+        if not self.readonly:
+            return self
+
+        return self._git_clone(self.path.as_posix())
+
+    def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:
+        """
+        Look for the named branch locally or in the origin repository.
+
+        Return the branch object, or None if not found.
+
+        If the result is not None, `git checkout <name>` is expected to work
+        """
+        for branch in self.repo.branches:
+            if branch.name == name:
+                return branch
+
+        for remote in self.repo.remotes:
+            if remote.name == "origin":
+                break
+        else:
+            return None
+
+        ref_name = remote.name + "/" + name
+        for ref in remote.refs:
+            if ref.name == ref_name:
+                return ref
+        return None
 
 
 # class GitSource(Source):
