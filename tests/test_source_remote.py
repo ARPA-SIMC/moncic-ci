@@ -1,20 +1,20 @@
 from __future__ import annotations
 
-import os
-import tempfile
-import unittest
+import urllib.parse
 
 from moncic.distro import DistroFamily
 from moncic.exceptions import Fail
-from moncic.source import InputSource, debian, inputsource
+from moncic.source import Source
+from moncic.source.local import Git
+from moncic.source.remote import URL
 
-from .source import GitFixtureMixin
+from .source import GitFixture
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")
 
 
-class TestURL(GitFixtureMixin, unittest.TestCase):
+class TestURL(GitFixture):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -33,18 +33,22 @@ class TestURL(GitFixtureMixin, unittest.TestCase):
 
     def test_url(self):
         with self.git.serve() as url:
-            with InputSource.create(url) as isrc:
-                self.assertIsInstance(isrc, inputsource.URL)
-                self.assertEqual(isrc.source, url)
-                self.assertEqual(isrc.parsed.scheme, "http")
-                self.assertEqual(isrc.parsed.path, "/.git")
+            with Source.create_local(source=url) as src:
+                assert isinstance(src, Git)
+                self.assertEqual(src.name, url)
+                self.assertFalse(src.readonly)
+                self.assertEqual(src.repo.active_branch.name, "main")
 
-                clone = isrc.clone()
-                self.assertIsInstance(clone, inputsource.LocalGit)
-                self.assertEqual(clone.repo.active_branch.name, "main")
-                self.assertIsNone(clone.orig_path)
+                assert isinstance(src.parent, URL)
+                self.assertEqual(src.parent.url, urllib.parse.urlparse(url))
 
-                clone = isrc.clone("branch1")
-                self.assertIsInstance(clone, inputsource.LocalGit)
-                self.assertEqual(clone.repo.active_branch.name, "branch1")
-                self.assertIsNone(clone.orig_path)
+    def test_url_branch(self):
+        with self.git.serve() as url:
+            with Source.create_local(source=url, branch="branch1") as src:
+                assert isinstance(src, Git)
+                self.assertEqual(src.name, url)
+                self.assertFalse(src.readonly)
+                self.assertEqual(src.repo.active_branch.name, "branch1")
+
+                assert isinstance(src.parent, URL)
+                self.assertEqual(src.parent.url, urllib.parse.urlparse(url))

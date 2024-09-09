@@ -7,6 +7,7 @@ import os
 # import shutil
 import subprocess
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .. import context
@@ -18,7 +19,6 @@ from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .build import Build
 from .utils import link_or_copy
-from ..source.debian import DebianSource
 
 if TYPE_CHECKING:
     from ..container import Container
@@ -108,24 +108,51 @@ class Debian(Build):
         run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
 
         if self.build_profile:
-            os.environ["DEB_BUILD_PROFILES"] = self.build_profile
+            profiles: list[str] = []
+            options: list[str] = []
+            for entry in self.build_profile.split():
+                if entry in ("nocheck", "nodoc"):
+                    profiles.append(entry)
+                    options.append(entry)
+                elif entry.startswith(
+                    (
+                        "parallel=",
+                        "nostrip",
+                        "terse",
+                        "hardening=",
+                        "reproducibile=",
+                        "abi=",
+                        "future=",
+                        "qa=",
+                        "optimize=",
+                        "sanitize=",
+                    )
+                ):
+                    options.append(entry)
+                else:
+                    profiles.append(entry)
+
+            os.environ["DEB_BUILD_PROFILES"] = " ".join(profiles)
+            os.environ["DEB_BUILD_OPTIONS"] = " ".join(options)
 
         # Log DEB_* env variables
         for k, v in os.environ.items():
             if k.startswith("DEB_"):
-                log.debug("%s: %r", k, v)
+                log.debug("%s=%r", k, v)
 
     @guest_only
     def build(self) -> None:
+        from ..source.debian import DebianSource
+
         assert isinstance(self.source, DebianSource)
         # Build source package
         with context.moncic.get().privs.user():
-            dsc_fname = self.source.build_source_package(self.guest_source_path)
+            dsc_path = self.source.build_source_package(self.guest_source_path)
 
         self.name = self.source.source_info.name
 
         if not self.source_only:
-            self.build_binary(dsc_fname)
+            self.build_binary(dsc_path)
 
         for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
             with os.scandir(path) as it:
@@ -136,14 +163,12 @@ class Debian(Build):
         self.success = True
 
     @guest_only
-    def build_binary(self, dsc_fname: str):
+    def build_binary(self, dsc_path: Path):
         """
         Build binary packages
         """
-        if self.srcinfo is None:
-            raise RuntimeError("source information not collected at build_binary time")
         with cd("/srv/moncic-ci/build"):
-            self.trace_run(["dpkg-source", "-x", dsc_fname])
+            self.trace_run(["dpkg-source", "-x", dsc_path.as_posix()])
 
             # Find the newly created build directory
             with os.scandir(".") as it:
@@ -172,7 +197,7 @@ class Debian(Build):
                 cmd = ["dpkg-buildpackage", "--no-sign"]
                 if self.include_source:
                     cmd.append("-sa")
-                self.trace_run(cmd)
+                self.trace_run(cmd, env=env)
 
     @host_only
     def collect_artifacts(self, container: Container, destdir: str):

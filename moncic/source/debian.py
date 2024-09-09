@@ -172,12 +172,12 @@ class DebianSource(DistroSource, abc.ABC):
         self.source_info = source_info
 
     @guest_only
-    def build_source_package(self, path: Path) -> str:
+    def build_source_package(self, path: Path) -> Path:
         """
         Build a source package and return the .dsc file name.
 
         :param:path:the source file or directory in the guest system
-        :return:filename of the resulting .dsc file
+        :return:path to the resulting .dsc file
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package not implemented")
 
@@ -321,8 +321,8 @@ class DebianDsc(DebianSource, File):
             link_or_copy(srcdir / fname, destdir)
 
     @guest_only
-    def build_source_package(self, path: Path) -> str:
-        return self.path.name
+    def build_source_package(self, path: Path) -> Path:
+        return path
 
 
 class DebianDir(DebianSource, Dir):
@@ -365,14 +365,21 @@ class DebianDir(DebianSource, Dir):
             link_or_copy(tarball, destdir)
 
     @guest_only
-    def build_source_package(self, path: Path) -> str:
+    def build_source_package(self, path: Path) -> Path:
         # Uses --no-pre-clean to avoid requiring build-deps to be installed at
         # this stage
         run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=path)
 
+        # Try with the expected .dsc name
+        dsc_path = path.parent / self.source_info.dsc_filename
+        if dsc_path.exists():
+            return dsc_path
+
+        # Something unexpected happened: look harder for a built .dsc file
         for sub in path.parent.iterdir():
             if sub.suffix == ".dsc":
-                return sub.name
+                log.warning("found .dsc file %s instead of %s", sub, dsc_path)
+                return sub
 
         raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
@@ -390,6 +397,7 @@ class DebianGitLegacy(DebianDir, Git):
         distro: DebianDistro,
         source_info: SourceInfo,
     ) -> "DebianGitLegacy":  # TODO: Self from python 3.11+
+        parent = parent.get_clean()
         # FIXME: cast not needed after Python 3.11
         return cast(
             DebianGitLegacy,

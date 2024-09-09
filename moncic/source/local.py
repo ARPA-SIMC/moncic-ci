@@ -92,6 +92,16 @@ class Git(Dir):
 
         return self._git_clone(self.path.as_posix())
 
+    def get_clean(self) -> Git:
+        """
+        Return a Git repo that is not dirty.
+
+        If the repo is dirty, return a clone.
+        """
+        if not self.repo.is_dirty():
+            return self
+        return self._git_clone(self.path.as_posix())
+
     def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:
         """
         Look for the named branch locally or in the origin repository.
