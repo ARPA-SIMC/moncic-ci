@@ -36,14 +36,14 @@ class RPMSource(DistroSource, abc.ABC):
         self.specfile_path = specfile_path
 
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro, style: str | None = None) -> NoReturn:
+    def create_from_file(cls, parent: File, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
         if parent.path.suffix == ".dsc":
             raise Fail(f"{parent.path}: cannot build Debian source package on a RPM distribution")
         else:
             raise Fail(f"{parent.path}: cannot detect source type")
 
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro, style: str | None = None) -> "ARPASourceDir":
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
         specfile_paths = ARPASourceDir.locate_specfiles(parent.path)
         if not specfile_paths:
             raise Fail(f"{parent.path}: no specfiles found in well-known locations")
@@ -52,7 +52,7 @@ class RPMSource(DistroSource, abc.ABC):
         return ARPASourceDir(parent=parent, path=parent.path, specfile_path=specfile_paths[0], distro=distro)
 
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro, style: str | None = None) -> "ARPASourceGit":
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
         specfile_paths = ARPASourceGit.locate_specfiles(parent.path)
         if not specfile_paths:
             raise Fail(f"{parent.path}: no specfiles found in well-known locations")

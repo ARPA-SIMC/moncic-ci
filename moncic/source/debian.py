@@ -23,12 +23,12 @@ from ..utils.run import log_run, run
 from .local import Dir, Git, File
 from .source import Source, CommandLog
 from .distro import DistroSource
+from ..distro.debian import DebianDistro
 
 if TYPE_CHECKING:
     from ..build import Build
     from ..container import Container, System
     from ..distro import Distro
-    from ..distro.debian import DebianDistro
 
 log = logging.getLogger(__name__)
 
@@ -162,24 +162,25 @@ class DebianSource(DistroSource, abc.ABC):
         return tarball
 
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro, style: str | None = None) -> "DebianDsc":
+    def create_from_file(cls, parent: File, *, distro: Distro) -> "DebianSource":
+        if not isinstance(distro, DebianDistro):
+            raise RuntimeError("cannot create a DebianSource non a non-Debian distro")
         if parent.path.suffix == ".dsc":
-            dsc_info = DSCInfo.create_from_file(parent.path)
-            return DebianDsc(parent=parent, path=parent.path, distro=distro, dsc_info=dsc_info)
+            return DebianDsc.prepare_from_file(parent, distro=distro)
         else:
             raise Fail(f"{parent.path}: cannot detect source type")
 
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro, style: str | None = None) -> "DebianDir":
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DebianSource":
         if not (parent.path / "debian").is_dir():
             raise Fail(f"{parent.path}: cannot detect source type")
+        if not isinstance(distro, DebianDistro):
+            raise RuntimeError("cannot create a DebianSource non a non-Debian distro")
 
-        source_info = SourceInfo.create_from_dir(parent.path)
-        tarball = cls._find_tarball_for_unpacked_sources(parent.path, source_info)
-        return DebianDir(parent=parent, path=parent.path, distro=distro, source_info=source_info, tarball=tarball)
+        return DebianDir.prepare_from_dir(parent, distro=distro)
 
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: DebianDistro, style: str | None = None) -> "DebianSource":
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> "DebianSource":
         """
         Detect the style of packaging repository.
 
@@ -200,6 +201,9 @@ class DebianSource(DistroSource, abc.ABC):
         if repo.working_dir is None:
             raise RuntimeError(f"{parent.path} has no working directory")
 
+        if not isinstance(distro, DebianDistro):
+            raise RuntimeError("cannot create a DebianSource non a non-Debian distro")
+
         debian_path = parent.path / "debian"
         if not debian_path.exists() or not (debian_path / "changelog").exists():
             # There is no debian/changelog: the current branch could be
@@ -207,37 +211,24 @@ class DebianSource(DistroSource, abc.ABC):
             packaging_branch = DebianGBP.find_packaging_branch(parent, distro)
             if packaging_branch is None:
                 raise Fail(f"{parent.path}: cannot detect source type")
-            return DebianGBPTestUpstream.create_from_git(
-                parent, distro=distro, packaging_branch=packaging_branch, style=style
-            )
+            return DebianGBPTestUpstream.prepare_from_git(parent, distro=distro, packaging_branch=packaging_branch)
 
         source_info = SourceInfo.create_from_dir(parent.path)
 
         # Check if it's a gbp-buildpackage source
         gbp_conf_path = debian_path / "gbp.conf"
         if not gbp_conf_path.exists():
-            # Not a gib-buildpackage source, build with dpkg-buildpackage
-            tarball = cls._find_tarball_for_unpacked_sources(parent.path, source_info)
-            # FIXME: cast not needed after Python 3.11
-            return cast(
-                DebianGitLegacy,
-                DebianGitLegacy.derive_from_git(
-                    parent,
-                    distro=distro,
-                    source_info=source_info,
-                    tarball=tarball,
-                ),
-            )
+            return DebianGitLegacy.prepare_from_git(parent, distro=distro, source_info=source_info)
 
         gbp_info = source_info.parse_gbp(parent.path / "debian" / "gbp.conf")
 
         # Check if we are building a tagged commit
-        if parent.repo.head.commit.hexsha in [t.commit.hexsha for t in parent.repo.tags]:
+        if parent.find_tags():
             # If branch to build is a tag, build a release from it
-            return DebianGBPRelease.create_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
+            return DebianGBPRelease.prepare_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
 
         # There is a debian/ directory, find upstream from gbp.conf
-        return DebianGBPTestDebian.create_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
+        return DebianGBPTestDebian.prepare_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
 
 
 #    def get_build_class(self) -> type[Build]:
@@ -284,6 +275,12 @@ class DebianDsc(DebianSource, File):
 
     def __init__(self, *, dsc_info: DSCInfo, **kwargs) -> None:
         super().__init__(source_info=dsc_info, **kwargs)
+
+    @classmethod
+    def prepare_from_file(cls, parent: File, *, distro: DebianDistro) -> "DebianDsc":
+        assert parent.path.suffix == ".dsc"
+        dsc_info = DSCInfo.create_from_file(parent.path)
+        return cls(parent=parent, path=parent.path, distro=distro, dsc_info=dsc_info)
 
 
 #     @host_only
@@ -341,6 +338,17 @@ class DebianDir(DebianSource, Dir):
         super().__init__(**kwargs)
         self.tarball = tarball
 
+    @classmethod
+    def prepare_from_dir(
+        cls,
+        parent: Dir,
+        *,
+        distro: DebianDistro,
+    ) -> "DebianDir":  # TODO: Self from python 3.11+
+        source_info = SourceInfo.create_from_dir(parent.path)
+        tarball = cls._find_tarball_for_unpacked_sources(parent.path, source_info)
+        return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info, tarball=tarball)
+
 
 #     @host_only
 #     def gather_sources_from_host(self, build: Build, container: Container) -> None:
@@ -374,6 +382,28 @@ class DebianGitLegacy(DebianDir, Git):
     """
     Debian sources from a git repository, without gbp-buildpackage
     """
+
+    @classmethod
+    def prepare_from_git(
+        cls,
+        parent: Git,
+        *,
+        distro: DebianDistro,
+        source_info: SourceInfo,
+    ) -> "DebianGitLegacy":  # TODO: Self from python 3.11+
+        # Not a gib-buildpackage source, build with dpkg-buildpackage
+        tarball = cls._find_tarball_for_unpacked_sources(parent.path, source_info)
+
+        # FIXME: cast not needed after Python 3.11
+        return cast(
+            DebianGitLegacy,
+            DebianGitLegacy.derive_from_git(
+                parent,
+                distro=distro,
+                source_info=source_info,
+                tarball=tarball,
+            ),
+        )
 
 
 # class DebianGit(DebianDirMixin, DebianGitSource):
@@ -563,13 +593,12 @@ class DebianGBPTestUpstream(DebianGBP):
     NAME = "debian-gbp-upstream"
 
     @classmethod
-    def create_from_git(
+    def prepare_from_git(
         cls,
         parent: Git,
         *,
         distro: DebianDistro,
         packaging_branch: git.refs.symbolic.SymbolicReference,
-        style: str | None = None,
     ) -> "DebianGBPTestUpstream":
         # TODO: find common ancestor between current and packaging, and merge
         #       packaging branch from that?
@@ -639,24 +668,22 @@ class DebianGBPRelease(DebianGBP):
     NAME = "debian-gbp-release"
 
     @classmethod
-    def create_from_git(
+    def prepare_from_git(
         cls,
         parent: Git,
         *,
         distro: DebianDistro,
-        style: str | None = None,
         source_info: SourceInfo,
         gbp_info: GBPInfo,
-    ) -> "DebianGBPTestUpstream":
+    ) -> "DebianGBPRelease":
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
 
+        # FIXME: cast not needed after Python 3.11
         return cast(
-            DebianGBPTestUpstream,
-            cls.derive_from_git(
-                # If we are still working on an uncloned repository, create a temporary
-                # clone to work on a clean one
-                parent.get_writable(),
+            DebianGBPRelease,
+            DebianGBPRelease.derive_from_git(
+                parent,
                 distro=distro,
                 source_info=source_info,
                 gbp_info=gbp_info,
@@ -706,12 +733,11 @@ class DebianGBPTestDebian(DebianGBP):
     NAME = "debian-gbp-test"
 
     @classmethod
-    def create_from_git(
+    def prepare_from_git(
         cls,
         parent: Git,
         *,
         distro: DebianDistro,
-        style: str | None = None,
         source_info: SourceInfo,
         gbp_info: GBPInfo,
     ) -> "DebianGBPTestDebian":

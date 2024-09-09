@@ -31,24 +31,9 @@ class File(LocalSource):
     A local file
     """
 
-    def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
-        from ..distro.debian import DebianDistro
-        from ..distro.rpm import RpmDistro
-
-        new_source: Source
-
-        if isinstance(distro, DebianDistro):
-            from .debian import DebianSource
-
-            new_source = DebianSource.create_from_file(self)
-        elif isinstance(distro, RpmDistro):
-            from .rpm import RPMSource
-
-            new_source = RPMSource.create_from_file(self)
-        else:
-            raise NotImplementedError(f"No suitable file builder found for distribution {distro!r}")
-
-        return new_source.make_buildable(distro=distro, source_type=source_type)
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        assert self.path.is_file()
 
 
 class Dir(LocalSource):
@@ -56,27 +41,9 @@ class Dir(LocalSource):
     Local directory that is not a git working directory
     """
 
-    #: Path to the directory
-    path: Path
-
-    def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
-        from ..distro.debian import DebianDistro
-        from ..distro.rpm import RpmDistro
-
-        new_source: Source
-
-        if isinstance(distro, DebianDistro):
-            from .debian import DebianSource
-
-            new_source = DebianSource.create_from_dir(self)
-        elif isinstance(distro, RpmDistro):
-            from .rpm import RPMSource
-
-            new_source = RPMSource.create_from_dir(self)
-        else:
-            raise NotImplementedError(f"No suitable directory builder found for distribution {distro!r}")
-
-        return new_source.make_buildable(distro=distro, source_type=source_type)
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        assert self.path.is_dir()
 
 
 class Git(Dir):
@@ -148,6 +115,20 @@ class Git(Dir):
             if ref.name == ref_name:
                 return ref
         return None
+
+    def find_tags(self, hexsha: str | None = None) -> dict[str, git.objects.Commit]:
+        """
+        Return the tags corresponding to the given commit hash (if any)
+        """
+        if hexsha is None:
+            hexsha = self.repo.head.commit.hexsha
+
+        res: dict[str, git.objects.Commit] = {}
+        for tag in self.repo.tags:
+            if tag.commit.hexsha == hexsha:
+                res[tag.name] = tag
+
+        return res
 
 
 # class GitSource(Source):

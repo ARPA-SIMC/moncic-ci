@@ -197,9 +197,9 @@ debian-branch=debian/unstable
             assert isinstance(src, Git)
             newsrc = DebianSource.create_from_git(src, distro=SID)
             assert isinstance(newsrc, DebianGBPRelease)
-            self.assertNotEqual(newsrc.path, git.root)
-            self.assertIsNot(newsrc.repo, src.repo)
-            self.assertFalse(newsrc.readonly)
+            self.assertEqual(newsrc.path, git.root)
+            self.assertIs(newsrc.repo, src.repo)
+            self.assertTrue(newsrc.readonly)
             self.assertEqual(
                 newsrc.source_info,
                 SourceInfo(
@@ -258,22 +258,103 @@ debian-branch=debian/unstable
             )
 
 
-# class DebianSourceDirMixin(WorkdirFixtureMixin):
-#     tarball_name: str
+class TestDebianDsc(WorkdirFixture):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.dsc_file = cls.workdir / "moncic-ci_0.1.0-1.dsc"
+        cls.dsc_file.write_text(
+            """Format: 3.0 (quilt)
+Source: moncic-ci
+Binary: moncic-ci
+Version: 0.1.0-1
+Files:
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0.orig.tar.gz
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
+"""
+        )
+
+        (cls.workdir / "moncic-ci_0.1.0.orig.tar.gz").write_bytes(b"")
+        (cls.workdir / "moncic-ci_0.1.0-1.debian.tar.xz").write_bytes(b"")
+
+
+class TestDebianLegacyMixin(WorkdirFixture):
+    tarball_name: str
+
+
+#     def test_detect_local(self):
+#         with InputSource.create(self.dsc_file) as isrc:
+#             self.assertIsInstance(isrc, inputsource.LocalFile)
 #
-#     @classmethod
-#     def setUpClass(cls):
-#         super().setUpClass()
-#         cls.pkg_root = cls.workdir / "moncic-ci"
-#         debian_dir = cls.pkg_root / "debian"
-#         os.makedirs(debian_dir, exist_ok=True)
+#             with self.assertRaises(Fail):
+#                 isrc.detect_source(ROCKY9)
 #
-#         with open(os.path.join(debian_dir, "changelog"), "wt") as fd:
-#             print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
+#             src = isrc.detect_source(SID)
+#             self.assertIsInstance(src, debian.DebianDsc)
 #
-#         # Create mock tarball
-#         (cls.workdir / cls.tarball_name).write_bytes(b"")
-#
+#     def test_build_source(self):
+#         with InputSource.create(self.dsc_file) as isrc:
+#             src = isrc.detect_source(SID)
+#             self.assertEqual(src.get_build_class().__name__, "Debian")
+#             build = src.make_build(distro=SID)
+#             with (
+#                 make_moncic() as moncic,
+#                 moncic.session(),
+#                 MockBuilder("sid", build) as builder,
+#                 builder.container() as container,
+#             ):
+#                 src.gather_sources_from_host(builder.build, container)
+#                 self.assertCountEqual(
+#                     os.listdir(container.source_dir),
+#                     [
+#                         "moncic-ci_0.1.0-1.dsc",
+#                         "moncic-ci_0.1.0.orig.tar.gz",
+#                         "moncic-ci_0.1.0-1.debian.tar.xz",
+#                     ],
+#                 )
+
+
+class TestDebianLegacyDirMixin(TestDebianLegacyMixin):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.pkg_root = cls.workdir / "moncic-ci"
+        debian_dir = cls.pkg_root / "debian"
+        os.makedirs(debian_dir, exist_ok=True)
+
+        with open(os.path.join(debian_dir, "changelog"), "wt") as fd:
+            print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
+
+        # Create mock tarball
+        (cls.workdir / cls.tarball_name).write_bytes(b"")
+
+
+class TestDebianSourceDirGz(TestDebianLegacyDirMixin, unittest.TestCase):
+    tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
+
+
+class TestDebianSourceDirXz(TestDebianLegacyDirMixin, unittest.TestCase):
+    tarball_name = "moncic-ci_0.1.0.orig.tar.xz"
+
+
+class TestDebianLegacyGit(TestDebianLegacyMixin):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.pkg_root = cls.workdir / "moncic-ci"
+        debian_dir = cls.pkg_root / "debian"
+        os.makedirs(debian_dir, exist_ok=True)
+
+        with open(os.path.join(debian_dir, "changelog"), "wt") as fd:
+            print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
+
+        # Create mock tarball
+        (cls.workdir / cls.tarball_name).write_bytes(b"")
+
+
+del TestDebianLegacyMixin
+del TestDebianLegacyDirMixin
+
 #     def test_detect_local(self):
 #         with InputSource.create(self.pkg_root) as isrc:
 #             self.assertIsInstance(isrc, inputsource.LocalDir)
@@ -301,12 +382,6 @@ debian-branch=debian/unstable
 #                 # TODO: def build_source_package(self) -> str:
 #
 #
-# class TestDebianSourceDir1(DebianSourceDirMixin, unittest.TestCase):
-#     tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
-#
-#
-# class TestDebianSourceDir2(DebianSourceDirMixin, unittest.TestCase):
-#     tarball_name = "moncic-ci_0.1.0.orig.tar.xz"
 #
 #
 # class DebianPlainGitMixin(GitFixtureMixin):
@@ -560,53 +635,3 @@ debian-branch=debian/unstable
 #
 #             self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
 #
-#
-# class TestDebianDsc(WorkdirFixtureMixin, unittest.TestCase):
-#     @classmethod
-#     def setUpClass(cls):
-#         super().setUpClass()
-#         cls.dsc_file = cls.workdir / "moncic-ci_0.1.0-1.dsc"
-#         cls.dsc_file.write_text(
-#             """Format: 3.0 (quilt)
-# Source: moncic-ci
-# Binary: moncic-ci
-# Version: 0.1.0-1
-# Files:
-#  d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0.orig.tar.gz
-#  d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
-# """
-#         )
-#
-#         (cls.workdir / "moncic-ci_0.1.0.orig.tar.gz").write_bytes(b"")
-#         (cls.workdir / "moncic-ci_0.1.0-1.debian.tar.xz").write_bytes(b"")
-#
-#     def test_detect_local(self):
-#         with InputSource.create(self.dsc_file) as isrc:
-#             self.assertIsInstance(isrc, inputsource.LocalFile)
-#
-#             with self.assertRaises(Fail):
-#                 isrc.detect_source(ROCKY9)
-#
-#             src = isrc.detect_source(SID)
-#             self.assertIsInstance(src, debian.DebianDsc)
-#
-#     def test_build_source(self):
-#         with InputSource.create(self.dsc_file) as isrc:
-#             src = isrc.detect_source(SID)
-#             self.assertEqual(src.get_build_class().__name__, "Debian")
-#             build = src.make_build(distro=SID)
-#             with (
-#                 make_moncic() as moncic,
-#                 moncic.session(),
-#                 MockBuilder("sid", build) as builder,
-#                 builder.container() as container,
-#             ):
-#                 src.gather_sources_from_host(builder.build, container)
-#                 self.assertCountEqual(
-#                     os.listdir(container.source_dir),
-#                     [
-#                         "moncic-ci_0.1.0-1.dsc",
-#                         "moncic-ci_0.1.0.orig.tar.gz",
-#                         "moncic-ci_0.1.0-1.debian.tar.xz",
-#                     ],
-#                 )
