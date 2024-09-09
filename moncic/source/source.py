@@ -96,11 +96,6 @@ class Source(abc.ABC):
     #: Commands that can be used to recreate this source
     command_log: CommandLog
 
-    # # Path to the unpacked sources in the host system
-    # host_path: Path
-    # # Path to the unpacked sources in the guest system
-    # guest_path: str | None = None
-
     @classmethod
     def get_source_type(cls) -> str:
         """
@@ -168,7 +163,7 @@ class Source(abc.ABC):
             if (source / ".git").is_dir():
                 from .local import Git
 
-                base = Git(name=name, path=source)
+                base = Git(name=name, path=source.absolute())
                 if branch:
                     return base.get_branch(branch)
                 else:
@@ -178,13 +173,13 @@ class Source(abc.ABC):
 
                 if branch is not None:
                     raise Fail("Cannot specify a branch when working on a non-git directory")
-                return Dir(name=name, path=source)
+                return Dir(name=name, path=source.absolute())
         else:
             from .local import File
 
             if branch is not None:
                 raise Fail("Cannot specify a branch when working on a file")
-            return File(name=name, path=source)
+            return File(name=name, path=source.absolute())
 
     @classmethod
     def get_distro_source_class(cls, *, distro: Distro) -> type["DistroSource"]:

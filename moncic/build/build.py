@@ -6,6 +6,7 @@ import shlex
 from dataclasses import dataclass, field, fields
 from typing import TYPE_CHECKING
 from collections.abc import Generator, Sequence
+from pathlib import Path
 
 import yaml
 
@@ -30,21 +31,23 @@ class Build:
     Build source packages
     """
 
-    # Path to source to be built
+    #: Path to source to be built
     source: DistroSource
-    # Distribution on which to build
+    #: Distribution on which to build
     distro: Distro
-    # Package name (optional when not yet set)
+    #: Package name (optional when not yet set)
     name: str | None = None
-    # Set to True for faster builds, that assume that the container is already
-    # up to date
+    #: Set to True for faster builds, that assume that the container is already
+    #: up to date
     quick: bool = False
-    # True if the build was successful
+    #: True if the build was successful
     success: bool = False
-    # List of container paths for artifacts
+    #: List of container paths for artifacts
     artifacts: list[str] = field(default_factory=list)
-    # Commands that can be used to recreate this build
+    #: Commands that can be used to recreate this build
     trace_log: list[str] = field(default_factory=list)
+    #: Path inside the guest system where sources can be found
+    guest_source_path: Path | None = None
 
     artifacts_dir: str | None = field(
         default=None,

@@ -4,6 +4,8 @@ import contextlib
 import dataclasses
 import logging
 import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import IO, TYPE_CHECKING
 
@@ -49,17 +51,31 @@ class Builder(contextlib.ExitStack):
         container_root = container.get_root()
 
         # Set user permissions on source and build directories
-        srcdir = os.path.join(container_root, "srv", "moncic-ci", "source")
+        srcdir = container_root / "srv" / "moncic-ci" / "source"
         os.chown(srcdir, self.user.user_id, self.user.group_id)
-        builddir = os.path.join(container_root, "srv", "moncic-ci", "build")
-        os.makedirs(builddir, exist_ok=True)
+        builddir = container_root / "srv" / "moncic-ci" / "build"
+        builddir.mkdir(parents=True, exist_ok=True)
         os.chown(builddir, self.user.user_id, self.user.group_id)
 
         # Capture build log
         log_file = os.path.join(container_root, "srv", "moncic-ci", "buildlog")
         self.log_capture_start(log_file)
 
-        self.build.source.gather_sources_from_host(self.build, container)
+        # Collect artifacts in a temporary directory, to be able to do it as non-root
+        privs = self.system.images.session.moncic.privs
+        with privs.user():
+            with tempfile.TemporaryDirectory() as tmpdir_str:
+                tmpdir = Path(tmpdir_str)
+                self.build.source.collect_build_artifacts(tmpdir, self.build.artifacts_dir)
+                # Regain privileges and move results to the container
+                privs.regain()
+                for path in tmpdir.iterdir():
+                    shutil.move(path, srcdir)
+
+        log.debug("Sources in: %s:", srcdir)
+        for path in srcdir.iterdir():
+            log.debug("* %s", path.name)
+
         self.build.setup_container_host(container)
 
     @host_only
@@ -98,7 +114,7 @@ class Builder(contextlib.ExitStack):
         # Set it as the default current directory in the container
         # Mounted volatile to prevent changes to it
         mountpoint = Path("/srv/moncic-ci/source")
-        self.build.source.guest_path = mountpoint / self.build.source.path.name
+        self.build.guest_source_path = mountpoint / self.build.source.path.name
         container_config.configure_workdir(
             self.build.source.path.as_posix(), bind_type="volatile", mountpoint=mountpoint
         )

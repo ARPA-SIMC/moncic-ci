@@ -7,7 +7,7 @@ import os
 # import shutil
 import subprocess
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 
 from .. import context
 from ..runner import UserConfig
@@ -18,47 +18,13 @@ from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .build import Build
 from .utils import link_or_copy
+from ..source.debian import DebianSource
 
 if TYPE_CHECKING:
     from ..container import Container
     from ..system import System
 
 log = logging.getLogger(__name__)
-
-
-class SourceInfo(NamedTuple):
-    srcname: str
-    version: str
-    dsc_fname: str
-    tar_fname: str
-
-
-@guest_only
-def get_source_info(path=".") -> SourceInfo:
-    """
-    Return the file name of the .dsc file that would be created by the debian
-    source package in the current directory
-    """
-    with cd(path):
-        # Taken from debspawn
-        pkg_srcname = None
-        pkg_version = None
-        res = run(["dpkg-parsechangelog"], stdout=subprocess.PIPE, text=True)
-        for line in res.stdout.splitlines():
-            if line.startswith("Source: "):
-                pkg_srcname = line[8:].strip()
-            elif line.startswith("Version: "):
-                pkg_version = line[9:].strip()
-
-        if not pkg_srcname or not pkg_version:
-            raise RuntimeError("Unable to determine source package name or source package version")
-
-        pkg_version_dsc = pkg_version.split(":", 1)[1] if ":" in pkg_version else pkg_version
-        dsc_fname = f"{pkg_srcname}_{pkg_version_dsc}.dsc"
-        pkg_version_tar = pkg_version_dsc.split("-", 1)[0] if "-" in pkg_version_dsc else pkg_version_dsc
-        tar_fname = f"{pkg_srcname}_{pkg_version_tar}.orig.tar.gz"
-
-    return SourceInfo(pkg_srcname, pkg_version, dsc_fname, tar_fname)
 
 
 def get_file_list(path: str) -> list[str]:
@@ -104,11 +70,6 @@ class Debian(Build):
         metadata={"doc": "Always include sources in upload (run `dpkg-buildpackage -sa`)"},
     )
 
-    def __post_init__(self) -> None:
-        # This is only set in guest systems, and after self.build_source() has
-        # been called
-        self.srcinfo: SourceInfo | None = None
-
     # @host_only
     # def get_build_deps(self) -> list[str]:
     #     with self.container() as container:
@@ -133,7 +94,7 @@ class Debian(Build):
             stdout=subprocess.PIPE,
             text=True,
             check=True,
-            cwd=self.source.guest_path,
+            cwd=self.guest_source_path.as_posix(),
         )
         return [name.strip() for name in res.stdout.strip().splitlines()]
 
@@ -156,15 +117,12 @@ class Debian(Build):
 
     @guest_only
     def build(self) -> None:
+        assert isinstance(self.source, DebianSource)
         # Build source package
         with context.moncic.get().privs.user():
-            self.srcinfo = get_source_info(self.source.guest_path)
-            dsc_fname = self.source.build_source_package()
+            dsc_fname = self.source.build_source_package(self.guest_source_path)
 
-        if self.srcinfo is None:
-            raise RuntimeError("source information has not been detected")
-
-        self.name = self.srcinfo.srcname
+        self.name = self.source.source_info.name
 
         if not self.source_only:
             self.build_binary(dsc_fname)

@@ -35,7 +35,7 @@ log = logging.getLogger(__name__)
 re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<version>[^)]+)\)")
 
 
-@dataclass
+@dataclass(kw_only=True)
 class SourceInfo:
     """
     Information about a Debian source package
@@ -111,7 +111,7 @@ class SourceInfo:
         return GBPInfo(upstream_branch=upstream_branch, upstream_tag=upstream_tag, debian_tag=debian_tag)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class DSCInfo(SourceInfo):
     """Information read from a .dsc file"""
 
@@ -149,7 +149,7 @@ class DSCInfo(SourceInfo):
         return cls(**cls._infer_args_from_name_version(name, version, file_list=file_list))
 
 
-@dataclass
+@dataclass(kw_only=True)
 class GBPInfo:
     """
     Information from a gbp.conf file
@@ -170,6 +170,16 @@ class DebianSource(DistroSource, abc.ABC):
     def __init__(self, *, source_info: SourceInfo, **kwargs) -> None:
         super().__init__(**kwargs)
         self.source_info = source_info
+
+    @guest_only
+    def build_source_package(self, path: Path) -> str:
+        """
+        Build a source package and return the .dsc file name.
+
+        :param:path:the source file or directory in the guest system
+        :return:filename of the resulting .dsc file
+        """
+        raise NotImplementedError(f"{self.__class__.__name__}.build_source_package not implemented")
 
     @classmethod
     def create_from_file(cls, parent: File, *, distro: Distro) -> "DebianSource":
@@ -310,14 +320,9 @@ class DebianDsc(DebianSource, File):
         for fname in file_list:
             link_or_copy(srcdir / fname, destdir)
 
-
-#     @guest_only
-#     def build_source_package(self) -> str:
-#         """
-#         Build a source package in /srv/moncic-ci/source returning the name of
-#         the main file of the source package fileset
-#         """
-#         return self.guest_path
+    @guest_only
+    def build_source_package(self, path: Path) -> str:
+        return self.path.name
 
 
 class DebianDir(DebianSource, Dir):
@@ -359,33 +364,17 @@ class DebianDir(DebianSource, Dir):
         else:
             link_or_copy(tarball, destdir)
 
+    @guest_only
+    def build_source_package(self, path: Path) -> str:
+        # Uses --no-pre-clean to avoid requiring build-deps to be installed at
+        # this stage
+        run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=path)
 
-#     @host_only
-#     def gather_sources_from_host(self, build: Build, container: Container) -> None:
-#         """
-#         Gather needed source files from the host system and copy them to the
-#         guest
-#         """
-#         super().gather_sources_from_host(build, container)
-#
-#         tarball_search_dirs = [os.path.dirname(self.source.path)]
-#         self._find_tarball(build, container, tarball_search_dirs)
-#
-#     @guest_only
-#     def build_source_package(self) -> str:
-#         """
-#         Build a source package in /srv/moncic-ci/source returning the name of
-#         the main file of the source package fileset
-#         """
-#         # Uses --no-pre-clean to avoid requiring build-deps to be installed at
-#         # this stage
-#         run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.guest_path)
-#
-#         for fn in os.listdir("/srv/moncic-ci/source"):
-#             if fn.endswith(".dsc"):
-#                 return os.path.join("/srv/moncic-ci/source", fn)
-#
-#         raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
+        for sub in path.parent.iterdir():
+            if sub.suffix == ".dsc":
+                return sub.name
+
+        raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
 
 class DebianGitLegacy(DebianDir, Git):
@@ -462,22 +451,6 @@ class DebianGitLegacy(DebianDir, Git):
 #         res = cls(source, Path(source.repo.working_dir), debversion=debversion)
 #         res.add_trace_log("git", "clone", "-b", source.repo.active_branch.name, source.source)
 #         return res
-#
-#     @host_only
-#     def gather_sources_from_host(self, build: Build, container: Container) -> None:
-#         """
-#         Gather needed source files from the host system and copy them to the
-#         guest
-#         """
-#         super().gather_sources_from_host(build, container)
-#
-#         tarball_search_dirs = []
-#         if self.source.orig_path is not None:
-#             tarball_search_dirs.append(os.path.dirname(self.source.orig_path))
-#         self._find_tarball(build, container, tarball_search_dirs)
-#         if self.tarball_source is None:
-#             self.build_orig_tarball(container)
-#
 #
 #     @guest_only
 #     def build_source_package(self) -> str:
