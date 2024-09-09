@@ -149,9 +149,12 @@ class WorkdirFixture(unittest.TestCase):
 
 
 class GitFixture(WorkdirFixture):
+    path: Path
     git: GitRepo
+    git_name: str = "repo"
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.git = cls.stack.enter_context(GitRepo(cls.workdir / "repo"))
+        cls.path = cls.workdir / cls.git_name
+        cls.git = cls.stack.enter_context(GitRepo(cls.path))

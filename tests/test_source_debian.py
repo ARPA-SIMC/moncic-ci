@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import os
-import unittest
 from pathlib import Path
+from unittest import mock
+from typing import cast
 
 from moncic.distro import DistroFamily
+from moncic.distro.debian import DebianDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import File, Dir, Git
@@ -13,6 +14,7 @@ from moncic.source.debian import (
     DebianDir,
     DebianDsc,
     SourceInfo,
+    GBPInfo,
     DebianGitLegacy,
     DebianGBPTestDebian,
     DebianGBPTestUpstream,
@@ -23,7 +25,7 @@ from moncic.unittest import make_moncic
 
 from .source import GitFixture, MockBuilder, WorkdirFixture, GitRepo
 
-SID = DistroFamily.lookup_distro("sid")
+SID = cast(DebianDistro, DistroFamily.lookup_distro("sid"))
 
 
 class TestDebianSource(WorkdirFixture):
@@ -46,29 +48,12 @@ class TestDebianSource(WorkdirFixture):
 
     def test_from_file_dsc(self) -> None:
         path = self.workdir / "file.dsc"
-        path.write_text(
-            """Format: 3.0 (quilt)
-Source: moncic-ci
-Binary: moncic-ci
-Version: 0.1.0-1
-Files:
- d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0.orig.tar.gz
- d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
-"""
-        )
+        path.touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, File)
-            newsrc = DebianSource.create_from_file(src, distro=SID)
-            assert isinstance(newsrc, DebianDsc)
-            self.assertEqual(
-                newsrc.source_info,
-                DSCInfo(
-                    name="moncic-ci",
-                    version="0.1.0-1",
-                    dsc_filename="moncic-ci_0.1.0-1.dsc",
-                    tar_stem="moncic-ci_0.1.0.orig.tar",
-                ),
-            )
+            with mock.patch("moncic.source.debian.DebianDsc.prepare_from_file") as patched:
+                DebianSource.create_from_file(src, distro=SID)
+            patched.assert_called_once()
 
     def test_from_dir_empty(self) -> None:
         path = self.workdir / "dir"
@@ -90,19 +75,9 @@ Files:
 
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            newsrc = DebianSource.create_from_dir(src, distro=SID)
-            assert isinstance(newsrc, DebianDir)
-            self.assertEqual(newsrc.path, path)
-            self.assertEqual(
-                newsrc.source_info,
-                SourceInfo(
-                    name="debsource",
-                    version="0.1.0-1",
-                    dsc_filename="debsource_0.1.0-1.dsc",
-                    tar_stem="debsource_0.1.0.orig.tar",
-                ),
-            )
-            self.assertEqual(newsrc.tarball, tar_path)
+            with mock.patch("moncic.source.debian.DebianDir.prepare_from_dir") as patched:
+                DebianSource.create_from_dir(src, distro=SID)
+            patched.assert_called_once()
 
     def test_from_git_empty(self) -> None:
         git = self.make_git_repo("git")
@@ -120,21 +95,9 @@ Files:
 
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = DebianSource.create_from_git(src, distro=SID)
-            assert isinstance(newsrc, DebianGitLegacy)
-            self.assertEqual(newsrc.path, git.root)
-            self.assertIs(newsrc.repo, src.repo)
-            self.assertEqual(newsrc.readonly, src.readonly)
-            self.assertEqual(
-                newsrc.source_info,
-                SourceInfo(
-                    name="gitlegacy",
-                    version="0.1.0-1",
-                    dsc_filename="gitlegacy_0.1.0-1.dsc",
-                    tar_stem="gitlegacy_0.1.0.orig.tar",
-                ),
-            )
-            self.assertEqual(newsrc.tarball, tar_path)
+            with mock.patch("moncic.source.debian.DebianGitLegacy.prepare_from_git") as patched:
+                DebianSource.create_from_git(src, distro=SID)
+            patched.assert_called_once()
 
     def test_from_git_debian_from_upstream(self) -> None:
         git = self.make_git_repo("gitgbpupstream")
@@ -156,20 +119,9 @@ Files:
 
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = DebianSource.create_from_git(src, distro=SID)
-            assert isinstance(newsrc, DebianGBPTestUpstream)
-            self.assertNotEqual(newsrc.path, git.root)
-            self.assertIsNot(newsrc.repo, src.repo)
-            self.assertFalse(newsrc.readonly)
-            self.assertEqual(
-                newsrc.source_info,
-                SourceInfo(
-                    name="gitgbpupstream",
-                    version="0.1.0-1",
-                    dsc_filename="gitgbpupstream_0.1.0-1.dsc",
-                    tar_stem="gitgbpupstream_0.1.0.orig.tar",
-                ),
-            )
+            with mock.patch("moncic.source.debian.DebianGBPTestUpstream.prepare_from_git") as patched:
+                DebianSource.create_from_git(src, distro=SID)
+            patched.assert_called_once()
 
     def test_from_git_debian_release(self) -> None:
         git = self.make_git_repo("gitgbprelease")
@@ -195,20 +147,9 @@ debian-branch=debian/unstable
 
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = DebianSource.create_from_git(src, distro=SID)
-            assert isinstance(newsrc, DebianGBPRelease)
-            self.assertEqual(newsrc.path, git.root)
-            self.assertIs(newsrc.repo, src.repo)
-            self.assertTrue(newsrc.readonly)
-            self.assertEqual(
-                newsrc.source_info,
-                SourceInfo(
-                    name="moncic-ci",
-                    version="0.1.0-1",
-                    dsc_filename="moncic-ci_0.1.0-1.dsc",
-                    tar_stem="moncic-ci_0.1.0.orig.tar",
-                ),
-            )
+            with mock.patch("moncic.source.debian.DebianGBPRelease.prepare_from_git") as patched:
+                DebianSource.create_from_git(src, distro=SID)
+            patched.assert_called_once()
 
     def test_from_git_debian_test(self) -> None:
         git = self.make_git_repo("gitgbptest")
@@ -241,29 +182,19 @@ debian-branch=debian/unstable
 
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = DebianSource.create_from_git(src, distro=SID)
-            self.assertIsInstance(newsrc, DebianGBPTestDebian)
-            assert isinstance(newsrc, DebianGBPTestDebian)
-            self.assertNotEqual(newsrc.path, git.root)
-            self.assertIsNot(newsrc.repo, src.repo)
-            self.assertFalse(newsrc.readonly)
-            self.assertEqual(
-                newsrc.source_info,
-                SourceInfo(
-                    name="moncic-ci",
-                    version="0.1.0-1",
-                    dsc_filename="moncic-ci_0.1.0-1.dsc",
-                    tar_stem="moncic-ci_0.1.0.orig.tar",
-                ),
-            )
+            with mock.patch("moncic.source.debian.DebianGBPTestDebian.prepare_from_git") as patched:
+                DebianSource.create_from_git(src, distro=SID)
+            patched.assert_called_once()
 
 
 class TestDebianDsc(WorkdirFixture):
+    path: Path
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.dsc_file = cls.workdir / "moncic-ci_0.1.0-1.dsc"
-        cls.dsc_file.write_text(
+        cls.path = cls.workdir / "moncic-ci_0.1.0-1.dsc"
+        cls.path.write_text(
             """Format: 3.0 (quilt)
 Source: moncic-ci
 Binary: moncic-ci
@@ -277,9 +208,23 @@ Files:
         (cls.workdir / "moncic-ci_0.1.0.orig.tar.gz").write_bytes(b"")
         (cls.workdir / "moncic-ci_0.1.0-1.debian.tar.xz").write_bytes(b"")
 
-
-class TestDebianLegacyMixin(WorkdirFixture):
-    tarball_name: str
+    def test_prepare_from_file(self) -> None:
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, File)
+            src = DebianDsc.prepare_from_file(parent, distro=SID)
+            assert isinstance(src, DebianDsc)
+            self.assertIs(src.parent, parent)
+            self.assertEqual(src.path, parent.path)
+            self.assertEqual(src.command_log, [])
+            self.assertEqual(
+                src.source_info,
+                DSCInfo(
+                    name="moncic-ci",
+                    version="0.1.0-1",
+                    dsc_filename="moncic-ci_0.1.0-1.dsc",
+                    tar_stem="moncic-ci_0.1.0.orig.tar",
+                ),
+            )
 
 
 #     def test_detect_local(self):
@@ -314,46 +259,24 @@ class TestDebianLegacyMixin(WorkdirFixture):
 #                 )
 
 
-class TestDebianLegacyDirMixin(TestDebianLegacyMixin):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.pkg_root = cls.workdir / "moncic-ci"
-        debian_dir = cls.pkg_root / "debian"
-        os.makedirs(debian_dir, exist_ok=True)
+class TestDebianLegacy(WorkdirFixture):
+    path: Path
 
-        with open(os.path.join(debian_dir, "changelog"), "wt") as fd:
-            print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
+    def assertCommonAttributes(self, src: DebianDir, tar_path: Path) -> None:
+        assert isinstance(src, DebianDir)
+        self.assertEqual(src.path, self.path)
+        self.assertEqual(src.command_log, [])
+        self.assertEqual(
+            src.source_info,
+            SourceInfo(
+                name="moncic-ci",
+                version="0.1.0-1",
+                dsc_filename="moncic-ci_0.1.0-1.dsc",
+                tar_stem="moncic-ci_0.1.0.orig.tar",
+            ),
+        )
+        self.assertEqual(src.tarball, tar_path)
 
-        # Create mock tarball
-        (cls.workdir / cls.tarball_name).write_bytes(b"")
-
-
-class TestDebianSourceDirGz(TestDebianLegacyDirMixin, unittest.TestCase):
-    tarball_name = "moncic-ci_0.1.0.orig.tar.gz"
-
-
-class TestDebianSourceDirXz(TestDebianLegacyDirMixin, unittest.TestCase):
-    tarball_name = "moncic-ci_0.1.0.orig.tar.xz"
-
-
-class TestDebianLegacyGit(TestDebianLegacyMixin):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.pkg_root = cls.workdir / "moncic-ci"
-        debian_dir = cls.pkg_root / "debian"
-        os.makedirs(debian_dir, exist_ok=True)
-
-        with open(os.path.join(debian_dir, "changelog"), "wt") as fd:
-            print("moncic-ci (0.1.0-1) UNRELEASED; urgency=low", file=fd)
-
-        # Create mock tarball
-        (cls.workdir / cls.tarball_name).write_bytes(b"")
-
-
-del TestDebianLegacyMixin
-del TestDebianLegacyDirMixin
 
 #     def test_detect_local(self):
 #         with InputSource.create(self.pkg_root) as isrc:
@@ -380,10 +303,78 @@ del TestDebianLegacyDirMixin
 #                 self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
 #                 # TODO: @guest_only
 #                 # TODO: def build_source_package(self) -> str:
-#
-#
-#
-#
+
+
+class TestDebianLegacyDir(TestDebianLegacy):
+    path: Path
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.path = cls.workdir / "moncic-ci"
+        debian_dir = cls.path / "debian"
+        debian_dir.mkdir(parents=True)
+        (debian_dir / "changelog").write_text("moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
+
+    def test_prepare_from_dir_gz(self) -> None:
+        tar_path = self.workdir / "moncic-ci_0.1.0.orig.tar.gz"
+        tar_path.touch()
+        self.addCleanup(tar_path.unlink)
+
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Dir)
+            src = DebianDir.prepare_from_dir(parent, distro=SID)
+            self.assertCommonAttributes(src, tar_path)
+
+    def test_prepare_from_dir_xz(self) -> None:
+        tar_path = self.workdir / "moncic-ci_0.1.0.orig.tar.xz"
+        tar_path.touch()
+        self.addCleanup(tar_path.unlink)
+
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Dir)
+            src = DebianDir.prepare_from_dir(parent, distro=SID)
+            self.assertCommonAttributes(src, tar_path)
+
+
+class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
+    git_name = "moncic-ci"
+    source_info: SourceInfo
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low\n")
+        cls.git.commit()
+        cls.source_info = SourceInfo.create_from_dir(cls.path)
+
+    def test_prepare_from_git_gz(self) -> None:
+        tar_path = self.workdir / "moncic-ci_0.1.0.orig.tar.gz"
+        tar_path.touch()
+        self.addCleanup(tar_path.unlink)
+
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Git)
+            src = DebianGitLegacy.prepare_from_git(parent, distro=SID, source_info=self.source_info)
+            self.assertCommonAttributes(src, tar_path)
+            self.assertIs(src.repo, parent.repo)
+            self.assertTrue(src.readonly)
+
+    def test_prepare_from_git_xz(self) -> None:
+        tar_path = self.workdir / "moncic-ci_0.1.0.orig.tar.xz"
+        tar_path.touch()
+        self.addCleanup(tar_path.unlink)
+
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Git)
+            src = DebianGitLegacy.prepare_from_git(
+                parent, distro=SID, source_info=SourceInfo.create_from_dir(self.path)
+            )
+            self.assertCommonAttributes(src, tar_path)
+            self.assertIs(src.repo, parent.repo)
+            self.assertTrue(src.readonly)
+
+
 # class DebianPlainGitMixin(GitFixtureMixin):
 #     tarball_name: str
 #     skip_tarball: bool = False
@@ -451,28 +442,52 @@ del TestDebianLegacyDirMixin
 #     # Test without tarball: a .tar.xz one gets generated from git
 #     tarball_name = "moncic-ci_0.1.0.orig.tar.xz"
 #     skip_tarball = True
-#
-#
-# class DebianGBPTestUpstreamMixin(GitFixtureMixin):
-#     @classmethod
-#     def setUpClass(cls):
-#         super().setUpClass()
-#         # Initial upstream
-#         cls.git.add("testfile")
-#         cls.git.commit("Initial commit")
-#
-#         # Debian branch
-#         cls.git.git("checkout", "-b", cls.packaging_branch_name)
-#         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
-#         cls.git.commit()
-#
-#         # New changes to upstream branch
-#         cls.git.git("checkout", "main")
-#         cls.git.add("testfile", "test content")
-#         cls.git.commit("Updated testfile")
-#
-#         # TODO: add gdb.conf
-#
+
+
+class TestDebianGBPTestUpstream(GitFixture):
+    git_name = "moncic-ci"
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Initial upstream
+        cls.git.add("testfile")
+        cls.git.commit("Initial commit")
+
+        # Debian branch
+        cls.git.git("checkout", "-b", "debian/sid")
+        cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
+        cls.git.commit()
+
+        # New changes to upstream branch
+        cls.git.git("checkout", "main")
+        cls.git.add("testfile", "test content")
+        cls.git.commit("Updated testfile")
+
+        # TODO: add gdb.conf
+
+    def test_prepare_from_git(self) -> None:
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Git)
+            src = DebianGBPTestUpstream.prepare_from_git(
+                parent, distro=SID, packaging_branch=parent.repo.refs["debian/sid"]
+            )
+            assert isinstance(src, DebianGBPTestUpstream)
+            self.assertNotEqual(src.path, self.path)
+            self.assertIsNot(src.repo, parent.repo)
+            self.assertFalse(src.readonly)
+            self.assertEqual(
+                src.source_info,
+                SourceInfo(
+                    name="moncic-ci",
+                    version="0.1.0-1",
+                    dsc_filename="moncic-ci_0.1.0-1.dsc",
+                    tar_stem="moncic-ci_0.1.0.orig.tar",
+                ),
+            )
+            self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch", "--git-upstream-branch=main"])
+
+
 #     def test_detect_local(self):
 #         with InputSource.create(self.git.root) as isrc:
 #             self.assertIsInstance(isrc, inputsource.LocalGit)
@@ -517,10 +532,55 @@ del TestDebianLegacyDirMixin
 #
 # class TestDebianGBPTestUpstreamSid(DebianGBPTestUpstreamMixin, unittest.TestCase):
 #     packaging_branch_name = "debian/sid"
-#
-#
-# class TestDebianGBPRelease(GitFixtureMixin, unittest.TestCase):
-#
+
+
+class TestDebianGBPRelease(GitFixture):
+    git_name = "moncic-ci"
+    source_info: SourceInfo
+    gbp_info: GBPInfo
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+
+        # Initial upstream
+        cls.git.add("testfile")
+        cls.git.commit("Initial commit")
+        cls.git.git("tag", "upstream/0.1.0")
+
+        # Debian branch
+        cls.git.git("checkout", "-b", "debian/unstable")
+        cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
+        cls.git.add(
+            "debian/gbp.conf",
+            """
+[DEFAULT]
+upstream-branch=main
+upstream-tag=%(version)s
+debian-branch=debian/unstable
+""",
+        )
+        cls.git.commit()
+        cls.git.git("tag", "debian/0.1.0-1")
+
+        cls.source_info = SourceInfo.create_from_dir(cls.path)
+        cls.gbp_info = cls.source_info.parse_gbp(cls.path / "debian" / "gbp.conf")
+
+    def test_prepare_from_git(self) -> None:
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Git)
+            src = DebianGBPRelease.prepare_from_git(
+                parent, distro=SID, source_info=self.source_info, gbp_info=self.gbp_info
+            )
+            assert isinstance(src, DebianGBPRelease)
+            self.assertEqual(src.path, self.path)
+            self.assertIs(src.repo, parent.repo)
+            self.assertTrue(src.readonly)
+            self.assertEqual(src.source_info, self.source_info)
+            self.assertEqual(src.gbp_info, self.gbp_info)
+            self.assertEqual(src.gbp_args, ["--git-upstream-tree=tag"])
+
+
 #     def test_detect_local(self):
 #         with InputSource.create(self.git.root) as isrc:
 #             self.assertIsInstance(isrc, inputsource.LocalGit)
@@ -566,38 +626,62 @@ del TestDebianLegacyDirMixin
 #     def test_build_source_url(self):
 #         with self.git.serve() as url:
 #             self._test_build_source(url)
-#
-#
-# class TestDebianGBPTestDebian(GitFixtureMixin, unittest.TestCase):
-#     @classmethod
-#     def setUpClass(cls):
-#         super().setUpClass()
-#         # Initial upstream
-#         cls.git.add("testfile")
-#         cls.git.commit("Initial commit")
-#
-#         # Debian branch
-#         cls.git.git("checkout", "-b", "debian/unstable")
-#         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
-#         cls.git.add(
-#             "debian/gbp.conf",
-#             """
-# [DEFAULT]
-# upstream-branch=main
-# upstream-tag=%(version)s
-# debian-branch=debian/unstable
-# """,
-#         )
-#         cls.git.commit()
-#
-#         # New changes to upstream branch
-#         cls.git.git("checkout", "main")
-#         cls.git.add("testfile", "test content")
-#         cls.git.commit("Updated testfile")
-#
-#         # Leave the packaging branch as current
-#         cls.git.git("checkout", "debian/unstable")
-#
+
+
+class TestDebianGBPTestDebian(GitFixture):
+    git_name = "moncic-ci"
+    source_info: SourceInfo
+    gbp_info: GBPInfo
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+
+        # Initial upstream
+        cls.git.add("testfile")
+        cls.git.commit("Initial commit")
+
+        # Debian branch
+        cls.git.git("checkout", "-b", "debian/unstable")
+        cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
+        cls.git.add(
+            "debian/gbp.conf",
+            """
+[DEFAULT]
+upstream-branch=main
+upstream-tag=%(version)s
+debian-branch=debian/unstable
+""",
+        )
+        cls.git.commit()
+
+        # New changes to upstream branch
+        cls.git.git("checkout", "main")
+        cls.git.add("testfile", "test content")
+        cls.git.commit("Updated testfile")
+
+        # Leave the packaging branch as current
+        cls.git.git("checkout", "debian/unstable")
+
+        cls.source_info = SourceInfo.create_from_dir(cls.path)
+        cls.gbp_info = cls.source_info.parse_gbp(cls.path / "debian" / "gbp.conf")
+
+    def test_prepare_from_git(self) -> None:
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Git)
+            src = DebianGBPTestDebian.prepare_from_git(
+                parent, distro=SID, source_info=self.source_info, gbp_info=self.gbp_info
+            )
+            self.assertIsInstance(src, DebianGBPTestDebian)
+            assert isinstance(src, DebianGBPTestDebian)
+            self.assertNotEqual(src.path, self.path)
+            self.assertIsNot(src.repo, parent.repo)
+            self.assertFalse(src.readonly)
+            self.assertEqual(src.source_info, self.source_info)
+            self.assertEqual(src.gbp_info, self.gbp_info)
+            self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
+
+
 #     def test_detect_local(self):
 #         with InputSource.create(self.git.root) as isrc:
 #             self.assertIsInstance(isrc, inputsource.LocalGit)
