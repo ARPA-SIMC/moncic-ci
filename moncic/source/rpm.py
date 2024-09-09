@@ -98,11 +98,6 @@ class ARPASource(RPMSource, abc.ABC):
     ARPAE-SIMC (https://www.arpae.it)
     """
 
-    #    def get_build_class(self) -> type[Build]:
-    #        from ..build.arpa import ARPA
-    #
-    #        return ARPA
-    #
     #    def get_linter_class(self) -> type[lint.Linter]:
     #        return lint.ARPALinter
 

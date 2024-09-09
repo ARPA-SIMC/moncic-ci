@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .source import Source
-
-if TYPE_CHECKING:
-    from ..distro import Distro
+from .local import Git
 
 
 class URL(Source):
@@ -19,12 +17,12 @@ class URL(Source):
     #: Branch to use (default: the current one)
     branch: str | None
 
-    def __init__(self, *, url: urllib.parse.ParseResult, branch: str | None = None, **kwargs: Any) -> None:
+    def __init__(self, *, url: urllib.parse.ParseResult, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.url = url
-        self.branch = branch
 
-    def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
-        # Clone into a local Git and delegate make_buildable to it
-        res = self._git_clone(urllib.parse.urlunparse(self.url), self.branch)
-        return res.make_buildable(distro=distro, source_type=source_type)
+    def clone(self, branch: str | None = None) -> Git:
+        """
+        Clone the repository into a local source
+        """
+        return self._git_clone(self.name, branch)

@@ -187,17 +187,6 @@ class Source(abc.ABC):
             return File(name=name, path=source)
 
     @classmethod
-    def create(
-        cls, *, source: str | Path, branch: str | None = None, distro: Distro, style: str | None = None
-    ) -> "Source":
-        """
-        Create an initial Source from a user argument
-        """
-        distro_source_cls = cls.get_distro_source_class(distro=distro)
-        base = cls.create_local(source=source, branch=branch)
-        return distro_source_cls.create_from_local(base, distro=distro, style=style)
-
-    @classmethod
     def get_distro_source_class(cls, *, distro: Distro) -> type["DistroSource"]:
         from ..distro.debian import DebianDistro
         from ..distro.rpm import RpmDistro
@@ -259,24 +248,9 @@ class Source(abc.ABC):
 
 
 #    @abstractmethod
-#    def get_build_class(self) -> type[Build]:
-#        """
-#        Return the Build subclass used to build this source
-#        """
-#
-#    @abstractmethod
 #    def get_linter_class(self) -> type[Linter]:
 #        """
 #        Return the Linter subclass used to check this source
-#        """
-#
-#    @abstractclassmethod
-#    def create(cls, distro: Distro, source: InputSource) -> Source:
-#        """
-#        Create an instance of this source.
-#
-#        This is used to instantiate a source from a well known class, instead
-#        of having it autodetected by InputSource
 #        """
 #
 #    def make_build(self, **kwargs: Any) -> Build:

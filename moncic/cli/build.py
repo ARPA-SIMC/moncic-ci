@@ -8,9 +8,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from ..build import Builder
+from ..build import Build, Builder
 from ..distro import Distro
-from ..source import InputSource
+from ..source import Source
 from .moncic import SourceCommand, main_command
 from .utils import BuildOptionAction, set_build_option_action
 
@@ -76,11 +76,12 @@ class CI(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                with self.source(system.distro, self.args.source) as source:
-                    log.info("Source type: %s", source.get_name())
+                with self.source(system.distro) as source:
+                    log.info("Source type: %s", source.__class__)
 
                     # Create a Build object with system-configured defaults
-                    build = source.make_build(distro=system.distro, **build_kwargs_system)
+                    build_class = Build.get_build_class(source)
+                    build = build_class(source=source, distro=system.distro, **build_kwargs_system)
 
                     # Load YAML configuration for the build
                     if self.args.build_config:
@@ -109,8 +110,8 @@ class CI(SourceCommand):
                             def default(self, obj):
                                 if dataclasses.is_dataclass(obj):
                                     return dataclasses.asdict(obj)
-                                elif isinstance(obj, InputSource):
-                                    return obj.source
+                                elif isinstance(obj, Source):
+                                    return obj.name
                                 elif isinstance(obj, Distro):
                                     return obj.name
                                 elif isinstance(obj, Path):

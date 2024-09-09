@@ -35,7 +35,8 @@ log = logging.getLogger(__name__)
 re_debchangelog_head = re.compile(r"^(?P<name>\S+) \((?:[^:]+:)?(?P<version>[^)]+)\)")
 
 
-class SourceInfo(NamedTuple):
+@dataclass
+class SourceInfo:
     """
     Information about a Debian source package
     """
@@ -64,7 +65,7 @@ class SourceInfo(NamedTuple):
         return cls(**cls._infer_args_from_name_version(name, version))
 
     @classmethod
-    def _infer_args_from_name_version(cls, name: str, version: str) -> dict[str, str]:
+    def _infer_args_from_name_version(cls, name: str, version: str, **kwargs) -> dict[str, str]:
         res: dict[str, str] = {
             "name": name,
             "version": version,
@@ -76,6 +77,7 @@ class SourceInfo(NamedTuple):
         else:
             res["tar_stem"] = f"{name}_{version_dsc}.tar"
         res["dsc_filename"] = f"{name}_{version_dsc}.dsc"
+        res.update(kwargs)
         return res
 
     def find_tarball(self, search_dirs: Sequence[Path] = ()) -> Path | None:
@@ -109,29 +111,46 @@ class SourceInfo(NamedTuple):
         return GBPInfo(upstream_branch=upstream_branch, upstream_tag=upstream_tag, debian_tag=debian_tag)
 
 
+@dataclass
 class DSCInfo(SourceInfo):
     """Information read from a .dsc file"""
+
+    file_list: list[str]
 
     @classmethod
     def create_from_file(cls, path: Path) -> "DSCInfo":
         name: str | None = None
         version: str | None = None
+        file_list: list[str] = []
+
+        re_file = re.compile(r"^\s+\S+\s+\d+\s+(\S+)\s*$")
+
         with path.open() as fd:
+            files_section = False
             for line in fd:
-                if line.startswith("Source: "):
-                    name = line[8:].strip()
-                elif line.startswith("Version: "):
-                    version = line[9:].strip()
+                if not files_section:
+                    if line.startswith("Source: "):
+                        name = line[8:].strip()
+                    elif line.startswith("Version: "):
+                        version = line[9:].strip()
+                    elif line.startswith("Files:"):
+                        files_section = True
+                else:
+                    if mo := re_file.match(line):
+                        file_list.append(mo.group(1))
+                    else:
+                        files_section = False
 
         if name is None:
             raise Fail(f"{path}: Source: entry not found")
         if version is None:
             raise Fail(f"{path}: Version: entry not found")
 
-        return cls(**cls._infer_args_from_name_version(name, version))
+        return cls(**cls._infer_args_from_name_version(name, version, file_list=file_list))
 
 
-class GBPInfo(NamedTuple):
+@dataclass
+class GBPInfo:
     """
     Information from a gbp.conf file
     """
@@ -151,15 +170,6 @@ class DebianSource(DistroSource, abc.ABC):
     def __init__(self, *, source_info: SourceInfo, **kwargs) -> None:
         super().__init__(**kwargs)
         self.source_info = source_info
-
-    @classmethod
-    def _find_tarball_for_unpacked_sources(cls, path: Path, source_info: SourceInfo) -> Path:
-        # TODO: if artifacts_dir := build.artifacts_dir:
-        # TODO:     tarball_search_dirs.append(artifacts_dir)
-        tarball = source_info.find_tarball([path.parent])
-        if tarball is None:
-            raise Fail(f"Tarball {source_info.tar_stem}.* not found")
-        return tarball
 
     @classmethod
     def create_from_file(cls, parent: File, *, distro: Distro) -> "DebianSource":
@@ -206,36 +216,44 @@ class DebianSource(DistroSource, abc.ABC):
 
         debian_path = parent.path / "debian"
         if not debian_path.exists() or not (debian_path / "changelog").exists():
+            log.debug("%s: debian/ directory not found: looking for a packaging branch", parent)
             # There is no debian/changelog: the current branch could be
             # upstream in a gbp repository
             packaging_branch = DebianGBP.find_packaging_branch(parent, distro)
             if packaging_branch is None:
                 raise Fail(f"{parent.path}: cannot detect source type")
+            log.debug("%s: found a packaging branch, using DebianGBPTestUpstream", parent)
             return DebianGBPTestUpstream.prepare_from_git(parent, distro=distro, packaging_branch=packaging_branch)
 
+        log.debug("%s: found debian/ directory", parent)
         source_info = SourceInfo.create_from_dir(parent.path)
 
         # Check if it's a gbp-buildpackage source
         gbp_conf_path = debian_path / "gbp.conf"
         if not gbp_conf_path.exists():
+            log.debug("%s: gbp.conf not found, using DebianGitLegacy", parent)
             return DebianGitLegacy.prepare_from_git(parent, distro=distro, source_info=source_info)
 
         gbp_info = source_info.parse_gbp(parent.path / "debian" / "gbp.conf")
+        log.debug(
+            "%s: gbp.conf found: upstream_branch=%s, upstream_tag=%s, debian_tag=%s",
+            parent,
+            gbp_info.upstream_branch,
+            gbp_info.upstream_tag,
+            gbp_info.debian_tag,
+        )
 
         # Check if we are building a tagged commit
         if parent.find_tags():
             # If branch to build is a tag, build a release from it
+            log.debug("%s: branch is tagged, using DebianGBPRelease", parent)
             return DebianGBPRelease.prepare_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
 
         # There is a debian/ directory, find upstream from gbp.conf
+        log.debug("%s: branch is not tagged, using DebianGBPTestDebian", parent)
         return DebianGBPTestDebian.prepare_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
 
 
-#    def get_build_class(self) -> type[Build]:
-#        from ..build.debian import Debian
-#
-#        return Debian
-#
 #    def get_linter_class(self) -> type[lint.Linter]:
 #        return lint.DebianLinter
 #
@@ -282,40 +300,17 @@ class DebianDsc(DebianSource, File):
         dsc_info = DSCInfo.create_from_file(parent.path)
         return cls(parent=parent, path=parent.path, distro=distro, dsc_info=dsc_info)
 
+    @host_only
+    def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
+        super().collect_build_artifacts(destdir, artifact_dir)
+        # Copy .dsc and its assets to the container
+        srcdir = self.path.parent
+        file_list = [self.path.name]
+        file_list += self.source_info.file_list
+        for fname in file_list:
+            link_or_copy(srcdir / fname, destdir)
 
-#     @host_only
-#     def gather_sources_from_host(self, build: Build, container: Container) -> None:
-#         """
-#         Gather needed source files from the host system and copy them to the
-#         guest
-#         """
-#         super().gather_sources_from_host(build, container)
-#
-#         re_files = re.compile(r"^Files:\s*$")
-#         re_file = re.compile(r"^\s+\S+\s+\d+\s+(\S+)\s*$")
-#
-#         # Parse .dsc to get the list of assets
-#         file_list = [self.host_path.name]
-#         with self.host_path.open("rt") as fd:
-#             files_section = False
-#             for line in fd:
-#                 if not files_section:
-#                     if re_files.match(line):
-#                         files_section = True
-#                 else:
-#                     mo = re_file.match(line)
-#                     if not mo:
-#                         break
-#                     file_list.append(mo.group(1))
-#
-#         # Copy .dsc and its assets to the container
-#         srcdir = self.host_path.parent
-#         dstdir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
-#         for fname in file_list:
-#             link_or_copy(srcdir / fname, dstdir)
-#
-#         self.guest_path = os.path.join("/srv/moncic-ci/source", self.host_path.name)
-#
+
 #     @guest_only
 #     def build_source_package(self) -> str:
 #         """
@@ -332,12 +327,6 @@ class DebianDir(DebianSource, Dir):
 
     NAME = "debian-dir"
 
-    tarball: Path
-
-    def __init__(self, *, tarball: Path, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.tarball = tarball
-
     @classmethod
     def prepare_from_dir(
         cls,
@@ -346,8 +335,29 @@ class DebianDir(DebianSource, Dir):
         distro: DebianDistro,
     ) -> "DebianDir":  # TODO: Self from python 3.11+
         source_info = SourceInfo.create_from_dir(parent.path)
-        tarball = cls._find_tarball_for_unpacked_sources(parent.path, source_info)
-        return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info, tarball=tarball)
+        return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info)
+
+    def _find_tarball(self, artifact_dir: Path | None = None) -> Path | None:
+        search_path = []
+        if artifact_dir:
+            search_path.append(artifact_dir)
+        search_path.append(self.path.parent)
+        return self.source_info.find_tarball(search_path)
+
+    def _on_tarball_not_found(self, destdir: Path) -> None:
+        """
+        Hook called if the tarball was not found, to allow a subclass to generate it
+        """
+        raise Fail(f"Tarball {self.source_info.tar_stem}.* not found")
+
+    @host_only
+    def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
+        super().collect_build_artifacts(destdir, artifact_dir)
+        tarball = self._find_tarball(artifact_dir)
+        if tarball is None:
+            self._on_tarball_not_found(destdir)
+        else:
+            link_or_copy(tarball, destdir)
 
 
 #     @host_only
@@ -391,9 +401,6 @@ class DebianGitLegacy(DebianDir, Git):
         distro: DebianDistro,
         source_info: SourceInfo,
     ) -> "DebianGitLegacy":  # TODO: Self from python 3.11+
-        # Not a gib-buildpackage source, build with dpkg-buildpackage
-        tarball = cls._find_tarball_for_unpacked_sources(parent.path, source_info)
-
         # FIXME: cast not needed after Python 3.11
         return cast(
             DebianGitLegacy,
@@ -401,9 +408,27 @@ class DebianGitLegacy(DebianDir, Git):
                 parent,
                 distro=distro,
                 source_info=source_info,
-                tarball=tarball,
             ),
         )
+
+    def _on_tarball_not_found(self, destdir: Path) -> None:
+        """
+        Hook called if the tarball was not found, to allow a subclass to generate it
+        """
+        source_stat = self.path.stat()
+        dest_tarball = destdir / (self.source_info.tar_stem + ".xz")
+        with lzma.open(dest_tarball, "wb") as out:
+            # This is a last-resort measure, trying to build an approximation of an
+            # upstream tarball when none was found
+            log.info("%s: building tarball from source directory", self)
+            cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
+            log_run(cmd, cwd=self.path)
+            proc = subprocess.Popen(cmd, cwd=self.path, stdout=subprocess.PIPE)
+            assert proc.stdout
+            shutil.copyfileobj(proc.stdout, out)
+            if proc.wait() != 0:
+                raise RuntimeError(f"git archive exited with error code {proc.returncode}")
+        os.chown(dest_tarball, source_stat.st_uid, source_stat.st_gid)
 
 
 # class DebianGit(DebianDirMixin, DebianGitSource):
@@ -453,32 +478,6 @@ class DebianGitLegacy(DebianDir, Git):
 #         if self.tarball_source is None:
 #             self.build_orig_tarball(container)
 #
-#     @host_only
-#     def build_orig_tarball(self, container: Container):
-#         """
-#         Make sure srcinfo.tar_fname exists.
-#
-#         This function is run from a clean source directory
-#         """
-#         if self.tarball_filename is None:
-#             raise RuntimeError("tarball file not found")
-#         source_dir = os.path.join(container.get_root(), "srv", "moncic-ci", "source")
-#         source_stat = os.stat(source_dir)
-#         dest_tarball = os.path.join(source_dir, self.tarball_filename)
-#         with lzma.open(dest_tarball, "wb") as out:
-#             with context.moncic.get().privs.user():
-#                 # This is a last-resort measure, trying to build an approximation of an
-#                 # upstream tarball when none was found
-#                 log.info("Building tarball from source directory")
-#                 cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
-#                 log_run(cmd, cwd=self.source.path)
-#                 proc = subprocess.Popen(cmd, cwd=self.source.path, stdout=subprocess.PIPE)
-#                 shutil.copyfileobj(proc.stdout, out)
-#                 if proc.wait() != 0:
-#                     raise RuntimeError(f"git archive exited with error code {proc.returncode}")
-#
-#                 self.tarball_source = "[git archive HEAD . :(exclude)debian]"
-#         os.chown(dest_tarball, source_stat.st_uid, source_stat.st_gid)
 #
 #     @guest_only
 #     def build_source_package(self) -> str:

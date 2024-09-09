@@ -4,6 +4,7 @@ import contextlib
 import dataclasses
 import logging
 import os
+from pathlib import Path
 from typing import IO, TYPE_CHECKING
 
 from ..container import ContainerConfig
@@ -24,6 +25,7 @@ class Builder(contextlib.ExitStack):
     """
     Interface for classes providing the logic for CI builds
     """
+
     def __init__(self, system: System, build: Build):
         super().__init__()
         # System used for the build
@@ -65,8 +67,7 @@ class Builder(contextlib.ExitStack):
         self.buildlog_file = open(log_file, "wt")
         self.buildlog_handler = logging.StreamHandler(self.buildlog_file)
         self.buildlog_handler.setLevel(logging.DEBUG)
-        self.buildlog_handler.setFormatter(
-                logging.Formatter("%(asctime)-19.19s %(levelname)s %(message)s"))
+        self.buildlog_handler.setFormatter(logging.Formatter("%(asctime)-19.19s %(levelname)s %(message)s"))
         logging.getLogger().addHandler(self.buildlog_handler)
         logging.getLogger().setLevel(logging.DEBUG)
 
@@ -96,10 +97,11 @@ class Builder(contextlib.ExitStack):
         # Mount the source directory as /srv/moncic-ci/source/<name>
         # Set it as the default current directory in the container
         # Mounted volatile to prevent changes to it
-        mountpoint = "/srv/moncic-ci/source"
-        self.build.source.guest_path = os.path.join(mountpoint, self.build.source.host_path.name)
+        mountpoint = Path("/srv/moncic-ci/source")
+        self.build.source.guest_path = mountpoint / self.build.source.path.name
         container_config.configure_workdir(
-                self.build.source.host_path.as_posix(), bind_type="volatile", mountpoint=mountpoint)
+            self.build.source.path.as_posix(), bind_type="volatile", mountpoint=mountpoint
+        )
         container = self.system.create_container(config=container_config)
         with container:
             self.setup_container_host(container)
@@ -134,9 +136,7 @@ class Builder(contextlib.ExitStack):
                 log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
 
             try:
-                self.build = container.run_callable(
-                        self.build_in_container,
-                        run_config)
+                self.build = container.run_callable(self.build_in_container, run_config)
                 if artifacts_dir:
                     self.collect_artifacts(container, artifacts_dir)
             finally:
@@ -207,8 +207,6 @@ class Builder(contextlib.ExitStack):
         build_log_name = self.build.name + ".buildlog"
         if os.path.exists(logfile := os.path.join(container.get_root(), "srv", "moncic-ci", "buildlog")):
             self.log_capture_end()
-            link_or_copy(
-                    logfile, destdir, user=user,
-                    filename=build_log_name)
+            link_or_copy(logfile, destdir, user=user, filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)
             self.build.artifacts.append(build_log_name)

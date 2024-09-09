@@ -11,7 +11,7 @@ import yaml
 
 from ..distro import Distro
 from ..exceptions import Fail
-from ..source import Source
+from ..source.distro import DistroSource
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 
@@ -29,8 +29,9 @@ class Build:
     """
     Build source packages
     """
+
     # Path to source to be built
-    source: Source
+    source: DistroSource
     # Distribution on which to build
     distro: Distro
     # Package name (optional when not yet set)
@@ -46,49 +47,75 @@ class Build:
     trace_log: list[str] = field(default_factory=list)
 
     artifacts_dir: str | None = field(
-            default=None,
-            metadata={
-                "doc": """
+        default=None,
+        metadata={
+            "doc": """
                     Directory where artifacts are copied after the build. Artifacts are lost when not set
-                    """})
+                    """
+        },
+    )
 
     source_only: bool = field(
-            default=False,
-            metadata={
-                "doc": """
+        default=False,
+        metadata={
+            "doc": """
                     Set to True to only build source packages, and skip compiling/building
                     binary packages
-                """})
+                """
+        },
+    )
 
     on_success: list[str] = field(
-            default_factory=list,
-            metadata={
-                "doc": """
+        default_factory=list,
+        metadata={
+            "doc": """
                     Zero or more scripts or actions to execute after a
                     successful build.
 
                     See [Post-build actions](post-build.actions.md) for documentation of possible values.
-                """})
+                """
+        },
+    )
 
     on_fail: list[str] = field(
-            default_factory=list,
-            metadata={
-                "doc": """
+        default_factory=list,
+        metadata={
+            "doc": """
                     Zero or more scripts or actions to execute after a
                     failed build.
 
                     See [Post-build actions](post-build.actions.md) for documentation of possible values.
-                """})
+                """
+        },
+    )
 
     on_end: list[str] = field(
-            default_factory=list,
-            metadata={
-                "doc": """
+        default_factory=list,
+        metadata={
+            "doc": """
                     Zero or more scripts or actions to execute after a
                     build, regardless of its result.
 
                     See [Post-build actions](post-build.actions.md) for documentation of possible values.
-                """})
+                """
+        },
+    )
+
+    @classmethod
+    def get_build_class(cls, source: DistroSource) -> type["Build"]:
+        from ..source.debian import DebianSource
+        from ..source.rpm import RPMSource, ARPASource
+        from .debian import Debian
+        from .arpa import RPM, ARPA
+
+        # FIXME: use match from python 3.10+
+        if isinstance(source, DebianSource):
+            return Debian
+        elif isinstance(source, ARPASource):
+            return ARPA
+        elif isinstance(source, RPMSource):
+            return RPM
+        raise Fail(f"Cannot detect build class for {source.__class__.__name__} source")
 
     def add_trace_log(self, *args: str) -> None:
         """
@@ -173,7 +200,7 @@ class Build:
         """
         Get the user-facing name for this Build class
         """
-        if (name := cls.__dict__.get("NAME")):
+        if name := cls.__dict__.get("NAME"):
             return name
         return cls.__name__.lower()
 
@@ -185,6 +212,7 @@ class Build:
         """
         from .arpa import ARPA, RPM
         from .debian import Debian
+
         return [
             Build,
             Debian,
@@ -198,7 +226,7 @@ class Build:
         List available build option names and their documentation
         """
         for f in fields(cls):
-            if (doc := f.metadata.get("doc")):
+            if doc := f.metadata.get("doc"):
                 yield f.name, inspect.cleandoc(doc)
 
     @host_only
