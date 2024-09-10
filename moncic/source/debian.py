@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from configparser import ConfigParser
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, cast
+from typing import TYPE_CHECKING, NamedTuple, cast, Any
 
 import git
 
@@ -171,13 +171,17 @@ class DebianSource(DistroSource, abc.ABC):
         super().__init__(**kwargs)
         self.source_info = source_info
 
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["source_info"] = self.source_info
+
     @guest_only
     def build_source_package(self, path: Path) -> Path:
         """
         Build a source package and return the .dsc file name.
 
-        :param:path:the source file or directory in the guest system
-        :return:path to the resulting .dsc file
+        :param path: the source file or directory in the guest system
+        :return: path to the resulting .dsc file
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package not implemented")
 
@@ -301,14 +305,14 @@ class DebianDsc(DebianSource, File):
 
     source_info: DSCInfo
 
-    def __init__(self, *, dsc_info: DSCInfo, **kwargs) -> None:
-        super().__init__(source_info=dsc_info, **kwargs)
+    def __init__(self, *, source_info: DSCInfo, **kwargs) -> None:
+        super().__init__(source_info=source_info, **kwargs)
 
     @classmethod
     def prepare_from_file(cls, parent: File, *, distro: DebianDistro) -> "DebianDsc":
         assert parent.path.suffix == ".dsc"
-        dsc_info = DSCInfo.create_from_file(parent.path)
-        return cls(parent=parent, path=parent.path, distro=distro, dsc_info=dsc_info)
+        source_info = DSCInfo.create_from_file(parent.path)
+        return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info)
 
     @host_only
     def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
@@ -340,7 +344,7 @@ class DebianDir(DebianSource, Dir):
         distro: DebianDistro,
     ) -> "DebianDir":  # TODO: Self from python 3.11+
         source_info = SourceInfo.create_from_dir(parent.path)
-        return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info)
+        return cls(**parent.derive_kwargs(distro=distro, source_info=source_info))
 
     def _find_tarball(self, artifact_dir: Path | None = None) -> Path | None:
         search_path = []
@@ -398,15 +402,7 @@ class DebianGitLegacy(DebianDir, Git):
         source_info: SourceInfo,
     ) -> "DebianGitLegacy":  # TODO: Self from python 3.11+
         parent = parent.get_clean()
-        # FIXME: cast not needed after Python 3.11
-        return cast(
-            DebianGitLegacy,
-            DebianGitLegacy.derive_from_git(
-                parent,
-                distro=distro,
-                source_info=source_info,
-            ),
-        )
+        return cls(**parent.derive_kwargs(distro=distro, source_info=source_info))
 
     def _on_tarball_not_found(self, destdir: Path) -> None:
         """
@@ -444,22 +440,6 @@ class DebianGitLegacy(DebianDir, Git):
 #
 #     NAME = "debian-git-plain"
 #
-#     @classmethod
-#     def _create_from_repo(cls, distro: Distro, source: LocalGit, debversion: str) -> DebianPlainGit:
-#         if not source.copy:
-#             log.info(
-#                 "%s: cloning repository to avoid building a potentially dirty working directory",
-#                 source.repo.working_dir,
-#             )
-#             source = source.clone()
-#
-#         if source.repo.working_dir is None:
-#             raise RuntimeError(f"{source} repository has no working directory")
-#
-#         res = cls(source, Path(source.repo.working_dir), debversion=debversion)
-#         res.add_trace_log("git", "clone", "-b", source.repo.active_branch.name, source.source)
-#         return res
-#
 #     @guest_only
 #     def build_source_package(self) -> str:
 #         """
@@ -490,10 +470,10 @@ class DebianGBP(DebianSource, Git, abc.ABC):
         self.gbp_info = gbp_info
         self.gbp_args = gbp_args
 
-    # upstream_tag: str = ""
-    # upstream_branch: str = ""
-    # debian_tag: str = ""
-    # gbp_args: list[str] = field(default_factory=list)
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["gbp_info"] = self.gbp_info
+        kwargs["gbp_args"] = self.gbp_args
 
     @classmethod
     def find_packaging_branch(cls, source: Git, distro: DebianDistro) -> git.refs.symbolic.SymbolicReference | None:
@@ -620,17 +600,14 @@ class DebianGBPTestUpstream(DebianGBP):
         source_info = SourceInfo.create_from_dir(parent.path)
         gbp_info = source_info.parse_gbp(parent.path / "debian" / "gbp.conf")
 
-        # TODO: remove cast from python 3.11+
-        return cast(
-            DebianGBPTestUpstream,
-            cls.derive_from_git(
-                parent,
+        return cls(
+            **parent.derive_kwargs(
                 distro=distro,
                 source_info=source_info,
                 gbp_info=gbp_info,
                 command_log=command_log,
                 gbp_args=["--git-upstream-tree=branch", f"--git-upstream-branch={active_branch}"],
-            ),
+            )
         )
 
 
@@ -659,16 +636,13 @@ class DebianGBPRelease(DebianGBP):
         # TODO: check that debian/changelog is not UNRELEASED
         # The current directory is already the right source directory
 
-        # FIXME: cast not needed after Python 3.11
-        return cast(
-            DebianGBPRelease,
-            DebianGBPRelease.derive_from_git(
-                parent,
+        return cls(
+            **parent.derive_kwargs(
                 distro=distro,
                 source_info=source_info,
                 gbp_info=gbp_info,
                 gbp_args=["--git-upstream-tree=tag"],
-            ),
+            )
         )
 
 
@@ -747,18 +721,18 @@ class DebianGBPTestDebian(DebianGBP):
         ]
         command_log.run(cmd, cwd=parent.path)
 
-        return cast(
-            DebianGBPTestDebian,
-            cls.derive_from_git(
-                # If we are still working on an uncloned repository, create a temporary
-                # clone to work on a clean one
-                parent.get_writable(),
+        # If we are still working on an uncloned repository, create a temporary
+        # clone to work on a clean one
+        parent = parent.get_writable()
+
+        return cls(
+            **parent.derive_kwargs(
                 distro=distro,
                 source_info=source_info,
                 command_log=command_log,
                 gbp_info=gbp_info,
                 gbp_args=["--git-upstream-tree=branch"],
-            ),
+            )
         )
 
 

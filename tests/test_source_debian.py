@@ -191,6 +191,7 @@ debian-branch=debian/unstable
 
 class TestDebianDsc(WorkdirFixture):
     path: Path
+    source_info: DSCInfo
 
     @classmethod
     def setUpClass(cls):
@@ -209,6 +210,13 @@ Files:
 
         (cls.workdir / "moncic-ci_0.1.0.orig.tar.gz").write_bytes(b"")
         (cls.workdir / "moncic-ci_0.1.0-1.debian.tar.xz").write_bytes(b"")
+        cls.source_info = DSCInfo(
+            name="moncic-ci",
+            version="0.1.0-1",
+            dsc_filename="moncic-ci_0.1.0-1.dsc",
+            tar_stem="moncic-ci_0.1.0.orig.tar",
+            file_list=["moncic-ci_0.1.0.orig.tar.gz", "moncic-ci_0.1.0-1.debian.tar.xz"],
+        )
 
     @contextlib.contextmanager
     def source(self) -> Generator[DebianDsc, None, None]:
@@ -225,13 +233,7 @@ Files:
             self.assertEqual(src.command_log, [])
             self.assertEqual(
                 src.source_info,
-                DSCInfo(
-                    name="moncic-ci",
-                    version="0.1.0-1",
-                    dsc_filename="moncic-ci_0.1.0-1.dsc",
-                    tar_stem="moncic-ci_0.1.0.orig.tar",
-                    file_list=["moncic-ci_0.1.0.orig.tar.gz", "moncic-ci_0.1.0-1.debian.tar.xz"],
-                ),
+                self.source_info,
             )
 
     def test_collect_build_artifacts(self) -> None:
@@ -249,9 +251,33 @@ Files:
                     ],
                 )
 
+    def test_derivation(self) -> None:
+        with self.source() as src:
+            self.assertEqual(
+                src.derive_kwargs(),
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": self.path,
+                    "distro": SID,
+                    "source_info": self.source_info,
+                },
+            )
+
 
 class TestDebianLegacy(WorkdirFixture):
     path: Path
+    source_info: SourceInfo
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.source_info = SourceInfo(
+            name="moncic-ci",
+            version="0.1.0-1",
+            dsc_filename="moncic-ci_0.1.0-1.dsc",
+            tar_stem="moncic-ci_0.1.0.orig.tar",
+        )
 
     def create_tar(self, name: str) -> Path:
         tar_path = self.workdir / name
@@ -263,15 +289,7 @@ class TestDebianLegacy(WorkdirFixture):
         assert isinstance(src, DebianDir)
         self.assertEqual(src.path, self.path)
         self.assertEqual(src.command_log, [])
-        self.assertEqual(
-            src.source_info,
-            SourceInfo(
-                name="moncic-ci",
-                version="0.1.0-1",
-                dsc_filename="moncic-ci_0.1.0-1.dsc",
-                tar_stem="moncic-ci_0.1.0.orig.tar",
-            ),
-        )
+        self.assertEqual(src.source_info, self.source_info)
 
 
 #     def test_detect_local(self):
@@ -325,6 +343,19 @@ class TestDebianLegacyDir(TestDebianLegacy):
         with self.source() as src:
             self.assertCommonAttributes(src)
 
+    def test_derivation(self) -> None:
+        with self.source() as src:
+            self.assertEqual(
+                src.derive_kwargs(),
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": self.path,
+                    "distro": SID,
+                    "source_info": self.source_info,
+                },
+            )
+
     def test_collect_build_artifacts_gz(self) -> None:
         self.create_tar("moncic-ci_0.1.0.orig.tar.gz")
         with self.source() as src:
@@ -359,7 +390,6 @@ class TestDebianLegacyDir(TestDebianLegacy):
 
 class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
     git_name = "moncic-ci"
-    source_info: SourceInfo
 
     @classmethod
     def setUpClass(cls):
@@ -367,7 +397,6 @@ class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
         cls.git.add("testfile")
         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low\n")
         cls.git.commit()
-        cls.source_info = SourceInfo.create_from_dir(cls.path)
 
     @contextlib.contextmanager
     def source(self) -> Generator[DebianGitLegacy, None, None]:
@@ -391,6 +420,21 @@ class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
     def test_prepare_from_git(self) -> None:
         with self.source() as src:
             self.assertCommonGitAttributes(src)
+
+    def test_derivation(self) -> None:
+        with self.source() as src:
+            self.assertEqual(
+                src.derive_kwargs(),
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": self.path,
+                    "readonly": True,
+                    "repo": src.repo,
+                    "distro": SID,
+                    "source_info": self.source_info,
+                },
+            )
 
     def test_collect_build_artifacts_gz(self) -> None:
         self.create_tar("moncic-ci_0.1.0.orig.tar.gz")
@@ -430,6 +474,8 @@ class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
 
 class TestDebianGBPTestUpstream(GitFixture):
     git_name = "moncic-ci"
+    source_info: SourceInfo
+    gbp_info: GBPInfo
 
     @classmethod
     def setUpClass(cls):
@@ -448,7 +494,17 @@ class TestDebianGBPTestUpstream(GitFixture):
         cls.git.add("testfile", "test content")
         cls.git.commit("Updated testfile")
 
+        cls.source_info = SourceInfo(
+            name="moncic-ci",
+            version="0.1.0-1",
+            dsc_filename="moncic-ci_0.1.0-1.dsc",
+            tar_stem="moncic-ci_0.1.0.orig.tar",
+        )
+
         # TODO: add gdb.conf
+
+        # Default computed gbp.conf values
+        cls.gbp_info = GBPInfo(upstream_branch="upstream", upstream_tag="upstream/0.1.0", debian_tag="debian/0.1.0-1")
 
     @contextlib.contextmanager
     def source(self) -> Generator[DebianGBPTestUpstream, None, None]:
@@ -472,16 +528,27 @@ class TestDebianGBPTestUpstream(GitFixture):
             self.assertIs(src.repo, src.parent.repo)
             self.assertIsNot(src.repo, src.parent.parent.repo)
             self.assertFalse(src.readonly)
-            self.assertEqual(
-                src.source_info,
-                SourceInfo(
-                    name="moncic-ci",
-                    version="0.1.0-1",
-                    dsc_filename="moncic-ci_0.1.0-1.dsc",
-                    tar_stem="moncic-ci_0.1.0.orig.tar",
-                ),
-            )
+            self.assertEqual(src.source_info, self.source_info)
+            self.assertEqual(src.gbp_info, self.gbp_info)
             self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch", "--git-upstream-branch=main"])
+
+    def test_derivation(self) -> None:
+        self.maxDiff = None
+        with self.source() as src:
+            self.assertEqual(
+                src.derive_kwargs(),
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": src.path,
+                    "readonly": False,
+                    "repo": src.repo,
+                    "distro": SID,
+                    "source_info": self.source_info,
+                    "gbp_info": self.gbp_info,
+                    "gbp_args": ["--git-upstream-tree=branch", "--git-upstream-branch=main"],
+                },
+            )
 
     def test_collect_build_artifacts(self) -> None:
         with self.source() as src:
@@ -572,6 +639,24 @@ debian-branch=debian/unstable
             self.assertEqual(src.source_info, self.source_info)
             self.assertEqual(src.gbp_info, self.gbp_info)
             self.assertEqual(src.gbp_args, ["--git-upstream-tree=tag"])
+
+    def test_derivation(self) -> None:
+        self.maxDiff = None
+        with self.source() as src:
+            self.assertEqual(
+                src.derive_kwargs(),
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": src.path,
+                    "readonly": True,
+                    "repo": src.repo,
+                    "distro": SID,
+                    "source_info": self.source_info,
+                    "gbp_info": self.gbp_info,
+                    "gbp_args": ["--git-upstream-tree=tag"],
+                },
+            )
 
     def test_collect_build_artifacts(self) -> None:
         with self.source() as src:

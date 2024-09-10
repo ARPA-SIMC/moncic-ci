@@ -21,6 +21,10 @@ class URL(Source):
         super().__init__(**kwargs)
         self.url = url
 
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["url"] = self.url
+
     def clone(self, branch: str | None = None) -> Git:
         """
         Clone the repository into a local source

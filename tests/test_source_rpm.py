@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import os
-import unittest
+import contextlib
 from pathlib import Path
+from unittest import mock
+from typing import cast, Generator
 
 from moncic.distro import DistroFamily
+from moncic.distro.rpm import RpmDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import File, Dir, Git
@@ -13,7 +15,7 @@ from moncic.unittest import make_moncic
 
 from .source import WorkdirFixture, GitFixture, MockBuilder, GitRepo
 
-ROCKY9 = DistroFamily.lookup_distro("rocky9")
+ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))
 
 
 class TestRPMSource(WorkdirFixture):
@@ -56,9 +58,9 @@ class TestRPMSource(WorkdirFixture):
         (path / "specfile.spec").touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            newsrc = RPMSource.create_from_dir(src, distro=ROCKY9)
-            assert isinstance(newsrc, ARPASourceDir)
-            self.assertEqual(newsrc.specfile_path, Path("specfile.spec"))
+            with mock.patch("moncic.source.rpm.ARPASourceDir.prepare_from_dir") as patched:
+                RPMSource.create_from_dir(src, distro=ROCKY9)
+            patched.assert_called_once()
 
     def test_from_dir_one_specfile_sub(self) -> None:
         path = self.workdir / "onespecsub"
@@ -69,9 +71,9 @@ class TestRPMSource(WorkdirFixture):
 
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            newsrc = RPMSource.create_from_dir(src, distro=ROCKY9)
-            assert isinstance(newsrc, ARPASourceDir)
-            self.assertEqual(newsrc.specfile_path, Path("fedora/SPECS/specfile.spec"))
+            with mock.patch("moncic.source.rpm.ARPASourceDir.prepare_from_dir") as patched:
+                RPMSource.create_from_dir(src, distro=ROCKY9)
+            patched.assert_called_once()
 
     def test_from_dir_twospecs(self) -> None:
         path = self.workdir / "twospecs"
@@ -99,9 +101,9 @@ class TestRPMSource(WorkdirFixture):
         git.commit("initial")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = RPMSource.create_from_git(src, distro=ROCKY9)
-            assert isinstance(newsrc, ARPASourceGit)
-            self.assertEqual(newsrc.specfile_path, Path("specfile.spec"))
+            with mock.patch("moncic.source.rpm.ARPASourceGit.prepare_from_git") as patched:
+                RPMSource.create_from_git(src, distro=ROCKY9)
+            patched.assert_called_once()
 
     def test_from_git_one_specfile_sub(self) -> None:
         git = self.make_git_repo("git_onespecsub")
@@ -109,9 +111,9 @@ class TestRPMSource(WorkdirFixture):
         git.commit("initial")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            newsrc = RPMSource.create_from_git(src, distro=ROCKY9)
-            assert isinstance(newsrc, ARPASourceGit)
-            self.assertEqual(newsrc.specfile_path, Path("fedora/SPECS/specfile.spec"))
+            with mock.patch("moncic.source.rpm.ARPASourceGit.prepare_from_git") as patched:
+                RPMSource.create_from_git(src, distro=ROCKY9)
+            patched.assert_called_once()
 
     def test_from_git_twospecs(self) -> None:
         git = self.make_git_repo("git_twospecs")
@@ -122,6 +124,119 @@ class TestRPMSource(WorkdirFixture):
             assert isinstance(src, Git)
             with self.assertRaisesRegexp(Fail, f"{git.root}: 2 specfiles found"):
                 RPMSource.create_from_git(src, distro=ROCKY9)
+
+
+class TestARPA(WorkdirFixture):
+    pass
+
+
+class TestARPASourceDir(WorkdirFixture):
+    path: Path
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.path = cls.workdir / "source"
+        cls.path.mkdir()
+
+    def make_specfile(self, path: Path, name: str = "specfile.spec") -> Path:
+        path.mkdir(parents=True, exist_ok=True)
+        specfile = path / name
+        specfile.touch()
+        self.addCleanup(specfile.unlink)
+        return specfile
+
+    @contextlib.contextmanager
+    def source(self, specfile: Path) -> Generator[ARPASourceDir, None, None]:
+        with Source.create_local(source=self.path) as parent:
+            assert isinstance(parent, Dir)
+            src = ARPASourceDir.prepare_from_dir(parent, distro=ROCKY9, specfiles=[specfile])
+            assert isinstance(src, ARPASourceDir)
+            self.assertIs(src.parent, parent)
+            yield src
+
+    def test_from_dir_one_specfile_root(self) -> None:
+        specfile = self.make_specfile(self.path)
+        with self.source(specfile=specfile) as src:
+            self.assertEqual(src.distro, ROCKY9)
+            self.assertEqual(src.specfile_path, specfile)
+
+    def test_from_dir_one_specfile_sub(self) -> None:
+        specfile = self.make_specfile(self.path / "fedora" / "SPECS")
+        with self.source(specfile=specfile) as src:
+            self.assertEqual(src.distro, ROCKY9)
+            self.assertEqual(src.specfile_path, specfile)
+
+    def test_derivation(self) -> None:
+        specfile = self.make_specfile(self.path)
+        with self.source(specfile=specfile) as src:
+            kwargs = src.derive_kwargs()
+            self.assertEqual(
+                kwargs,
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": self.path,
+                    "distro": ROCKY9,
+                    "specfile_path": specfile,
+                },
+            )
+
+
+class TestARPASourceGit(GitFixture):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.git.add("testfile")
+        cls.git.commit()
+
+        cls.git.git("checkout", "-b", "specfile_root")
+        cls.git.add("specfile.spec")
+        cls.git.commit()
+
+        cls.git.git("checkout", "main", "-b", "specfile_subdir")
+        cls.git.add("fedora/SPECS/specfile.spec")
+        cls.git.commit()
+
+        cls.git.git("checkout", "main")
+
+    @contextlib.contextmanager
+    def source(self, branch: str, specfile: Path) -> Generator[ARPASourceGit, None, None]:
+        with Source.create_local(source=self.path, branch=branch) as parent:
+            assert isinstance(parent, Git)
+            src = ARPASourceGit.prepare_from_git(parent, distro=ROCKY9, specfiles=[specfile])
+            assert isinstance(src, ARPASourceGit)
+            self.assertIs(src.parent, parent)
+            yield src
+
+    def test_from_dir_one_specfile_root(self) -> None:
+        specfile = Path("specfile.spec")
+        with self.source(branch="specfile_root", specfile=specfile) as src:
+            self.assertEqual(src.distro, ROCKY9)
+            self.assertEqual(src.specfile_path, specfile)
+
+    def test_from_dir_one_specfile_sub(self) -> None:
+        specfile = Path("fedora/SPECS/specfile.spec")
+        with self.source(branch="specfile_subdir", specfile=specfile) as src:
+            self.assertEqual(src.distro, ROCKY9)
+            self.assertEqual(src.specfile_path, specfile)
+
+    def test_derivation(self) -> None:
+        specfile = Path("specfile.spec")
+        with self.source(branch="specfile_root", specfile=specfile) as src:
+            kwargs = src.derive_kwargs()
+            self.assertEqual(
+                kwargs,
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": src.path,
+                    "readonly": False,
+                    "repo": src.repo,
+                    "distro": ROCKY9,
+                    "specfile_path": specfile,
+                },
+            )
 
 
 # class TestARPA(GitFixtureMixin, unittest.TestCase):
@@ -141,27 +256,6 @@ class TestRPMSource(WorkdirFixture):
 #         )
 #         cls.git.add("fedora/SPECS/test.spec")
 #         cls.git.commit()
-#
-#     def test_detect_local(self):
-#         with InputSource.create(self.git.root) as isrc:
-#             self.assertIsInstance(isrc, inputsource.LocalGit)
-#
-#             with self.assertRaises(Fail):
-#                 isrc.detect_source(SID)
-#
-#             src = isrc.detect_source(ROCKY9)
-#             self.assertIsInstance(src, rpm.ARPAGitSource)
-#
-#     def test_detect_url(self):
-#         with self.git.serve() as url:
-#             with InputSource.create(url) as isrc:
-#                 self.assertIsInstance(isrc, inputsource.URL)
-#
-#                 with self.assertRaises(Fail):
-#                     isrc.detect_source(SID)
-#
-#                 src = isrc.detect_source(ROCKY9)
-#                 self.assertIsInstance(src, rpm.ARPAGitSource)
 #
 #     def _test_build_source(self, path):
 #         with InputSource.create(path) as isrc:

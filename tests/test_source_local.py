@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from moncic.exceptions import Fail
 from moncic.source import Source
@@ -37,6 +38,12 @@ class TestFile(WorkdirFixture):
         with self.assertRaisesRegexp(Fail, "Cannot specify a branch when working on a file"):
             Source.create_local(source=self.file, branch="test")
 
+    def test_derivation(self) -> None:
+        with Source.create_local(source=self.file) as src:
+            assert isinstance(src, File)
+            kwargs = src.derive_kwargs()
+            self.assertEqual(kwargs, {"parent": src, "name": self.file.as_posix(), "path": self.file})
+
 
 class TestDir(WorkdirFixture):
     path: Path
@@ -62,6 +69,12 @@ class TestDir(WorkdirFixture):
     def test_fail_if_branch_used(self) -> None:
         with self.assertRaisesRegexp(Fail, "Cannot specify a branch when working on a non-git directory"):
             Source.create_local(source=self.path, branch="test")
+
+    def test_derivation(self) -> None:
+        with Source.create_local(source=self.path) as src:
+            assert isinstance(src, Dir)
+            kwargs = src.derive_kwargs()
+            self.assertEqual(kwargs, {"parent": src, "name": self.path.as_posix(), "path": self.path})
 
 
 class TestGit(GitFixture):
@@ -132,3 +145,18 @@ class TestGit(GitFixture):
             self.assertIsNotNone(src.find_branch("devel"))
             self.assertIsNone(src.find_branch("1.0"))
             self.assertIsNone(src.find_branch("does-not-exist"))
+
+    def test_derivation(self) -> None:
+        with Source.create_local(source=self.path) as src:
+            assert isinstance(src, Git)
+            kwargs = src.derive_kwargs()
+            self.assertEqual(
+                kwargs,
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": self.path,
+                    "repo": src.repo,
+                    "readonly": src.readonly,
+                },
+            )

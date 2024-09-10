@@ -25,6 +25,19 @@ class LocalSource(Source, abc.ABC):
         super().__init__(**kwargs)
         self.path = path
 
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["path"] = self.path
+
+    @abc.abstractmethod
+    def in_path(self, path: Path) -> LocalSource:  # TODO: use Self in 3.11+
+        """
+        Return a new source, the same as this one but on a different path.
+
+        This can be used to work with a version of the source that is mounted
+        in a different path inside a guest system.
+        """
+
 
 class File(LocalSource):
     """
@@ -35,6 +48,12 @@ class File(LocalSource):
         super().__init__(**kwargs)
         assert self.path.is_file()
 
+    def in_path(self, path: Path) -> File:
+        kwargs: dict[str, Any] = {}
+        self.add_init_args_for_derivation(kwargs)
+        kwargs["path"] = path
+        return self.__class__(**kwargs)
+
 
 class Dir(LocalSource):
     """
@@ -44,6 +63,12 @@ class Dir(LocalSource):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         assert self.path.is_dir()
+
+    def in_path(self, path: Path) -> File:
+        kwargs: dict[str, Any] = {}
+        self.add_init_args_for_derivation(kwargs)
+        kwargs["path"] = path
+        return self.__class__(**kwargs)
 
 
 class Git(Dir):
@@ -61,13 +86,10 @@ class Git(Dir):
         self.repo = repo or git.Repo(self.path)
         self.readonly = readonly
 
-    @classmethod
-    def derive_from_git(cls, parent: "Git", **kwargs) -> "Git":  # TODO: use Self from python 3.11
-        kwargs.setdefault("parent", parent)
-        kwargs.setdefault("path", parent.path)
-        kwargs.setdefault("repo", parent.repo)
-        kwargs.setdefault("readonly", parent.readonly)
-        return cls(**kwargs)
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["repo"] = self.repo
+        kwargs["readonly"] = self.readonly
 
     def get_branch(self, branch: str) -> Git:
         """

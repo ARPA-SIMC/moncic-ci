@@ -39,8 +39,15 @@ class TestURL(GitFixture):
                 self.assertFalse(src.readonly)
                 self.assertEqual(src.repo.active_branch.name, "main")
 
-                assert isinstance(src.parent, URL)
-                self.assertEqual(src.parent.url, urllib.parse.urlparse(url))
+                remote = src.parent
+                assert isinstance(remote, URL)
+                self.assertEqual(remote.url, urllib.parse.urlparse(url))
+
+                kwargs = remote.derive_kwargs()
+                self.assertEqual(
+                    kwargs,
+                    {"parent": remote, "name": url, "url": remote.url},
+                )
 
     def test_url_branch(self):
         with self.git.serve() as url:

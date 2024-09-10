@@ -14,6 +14,7 @@ from ..exceptions import Fail
 from .local import Dir, Git, File
 from .source import Source
 from .distro import DistroSource
+from ..distro.rpm import RpmDistro
 
 if TYPE_CHECKING:
     from ..build import Build
@@ -35,6 +36,10 @@ class RPMSource(DistroSource, abc.ABC):
         super().__init__(**kwargs)
         self.specfile_path = specfile_path
 
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["specfile_path"] = self.specfile_path
+
     @classmethod
     def create_from_file(cls, parent: File, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
         if parent.path.suffix == ".dsc":
@@ -44,25 +49,17 @@ class RPMSource(DistroSource, abc.ABC):
 
     @classmethod
     def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
-        specfile_paths = ARPASourceDir.locate_specfiles(parent.path)
-        if not specfile_paths:
-            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
-        if len(specfile_paths) > 1:
-            raise Fail(f"{parent.path}: {len(specfile_paths)} specfiles found")
-        return ARPASourceDir(parent=parent, path=parent.path, specfile_path=specfile_paths[0], distro=distro)
+        if not isinstance(distro, RpmDistro):
+            raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
+        specfiles = ARPASourceDir.locate_specfiles(parent.path)
+        return ARPASourceDir.prepare_from_dir(parent=parent, specfiles=specfiles, distro=distro)
 
     @classmethod
     def create_from_git(cls, parent: Git, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
-        specfile_paths = ARPASourceGit.locate_specfiles(parent.path)
-        if not specfile_paths:
-            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
-        if len(specfile_paths) > 1:
-            raise Fail(f"{parent.path}: {len(specfile_paths)} specfiles found")
-
-        # FIXME: cast not needed after python 3.11
-        return cast(
-            ARPASourceGit, ARPASourceGit.derive_from_git(parent, specfile_path=specfile_paths[0], distro=distro)
-        )
+        if not isinstance(distro, RpmDistro):
+            raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
+        specfiles = ARPASourceGit.locate_specfiles(parent.path)
+        return ARPASourceGit.prepare_from_git(parent=parent, specfiles=specfiles, distro=distro)
 
 
 #    @classmethod
@@ -150,21 +147,19 @@ class ARPASourceDir(ARPASource, Dir):
 
     NAME = "rpm-arpa"
 
-
-#    @classmethod
-#    def _create_from_repo(cls, source: LocalDir) -> ARPASource:
-#        return cls(source, Path(source.path))
-#
-#    @classmethod
-#    def create(cls, distro: Distro, source: InputSource) -> ARPASource:
-#        if isinstance(source, LocalGit):
-#            raise Fail(
-#                f"Cannot use {cls.NAME} source type on a {type(source).__name__} source:"
-#                f" maybe try {ARPAGitSource.NAME}?"
-#            )
-#        if not isinstance(source, LocalDir):
-#            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source).__name__} source")
-#        return cls._create_from_repo(source)
+    @classmethod
+    def prepare_from_dir(
+        cls,
+        parent: Dir,
+        *,
+        distro: RpmDistro,
+        specfiles: list[Path],
+    ) -> "ARPASourceDir":  # TODO: Self from python 3.11+
+        if not specfiles:
+            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
+        if len(specfiles) > 1:
+            raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
+        return cls(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
 
 
 class ARPASourceGit(ARPASource, Git):
@@ -175,21 +170,21 @@ class ARPASourceGit(ARPASource, Git):
 
     NAME = "rpm-arpa-git"
 
+    @classmethod
+    def prepare_from_git(
+        cls,
+        parent: Dir,
+        *,
+        distro: RpmDistro,
+        specfiles: list[Path],
+    ) -> "ARPASourceGit":  # TODO: Self from python 3.11+
+        if not specfiles:
+            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
+        if len(specfiles) > 1:
+            raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
+        return cls(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
 
-#    @classmethod
-#    def _create_from_repo(cls, source: LocalGit) -> ARPAGitSource:
-#        return cls(source, Path(source.path))
-#
-#    @classmethod
-#    def create(cls, distro: Distro, source: InputSource) -> ARPAGitSource:
-#        if isinstance(source, LocalDir):
-#            raise Fail(
-#                f"Cannot use {cls.NAME} source type on a {type(source).__name__} source: maybe try {ARPASource.NAME}?"
-#            )
-#        if not isinstance(source, LocalGit):
-#            raise Fail(f"Cannot use {cls.NAME} source type on a {type(source).__name__} source")
-#        return cls._create_from_repo(source)
-#
+
 #    def _check_arpa_commits(self, linter: lint.Linter):
 #        repo = self.source.repo
 #

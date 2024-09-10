@@ -138,6 +138,25 @@ class Source(abc.ABC):
     def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
         return self.stack.__exit__(exc_type, exc_val, exc_tb)
 
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        """
+        Add __init__ arguments to kwargs to derive an object from this one
+        """
+        kwargs["parent"] = self
+        kwargs["name"] = self.name
+
+    def derive_kwargs(self, **kwargs: Any) -> dict[str, Any]:
+        """
+        Create __init__ arguments from this object and user provided values.
+
+        :param kwargs: constructor arguments that add to, or replace, default
+                       values constructed from this object.
+        """
+        new_kwargs: dict[str, Any] = {}
+        self.add_init_args_for_derivation(new_kwargs)
+        new_kwargs.update(kwargs)
+        return new_kwargs
+
     @classmethod
     def create_local(cls, *, source: str | Path, branch: str | None = None) -> "LocalSource":
         """

@@ -6,7 +6,6 @@ from pathlib import Path
 
 from .source import Source
 from .local import File, Dir, Git
-from ..utils.guest import host_only
 
 if TYPE_CHECKING:
     from ..distro import Distro
@@ -24,12 +23,16 @@ class DistroSource(Source, abc.ABC):
         super().__init__(**kwargs)
         self.distro = distro
 
-    @host_only
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["distro"] = self.distro
+
     def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
         """
         Gather build artifacts host system and copy them to the target directory.
 
-        :param:artifact_dir:if provided, it is an extra possible source of artifacts
+        :param destdir: target directory where artifacts are copied
+        :param artifact_dir: if provided, it is an extra possible source of artifacts
         """
         # Do nothing by default
         pass
