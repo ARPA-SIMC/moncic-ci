@@ -144,12 +144,12 @@ class Debian(Build):
     def build(self) -> None:
         from ..source.debian import DebianSource
 
-        assert isinstance(self.source, DebianSource)
+        assert isinstance(self.guest_source, DebianSource)
         # Build source package
         with context.moncic.get().privs.user():
-            dsc_path = self.source.build_source_package(self.guest_source_path)
+            dsc_path = self.guest_source.build_source_package()
 
-        self.name = self.source.source_info.name
+        self.name = self.guest_source.source_info.name
 
         if not self.source_only:
             self.build_binary(dsc_path)

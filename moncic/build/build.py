@@ -4,7 +4,7 @@ import inspect
 import logging
 import shlex
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from collections.abc import Generator, Sequence
 from pathlib import Path
 
@@ -31,7 +31,7 @@ class Build:
     Build source packages
     """
 
-    #: Path to source to be built
+    #: Source to be built
     source: DistroSource
     #: Distribution on which to build
     distro: Distro
@@ -48,6 +48,8 @@ class Build:
     trace_log: list[str] = field(default_factory=list)
     #: Path inside the guest system where sources can be found
     guest_source_path: Path | None = None
+    #: Source to be built, when inside the guest system
+    guest_source: DistroSource | None = None
 
     artifacts_dir: str | None = field(
         default=None,
@@ -189,6 +191,9 @@ class Build:
         """
         Set up the build environment in the container
         """
+        assert self.guest_source_path
+        # TODO: remove cast from python 3.11
+        self.guest_source = cast(DistroSource, self.source.in_path(self.guest_source_path))
         if not self.quick:
             # Update package databases
             for cmd in system.distro.get_update_pkgdb_script(system):

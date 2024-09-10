@@ -175,8 +175,7 @@ class DebianSource(DistroSource, abc.ABC):
         super().add_init_args_for_derivation(kwargs)
         kwargs["source_info"] = self.source_info
 
-    @guest_only
-    def build_source_package(self, path: Path) -> Path:
+    def build_source_package(self) -> Path:
         """
         Build a source package and return the .dsc file name.
 
@@ -324,9 +323,8 @@ class DebianDsc(DebianSource, File):
         for fname in file_list:
             link_or_copy(srcdir / fname, destdir)
 
-    @guest_only
-    def build_source_package(self, path: Path) -> Path:
-        return path
+    def build_source_package(self) -> Path:
+        return self.path
 
 
 class DebianDir(DebianSource, Dir):
@@ -368,19 +366,18 @@ class DebianDir(DebianSource, Dir):
         else:
             link_or_copy(tarball, destdir)
 
-    @guest_only
-    def build_source_package(self, path: Path) -> Path:
+    def build_source_package(self) -> Path:
         # Uses --no-pre-clean to avoid requiring build-deps to be installed at
         # this stage
-        run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=path)
+        run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.path)
 
         # Try with the expected .dsc name
-        dsc_path = path.parent / self.source_info.dsc_filename
+        dsc_path = self.path.parent / self.source_info.dsc_filename
         if dsc_path.exists():
             return dsc_path
 
         # Something unexpected happened: look harder for a built .dsc file
-        for sub in path.parent.iterdir():
+        for sub in self.path.parent.iterdir():
             if sub.suffix == ".dsc":
                 log.warning("found .dsc file %s instead of %s", sub, dsc_path)
                 return sub

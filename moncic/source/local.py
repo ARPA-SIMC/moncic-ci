@@ -49,10 +49,7 @@ class File(LocalSource):
         assert self.path.is_file()
 
     def in_path(self, path: Path) -> File:
-        kwargs: dict[str, Any] = {}
-        self.add_init_args_for_derivation(kwargs)
-        kwargs["path"] = path
-        return self.__class__(**kwargs)
+        return self.__class__(**self.derive_kwargs(path=path))
 
 
 class Dir(LocalSource):
@@ -64,11 +61,8 @@ class Dir(LocalSource):
         super().__init__(**kwargs)
         assert self.path.is_dir()
 
-    def in_path(self, path: Path) -> File:
-        kwargs: dict[str, Any] = {}
-        self.add_init_args_for_derivation(kwargs)
-        kwargs["path"] = path
-        return self.__class__(**kwargs)
+    def in_path(self, path: Path) -> Dir:
+        return self.__class__(**self.derive_kwargs(path=path))
 
 
 class Git(Dir):
@@ -90,6 +84,9 @@ class Git(Dir):
         super().add_init_args_for_derivation(kwargs)
         kwargs["repo"] = self.repo
         kwargs["readonly"] = self.readonly
+
+    def in_path(self, path: Path) -> Git:
+        return self.__class__(**self.derive_kwargs(path=path, repo=None))
 
     def get_branch(self, branch: str) -> Git:
         """

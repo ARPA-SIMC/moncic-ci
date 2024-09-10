@@ -4,15 +4,14 @@ import abc
 from typing import TYPE_CHECKING
 from pathlib import Path
 
-from .source import Source
-from .local import File, Dir, Git
+from .local import LocalSource, File, Dir, Git
 
 if TYPE_CHECKING:
     from ..distro import Distro
     from .local import LocalSource
 
 
-class DistroSource(Source, abc.ABC):
+class DistroSource(LocalSource, abc.ABC):
     """
     Distribution-aware source
     """
