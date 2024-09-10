@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 class Builder(ContainerSourceOperation):
     """
-    Interface for classes providing the logic for CI builds
+    Build a Source using a container
     """
 
     def __init__(self, system: System, build: Build):

@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from ..build import Build
-from ..operations.build import Builder
+from ..operations import build as ops_build
+from ..operations import query as ops_query
 from ..distro import Distro
 from ..source import Source
 from .moncic import SourceCommand, main_command
@@ -101,7 +102,7 @@ class CI(SourceCommand):
                         with self.moncic.privs.user():
                             os.makedirs(build.artifacts_dir, exist_ok=True)
 
-                    builder = Builder(system, build)
+                    builder = ops_build.Builder(system, build)
 
                     if self.args.linger:
                         build.on_end.append("@linger")
@@ -189,15 +190,14 @@ class QuerySource(SourceCommand):
         return parser
 
     def run(self):
-        result = {}
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
                 with self.source(system.distro) as source:
-                    builder = Builder(system)
-                    result["distribution"] = system.distro.name
-                    log.info("Query using builder %r", builder.__class__.__name__)
-                    result["build-deps"] = builder.get_build_deps(source)
+                    operation = ops_query.Query(system, source)
+                    result = operation.host_main()
+                    # result["distribution"] = system.distro.name
+                    # result["build-deps"] = builder.get_build_deps(source)
 
         json.dump(result, sys.stdout, indent=1)
         sys.stdout.write("\n")

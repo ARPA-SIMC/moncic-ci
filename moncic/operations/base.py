@@ -163,7 +163,7 @@ class ContainerSourceOperation(abc.ABC):
         return cast(DistroSource, self.source.in_path(self.guest_source_path))
 
     @host_only
-    def host_main(self) -> None:
+    def host_main(self) -> Any:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
@@ -185,6 +185,8 @@ class ContainerSourceOperation(abc.ABC):
                     self.collect_artifacts(container, self.artifacts_dir)
             finally:
                 self._after_build(container)
+
+        return result
 
     @abc.abstractmethod
     def guest_main(self):
