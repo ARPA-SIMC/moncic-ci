@@ -1,7 +1,5 @@
 from .build import Build
-from .builder import Builder
 
-from . import (  # noqa: import them so they are registered as builders
-    arpa, debian)
+from . import arpa, debian  # noqa: import them so they are registered as builders
 
-__all__ = ["Build", "Builder"]
+__all__ = ["Build"]

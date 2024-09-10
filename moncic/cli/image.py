@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 import ruamel.yaml
 import yaml
 
-from ..build import Builder
+from ..operations.build import Builder
 from ..exceptions import Fail
 from ..utils.edit import edit_yaml
 from ..utils.fs import atomic_writer
