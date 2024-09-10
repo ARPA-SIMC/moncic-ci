@@ -94,7 +94,7 @@ class Debian(Build):
             stdout=subprocess.PIPE,
             text=True,
             check=True,
-            cwd=self.guest_source_path.as_posix(),
+            cwd=self.source.as_posix(),
         )
         return [name.strip() for name in res.stdout.strip().splitlines()]
 
@@ -144,12 +144,12 @@ class Debian(Build):
     def build(self) -> None:
         from ..source.debian import DebianSource
 
-        assert isinstance(self.guest_source, DebianSource)
+        assert isinstance(self.source, DebianSource)
         # Build source package
         with context.moncic.get().privs.user():
-            dsc_path = self.guest_source.build_source_package()
+            dsc_path = self.source.build_source_package()
 
-        self.name = self.guest_source.source_info.name
+        self.name = self.source.source_info.name
 
         if not self.source_only:
             self.build_binary(dsc_path)
@@ -200,7 +200,7 @@ class Debian(Build):
                 self.trace_run(cmd, env=env)
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: str):
+    def collect_artifacts(self, container: Container, destdir: Path):
         container_root = container.get_root()
         user = UserConfig.from_sudoer()
         for path in self.artifacts:

@@ -52,8 +52,8 @@ class RPM(Build):
 
     @guest_only
     def get_build_deps_in_container(self) -> list[str]:
-        assert isinstance(self.guest_source, RPMSource)
-        specfile = self.guest_source.path / self.guest_source.specfile_path
+        assert isinstance(self.source, RPMSource)
+        specfile = self.source.path / self.source.specfile_path
         res = subprocess.run(["/usr/bin/rpmspec", "--parse", specfile], stdout=subprocess.PIPE, text=True, check=True)
         packages = []
         for line in res.stdout.splitlines():
@@ -71,7 +71,7 @@ class ARPA(RPM):
 
     @guest_only
     def build(self) -> None:
-        assert isinstance(self.guest_source, RPMSource)
+        assert isinstance(self.source, RPMSource)
 
         rpmbuild_path = Path("/root/rpmbuild")
 
@@ -80,7 +80,7 @@ class ARPA(RPM):
 
         rpmbuild_sources = rpmbuild_path / "SOURCES"
 
-        specfile = self.guest_source.path / self.guest_source.specfile_path
+        specfile = self.source.path / self.source.specfile_path
 
         # Install build dependencies
         run(self.builddep + ["-y", specfile.as_posix()])
@@ -113,7 +113,7 @@ class ARPA(RPM):
         self.success = True
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: str):
+    def collect_artifacts(self, container: Container, destdir: Path):
         container_root = container.get_root()
 
         user = UserConfig.from_sudoer()

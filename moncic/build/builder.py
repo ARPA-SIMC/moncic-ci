@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 import contextlib
 import dataclasses
 import logging
@@ -7,7 +8,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import IO, TYPE_CHECKING
+from typing import IO, TYPE_CHECKING, cast, Any
 
 from ..container import ContainerConfig
 from ..runner import UserConfig
@@ -15,31 +16,52 @@ from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from . import build
 from .utils import link_or_copy
+from ..source.distro import DistroSource
+from .build import Build
 
 if TYPE_CHECKING:
     from ..container import Container, System
-    from .build import Build
 
 log = logging.getLogger(__name__)
 
 
-class Builder(contextlib.ExitStack):
+class ContainerSourceOperation(abc.ABC):
     """
-    Interface for classes providing the logic for CI builds
+    Base class for operations on sources performed inside a container
     """
 
-    def __init__(self, system: System, build: Build):
-        super().__init__()
-        # System used for the build
+    def __init__(self, system: System, source: DistroSource, artifacts_dir: Path | None = None):
+        #: System used for container operations
         self.system = system
-        # Build object that is being built
-        self.build: Build = build
+        #: Source to work on
+        self.source = source
+        #: Directory where extra artifacts can be found or stored
+        self.artifacts_dir = artifacts_dir
         # User to use for the build
         self.user = UserConfig.from_sudoer()
         # Build log file
-        self.buildlog_file: IO[str] | None = None
+        self.log_file: IO[str] | None = None
         # Log handler used to capture build output
-        self.buildlog_handler: logging.Handler | None = None
+        self.log_handler: logging.Handler | None = None
+        #: Path inside the guest system where sources can be found
+        self.guest_source_path: Path | None = None
+
+    @host_only
+    def log_capture_start(self, log_file: Path):
+        self.log_file = log_file.open("wt")
+        self.log_handler = logging.StreamHandler(self.log_file)
+        self.log_handler.setLevel(logging.DEBUG)
+        self.log_handler.setFormatter(logging.Formatter("%(asctime)-19.19s %(levelname)s %(message)s"))
+        logging.getLogger().addHandler(self.log_handler)
+        logging.getLogger().setLevel(logging.DEBUG)
+
+    @host_only
+    def log_capture_end(self):
+        if self.log_handler is not None:
+            logging.getLogger().removeHandler(self.log_handler)
+            self.log_handler = None
+            self.log_file.close()
+            self.log_file = None
 
     @host_only
     def setup_container_host(self, container: Container):
@@ -58,7 +80,7 @@ class Builder(contextlib.ExitStack):
         os.chown(builddir, self.user.user_id, self.user.group_id)
 
         # Capture build log
-        log_file = os.path.join(container_root, "srv", "moncic-ci", "buildlog")
+        log_file = container_root / "srv" / "moncic-ci" / "buildlog"
         self.log_capture_start(log_file)
 
         # Collect artifacts in a temporary directory, to be able to do it as non-root
@@ -66,7 +88,7 @@ class Builder(contextlib.ExitStack):
         with privs.user():
             with tempfile.TemporaryDirectory() as tmpdir_str:
                 tmpdir = Path(tmpdir_str)
-                self.build.source.collect_build_artifacts(tmpdir, self.build.artifacts_dir)
+                self.source.collect_build_artifacts(tmpdir, self.artifacts_dir)
                 # Regain privileges and move results to the container
                 privs.regain()
                 for path in tmpdir.iterdir():
@@ -76,24 +98,18 @@ class Builder(contextlib.ExitStack):
         for path in srcdir.iterdir():
             log.debug("* %s", path.name)
 
-        self.build.setup_container_host(container)
-
     @host_only
-    def log_capture_start(self, log_file: str):
-        self.buildlog_file = open(log_file, "wt")
-        self.buildlog_handler = logging.StreamHandler(self.buildlog_file)
-        self.buildlog_handler.setLevel(logging.DEBUG)
-        self.buildlog_handler.setFormatter(logging.Formatter("%(asctime)-19.19s %(levelname)s %(message)s"))
-        logging.getLogger().addHandler(self.buildlog_handler)
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    @host_only
-    def log_capture_end(self):
-        if self.buildlog_handler is not None:
-            logging.getLogger().removeHandler(self.buildlog_handler)
-            self.buildlog_handler = None
-            self.buildlog_file.close()
-            self.buildlog_file = None
+    def log_execution_info(self, container: Container) -> None:
+        """
+        Log all available information about how the task is executed in the container
+        """
+        # Log moncic config
+        moncic_config = self.system.images.session.moncic.config
+        for fld in dataclasses.fields(moncic_config):
+            log.debug("moncic:%s = %r", fld.name, getattr(moncic_config, fld.name))
+        # Log container config
+        for fld in dataclasses.fields(container.config):
+            log.debug("container:%s = %r", fld.name, getattr(container.config, fld.name))
 
     @host_only
     @contextlib.contextmanager
@@ -106,10 +122,8 @@ class Builder(contextlib.ExitStack):
         # Set it as the default current directory in the container
         # Mounted volatile to prevent changes to it
         mountpoint = Path("/srv/moncic-ci/source")
-        self.build.guest_source_path = mountpoint / self.build.source.path.name
-        container_config.configure_workdir(
-            self.build.source.path.as_posix(), bind_type="volatile", mountpoint=mountpoint
-        )
+        self.guest_source_path = mountpoint / self.source.path.name
+        container_config.configure_workdir(self.source.path.as_posix(), bind_type="volatile", mountpoint=mountpoint)
         container = self.system.create_container(config=container_config)
         with container:
             self.setup_container_host(container)
@@ -119,22 +133,46 @@ class Builder(contextlib.ExitStack):
                 self.log_capture_end()
 
     @host_only
-    def run_build(self) -> None:
+    def process_guest_result(self, result: Any) -> None:
+        """
+        Handle the result value of the main callable run on the guest system
+        """
+        # Do nothing by default
+        pass
+
+    @host_only
+    def collect_artifacts(self, container: Container, destdir: Path):
+        """
+        Collect artifacts from the guest filesystem before it is shut down
+        """
+        # Do nothing by default
+        pass
+
+    @host_only
+    def _after_build(self, container: Container):
+        """
+        Hook to run commands on the container after the main operation ended
+        """
+        # Do nothing by default
+        pass
+
+    @guest_only
+    def get_guest_source(self) -> DistroSource:
+        """
+        Return self.source pointing to its location inside the guest system
+        """
+        assert self.guest_source_path
+        # TODO: remove cast from python 3.11
+        return cast(DistroSource, self.source.in_path(self.guest_source_path))
+
+    @host_only
+    def host_main(self) -> None:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
         """
-        artifacts_dir = self.build.artifacts_dir
         with self.container() as container:
-            # General builder information
-            log.info("Build strategy: %s", self.build.__class__.__name__)
-            # Log moncic config
-            moncic_config = self.system.images.session.moncic.config
-            for fld in dataclasses.fields(moncic_config):
-                log.debug("moncic:%s = %r", fld.name, getattr(moncic_config, fld.name))
-            # Log container config
-            for fld in dataclasses.fields(container.config):
-                log.debug("container:%s = %r", fld.name, getattr(container.config, fld.name))
+            self.log_execution_info(container)
 
             # Build run config
             run_config = container.config.run_config()
@@ -144,17 +182,53 @@ class Builder(contextlib.ExitStack):
                 log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
 
             try:
-                self.build = container.run_callable(self.build_in_container, run_config)
-                if artifacts_dir:
-                    self.collect_artifacts(container, artifacts_dir)
+                result = container.run_callable(self.guest_main, run_config)
+                self.process_guest_result(result)
+                if self.artifacts_dir:
+                    self.collect_artifacts(container, self.artifacts_dir)
             finally:
                 self._after_build(container)
+
+    @abc.abstractmethod
+    def guest_main(self):
+        """
+        Function run on the guest system to perform the operation
+        """
+        ...
+
+
+class Builder(ContainerSourceOperation):
+    """
+    Interface for classes providing the logic for CI builds
+    """
+
+    def __init__(self, system: System, build: Build):
+        super().__init__(system=system, source=build.source, artifacts_dir=build.artifacts_dir)
+        # Build object that is being built
+        self.build: Build = build
+
+    @host_only
+    def setup_container_host(self, container: Container):
+        super().setup_container_host(container)
+        self.build.setup_container_host(container)
+
+    @host_only
+    def log_execution_info(self, container: Container) -> None:
+        # General builder information
+        log.info("Build strategy: %s", self.build.__class__.__name__)
+        super().log_execution_info(container)
+
+    @host_only
+    def process_guest_result(self, result: Any) -> None:
+        assert isinstance(result, Build)
+        self.build = result
 
     @host_only
     def _after_build(self, container: Container):
         """
         Run configured commands after the build ended
         """
+        super()._after_build(container)
         if self.build.success:
             for cmd in self.build.on_success:
                 self._run_command(container, cmd)
@@ -193,19 +267,22 @@ class Builder(contextlib.ExitStack):
             run(["/bin/sh", "-c", cmd], env=env)
 
     @guest_only
-    def build_in_container(self) -> build.Build:
+    def guest_main(self) -> build.Build:
         """
         Run the build
         """
+        self.build.source = self.get_guest_source()
         self.build.setup_container_guest(self.system)
         self.build.build()
         return self.build
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: str):
+    def collect_artifacts(self, container: Container, destdir: Path):
         """
         Copy build artifacts to the given directory
         """
+        super().collect_artifacts(container, destdir)
+
         # Do nothing by default
         self.build.collect_artifacts(container, destdir)
 
@@ -213,7 +290,7 @@ class Builder(contextlib.ExitStack):
         if self.build.name is None:
             raise RuntimeError("build name not set")
         build_log_name = self.build.name + ".buildlog"
-        if os.path.exists(logfile := os.path.join(container.get_root(), "srv", "moncic-ci", "buildlog")):
+        if (logfile := container.get_root() / "srv" / "moncic-ci" / "buildlog").exists():
             self.log_capture_end()
             link_or_copy(logfile, destdir, user=user, filename=build_log_name)
             log.info("Saving build log to %s/%s", destdir, build_log_name)

@@ -46,10 +46,6 @@ class Build:
     artifacts: list[str] = field(default_factory=list)
     #: Commands that can be used to recreate this build
     trace_log: list[str] = field(default_factory=list)
-    #: Path inside the guest system where sources can be found
-    guest_source_path: Path | None = None
-    #: Source to be built, when inside the guest system
-    guest_source: DistroSource | None = None
 
     artifacts_dir: Path | None = field(
         default=None,
@@ -191,9 +187,6 @@ class Build:
         """
         Set up the build environment in the container
         """
-        assert self.guest_source_path
-        # TODO: remove cast from python 3.11
-        self.guest_source = cast(DistroSource, self.source.in_path(self.guest_source_path))
         if not self.quick:
             # Update package databases
             for cmd in system.distro.get_update_pkgdb_script(system):
@@ -238,7 +231,7 @@ class Build:
                 yield f.name, inspect.cleandoc(doc)
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: str):
+    def collect_artifacts(self, container: Container, destdir: Path):
         """
         Look for artifacts created by the build, copy them to ``destdir``, add
         their names to self.artifacts

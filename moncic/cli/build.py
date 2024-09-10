@@ -108,7 +108,7 @@ class CI(SourceCommand):
                         build.on_end.append("@shell")
 
                     try:
-                        builder.run_build()
+                        builder.host_main()
                     finally:
 
                         class ResultEncoder(json.JSONEncoder):
