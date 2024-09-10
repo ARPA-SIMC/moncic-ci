@@ -51,7 +51,7 @@ class Build:
     #: Source to be built, when inside the guest system
     guest_source: DistroSource | None = None
 
-    artifacts_dir: str | None = field(
+    artifacts_dir: Path | None = field(
         default=None,
         metadata={
             "doc": """
@@ -164,7 +164,7 @@ class Build:
         Run a command, adding it to trace_log
         """
         self.add_trace_log(*cmd)
-        run(cmd, check=check, **kw)
+        return run(cmd, check=check, **kw)
 
     @guest_only
     def build(self):

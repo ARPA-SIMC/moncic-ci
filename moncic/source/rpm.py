@@ -3,22 +3,16 @@ from __future__ import annotations
 import abc
 import itertools
 import logging
-import subprocess
-from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn, cast
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from .. import lint
-from ..container import ContainerConfig
 from ..exceptions import Fail
 from .local import Dir, Git, File
-from .source import Source
 from .distro import DistroSource
 from ..distro.rpm import RpmDistro
 
 if TYPE_CHECKING:
-    from ..build import Build
-    from ..container import System
     from ..distro import Distro
 
 log = logging.getLogger(__name__)

@@ -24,9 +24,8 @@ from moncic.source.debian import (
     DebianGBPRelease,
     DSCInfo,
 )
-from moncic.unittest import make_moncic
 
-from .source import GitFixture, MockBuilder, WorkdirFixture, GitRepo
+from .source import GitFixture, WorkdirFixture, GitRepo
 
 SID = cast(DebianDistro, DistroFamily.lookup_distro("sid"))
 

@@ -96,14 +96,6 @@ class Builder(contextlib.ExitStack):
             self.buildlog_file = None
 
     @host_only
-    def get_build_deps(self) -> list[str]:
-        """
-        Return a list of packages to be installed as build-depedencies to build
-        this source
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.get_build_deps is not implemented")
-
-    @host_only
     @contextlib.contextmanager
     def container(self):
         """
@@ -191,13 +183,13 @@ class Builder(contextlib.ExitStack):
                 log.error("%r: unsupported post-build command", cmd)
         else:
             env = dict(os.environ)
-            env["MONCIC_ARTIFACTS_DIR"] = self.build.artifacts_dir or ""
+            env["MONCIC_ARTIFACTS_DIR"] = self.build.artifacts_dir.as_posix() if self.build.artifacts_dir else ""
             env["MONCIC_CONTAINER_NAME"] = container.instance_name
             env["MONCIC_IMAGE"] = self.system.config.name
-            env["MONCIC_CONTAINER_ROOT"] = container.get_root()
+            env["MONCIC_CONTAINER_ROOT"] = container.get_root().as_posix()
             env["MONCIC_PACKAGE_NAME"] = self.build.name or ""
             env["MONCIC_RESULT"] = "success" if self.build.success else "fail"
-            env["MONCIC_SOURCE"] = self.build.source.source.source
+            env["MONCIC_SOURCE"] = self.build.source.name
             run(["/bin/sh", "-c", cmd], env=env)
 
     @guest_only

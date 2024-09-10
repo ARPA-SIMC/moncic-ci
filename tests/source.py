@@ -11,44 +11,6 @@ import threading
 import unittest
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-from moncic.build import Build
-from moncic.distro import Distro, DistroFamily
-
-if TYPE_CHECKING:
-    from moncic.source import Source
-
-
-class MockSystem:
-    def __init__(self, distro: Distro):
-        self.distro = distro
-
-
-class MockContainer:
-    def __init__(self, system: MockSystem, root: str):
-        self.system = system
-        self.root = root
-        self.source_dir = os.path.join(self.root, "srv", "moncic-ci", "source")
-        os.makedirs(self.source_dir, exist_ok=True)
-
-    def get_root(self):
-        return self.root
-
-
-class MockBuilder(contextlib.ExitStack):
-    def __init__(self, distro: str, build: Build):
-        super().__init__()
-        self.system = MockSystem(distro=DistroFamily.lookup_distro(distro))
-        self.build = build
-
-    def setup_build(self, *, source: Source, **kw):
-        self.build = Build(source=source, **kw)
-
-    @contextlib.contextmanager
-    def container(self) -> Generator[MockContainer, None, None]:
-        with tempfile.TemporaryDirectory() as container_root:
-            yield MockContainer(self.system, container_root)
 
 
 class GitRepo(contextlib.ExitStack):

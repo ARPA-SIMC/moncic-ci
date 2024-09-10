@@ -11,9 +11,8 @@ from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import File, Dir, Git
 from moncic.source.rpm import RPMSource, ARPASourceDir, ARPASourceGit
-from moncic.unittest import make_moncic
 
-from .source import WorkdirFixture, GitFixture, MockBuilder, GitRepo
+from .source import WorkdirFixture, GitFixture, GitRepo
 
 ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))
 

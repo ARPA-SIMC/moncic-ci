@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from pathlib import Path
 
 from .local import LocalSource, File, Dir, Git
 
 if TYPE_CHECKING:
     from ..distro import Distro
-    from .local import LocalSource
 
 
 class DistroSource(LocalSource, abc.ABC):

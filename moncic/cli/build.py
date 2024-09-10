@@ -34,7 +34,12 @@ class CI(SourceCommand):
             "-B", "--build-config", metavar="file.yaml", action="store", help="YAML file with build configuration"
         )
         parser.add_argument(
-            "-a", "--artifacts", metavar="dir", action="store", help="directory where build artifacts will be stored"
+            "-a",
+            "--artifacts",
+            metavar="dir",
+            action="store",
+            type=Path,
+            help="directory where build artifacts will be stored",
         )
         parser.add_argument("--source-only", action="store_true", help="only build source packages")
         parser.add_argument("--shell", action="store_true", help="open a shell after the build")
@@ -187,7 +192,7 @@ class QuerySource(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             with images.system(self.args.system) as system:
-                with self.source(system.distro, self.args.source) as source:
+                with self.source(system.distro) as source:
                     builder = Builder(system)
                     result["distribution"] = system.distro.name
                     log.info("Query using builder %r", builder.__class__.__name__)
