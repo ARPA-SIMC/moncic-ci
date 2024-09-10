@@ -266,6 +266,20 @@ class DebianSource(DistroSource, abc.ABC):
         log.debug("%s: branch is not tagged, using DebianGBPTestDebian", parent)
         return DebianGBPTestDebian.prepare_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
 
+    def _find_built_dsc(self) -> Path:
+        # Try with the expected .dsc name
+        dsc_path = self.path.parent / self.source_info.dsc_filename
+        if dsc_path.exists():
+            return dsc_path
+
+        # Something unexpected happened: look harder for a built .dsc file
+        for sub in self.path.parent.iterdir():
+            if sub.suffix == ".dsc":
+                log.warning("found .dsc file %s instead of %s", sub, dsc_path)
+                return sub
+
+        raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
+
 
 #    def get_linter_class(self) -> type[lint.Linter]:
 #        return lint.DebianLinter
@@ -371,18 +385,7 @@ class DebianDir(DebianSource, Dir):
         # this stage
         run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.path)
 
-        # Try with the expected .dsc name
-        dsc_path = self.path.parent / self.source_info.dsc_filename
-        if dsc_path.exists():
-            return dsc_path
-
-        # Something unexpected happened: look harder for a built .dsc file
-        for sub in self.path.parent.iterdir():
-            if sub.suffix == ".dsc":
-                log.warning("found .dsc file %s instead of %s", sub, dsc_path)
-                return sub
-
-        raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
+        return self._find_built_dsc()
 
 
 class DebianGitLegacy(DebianDir, Git):
@@ -485,6 +488,17 @@ class DebianGBP(DebianSource, Git, abc.ABC):
                 return ref
         return None
 
+    def build_source_package(self) -> Path:
+        """
+        Build a source package in /srv/moncic-ci/source returning the name of
+        the main file of the source package fileset
+        """
+        cmd = ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S", "--no-sign", "--no-pre-clean"]
+        cmd += self.gbp_args
+        run(cmd, cwd=self.path)
+
+        return self._find_built_dsc()
+
 
 #     @classmethod
 #     def read_upstream_branch(cls, repo: git.Repo) -> str | None:
@@ -507,23 +521,6 @@ class DebianGBP(DebianSource, Git, abc.ABC):
 #         cfg = ConfigParser()
 #         cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
 #         return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
-
-
-#    @guest_only
-#    def build_source_package(self) -> str:
-#        """
-#        Build a source package in /srv/moncic-ci/source returning the name of
-#        the main file of the source package fileset
-#        """
-#        cmd = ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S", "--no-sign", "--no-pre-clean"]
-#        cmd += self.gbp_args
-#        run(cmd, cwd=self.guest_path)
-#
-#        for fn in os.listdir("/srv/moncic-ci/source"):
-#            if fn.endswith(".dsc"):
-#                return os.path.join("/srv/moncic-ci/source", fn)
-#
-#        raise RuntimeError(".dsc file not found after gbp buildpackage -S")
 
 
 class DebianGBPTestUpstream(DebianGBP):

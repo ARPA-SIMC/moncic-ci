@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import abc
 import contextlib
 import tempfile
 from pathlib import Path
 from unittest import mock
-from typing import cast, Generator
+from typing import cast, Generator, ContextManager
 
 from moncic.distro import DistroFamily
 from moncic.distro.debian import DebianDistro
@@ -236,6 +237,19 @@ Files:
                 self.source_info,
             )
 
+    def test_derivation(self) -> None:
+        with self.source() as src:
+            self.assertEqual(
+                src.derive_kwargs(),
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": self.path,
+                    "distro": SID,
+                    "source_info": self.source_info,
+                },
+            )
+
     def test_collect_build_artifacts(self) -> None:
         with self.source() as src:
             with tempfile.TemporaryDirectory() as destdir_str:
@@ -251,21 +265,12 @@ Files:
                     ],
                 )
 
-    def test_derivation(self) -> None:
+    def test_build_source_package(self) -> None:
         with self.source() as src:
-            self.assertEqual(
-                src.derive_kwargs(),
-                {
-                    "parent": src,
-                    "name": self.path.as_posix(),
-                    "path": self.path,
-                    "distro": SID,
-                    "source_info": self.source_info,
-                },
-            )
+            self.assertEqual(src.build_source_package(), src.path)
 
 
-class TestDebianLegacy(WorkdirFixture):
+class TestDebianLegacy(WorkdirFixture, abc.ABC):
     path: Path
     source_info: SourceInfo
 
@@ -279,6 +284,10 @@ class TestDebianLegacy(WorkdirFixture):
             tar_stem="moncic-ci_0.1.0.orig.tar",
         )
 
+    @abc.abstractmethod
+    def source(self) -> ContextManager[DebianSource]:
+        ...
+
     def create_tar(self, name: str) -> Path:
         tar_path = self.workdir / name
         tar_path.touch()
@@ -291,32 +300,18 @@ class TestDebianLegacy(WorkdirFixture):
         self.assertEqual(src.command_log, [])
         self.assertEqual(src.source_info, self.source_info)
 
+    def test_build_source_package(self) -> None:
+        with self.source() as src:
+            mock_result = Path("result.dsc")
 
-#     def test_detect_local(self):
-#         with InputSource.create(self.pkg_root) as isrc:
-#             self.assertIsInstance(isrc, inputsource.LocalDir)
-#
-#             with self.assertRaises(Fail):
-#                 isrc.detect_source(ROCKY9)
-#
-#             src = isrc.detect_source(SID)
-#             self.assertIsInstance(src, debian.DebianSourceDir)
-#
-#     def test_build_source(self):
-#         with InputSource.create(self.pkg_root) as isrc:
-#             src = isrc.detect_source(SID)
-#             self.assertEqual(src.get_build_class().__name__, "Debian")
-#             build = src.make_build(distro=SID)
-#             with (
-#                 make_moncic() as moncic,
-#                 moncic.session(),
-#                 MockBuilder("sid", build) as builder,
-#                 builder.container() as container,
-#             ):
-#                 src.gather_sources_from_host(builder.build, container)
-#                 self.assertCountEqual(os.listdir(container.source_dir), [self.tarball_name])
-#                 # TODO: @guest_only
-#                 # TODO: def build_source_package(self) -> str:
+            with mock.patch("subprocess.run") as subprocess_run:
+                with mock.patch("moncic.source.debian.DebianSource._find_built_dsc", return_value=mock_result):
+                    dsc_path = src.build_source_package()
+
+            self.assertEqual(dsc_path, mock_result)
+            subprocess_run.assert_called_once_with(
+                ["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], check=True, cwd=src.path
+            )
 
 
 class TestDebianLegacyDir(TestDebianLegacy):
@@ -472,6 +467,10 @@ class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
                 )
 
 
+# Avoid running test from the base fixture outside derived classes
+del TestDebianLegacy
+
+
 class TestDebianGBPTestUpstream(GitFixture):
     git_name = "moncic-ci"
     source_info: SourceInfo
@@ -561,24 +560,32 @@ class TestDebianGBPTestUpstream(GitFixture):
                     [],
                 )
 
+    def test_build_source_package(self) -> None:
+        with self.source() as src:
+            mock_result = Path("result.dsc")
 
-#     def test_build_source(self):
-#         with InputSource.create(self.git.root) as isrc:
-#             src = isrc.detect_source(SID)
-#             self.assertEqual(src.get_build_class().__name__, "Debian")
-#             build = src.make_build(distro=SID)
-#             with (
-#                 make_moncic() as moncic,
-#                 moncic.session(),
-#                 MockBuilder("sid", build) as builder,
-#                 builder.container() as container,
-#             ):
-#                 src.gather_sources_from_host(builder.build, container)
-#                 self.assertCountEqual(os.listdir(container.source_dir), [])
-#
-#             self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch", "--git-upstream-branch=main"])
-#
-#
+            with mock.patch("subprocess.run") as subprocess_run:
+                with mock.patch("moncic.source.debian.DebianSource._find_built_dsc", return_value=mock_result):
+                    dsc_path = src.build_source_package()
+
+            self.assertEqual(dsc_path, mock_result)
+            subprocess_run.assert_called_once_with(
+                [
+                    "gbp",
+                    "buildpackage",
+                    "--git-ignore-new",
+                    "-d",
+                    "-S",
+                    "--no-sign",
+                    "--no-pre-clean",
+                    "--git-upstream-tree=branch",
+                    "--git-upstream-branch=main",
+                ],
+                check=True,
+                cwd=src.path,
+            )
+
+
 # class TestDebianGBPTestUpstreamUnstable(DebianGBPTestUpstreamMixin, unittest.TestCase):
 #     packaging_branch_name = "debian/unstable"
 #
@@ -669,31 +676,29 @@ debian-branch=debian/unstable
                     [],
                 )
 
+    def test_build_source_package(self) -> None:
+        with self.source() as src:
+            mock_result = Path("result.dsc")
 
-#     def _test_build_source(self, path):
-#         with InputSource.create(path) as isrc:
-#             src = isrc.detect_source(SID)
-#             self.assertIsInstance(src, debian.DebianGBPRelease)
-#             self.assertEqual(src.get_build_class().__name__, "Debian")
-#             build = src.make_build(distro=SID)
-#             self.assertTrue(build.source.host_path.is_dir())
-#             with (
-#                 make_moncic() as moncic,
-#                 moncic.session(),
-#                 MockBuilder("sid", build) as builder,
-#                 builder.container() as container,
-#             ):
-#                 src.gather_sources_from_host(builder.build, container)
-#                 self.assertCountEqual(os.listdir(container.source_dir), [])
-#
-#             self.assertEqual(src.gbp_args, ["--git-upstream-tree=tag"])
-#
-#     def test_build_source_git(self):
-#         self._test_build_source(self.git.root)
-#
-#     def test_build_source_url(self):
-#         with self.git.serve() as url:
-#             self._test_build_source(url)
+            with mock.patch("subprocess.run") as subprocess_run:
+                with mock.patch("moncic.source.debian.DebianSource._find_built_dsc", return_value=mock_result):
+                    dsc_path = src.build_source_package()
+
+            self.assertEqual(dsc_path, mock_result)
+            subprocess_run.assert_called_once_with(
+                [
+                    "gbp",
+                    "buildpackage",
+                    "--git-ignore-new",
+                    "-d",
+                    "-S",
+                    "--no-sign",
+                    "--no-pre-clean",
+                    "--git-upstream-tree=tag",
+                ],
+                check=True,
+                cwd=src.path,
+            )
 
 
 class TestDebianGBPTestDebian(GitFixture):
@@ -771,20 +776,26 @@ debian-branch=debian/unstable
                     [],
                 )
 
+    def test_build_source_package(self) -> None:
+        with self.source() as src:
+            mock_result = Path("result.dsc")
 
-#     def test_build_source(self):
-#         with InputSource.create(self.git.root) as isrc:
-#             src = isrc.detect_source(SID)
-#             self.assertEqual(src.get_build_class().__name__, "Debian")
-#             build = src.make_build(distro=SID)
-#             with (
-#                 make_moncic() as moncic,
-#                 moncic.session(),
-#                 MockBuilder("sid", build) as builder,
-#                 builder.container() as container,
-#             ):
-#                 src.gather_sources_from_host(builder.build, container)
-#                 self.assertCountEqual(os.listdir(container.source_dir), [])
-#
-#             self.assertEqual(src.gbp_args, ["--git-upstream-tree=branch"])
-#
+            with mock.patch("subprocess.run") as subprocess_run:
+                with mock.patch("moncic.source.debian.DebianSource._find_built_dsc", return_value=mock_result):
+                    dsc_path = src.build_source_package()
+
+            self.assertEqual(dsc_path, mock_result)
+            subprocess_run.assert_called_once_with(
+                [
+                    "gbp",
+                    "buildpackage",
+                    "--git-ignore-new",
+                    "-d",
+                    "-S",
+                    "--no-sign",
+                    "--no-pre-clean",
+                    "--git-upstream-tree=branch",
+                ],
+                check=True,
+                cwd=src.path,
+            )
