@@ -4,7 +4,7 @@ import inspect
 import logging
 import shlex
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 from collections.abc import Generator, Sequence
 from pathlib import Path
 

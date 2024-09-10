@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 from .. import lint
 from ..exceptions import Fail
 from .local import Dir, Git, File
+from ..utils.run import run
 from .distro import DistroSource
 from ..distro.rpm import RpmDistro
 
@@ -22,6 +23,16 @@ class RPMSource(DistroSource, abc.ABC):
     """
     RPM source
     """
+
+    # RPM source package layouts are not really standardized, as the specfile
+    # is generally assumed to be outside the git repository.
+    #
+    # This is not the case in ARPA (https://www.arpae.it/), so here we can
+    # delegate to source styles implementing ARPA's local rules.
+    #
+    # Should more RPM source styles emerge/standardize to contain a specfile
+    # in the git repository, this is the place where support for them can be
+    # added.
 
     #: Path to the specfile to use for build
     specfile_path: Path
@@ -56,31 +67,6 @@ class RPMSource(DistroSource, abc.ABC):
         return ARPASourceGit.prepare_from_git(parent=parent, specfiles=specfiles, distro=distro)
 
 
-#    @classmethod
-#    def detect(cls, distro: Distro, source: LocalGit | LocalDir) -> RPMSource:
-#        """
-#        Auto detect the style of RPM source to build.
-#
-#        RPM source package layouts are not really standardized, as the specfile
-#        is generally assumed to be outside the git repository.
-#
-#        This is not the case in ARPA (https://www.arpae.it/), so here we can
-#        delegate to source styles implementing ARPA's local rules.
-#
-#        Should more RPM source styles emerge/standardize to contain a specfile
-#        in the git repository, this is the place where support for them can be
-#        added.
-#        """
-#        if isinstance(source, LocalGit):
-#            return ARPAGitSource._create_from_repo(source)
-#        elif isinstance(source, LocalDir):
-#            return ARPASource._create_from_repo(source)
-#        else:
-#            raise RuntimeError(
-#                f"cannot create {cls.__name__} instances from an input source of type {source.__class__.__name__}"
-#            )
-
-
 class ARPASource(RPMSource, abc.ABC):
     """
     Base class for ARPA sources.
@@ -88,9 +74,6 @@ class ARPASource(RPMSource, abc.ABC):
     This source is expected to follow the standard used for RPM packaging by
     ARPAE-SIMC (https://www.arpae.it)
     """
-
-    #    def get_linter_class(self) -> type[lint.Linter]:
-    #        return lint.ARPALinter
 
     @classmethod
     def locate_specfiles(cls, path: Path) -> list[Path]:
@@ -102,35 +85,30 @@ class ARPASource(RPMSource, abc.ABC):
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
         return [p.relative_to(path) for p in itertools.chain.from_iterable(path.glob(g) for g in spec_globs)]
 
+    def lint_find_versions(self) -> dict[str, str]:
+        versions = super().lint_find_versions()
+        spec_path = self.path / self.specfile_path
 
-#    def find_versions(self, system: System) -> dict[str, str]:
-#        versions = super().find_versions(system)
-#
-#        spec_path = self.specfile_path
-#
-#        # Run in container: rpmspec --parse file.spec
-#        if (self.host_path / spec_path).exists():
-#            cconfig = ContainerConfig()
-#            cconfig.configure_workdir(self.host_path, bind_type="ro")
-#            with system.create_container(config=cconfig) as container:
-#                res = container.run(["/usr/bin/rpmspec", "--parse", spec_path])
-#            if res.returncode == 0:
-#                version: str | None = None
-#                release: str | None = None
-#                for line in res.stdout.splitlines():
-#                    if line.startswith(b"Version:"):
-#                        if version is None:
-#                            version = line[8:].strip().decode()
-#                    if line.startswith(b"Release:"):
-#                        if release is None:
-#                            release = line[8:].strip().decode()
-#
-#                if version is not None:
-#                    versions["spec-upstream"] = version
-#                    if release is not None:
-#                        versions["spec-release"] = version + "-" + release
-#
-#        return versions
+        # Run in container: rpmspec --parse file.spec
+        if spec_path.exists():
+            res = run(["/usr/bin/rpmspec", "--parse", spec_path.as_posix()])
+            if res.returncode == 0:
+                version: str | None = None
+                release: str | None = None
+                for line in res.stdout.splitlines():
+                    if line.startswith(b"Version:"):
+                        if version is None:
+                            version = line[8:].strip().decode()
+                    if line.startswith(b"Release:"):
+                        if release is None:
+                            release = line[8:].strip().decode()
+
+                if version is not None:
+                    versions["spec-upstream"] = version
+                    if release is not None:
+                        versions["spec-release"] = version + "-" + release
+
+        return versions
 
 
 class ARPASourceDir(ARPASource, Dir):

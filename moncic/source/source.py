@@ -4,29 +4,22 @@ import abc
 import contextlib
 import inspect
 import logging
-import re
 import shlex
 import subprocess
 import tempfile
 import urllib.parse
-from collections import defaultdict
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, Sequence
 
 import git
 
-from moncic.container import ContainerConfig
 from moncic.exceptions import Fail
-from moncic.utils.guest import guest_only, host_only
 
+from .lint import Reporter
 from ..utils.run import run
 
 if TYPE_CHECKING:
-    from ..build import Build
-    from ..container import Container, System
     from ..distro import Distro
-    from ..lint import Linter
     from .local import LocalSource, Git
     from .distro import DistroSource
 
@@ -260,99 +253,13 @@ class Source(abc.ABC):
 
         return Git(parent=self, path=new_path, repo=repo, readonly=False, command_log=command_log)
 
+    def host_lint(self, reporter: Reporter) -> None:
+        """
+        Perform consistency checks on the source in the host system.
 
-#    @abstractmethod
-#    def get_linter_class(self) -> type[Linter]:
-#        """
-#        Return the Linter subclass used to check this source
-#        """
-#
-#    def make_build(self, **kwargs: Any) -> Build:
-#        """
-#        Create a Build to build this Source
-#        """
-#        return self.get_build_class()(source=self, **kwargs)
-#
-#    @host_only
-#    def gather_sources_from_host(self, build: Build, container: Container) -> None:
-#        """
-#        Gather needed source files from the host system and copy them to the
-#        guest
-#        """
-#        # Do nothing by default
-#
-#    @guest_only
-#    def build_source_package(self) -> str:
-#        """
-#        Build a source package in /src/moncic-ci/source returning the name of
-#        the main file of the source package fileset
-#        """
-#        raise NotImplementedError(f"{self.__class__.__name__}.build_source_package is not implemented")
-#
-#    def find_versions(self, system: System) -> dict[str, str]:
-#        """
-#        Get the program version from sources.
-#
-#        Return a dict mapping version type to version strings
-#        """
-#        versions: dict[str, str] = {}
-#
-#        path = self.host_path
-#        if (autotools := path / "configure.ac").exists():
-#            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
-#            with autotools.open("rt") as fd:
-#                for line in fd:
-#                    if mo := re_autotools.match(line):
-#                        versions["autotools"] = mo.group(1).strip()
-#                        break
-#
-#        if (meson := path / "meson.build").exists():
-#            re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
-#            with meson.open("rt") as fd:
-#                for line in fd:
-#                    if mo := re_meson.match(line):
-#                        versions["meson"] = mo.group(1).strip()
-#                        break
-#
-#        if (cmake := path / "CMakeLists.txt").exists():
-#            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
-#            with cmake.open("rt") as fd:
-#                for line in fd:
-#                    if mo := re_cmake.match(line):
-#                        versions["cmake"] = mo.group(1).strip()
-#                        break
-#
-#        if (news := path / "NEWS.md").exists():
-#            re_news = re.compile(r"# New in version (.+)")
-#            with news.open("rt") as fd:
-#                for line in fd:
-#                    if mo := re_news.match(line):
-#                        versions["news"] = mo.group(1).strip()
-#                        break
-#
-#        # Check setup.py by executing it with --version inside the container
-#        if (path / "setup.py").exists():
-#            cconfig = ContainerConfig()
-#            cconfig.configure_workdir(path, bind_type="ro")
-#            with system.create_container(config=cconfig) as container:
-#                res = container.run(["/usr/bin/python3", "setup.py", "--version"])
-#            if res.returncode == 0:
-#                lines = res.stdout.splitlines()
-#                if lines:
-#                    versions["setup.py"] = lines[-1].strip().decode()
-#
-#        return versions
-#
-#    def lint(self, linter: Linter):
-#        # Check for version mismatches
-#        versions = self.find_versions(linter.system)
-#
-#        by_version: dict[str, list[str]] = defaultdict(list)
-#        for name, version in versions.items():
-#            if name.endswith("-release"):
-#                by_version[version.split("-", 1)[0]].append(name)
-#            else:
-#                by_version[version].append(name)
-#        if len(by_version) > 1:
-#            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-#            linter.warning(f"Versions mismatch: {'; '.join(descs)}")
+        This cannot assume any distro-specific tools to be available.
+
+        This can assume access to the original sources, unless they are remote.
+        """
+        # Do nothing by default
+        pass

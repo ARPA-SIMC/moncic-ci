@@ -11,6 +11,7 @@ from ..utils.run import run
 from . import build
 from ..build.utils import link_or_copy
 from ..build.build import Build
+from ..source.lint import Reporter
 from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:
@@ -25,7 +26,7 @@ class Query(ContainerSourceOperation):
     """
 
     @guest_only
-    def guest_main(self) -> dict[str, Any]
+    def guest_main(self) -> dict[str, Any]:
         """
         Run the build
         """
@@ -43,7 +44,7 @@ class BuildDeps(ContainerSourceOperation):
     """
 
     @guest_only
-    def guest_main(self) -> list[str]
+    def guest_main(self) -> list[str]:
         """
         Run the build
         """
@@ -53,3 +54,22 @@ class BuildDeps(ContainerSourceOperation):
         # self.build.setup_container_guest(self.system)
         # self.build.build()
         # return self.build
+
+
+class Lint(ContainerSourceOperation):
+    """
+    Run linter code using a container
+    """
+
+    def __init__(self, system: System, source: DistroSource, *, artifacts_dir: Path | None = None, reporter: Reporter):
+        super().__init__(system, source, artifacts_dir=artifacts_dir)
+        self.reporter = reporter
+
+    @guest_only
+    def guest_main(self) -> Reporter:
+        """
+        Run the linter
+        """
+        source = self.get_guest_source()
+        source.guest_lint(self.reporter)
+        return self.reporter

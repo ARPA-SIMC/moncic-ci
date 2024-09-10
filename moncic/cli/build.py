@@ -150,23 +150,24 @@ class Lint(SourceCommand):
         return parser
 
     def run(self):
-        with self.moncic.session() as session:
-            images = session.images
-            with images.system(self.args.system) as system:
-                with self.source(system.distro, self.args.source) as source:
-                    linter_cls = source.get_linter_class()
-                    linter = linter_cls(system, source)
-                    linter.lint()
-        if linter.error_count:
-            print(f"{linter.error_count} error(s), {linter.warning_count} warning(s)")
-            return 2
-        if linter.warning_count:
-            print(f"{linter.warning_count} warning(s)")
-            return 1
+        from ..source.lint import Reporter
 
-        # cls.builders["debian"].analyze(analyzer)
-        # cls.builders["rpm"].analyze(analyzer)
-        # # TODO: check that NEWS.md version matches upstream version
+        reporter = Reporter()
+        with self.local_source() as local_source:
+            local_source.host_lint(reporter)
+
+            with self.moncic.session() as session:
+                images = session.images
+                with images.system(self.args.system) as system:
+                    source = self.distro_source(local_source, system.distro)
+                    operation = ops_query.Lint(system, source, reporter=reporter)
+                    reporter = operation.host_main()
+        if reporter.error_count:
+            print(f"{reporter.error_count} error(s), {reporter.warning_count} warning(s)")
+            return 2
+        if reporter.warning_count:
+            print(f"{reporter.warning_count} warning(s)")
+            return 1
 
 
 @main_command

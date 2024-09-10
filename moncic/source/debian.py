@@ -280,33 +280,19 @@ class DebianSource(DistroSource, abc.ABC):
 
         raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
+    def lint_find_versions(self) -> dict[str, str]:
+        versions = super().lint_find_versions()
 
-#    def get_linter_class(self) -> type[lint.Linter]:
-#        return lint.DebianLinter
-#
-#    def find_versions(self, system: System) -> dict[str, str]:
-#        versions = super().find_versions(system)
-#
-#        changelog = self.host_path / "debian" / "changelog"
-#
-#        re_changelog = re.compile(r"\S+\s+\(([^)]+)\)")
-#
-#        try:
-#            for line in changelog.read_text().splitlines():
-#                if mo := re_changelog.match(line):
-#                    debversion = mo.group(1)
-#                    if "-" in debversion:
-#                        upstream, release = debversion.split("-")
-#                    else:
-#                        upstream, release = debversion, None
-#                    versions["debian-upstream"] = upstream
-#                    if release is not None:
-#                        versions["debian-release"] = upstream + "-" + release
-#                    break
-#        except FileNotFoundError:
-#            pass
-#
-#        return versions
+        version = self.source_info.version
+        if "-" in version:
+            upstream, release = version.split("-")
+        else:
+            upstream, release = version, None
+        versions["debian-upstream"] = upstream
+        if release is not None:
+            versions["debian-release"] = version
+
+        return versions
 
 
 class DebianDsc(DebianSource, File):
@@ -749,3 +735,62 @@ class DebianGBPTestDebian(DebianGBP):
 #    def lint(self, linter: lint.Linter):
 #        super().lint(linter)
 #        self._check_debian_commits(linter)
+
+# class GitSource(Source):
+#     """
+#     Source backed by a Git repo
+#     """
+#
+#     # Redefine source specialized as LocalGit
+#     source: LocalGit
+#
+#     def _get_tags_by_hexsha(self) -> dict[str, git.objects.Commit]:
+#         res: dict[str, list[git.objects.Commit]] = defaultdict(list)
+#         for tag in self.source.repo.tags:
+#             res[tag.object.hexsha].append(tag)
+#         return res
+#
+#     def find_versions(self, system: System) -> dict[str, str]:
+#         versions = super().find_versions(system)
+#
+#         re_versioned_tag = re.compile(r"^v?([0-9].+)")
+#
+#         repo = self.source.repo
+#
+#         _tags_by_hexsha = self._get_tags_by_hexsha()
+#
+#         # List tags for the current commit
+#         for tag in _tags_by_hexsha.get(repo.head.commit.hexsha, ()):
+#             if tag.name.startswith("debian/"):
+#                 version = tag.name[7:]
+#                 if "-" in version:
+#                     versions["tag-debian"] = version.split("-", 1)[0]
+#                     versions["tag-debian-release"] = version
+#                 else:
+#                     versions["tag-debian"] = version
+#             elif mo := re_versioned_tag.match(tag.name):
+#                 version = mo.group(1)
+#                 if "-" in version:
+#                     versions["tag-arpa"] = version.split("-", 1)[0]
+#                     versions["tag-arpa-release"] = version
+#                 else:
+#                     versions["tag"] = version
+#
+#         return versions
+
+# @host_only
+# def get_build_deps(self) -> list[str]:
+#     with self.container() as container:
+#         # Inject a perl script that uses libdpkg-perl to compute the dependency list
+#         with importlib.resources.open_binary("moncic.build", "debian-dpkg-listbuilddeps") as fdin:
+#             with open(
+#                     os.path.join(container.get_root(), "srv", "moncic-ci", "dpkg-listbuilddeps"), "wb") as fdout:
+#                 shutil.copyfileobj(fdin, fdout)
+#                 os.fchmod(fdout.fileno(), 0o755)
+
+#         # Build run config
+#         run_config = container.config.run_config()
+
+#         return container.run_callable(
+#                 self.get_build_deps_in_container,
+#                 run_config).result()

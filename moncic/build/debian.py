@@ -70,23 +70,6 @@ class Debian(Build):
         metadata={"doc": "Always include sources in upload (run `dpkg-buildpackage -sa`)"},
     )
 
-    # @host_only
-    # def get_build_deps(self) -> list[str]:
-    #     with self.container() as container:
-    #         # Inject a perl script that uses libdpkg-perl to compute the dependency list
-    #         with importlib.resources.open_binary("moncic.build", "debian-dpkg-listbuilddeps") as fdin:
-    #             with open(
-    #                     os.path.join(container.get_root(), "srv", "moncic-ci", "dpkg-listbuilddeps"), "wb") as fdout:
-    #                 shutil.copyfileobj(fdin, fdout)
-    #                 os.fchmod(fdout.fileno(), 0o755)
-
-    #         # Build run config
-    #         run_config = container.config.run_config()
-
-    #         return container.run_callable(
-    #                 self.get_build_deps_in_container,
-    #                 run_config).result()
-
     @guest_only
     def get_build_deps_in_container(self):
         res = subprocess.run(

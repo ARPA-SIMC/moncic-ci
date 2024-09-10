@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import abc
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .source import Source
+from .lint import Reporter
 from ..exceptions import Fail
 
 import git
@@ -37,6 +39,50 @@ class LocalSource(Source, abc.ABC):
         This can be used to work with a version of the source that is mounted
         in a different path inside a guest system.
         """
+
+    def lint_find_versions(self) -> dict[str, str]:
+        """
+        Scan sources looking for all places that define a version number.
+
+        Distribution-specific subclasses can assume access to distro-specific tools.
+
+        :return: a dict mapping place names to versions found
+        """
+        versions = {}
+
+        if (autotools := self.path / "configure.ac").exists():
+            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
+            with autotools.open("rt") as fd:
+                for line in fd:
+                    if mo := re_autotools.match(line):
+                        versions["autotools"] = mo.group(1).strip()
+                        break
+
+        if (meson := self.path / "meson.build").exists():
+            re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
+            with meson.open("rt") as fd:
+                for line in fd:
+                    if mo := re_meson.match(line):
+                        versions["meson"] = mo.group(1).strip()
+                        break
+
+        if (cmake := self.path / "CMakeLists.txt").exists():
+            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
+            with cmake.open("rt") as fd:
+                for line in fd:
+                    if mo := re_cmake.match(line):
+                        versions["cmake"] = mo.group(1).strip()
+                        break
+
+        if (news := self.path / "NEWS.md").exists():
+            re_news = re.compile(r"# (?:New in version|Version) (.+)")
+            with news.open("rt") as fd:
+                for line in fd:
+                    if mo := re_news.match(line):
+                        versions["news"] = mo.group(1).strip()
+                        break
+
+        return versions
 
 
 class File(LocalSource):
@@ -159,45 +205,30 @@ class Git(Dir):
 
         return res
 
+    def lint_local_remote_sync(self, name: str, reporter: Reporter) -> str:
+        """
+        Check if branch {name} is in sync between local and remote.
 
-# class GitSource(Source):
-#     """
-#     Source backed by a Git repo
-#     """
-#
-#     # Redefine source specialized as LocalGit
-#     source: LocalGit
-#
-#     def _get_tags_by_hexsha(self) -> dict[str, git.objects.Commit]:
-#         res: dict[str, list[git.objects.Commit]] = defaultdict(list)
-#         for tag in self.source.repo.tags:
-#             res[tag.object.hexsha].append(tag)
-#         return res
-#
-#     def find_versions(self, system: System) -> dict[str, str]:
-#         versions = super().find_versions(system)
-#
-#         re_versioned_tag = re.compile(r"^v?([0-9].+)")
-#
-#         repo = self.source.repo
-#
-#         _tags_by_hexsha = self._get_tags_by_hexsha()
-#
-#         # List tags for the current commit
-#         for tag in _tags_by_hexsha.get(repo.head.commit.hexsha, ()):
-#             if tag.name.startswith("debian/"):
-#                 version = tag.name[7:]
-#                 if "-" in version:
-#                     versions["tag-debian"] = version.split("-", 1)[0]
-#                     versions["tag-debian-release"] = version
-#                 else:
-#                     versions["tag-debian"] = version
-#             elif mo := re_versioned_tag.match(tag.name):
-#                 version = mo.group(1)
-#                 if "-" in version:
-#                     versions["tag-arpa"] = version.split("-", 1)[0]
-#                     versions["tag-arpa-release"] = version
-#                 else:
-#                     versions["tag"] = version
-#
-#         return versions
+        Return the name of the most up to date branch
+        """
+        if name not in self.repo.references:
+            reporter.error(self, f"branch {name!r} does not exist locally")
+
+        remote_name = f"origin/{name}"
+        if remote_name not in self.repo.references:
+            reporter.error(self, f"branch {remote_name!r} does not exist locally")
+
+        local = self.repo.references[name]
+        remote = self.repo.references[remote_name]
+        if local.commit != remote.commit:
+            if self.repo.is_ancestor(local.commit, remote.commit):
+                reporter.warning(self, f"branch {remote_name} is ahead of local branch {name}")
+                return remote_name
+            elif self.repo.is_ancestor(remote.commit, local.commit):
+                reporter.warning(self, f"branch {name} is ahead of remote branch {remote_name}")
+                return name
+            else:
+                reporter.warning(self, f"branch {name} diverged from branch {remote_name}")
+                return name
+        else:
+            return name
