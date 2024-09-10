@@ -25,12 +25,30 @@ class Query(ContainerSourceOperation):
     """
 
     @guest_only
-    def guest_main(self) -> build.Build:
+    def guest_main(self) -> dict[str, Any]
         """
         Run the build
         """
         log.error("NOT YET IMPLEMENTED")
         return {}
+        # self.build.source = self.get_guest_source()
+        # self.build.setup_container_guest(self.system)
+        # self.build.build()
+        # return self.build
+
+
+class BuildDeps(ContainerSourceOperation):
+    """
+    Query informations about a Source using a container
+    """
+
+    @guest_only
+    def guest_main(self) -> list[str]
+        """
+        Run the build
+        """
+        log.error("BUILD DEPS NOT YET IMPLEMENTED")
+        return []
         # self.build.source = self.get_guest_source()
         # self.build.setup_container_guest(self.system)
         # self.build.build()
