@@ -284,8 +284,7 @@ class SourceCommand(MoncicCommand):
         Instantiate a DistroSource object from a local source
         """
         with self.moncic.privs.user():
-            distro_source_cls = Source.get_distro_source_class(distro=distro)
-            return distro_source_cls.create_from_local(source, distro=distro, style=self.args.source_type)
+            return DistroSource.create_from_local(source, distro=distro, style=self.args.source_type)
 
     @contextlib.contextmanager
     def source(self, distro: Distro) -> Generator[DistroSource, None, None]:

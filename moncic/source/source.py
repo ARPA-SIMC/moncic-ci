@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import contextlib
-import inspect
 import logging
 import shlex
 import subprocess
@@ -19,15 +18,9 @@ from .lint import Reporter
 from ..utils.run import run
 
 if TYPE_CHECKING:
-    from ..distro import Distro
     from .local import LocalSource, Git
-    from .distro import DistroSource
 
 log = logging.getLogger(__name__)
-
-
-# Registry of known builders
-source_types: dict[str, type[Source]] = {}
 
 
 class CommandLog(list[str]):
@@ -88,22 +81,6 @@ class Source(abc.ABC):
     stack: contextlib.ExitStack
     #: Commands that can be used to recreate this source
     command_log: CommandLog
-
-    @classmethod
-    def get_source_type(cls) -> str:
-        """
-        Return the user-facing name for this class
-        """
-        if name := cls.__dict__.get("NAME"):
-            return name
-        return cls.__name__.lower()
-
-    def __init_subclass__(cls, **kwargs) -> None:
-        """Register subclasses."""
-        super().__init_subclass__(**kwargs)
-        if inspect.isabstract(cls):
-            return
-        source_types[cls.get_source_type()] = cls
 
     def __init__(self, *, name: str | None = None, parent: Source | None = None, command_log: CommandLog | None = None):
         self.parent = parent
@@ -192,22 +169,6 @@ class Source(abc.ABC):
             if branch is not None:
                 raise Fail("Cannot specify a branch when working on a file")
             return File(name=name, path=source.absolute())
-
-    @classmethod
-    def get_distro_source_class(cls, *, distro: Distro) -> type["DistroSource"]:
-        from ..distro.debian import DebianDistro
-        from ..distro.rpm import RpmDistro
-
-        if isinstance(distro, DebianDistro):
-            from .debian import DebianSource
-
-            return DebianSource
-        elif isinstance(distro, RpmDistro):
-            from .rpm import RPMSource
-
-            return RPMSource
-        else:
-            raise NotImplementedError(f"No suitable git builder found for distribution {distro!r}")
 
     def _git_clone(self, repository: str, branch: str | None = None) -> "Git":
         """

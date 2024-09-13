@@ -25,7 +25,7 @@ class TestCommandLog(unittest.TestCase):
 
 class TestSourceStack(unittest.TestCase):
     def test_enter_once(self) -> None:
-        with SourceStack() as stack:
+        with SourceStack():
             pass
 
     def test_enter_twice(self) -> None:
@@ -62,7 +62,6 @@ class TestSource(GitFixture):
         self.assertIsNone(source.parent)
         self.assertIsNotNone(source.stack)
         self.assertIsNotNone(source.command_log)
-        self.assertEqual(MockSource.get_source_type(), "mocksource")
         self.assertEqual(source.name, "test")
         self.assertEqual(str(source), "test")
         self.assertEqual(repr(source), "MockSource(test)")
