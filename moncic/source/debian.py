@@ -379,6 +379,8 @@ class DebianGitLegacy(DebianDir, Git):
     Debian sources from a git repository, without gbp-buildpackage
     """
 
+    NAME = "debian-git-legacy"
+
     @classmethod
     def prepare_from_git(
         cls,
@@ -447,6 +449,8 @@ class DebianGBP(DebianSource, Git, abc.ABC):
     """
     Debian git working directory with a gbp-buildpackage setup
     """
+
+    NAME = "debian-gbp"
 
     gbp_info: GBPInfo
     gbp_args: list[str]

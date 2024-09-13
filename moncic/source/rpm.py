@@ -117,16 +117,18 @@ class ARPASourceDir(ARPASource, Dir):
     previously configured for travis
     """
 
-    NAME = "rpm-arpa"
+    NAME = "rpm-arpa-dir"
 
     @classmethod
     def prepare_from_dir(
         cls,
         parent: Dir,
         *,
-        distro: RpmDistro,
-        specfiles: list[Path],
+        distro: Distro,
+        specfiles: list[Path] | None = None,
     ) -> "ARPASourceDir":  # TODO: Self from python 3.11+
+        if specfiles is None:
+            specfiles = cls.locate_specfiles(parent.path)
         if not specfiles:
             raise Fail(f"{parent.path}: no specfiles found in well-known locations")
         if len(specfiles) > 1:
@@ -147,9 +149,11 @@ class ARPASourceGit(ARPASource, Git):
         cls,
         parent: Dir,
         *,
-        distro: RpmDistro,
-        specfiles: list[Path],
-    ) -> "ARPASourceGit":  # TODO: Self from python 3.11+
+        distro: Distro,
+        specfiles: list[Path] | None = None,
+    ) -> "ARPASource":  # TODO: Self from python 3.11+
+        if specfiles is None:
+            specfiles = cls.locate_specfiles(parent.path)
         if not specfiles:
             raise Fail(f"{parent.path}: no specfiles found in well-known locations")
         if len(specfiles) > 1:

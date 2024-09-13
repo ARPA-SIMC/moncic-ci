@@ -101,17 +101,32 @@ class DistroSource(LocalSource, abc.ABC):
         return versions
 
     @classmethod
+    @abc.abstractmethod
     def create_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
+        """Create a distro-specific source from a File."""
+
+    @classmethod
+    @abc.abstractmethod
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
+        """Create a distro-specific source from a Dir directory."""
+
+    @classmethod
+    @abc.abstractmethod
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
+        """Create a distro-specific source from a Git repo."""
+
+    @classmethod
+    def preapre_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
         """Create a distro-specific source from a File."""
         raise Fail(f"{cls.get_source_type()} is not applicable on a file")
 
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
+    def prepare_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
         """Create a distro-specific source from a Dir directory."""
         raise Fail(f"{cls.get_source_type()} is not applicable on a non-git directory")
 
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
+    def prepare_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
         """Create a distro-specific source from a Git repo."""
         raise Fail(f"{cls.get_source_type()} is not applicable on a git repository")
 
@@ -121,18 +136,22 @@ class DistroSource(LocalSource, abc.ABC):
         source_cls: type["DistroSource"]
         if style is None:
             source_cls = cls._detect_class_for_distro(distro=distro)
+            factory_method = "create_from_"
         else:
             source_cls = cls._detect_class_for_style(distro=distro, style=style)
+            factory_method = "prepare_from_"
 
         # TODO: redo with a match on python 3.10+
         if isinstance(parent, Git):
-            return source_cls.create_from_git(parent, distro=distro)
+            meth = getattr(source_cls, factory_method + "git")
         elif isinstance(parent, Dir):
-            return source_cls.create_from_dir(parent, distro=distro)
+            meth = getattr(source_cls, factory_method + "dir")
         elif isinstance(parent, File):
+            meth = getattr(source_cls, factory_method + "file")
             return source_cls.create_from_file(parent, distro=distro)
         else:
             raise NotImplementedError(f"Local source type {parent.__class__} not supported")
+        return meth(parent, distro=distro)
 
     @classmethod
     def _detect_class_for_distro(cls, *, distro: Distro) -> type["DistroSource"]:
