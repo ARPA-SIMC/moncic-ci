@@ -1,3 +1,8 @@
+# Version UNRELEASED
+
+* Redesigned source detection. Some of `monci ci --source-type list` styles have been chanegd
+* Bug fixing (#106)
+
 # Version 0.14
 
 * Added `--option include_source=true` to `monci ci` for Debian builds, to run
