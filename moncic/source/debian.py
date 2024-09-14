@@ -245,7 +245,7 @@ class DebianSource(DistroSource, abc.ABC):
         gbp_conf_path = debian_path / "gbp.conf"
         if not gbp_conf_path.exists():
             log.debug("%s: gbp.conf not found, using DebianGitLegacy", parent)
-            return DebianGitLegacy.prepare_from_git(parent, distro=distro, source_info=source_info)
+            return DebianDir.prepare_from_git(parent, distro=distro, source_info=source_info)
 
         gbp_info = source_info.parse_gbp(parent.path / "debian" / "gbp.conf")
         log.debug(
@@ -295,12 +295,10 @@ class DebianSource(DistroSource, abc.ABC):
         return versions
 
 
-class DebianDsc(DebianSource, File):
+class DebianDsc(DebianSource, File, style="debian-dsc"):
     """
     Debian source .dsc
     """
-
-    NAME = "debian-dsc"
 
     source_info: DSCInfo
 
@@ -308,7 +306,7 @@ class DebianDsc(DebianSource, File):
         super().__init__(source_info=source_info, **kwargs)
 
     @classmethod
-    def prepare_from_file(cls, parent: File, *, distro: DebianDistro) -> "DebianDsc":
+    def prepare_from_file(cls, parent: File, *, distro: Distro) -> "DebianDsc":
         assert parent.path.suffix == ".dsc"
         source_info = DSCInfo.create_from_file(parent.path)
         return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info)
@@ -327,22 +325,38 @@ class DebianDsc(DebianSource, File):
         return self.path
 
 
-class DebianDir(DebianSource, Dir):
+class DebianDir(DebianSource, Dir, style="debian-dir"):
     """
-    Directory with Debian sources, without git
-    """
+    Directory with an unpacked Debian sources, without gbp-buildpackage.
 
-    NAME = "debian-dir"
+    If no existing upstream tarball is found and the directory is a git
+    repository, one is generated using `git archive HEAD . ":(exclude)debian"`,
+    as a last-resort measure.
+    """
 
     @classmethod
     def prepare_from_dir(
         cls,
         parent: Dir,
         *,
-        distro: DebianDistro,
+        distro: Distro,
     ) -> "DebianDir":  # TODO: Self from python 3.11+
         source_info = SourceInfo.create_from_dir(parent.path)
         return cls(**parent.derive_kwargs(distro=distro, source_info=source_info))
+
+    @classmethod
+    def prepare_from_git(
+        cls,
+        parent: Git,
+        *,
+        distro: Distro,
+        source_info: SourceInfo | None = None,
+    ) -> "DebianDirGit":  # TODO: Self from python 3.11+
+        if source_info is None:
+            source_info = SourceInfo.create_from_dir(parent.path)
+        parent = parent.get_clean()
+        kwargs = parent.derive_kwargs(distro=distro, source_info=source_info)
+        return DebianDirGit(**kwargs)
 
     def _find_tarball(self, artifact_dir: Path | None = None) -> Path | None:
         search_path = []
@@ -374,23 +388,10 @@ class DebianDir(DebianSource, Dir):
         return self._find_built_dsc()
 
 
-class DebianGitLegacy(DebianDir, Git):
+class DebianDirGit(DebianDir, Git):
     """
     Debian sources from a git repository, without gbp-buildpackage
     """
-
-    NAME = "debian-git-legacy"
-
-    @classmethod
-    def prepare_from_git(
-        cls,
-        parent: Git,
-        *,
-        distro: DebianDistro,
-        source_info: SourceInfo,
-    ) -> "DebianGitLegacy":  # TODO: Self from python 3.11+
-        parent = parent.get_clean()
-        return cls(**parent.derive_kwargs(distro=distro, source_info=source_info))
 
     def _on_tarball_not_found(self, destdir: Path) -> None:
         """
@@ -410,39 +411,6 @@ class DebianGitLegacy(DebianDir, Git):
             if proc.wait() != 0:
                 raise RuntimeError(f"git archive exited with error code {proc.returncode}")
         os.chown(dest_tarball, source_stat.st_uid, source_stat.st_gid)
-
-
-# class DebianGit(DebianDirMixin, DebianGitSource):
-#     """
-#     Debian git working directory that does not use git-buildpackage.
-#
-#     This is autoselected if the `debian/` directory exists, but there is no
-#     `debian/gbp.conf`.
-#
-#     An upstream `orig.tar.gz` tarball is searched on `..` and on the artifacts
-#     directory, and used if found.
-#
-#     If no existing upstream tarball is found, one is generated using
-#     `git archive HEAD . ":(exclude)debian"`, as a last-resort measure.
-#     """
-#
-#     NAME = "debian-git-plain"
-#
-#     @guest_only
-#     def build_source_package(self) -> str:
-#         """
-#         Build a source package in /srv/moncic-ci/source returning the name of
-#         the main file of the source package fileset
-#         """
-#         # Uses --no-pre-clean to avoid requiring build-deps to be installed at
-#         # this stage
-#         run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.guest_path)
-#
-#         for fn in os.listdir("/srv/moncic-ci/source"):
-#             if fn.endswith(".dsc"):
-#                 return os.path.join("/srv/moncic-ci/source", fn)
-#
-#         raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
 
 class DebianGBP(DebianSource, Git, abc.ABC):
@@ -477,6 +445,31 @@ class DebianGBP(DebianSource, Git, abc.ABC):
             if (ref := source.find_branch(branch)) is not None:
                 return ref
         return None
+
+    @classmethod
+    def find_gbp(
+        self, source: Git, distro: DebianDistro, source_info: SourceInfo | None = None, gbp_info: GBPInfo | None = None
+    ) -> tuple[SourceInfo, GBPInfo]:
+        """
+        Look for debian source and GBP information in well-known places
+        """
+        if source_info is None:
+            source_info = SourceInfo.create_from_dir(source.path)
+
+        if gbp_info is None:
+            # Check if it's a gbp-buildpackage source
+            gbp_conf_path = source.path / "debian" / "gbp.conf"
+            if not gbp_conf_path.exists():
+                packaging_branch = DebianGBP.find_packaging_branch(source, distro)
+                if packaging_branch is None:
+                    raise Fail(f"{source}: packaging branch not found")
+                source = source.get_branch(packaging_branch.name)
+                gbp_conf_path = source.path / "debian" / "gbp.conf"
+                if not gbp_conf_path.exists():
+                    raise Fail(f"{source}: gbp.conf not found")
+            gbp_info = source_info.parse_gbp(source.path / "debian" / "gbp.conf")
+
+        return source_info, gbp_info
 
     def build_source_package(self) -> Path:
         """
@@ -513,7 +506,7 @@ class DebianGBP(DebianSource, Git, abc.ABC):
 #         return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
 
 
-class DebianGBPTestUpstream(DebianGBP):
+class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
     """
     Merge the current upstream working directory into the packaging branch for
     the build distro.
@@ -534,16 +527,20 @@ class DebianGBPTestUpstream(DebianGBP):
       directory (i.e. testing packaging of an upstream branch)
     """
 
-    NAME = "debian-gbp-upstream"
-
     @classmethod
     def prepare_from_git(
         cls,
         parent: Git,
         *,
-        distro: DebianDistro,
-        packaging_branch: git.refs.symbolic.SymbolicReference,
+        distro: Distro,
+        packaging_branch: git.refs.symbolic.SymbolicReference | None = None,
     ) -> "DebianGBPTestUpstream":
+        assert isinstance(distro, DebianDistro)
+        if packaging_branch is None:
+            packaging_branch = DebianGBP.find_packaging_branch(parent, distro)
+            if packaging_branch is None:
+                raise Fail(f"{parent}: packaging branch not found")
+
         # TODO: find common ancestor between current and packaging, and merge
         #       packaging branch from that?
 
@@ -595,7 +592,7 @@ class DebianGBPTestUpstream(DebianGBP):
         )
 
 
-class DebianGBPRelease(DebianGBP):
+class DebianGBPRelease(DebianGBP, style="debian-gbp-release"):
     """
     Debian git working directory checked out to a tagged release branch.
 
@@ -606,19 +603,20 @@ class DebianGBPRelease(DebianGBP):
     release version of a package.
     """
 
-    NAME = "debian-gbp-release"
-
     @classmethod
     def prepare_from_git(
         cls,
         parent: Git,
         *,
-        distro: DebianDistro,
-        source_info: SourceInfo,
-        gbp_info: GBPInfo,
+        distro: Distro,
+        source_info: SourceInfo | None = None,
+        gbp_info: GBPInfo | None = None,
     ) -> "DebianGBPRelease":
+        assert isinstance(distro, DebianDistro)
+        source_info, gbp_info = cls.find_gbp(parent, distro, source_info, gbp_info)
+
         # TODO: check that debian/changelog is not UNRELEASED
-        # The current directory is already the right source directory
+        # TODO: check for tags?
 
         return cls(
             **parent.derive_kwargs(
@@ -653,7 +651,7 @@ class DebianGBPRelease(DebianGBP):
 #        self._check_debian_commits(linter)
 
 
-class DebianGBPTestDebian(DebianGBP):
+class DebianGBPTestDebian(DebianGBP, style="debian-gbp-test"):
     """
     Debian git working directory checked out to an untagged Debian branch.
 
@@ -668,18 +666,18 @@ class DebianGBPTestDebian(DebianGBP):
     branch.
     """
 
-    NAME = "debian-gbp-test"
-
     @classmethod
     def prepare_from_git(
         cls,
         parent: Git,
         *,
-        distro: DebianDistro,
-        source_info: SourceInfo,
-        gbp_info: GBPInfo,
+        distro: Distro,
+        source_info: SourceInfo | None = None,
+        gbp_info: GBPInfo | None = None,
     ) -> "DebianGBPTestDebian":
-        # TODO: check that debian/changelog is not UNRELEASED
+        assert isinstance(distro, DebianDistro)
+        source_info, gbp_info = cls.find_gbp(parent, distro, source_info, gbp_info)
+
         # The current directory is already the right source directory
 
         # If we are still working on an uncloned repository, create a temporary
@@ -687,7 +685,6 @@ class DebianGBPTestDebian(DebianGBP):
         parent = parent.get_writable()
 
         command_log = CommandLog()
-        command_log.add_command("git", "clone", "-b", parent.repo.active_branch.name, parent.path.as_posix())
 
         # Merge the upstream branch into the debian branch
         log.info("merge upstream branch %s into build branch", gbp_info.upstream_branch)

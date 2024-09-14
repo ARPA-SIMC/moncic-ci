@@ -10,7 +10,7 @@ from moncic.distro.rpm import RpmDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import File, Dir, Git
-from moncic.source.rpm import RPMSource, ARPASourceDir, ARPASourceGit
+from moncic.source.rpm import RPMSource, ARPASource, ARPASourceDir, ARPASourceGit
 
 from .source import WorkdirFixture, GitFixture, GitRepo
 
@@ -57,7 +57,7 @@ class TestRPMSource(WorkdirFixture):
         (path / "specfile.spec").touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            with mock.patch("moncic.source.rpm.ARPASourceDir.prepare_from_dir") as patched:
+            with mock.patch("moncic.source.rpm.ARPASource.prepare_from_dir") as patched:
                 RPMSource.create_from_dir(src, distro=ROCKY9)
             patched.assert_called_once()
 
@@ -70,7 +70,7 @@ class TestRPMSource(WorkdirFixture):
 
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            with mock.patch("moncic.source.rpm.ARPASourceDir.prepare_from_dir") as patched:
+            with mock.patch("moncic.source.rpm.ARPASource.prepare_from_dir") as patched:
                 RPMSource.create_from_dir(src, distro=ROCKY9)
             patched.assert_called_once()
 
@@ -100,7 +100,7 @@ class TestRPMSource(WorkdirFixture):
         git.commit("initial")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with mock.patch("moncic.source.rpm.ARPASourceGit.prepare_from_git") as patched:
+            with mock.patch("moncic.source.rpm.ARPASource.prepare_from_git") as patched:
                 RPMSource.create_from_git(src, distro=ROCKY9)
             patched.assert_called_once()
 
@@ -110,7 +110,7 @@ class TestRPMSource(WorkdirFixture):
         git.commit("initial")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with mock.patch("moncic.source.rpm.ARPASourceGit.prepare_from_git") as patched:
+            with mock.patch("moncic.source.rpm.ARPASource.prepare_from_git") as patched:
                 RPMSource.create_from_git(src, distro=ROCKY9)
             patched.assert_called_once()
 
@@ -149,7 +149,7 @@ class TestARPASourceDir(WorkdirFixture):
     def source(self, specfile: Path) -> Generator[ARPASourceDir, None, None]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, Dir)
-            src = ARPASourceDir.prepare_from_dir(parent, distro=ROCKY9, specfiles=[specfile])
+            src = ARPASource.prepare_from_dir(parent, distro=ROCKY9, specfiles=[specfile])
             assert isinstance(src, ARPASourceDir)
             self.assertIs(src.parent, parent)
             yield src
@@ -203,7 +203,7 @@ class TestARPASourceGit(GitFixture):
     def source(self, branch: str, specfile: Path) -> Generator[ARPASourceGit, None, None]:
         with Source.create_local(source=self.path, branch=branch) as parent:
             assert isinstance(parent, Git)
-            src = ARPASourceGit.prepare_from_git(parent, distro=ROCKY9, specfiles=[specfile])
+            src = ARPASource.prepare_from_git(parent, distro=ROCKY9, specfiles=[specfile])
             assert isinstance(src, ARPASourceGit)
             self.assertIs(src.parent, parent)
             yield src

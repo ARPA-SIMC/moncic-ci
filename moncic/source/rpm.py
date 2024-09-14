@@ -67,7 +67,7 @@ class RPMSource(DistroSource, abc.ABC):
         return ARPASourceGit.prepare_from_git(parent=parent, specfiles=specfiles, distro=distro)
 
 
-class ARPASource(RPMSource, abc.ABC):
+class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
     """
     Base class for ARPA sources.
 
@@ -110,15 +110,6 @@ class ARPASource(RPMSource, abc.ABC):
 
         return versions
 
-
-class ARPASourceDir(ARPASource, Dir):
-    """
-    ARPA/SIMC source directory, building RPM packages using the logic
-    previously configured for travis
-    """
-
-    NAME = "rpm-arpa-dir"
-
     @classmethod
     def prepare_from_dir(
         cls,
@@ -133,16 +124,7 @@ class ARPASourceDir(ARPASource, Dir):
             raise Fail(f"{parent.path}: no specfiles found in well-known locations")
         if len(specfiles) > 1:
             raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
-        return cls(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
-
-
-class ARPASourceGit(ARPASource, Git):
-    """
-    ARPA/SIMC git repository, building RPM packages using the logic previously
-    configured for travis
-    """
-
-    NAME = "rpm-arpa-git"
+        return ARPASourceDir(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
 
     @classmethod
     def prepare_from_git(
@@ -151,14 +133,28 @@ class ARPASourceGit(ARPASource, Git):
         *,
         distro: Distro,
         specfiles: list[Path] | None = None,
-    ) -> "ARPASource":  # TODO: Self from python 3.11+
+    ) -> "ARPASourceGit":  # TODO: Self from python 3.11+
         if specfiles is None:
             specfiles = cls.locate_specfiles(parent.path)
         if not specfiles:
             raise Fail(f"{parent.path}: no specfiles found in well-known locations")
         if len(specfiles) > 1:
             raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
-        return cls(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
+        return ARPASourceGit(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
+
+
+class ARPASourceDir(ARPASource, Dir):
+    """
+    ARPA/SIMC source directory, building RPM packages using the logic
+    previously configured for travis
+    """
+
+
+class ARPASourceGit(ARPASource, Git):
+    """
+    ARPA/SIMC git repository, building RPM packages using the logic previously
+    configured for travis
+    """
 
 
 #    def _check_arpa_commits(self, linter: lint.Linter):

@@ -18,7 +18,7 @@ from moncic.source.debian import (
     DebianDsc,
     SourceInfo,
     GBPInfo,
-    DebianGitLegacy,
+    DebianDirGit,
     DebianGBPTestDebian,
     DebianGBPTestUpstream,
     DebianGBPRelease,
@@ -97,7 +97,7 @@ class TestDebianSource(WorkdirFixture):
 
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with mock.patch("moncic.source.debian.DebianGitLegacy.prepare_from_git") as patched:
+            with mock.patch("moncic.source.debian.DebianDir.prepare_from_git") as patched:
                 DebianSource.create_from_git(src, distro=SID)
             patched.assert_called_once()
 
@@ -312,8 +312,32 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
                 ["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], check=True, cwd=src.path
             )
 
+    def test_collect_build_artifacts_gz(self) -> None:
+        self.create_tar("moncic-ci_0.1.0.orig.tar.gz")
+        with self.source() as src:
+            with tempfile.TemporaryDirectory() as destdir_str:
+                destdir = Path(destdir_str)
+                src.collect_build_artifacts(destdir)
 
-class TestDebianLegacyDir(TestDebianLegacy):
+                self.assertEqual(
+                    sorted(p.name for p in destdir.iterdir()),
+                    ["moncic-ci_0.1.0.orig.tar.gz"],
+                )
+
+    def test_collect_build_artifacts_xz(self) -> None:
+        self.create_tar("moncic-ci_0.1.0.orig.tar.xz")
+        with self.source() as src:
+            with tempfile.TemporaryDirectory() as destdir_str:
+                destdir = Path(destdir_str)
+                src.collect_build_artifacts(destdir)
+
+                self.assertEqual(
+                    sorted(p.name for p in destdir.iterdir()),
+                    ["moncic-ci_0.1.0.orig.tar.xz"],
+                )
+
+
+class TestDebianDir(TestDebianLegacy):
     path: Path
 
     @classmethod
@@ -350,30 +374,6 @@ class TestDebianLegacyDir(TestDebianLegacy):
                 },
             )
 
-    def test_collect_build_artifacts_gz(self) -> None:
-        self.create_tar("moncic-ci_0.1.0.orig.tar.gz")
-        with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
-                destdir = Path(destdir_str)
-                src.collect_build_artifacts(destdir)
-
-                self.assertEqual(
-                    sorted(p.name for p in destdir.iterdir()),
-                    ["moncic-ci_0.1.0.orig.tar.gz"],
-                )
-
-    def test_collect_build_artifacts_xz(self) -> None:
-        self.create_tar("moncic-ci_0.1.0.orig.tar.xz")
-        with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
-                destdir = Path(destdir_str)
-                src.collect_build_artifacts(destdir)
-
-                self.assertEqual(
-                    sorted(p.name for p in destdir.iterdir()),
-                    ["moncic-ci_0.1.0.orig.tar.xz"],
-                )
-
     def test_collect_build_artifacts_missing_tar(self) -> None:
         with self.source() as src:
             with tempfile.TemporaryDirectory() as destdir_str:
@@ -382,7 +382,7 @@ class TestDebianLegacyDir(TestDebianLegacy):
                     src.collect_build_artifacts(destdir)
 
 
-class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
+class TestDebianDirGit(TestDebianLegacy, GitFixture):
     git_name = "moncic-ci"
 
     @classmethod
@@ -393,17 +393,17 @@ class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
         cls.git.commit()
 
     @contextlib.contextmanager
-    def source(self) -> Generator[DebianGitLegacy, None, None]:
+    def source(self) -> Generator[DebianDirGit, None, None]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, Git)
-            src = DebianGitLegacy.prepare_from_git(parent, distro=SID, source_info=self.source_info)
-            assert isinstance(src, DebianGitLegacy)
+            src = DebianDir.prepare_from_git(parent, distro=SID, source_info=self.source_info)
+            assert isinstance(src, DebianDirGit)
             self.assertIs(src.parent, parent)
             yield src
 
     def assertCommonGitAttributes(
         self,
-        src: DebianGitLegacy,
+        src: DebianDirGit,
     ) -> None:
         super().assertCommonAttributes(src)
         assert src.parent
@@ -429,30 +429,6 @@ class TestDebianLegacyGit(TestDebianLegacy, GitFixture):
                     "source_info": self.source_info,
                 },
             )
-
-    def test_collect_build_artifacts_gz(self) -> None:
-        self.create_tar("moncic-ci_0.1.0.orig.tar.gz")
-        with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
-                destdir = Path(destdir_str)
-                src.collect_build_artifacts(destdir)
-
-                self.assertEqual(
-                    sorted(p.name for p in destdir.iterdir()),
-                    ["moncic-ci_0.1.0.orig.tar.gz"],
-                )
-
-    def test_collect_build_artifacts_xz(self) -> None:
-        self.create_tar("moncic-ci_0.1.0.orig.tar.xz")
-        with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
-                destdir = Path(destdir_str)
-                src.collect_build_artifacts(destdir)
-
-                self.assertEqual(
-                    sorted(p.name for p in destdir.iterdir()),
-                    ["moncic-ci_0.1.0.orig.tar.xz"],
-                )
 
     def test_collect_build_artifacts_missing_tar(self) -> None:
         with self.source() as src:

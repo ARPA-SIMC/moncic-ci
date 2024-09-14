@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import abc
-import inspect
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 from pathlib import Path
 import shutil
 
@@ -25,27 +24,26 @@ class DistroSource(LocalSource, abc.ABC):
     Distribution-aware source
     """
 
+    style: ClassVar[str | None] = None
     distro: Distro
 
     def __init__(self, *, distro: Distro, **kwargs) -> None:
         super().__init__(**kwargs)
         self.distro = distro
 
-    def __init_subclass__(cls, **kwargs) -> None:
+    def __init_subclass__(cls, style: str | None = None, **kwargs) -> None:
         """Register subclasses."""
         super().__init_subclass__(**kwargs)
-        if inspect.isabstract(cls):
-            return
-        source_types[cls.get_source_type()] = cls
+        if style is not None:
+            cls.style = style
+            source_types[style] = cls
 
     @classmethod
     def get_source_type(cls) -> str:
         """
         Return the user-facing name for this class
         """
-        if name := cls.__dict__.get("NAME"):
-            return name
-        return cls.__name__.lower()
+        return cls.style or cls.__name__.lower()
 
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
@@ -116,7 +114,7 @@ class DistroSource(LocalSource, abc.ABC):
         """Create a distro-specific source from a Git repo."""
 
     @classmethod
-    def preapre_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
+    def prepare_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
         """Create a distro-specific source from a File."""
         raise Fail(f"{cls.get_source_type()} is not applicable on a file")
 
