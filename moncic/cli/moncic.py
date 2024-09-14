@@ -6,14 +6,16 @@ import os
 import tempfile
 import urllib.parse
 from collections.abc import Generator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import git
 
 from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
-from ..source import InputSource, Source, get_source_class
+from ..source import Source
+from ..source.local import LocalSource
+from ..source.distro import DistroSource
 from ..utils.privs import ProcessPrivs
 from .base import Command
 from .utils import SourceTypeAction
@@ -267,18 +269,28 @@ class SourceCommand(MoncicCommand):
         return parser
 
     @contextlib.contextmanager
-    def source(self, distro: Distro, source: str) -> Generator[Source, None, None]:
+    def local_source(self) -> Generator[LocalSource, None, None]:
         """
-        Instantiate a Source object
+        Instantiate a local Source object
         """
         with self.moncic.privs.user():
-            with InputSource.create(self.args.source) as input_source:
-                if self.args.branch:
-                    input_source = input_source.branch(self.args.branch)
-                if self.args.source_type:
-                    source_cls = get_source_class(self.args.source_type)
-                    source = source_cls.create(distro, input_source)
-                else:
-                    source = input_source.detect_source(distro)
+            with Source.create_local(source=self.args.source, branch=self.args.branch) as source:
                 self.moncic.privs.regain()
-                yield source
+                # FIXME: remove cast from python 3.11+
+                yield cast(LocalSource, source)
+
+    def distro_source(self, source: LocalSource, distro: Distro) -> DistroSource:
+        """
+        Instantiate a DistroSource object from a local source
+        """
+        with self.moncic.privs.user():
+            return DistroSource.create_from_local(source, distro=distro, style=self.args.source_type)
+
+    @contextlib.contextmanager
+    def source(self, distro: Distro) -> Generator[DistroSource, None, None]:
+        """
+        Instantiate a DistroSource object in one go
+        """
+        with self.local_source() as local_source:
+            log.debug("%s: local source type %s", local_source, local_source.__class__.__name__)
+            yield self.distro_source(local_source, distro=distro)

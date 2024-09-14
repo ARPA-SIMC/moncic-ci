@@ -1,254 +1,226 @@
 from __future__ import annotations
 
+import abc
+import contextlib
 import logging
-import re
 import shlex
-from abc import ABC, abstractclassmethod, abstractmethod
-from collections import defaultdict
-from dataclasses import dataclass, field
+import subprocess
+import tempfile
+import urllib.parse
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional, Sequence
 
-from moncic.container import ContainerConfig
-from moncic.utils.guest import guest_only, host_only
+import git
 
-from .inputsource import LocalGit
+from moncic.exceptions import Fail
+
+from .lint import Reporter
+from ..utils.run import run
 
 if TYPE_CHECKING:
-    import git
-
-    from ..build import Build
-    from ..container import Container, System
-    from ..distro import Distro
-    from ..lint import Linter
-    from .inputsource import InputSource
+    from .local import LocalSource, Git
 
 log = logging.getLogger(__name__)
 
 
-# Registry of known builders
-source_types: dict[str, type[Source]] = {}
-
-
-def register(source_cls: type[Source]) -> type[Source]:
+class CommandLog(list[str]):
     """
-    Add a Build object to the Build registry
-    """
-    name = getattr(source_cls, "NAME", None)
-    if name is None:
-        name = source_cls.__name__.lower()
-    source_types[name] = source_cls
-
-    # Register extra_args callbacks.
-    #
-    # Only register callbacks that are in the class __dict__ to avoid
-    # inheritance, which would register command line options from base
-    # classes multiple times
-    # if "add_arguments" in builder_cls.__dict__:
-    #     cls.extra_args_callbacks.append(builder_cls.add_arguments)
-
-    return source_cls
-
-
-def registry() -> dict[str, type[Source]]:
-    """
-    Return the registry of available source types
-    """
-    from . import debian, rpm  # noqa: import them so they are registered as builders
-
-    return source_types
-
-
-def get_source_class(name: str) -> type[Source]:
-    """
-    Create a Build object by its name
-    """
-    return registry()[name.lower()]
-
-
-@dataclass
-class Source(ABC):
-    """
-    Sources to be built
+    Log of commands used to create a source
     """
 
-    # Original source as specified by the user
-    source: InputSource
-    # Path to the unpacked sources in the host system
-    host_path: Path
-    # Path to the unpacked sources in the guest system
-    guest_path: str | None = None
-    # Commands that can be used to recreate this source
-    trace_log: list[str] = field(default_factory=list)
+    def add_command(self, *args: str) -> None:
+        """
+        Add a command to the command log
+        """
+        self.append(shlex.join(args))
 
-    def __post_init__(self) -> None:
-        self.trace_log.extend(self.source.trace_log)
+    def run(self, cmd: Sequence[str], **kwargs) -> subprocess.CompletedProcess:
+        """
+        Run a command and append it to the command log
+        """
+        self.append(shlex.join(cmd))
+        return run(cmd, **kwargs)
+
+
+class SourceStack(contextlib.ExitStack):
+    """
+    ExitStack that raises an error if entered multiple times.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.entered: bool = False
+
+    def __enter__(self) -> "SourceStack":  # TODO: use Self from 3.11+
+        if self.entered:
+            raise RuntimeError("__enter__ called in multiple Sources of the same chain")
+        super().__enter__()
+        self.entered = True
+        return self
+
+
+class Source(abc.ABC):
+    """
+    Source code to build.
+
+    Not all sources can be built directly: remote URLs need to be cloned
+    locally, or local sources need to be prepared for build.
+
+    An initial Source can create a transformed version of itself that can be
+    built, tracking the sequence of transformations.
+
+    The initial source needs to be used as a context manager, and serves as
+    storage of temporary resources for the sources derived from it.
+    """
+
+    #: User-provided name for this resource
+    name: str
+    #: Source from which this one was generated. None if this is the original source
+    parent: Optional["Source"]
+    #: ExitStack to use for temporary state
+    stack: contextlib.ExitStack
+    #: Commands that can be used to recreate this source
+    command_log: CommandLog
+
+    def __init__(self, *, name: str | None = None, parent: Source | None = None, command_log: CommandLog | None = None):
+        self.parent = parent
+        if parent is None:
+            self.stack = SourceStack()
+        else:
+            self.stack = parent.stack
+            if name is None:
+                name = parent.name
+        if name is None:
+            raise AttributeError("name not provided, and no parent to use as a fallback")
+        self.name = name
+        self.command_log = command_log or CommandLog()
+
+    def __str__(self) -> str:
+        return self.name
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
+
+    def __enter__(self) -> "Source":
+        self.stack.__enter__()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
+        return self.stack.__exit__(exc_type, exc_val, exc_tb)
+
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        """
+        Add __init__ arguments to kwargs to derive an object from this one
+        """
+        kwargs["parent"] = self
+        kwargs["name"] = self.name
+
+    def derive_kwargs(self, **kwargs: Any) -> dict[str, Any]:
+        """
+        Create __init__ arguments from this object and user provided values.
+
+        :param kwargs: constructor arguments that add to, or replace, default
+                       values constructed from this object.
+        """
+        new_kwargs: dict[str, Any] = {}
+        self.add_init_args_for_derivation(new_kwargs)
+        new_kwargs.update(kwargs)
+        return new_kwargs
 
     @classmethod
-    def get_name(cls) -> str:
+    def create_local(cls, *, source: str | Path, branch: str | None = None) -> "LocalSource":
         """
-        Return the user-facing name for this class
+        Create a distro-agnostic source from a user-defined string
         """
-        if name := cls.__dict__.get("NAME"):
-            return name
-        return cls.__name__.lower()
+        base: Source
 
-    def add_trace_log(self, *args: str) -> None:
-        """
-        Add a command to the trace log
-        """
-        self.trace_log.append(" ".join(shlex.quote(c) for c in args))
+        # Handle string arguments
+        if isinstance(source, str):
+            url = urllib.parse.urlparse(source)
+            if url.scheme not in ("", "file"):
+                from .remote import URL
 
-    @abstractmethod
-    def get_build_class(self) -> type[Build]:
-        """
-        Return the Build subclass used to build this source
-        """
+                base = URL(name=source, url=url)
+                return base.clone(branch)
+            name = source
+            source = Path(url.path)
+        else:
+            name = source.as_posix()
 
-    @abstractmethod
-    def get_linter_class(self) -> type[Linter]:
-        """
-        Return the Linter subclass used to check this source
-        """
+        # Handle paths
+        if source.is_dir():
+            if (source / ".git").is_dir():
+                from .local import Git
 
-    @abstractclassmethod
-    def create(cls, distro: Distro, source: InputSource) -> Source:
-        """
-        Create an instance of this source.
+                base = Git(name=name, path=source.absolute())
+                if branch:
+                    return base.get_branch(branch)
+                else:
+                    return base
+            else:
+                from .local import Dir
 
-        This is used to instantiate a source from a well known class, instead
-        of having it autodetected by InputSource
-        """
+                if branch is not None:
+                    raise Fail("Cannot specify a branch when working on a non-git directory")
+                return Dir(name=name, path=source.absolute())
+        else:
+            from .local import File
 
-    def make_build(self, **kwargs: Any) -> Build:
-        """
-        Create a Build to build this Source
-        """
-        return self.get_build_class()(source=self, **kwargs)
+            if branch is not None:
+                raise Fail("Cannot specify a branch when working on a file")
+            return File(name=name, path=source.absolute())
 
-    @host_only
-    def gather_sources_from_host(self, build: Build, container: Container) -> None:
+    def _git_clone(self, repository: str, branch: str | None = None) -> "Git":
         """
-        Gather needed source files from the host system and copy them to the
-        guest
+        Derive a Git source from this one, by cloning a git repository
+        Clone this git repository into a temporary working directory.
+
+        Return the path of the new cloned working directory
+        """
+        from .local import Git
+
+        # Git checkout in a temporary directory
+        workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        command_log = CommandLog()
+
+        clone_cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]
+        if branch is not None:
+            clone_cmd += ["--branch", branch]
+        command_log.run(clone_cmd, cwd=workdir)
+
+        # Look for the directory that git created
+        paths = list(workdir.iterdir())
+        if len(paths) != 1:
+            raise RuntimeError("git clone created more than one entry in its current directory")
+
+        new_path = paths[0]
+
+        # Recreate remote branches
+        repo = git.Repo(new_path)
+        for ref in repo.remote().refs:
+            name = ref.remote_head
+            if name == "HEAD":
+                continue
+            if name in repo.refs:
+                continue
+            repo.create_head(name, ref)
+
+        # If we cloned a detached head, create a local branch for it
+        if repo.head.is_detached:
+            branch = "moncic-ci"
+            local_branch = repo.create_head(branch)
+            local_branch.checkout()
+            command_log.add_command("git", "checkout", "-b", branch)
+
+        return Git(parent=self, path=new_path, repo=repo, readonly=False, command_log=command_log)
+
+    def host_lint(self, reporter: Reporter) -> None:
+        """
+        Perform consistency checks on the source in the host system.
+
+        This cannot assume any distro-specific tools to be available.
+
+        This can assume access to the original sources, unless they are remote.
         """
         # Do nothing by default
-
-    @guest_only
-    def build_source_package(self) -> str:
-        """
-        Build a source package in /src/moncic-ci/source returning the name of
-        the main file of the source package fileset
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.build_source_package is not implemented")
-
-    def find_versions(self, system: System) -> dict[str, str]:
-        """
-        Get the program version from sources.
-
-        Return a dict mapping version type to version strings
-        """
-        versions: dict[str, str] = {}
-
-        path = self.host_path
-        if (autotools := path / "configure.ac").exists():
-            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
-            with autotools.open("rt") as fd:
-                for line in fd:
-                    if mo := re_autotools.match(line):
-                        versions["autotools"] = mo.group(1).strip()
-                        break
-
-        if (meson := path / "meson.build").exists():
-            re_meson = re.compile(r"\s*project\s*\(.+version\s*:\s*'([^']+)'")
-            with meson.open("rt") as fd:
-                for line in fd:
-                    if mo := re_meson.match(line):
-                        versions["meson"] = mo.group(1).strip()
-                        break
-
-        if (cmake := path / "CMakeLists.txt").exists():
-            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
-            with cmake.open("rt") as fd:
-                for line in fd:
-                    if mo := re_cmake.match(line):
-                        versions["cmake"] = mo.group(1).strip()
-                        break
-
-        if (news := path / "NEWS.md").exists():
-            re_news = re.compile(r"# New in version (.+)")
-            with news.open("rt") as fd:
-                for line in fd:
-                    if mo := re_news.match(line):
-                        versions["news"] = mo.group(1).strip()
-                        break
-
-        # Check setup.py by executing it with --version inside the container
-        if (path / "setup.py").exists():
-            cconfig = ContainerConfig()
-            cconfig.configure_workdir(path, bind_type="ro")
-            with system.create_container(config=cconfig) as container:
-                res = container.run(["/usr/bin/python3", "setup.py", "--version"])
-            if res.returncode == 0:
-                lines = res.stdout.splitlines()
-                if lines:
-                    versions["setup.py"] = lines[-1].strip().decode()
-
-        return versions
-
-    def lint(self, linter: Linter):
-        # Check for version mismatches
-        versions = self.find_versions(linter.system)
-
-        by_version: dict[str, list[str]] = defaultdict(list)
-        for name, version in versions.items():
-            if name.endswith("-release"):
-                by_version[version.split("-", 1)[0]].append(name)
-            else:
-                by_version[version].append(name)
-        if len(by_version) > 1:
-            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            linter.warning(f"Versions mismatch: {'; '.join(descs)}")
-
-
-class GitSource(Source):
-    """
-    Source backed by a Git repo
-    """
-
-    # Redefine source specialized as LocalGit
-    source: LocalGit
-
-    def _get_tags_by_hexsha(self) -> dict[str, git.objects.Commit]:
-        res: dict[str, list[git.objects.Commit]] = defaultdict(list)
-        for tag in self.source.repo.tags:
-            res[tag.object.hexsha].append(tag)
-        return res
-
-    def find_versions(self, system: System) -> dict[str, str]:
-        versions = super().find_versions(system)
-
-        re_versioned_tag = re.compile(r"^v?([0-9].+)")
-
-        repo = self.source.repo
-
-        _tags_by_hexsha = self._get_tags_by_hexsha()
-
-        # List tags for the current commit
-        for tag in _tags_by_hexsha.get(repo.head.commit.hexsha, ()):
-            if tag.name.startswith("debian/"):
-                version = tag.name[7:]
-                if "-" in version:
-                    versions["tag-debian"] = version.split("-", 1)[0]
-                    versions["tag-debian-release"] = version
-                else:
-                    versions["tag-debian"] = version
-            elif mo := re_versioned_tag.match(tag.name):
-                version = mo.group(1)
-                if "-" in version:
-                    versions["tag-arpa"] = version.split("-", 1)[0]
-                    versions["tag-arpa-release"] = version
-                else:
-                    versions["tag"] = version
-
-        return versions
+        pass

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import contextlib
 import re
 from collections import defaultdict
 from functools import cached_property
@@ -14,7 +13,7 @@ if TYPE_CHECKING:
     from ..source.source import Source
 
 
-class Linter(contextlib.ExitStack):
+class Linter:
     """
     Scan sources for potential inconsistencies
     """
@@ -52,34 +51,6 @@ class Linter(contextlib.ExitStack):
         Return a dict mapping version type to version strings
         """
         return self.source.find_versions(self.system)
-
-    def check_local_remote_sync(self, name: str) -> str:
-        """
-        Check if branch {name} is in sync between local and remote.
-
-        Return the name of the most up to date branch
-        """
-        if name not in self.repo.references:
-            self.error(f"branch {name!r} does not exist locally")
-
-        remote_name = "origin/" + name
-        if remote_name not in self.repo.references:
-            self.error(f"branch {remote_name!r} does not exist locally")
-
-        local = self.repo.references[name]
-        remote = self.repo.references[remote_name]
-        if local.commit != remote.commit:
-            if self.repo.is_ancestor(local.commit, remote.commit):
-                self.warning(f"branch {remote_name} is ahead of local branch {name}")
-                return remote_name
-            elif self.repo.is_ancestor(remote.commit, local.commit):
-                self.warning(f"branch {name} is ahead of remote branch {remote_name}")
-                return name
-            else:
-                self.warning(f"branch {name} diverged from branch {remote_name}")
-                return name
-        else:
-            return name
 
     @cached_property
     def main_branch(self) -> str:

@@ -22,9 +22,7 @@ def get_doc_wrapper(lead_width: int) -> textwrap.TextWrapper:
 class SourceTypeAction(argparse._StoreAction):
     def __call__(self, parser, namespace, values, option_string=None):
         if values == "list":
-            from ..source import source
-
-            source_types = source.registry()
+            from ..source.distro import source_types
 
             # Compute width for source names
             name_width = max(len(x) for x in source_types.keys())

@@ -5,6 +5,7 @@ import os
 import shlex
 import subprocess
 from collections.abc import Sequence
+from pathlib import Path
 
 log = logging.getLogger("run")
 
@@ -14,7 +15,7 @@ def log_run(cmd: Sequence[str], **kw) -> None:
     Log executing a command
     """
     if cwd := kw.get("cwd"):
-        prompt = cwd
+        prompt = cwd.as_posix() if isinstance(cwd, Path) else cwd
     else:
         prompt = os.getcwd()
     if os.getuid() == 0:

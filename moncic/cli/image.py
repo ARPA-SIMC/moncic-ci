@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 import ruamel.yaml
 import yaml
 
-from ..build import Builder
+from ..operations import query as ops_query
 from ..exceptions import Fail
 from ..utils.edit import edit_yaml
 from ..utils.fs import atomic_writer
@@ -201,11 +201,10 @@ class BuildDep(SourceCommand):
     def run(self):
         with self.moncic.session() as session:
             images = session.images
-            with images.system(self.args.name) as system:
+            with images.system(self.args.system) as system:
                 with self.source(system.distro) as source:
-                    builder = Builder(system)
-                    log.info("Query using builder %r", builder.__class__.__name__)
-                    packages = builder.get_build_deps(source)
+                    operation = ops_query.BuildDeps(system, source)
+                    packages = operation.host_main()
 
         log.info("Detected build-deps: %r", packages)
 

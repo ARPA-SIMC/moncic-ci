@@ -1,4 +1,4 @@
-from .inputsource import InputSource
-from .source import Source, get_source_class, registry
+from .source import Source
+from . import local, debian, rpm
 
-__all__ = ["InputSource", "Source", "registry", "get_source_class"]
+__all__ = ["Source"]

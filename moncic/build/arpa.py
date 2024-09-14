@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .. import context
@@ -14,6 +15,7 @@ from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from .build import Build
 from .utils import link_or_copy
+from ..source.rpm import RPMSource
 
 if TYPE_CHECKING:
     from ..container import Container
@@ -26,18 +28,17 @@ class RPM(Build):
     """
     Build RPM packages
     """
-    specfile: str | None = None
 
     def __post_init__(self):
         from ..distro.rpm import DnfDistro, YumDistro
+
         if isinstance(self.distro, YumDistro):
             self.builddep = ["yum-builddep"]
         elif isinstance(self.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
             raise RuntimeError(f"Unsupported distro: {self.system.distro.name}")
-        self.specfile = self.source.locate_specfile()
-        self.name = os.path.basename(self.specfile)[:-5]
+        self.name = self.source.specfile_path.name.removesuffix(".spec")
 
     # @host_only
     # def get_build_deps(self) -> list[str]:
@@ -51,9 +52,9 @@ class RPM(Build):
 
     @guest_only
     def get_build_deps_in_container(self) -> list[str]:
-        specfile = self.locate_specfile(".")
-        res = subprocess.run(
-                ["/usr/bin/rpmspec", "--parse", specfile], stdout=subprocess.PIPE, text=True, check=True)
+        assert isinstance(self.source, RPMSource)
+        specfile = self.source.path / self.source.specfile_path
+        res = subprocess.run(["/usr/bin/rpmspec", "--parse", specfile], stdout=subprocess.PIPE, text=True, check=True)
         packages = []
         for line in res.stdout.splitlines():
             if line.startswith("BuildRequires: "):
@@ -70,45 +71,49 @@ class ARPA(RPM):
 
     @guest_only
     def build(self) -> None:
-        if self.specfile is None:
-            raise RuntimeError("specfile location has not been detected")
-        pkgname = os.path.basename(self.specfile)[:-5]
+        assert isinstance(self.source, RPMSource)
+
+        rpmbuild_path = Path("/root/rpmbuild")
 
         for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"):
-            os.makedirs(f"/root/rpmbuild/{name}")
+            (rpmbuild_path / name).mkdir(parents=True, exist_ok=True)
+
+        rpmbuild_sources = rpmbuild_path / "SOURCES"
+
+        specfile = self.source.path / self.source.specfile_path
 
         # Install build dependencies
-        run(self.builddep + ["-y", self.specfile])
+        run(self.builddep + ["-y", specfile.as_posix()])
 
-        if self.specfile.startswith("fedora/SPECS/"):
+        if specfile.is_relative_to("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
-            if os.path.isdir("fedora/SOURCES"):
-                for root, dirs, fnames in os.walk("fedora/SOURCES"):
+            fedora_sources_dir = Path("fedora/SOURCES")
+            if fedora_sources_dir.is_dir():
+                for root, dirs, fnames in os.walk(fedora_sources_dir):
                     for fn in fnames:
-                        shutil.copy(os.path.join(root, fn), "/root/rpmbuild/SOURCES/")
-            with open(f"/root/rpmbuild/SOURCES/{pkgname}.tar", "wb") as fd:
+                        shutil.copy(os.path.join(root, fn), rpmbuild_sources)
+            source_tar = rpmbuild_sources / f"{self.name}.tar"
+            with source_tar.open("wb") as fd:
                 with context.moncic.get().privs.user():
-                    self.trace_run(
-                        ["git", "archive", f"--prefix={pkgname}/", "--format=tar", "HEAD"],
-                        stdout=fd)
-            self.trace_run(["gzip", f"/root/rpmbuild/SOURCES/{pkgname}.tar"])
-            self.trace_run(["spectool", "-g", "-R", "--define", f"srcarchivename {pkgname}", self.specfile])
+                    self.trace_run(["git", "archive", f"--prefix={self.name}/", "--format=tar", "HEAD"], stdout=fd)
+            self.trace_run(["gzip", source_tar.as_posix()])
+            self.trace_run(["spectool", "-g", "-R", "--define", f"srcarchivename {self.name}", specfile.as_posix()])
             if self.source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"
-            self.trace_run(["rpmbuild", build_arg, "--define", f"srcarchivename {pkgname}", self.specfile])
+            self.trace_run(["rpmbuild", build_arg, "--define", f"srcarchivename {self.name}", specfile.as_posix()])
         else:
             # Convenzione SIMC per i repo con solo rpm
             for f in glob.glob("*.patch"):
-                shutil.copy(f, "/root/rpmbuild/SOURCES/")
-            self.trace_run(["spectool", "-g", "-R", self.specfile])
-            self.trace_run(["rpmbuild", "-ba", self.specfile])
+                shutil.copy(f, rpmbuild_sources)
+            self.trace_run(["spectool", "-g", "-R", specfile.as_posix()])
+            self.trace_run(["rpmbuild", "-ba", specfile.as_posix()])
 
         self.success = True
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: str):
+    def collect_artifacts(self, container: Container, destdir: Path):
         container_root = container.get_root()
 
         user = UserConfig.from_sudoer()

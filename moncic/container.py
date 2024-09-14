@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Iterator
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, ContextManager, NoReturn, Protocol, TypeVar
 
 from .runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
@@ -342,7 +343,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def get_root(self) -> str:
+    def get_root(self) -> Path:
         """
         Return the path to the root directory of this container
         """
@@ -516,8 +517,8 @@ class NspawnContainer(ContainerBase):
         # Bind mounts used by this container
         self.active_binds: list[BindConfig] = []
 
-    def get_root(self) -> str:
-        return self.properties["RootDirectory"]
+    def get_root(self) -> Path:
+        return Path(self.properties["RootDirectory"])
 
     def binds(self) -> Iterator[BindConfig]:
         yield from self.active_binds
@@ -741,8 +742,8 @@ class MockContainer(ContainerBase):
     Mock container used for tests
     """
 
-    def get_root(self) -> str:
-        return self.properties["RootDirectory"]
+    def get_root(self) -> Path:
+        return Path(self.properties["RootDirectory"])
 
     def _start(self):
         self.system.images.session.mock_log(system=self.system.name, action="container start")
