@@ -101,31 +101,58 @@ class DistroSource(LocalSource, abc.ABC):
     @classmethod
     @abc.abstractmethod
     def create_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
-        """Create a distro-specific source from a File."""
+        """
+        Create a distro-specific source from a File.
+
+        Autodetect the source style.
+        """
 
     @classmethod
     @abc.abstractmethod
     def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
-        """Create a distro-specific source from a Dir directory."""
+        """
+        Create a distro-specific source from a Dir directory.
+
+        Autodetect the source style.
+        """
 
     @classmethod
     @abc.abstractmethod
     def create_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
-        """Create a distro-specific source from a Git repo."""
+        """
+        Create a distro-specific source from a Git repo.
+
+        Autodetect the source style.
+        """
 
     @classmethod
     def prepare_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
-        """Create a distro-specific source from a File."""
+        """
+        Create a distro-specific source from a File.
+
+        This does not autodetect the source style, and is used to instantiate a
+        well-defined one.
+        """
         raise Fail(f"{cls.get_source_type()} is not applicable on a file")
 
     @classmethod
     def prepare_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
-        """Create a distro-specific source from a Dir directory."""
+        """
+        Create a distro-specific source from a Dir directory.
+
+        This does not autodetect the source style, and is used to instantiate a
+        well-defined one.
+        """
         raise Fail(f"{cls.get_source_type()} is not applicable on a non-git directory")
 
     @classmethod
     def prepare_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
-        """Create a distro-specific source from a Git repo."""
+        """
+        Create a distro-specific source from a Git repo.
+
+        This does not autodetect the source style, and is used to instantiate a
+        well-defined one.
+        """
         raise Fail(f"{cls.get_source_type()} is not applicable on a git repository")
 
     @classmethod
