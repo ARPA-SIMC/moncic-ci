@@ -5,7 +5,7 @@ Maintainer: Enrico Zini <enrico@debian.org>
 Build-Depends: debhelper (>= 13), dh-python,
 	       python3-all, python3-setuptools, python3-yaml, python3-tblib,
 	       python3-ruamel.yaml, python3-requests, btrfs-progs, dnf,
-	       systemd-container, python3-git
+	       systemd-container, python3-git, rpm
 Standards-Version: 4.2.0
 Homepage: https://github.com/ARPA-SIMC/moncic-ci
 Vcs-Git: https://github.com/ARPA-SIMC/moncic-ci.git
