@@ -39,7 +39,7 @@ class TestRPMSource(WorkdirFixture):
         path.touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, File)
-            with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
+            with self.assertRaisesRegex(Fail, f"{path}: cannot detect source type"):
                 RPMSource.create_from_file(src, distro=ROCKY9)
 
     def test_from_file_dsc(self) -> None:
@@ -47,7 +47,7 @@ class TestRPMSource(WorkdirFixture):
         path.touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, File)
-            with self.assertRaisesRegexp(Fail, f"{path}: cannot build Debian source package on a RPM distribution"):
+            with self.assertRaisesRegex(Fail, f"{path}: cannot build Debian source package on a RPM distribution"):
                 RPMSource.create_from_file(src, distro=ROCKY9)
 
     def test_from_dir_empty(self) -> None:
@@ -55,7 +55,7 @@ class TestRPMSource(WorkdirFixture):
         path.mkdir()
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            with self.assertRaisesRegexp(Fail, f"{path}: no specfiles found in well-known locations"):
+            with self.assertRaisesRegex(Fail, f"{path}: no specfiles found in well-known locations"):
                 RPMSource.create_from_dir(src, distro=ROCKY9)
 
     def test_from_dir_one_specfile_root(self) -> None:
@@ -91,14 +91,14 @@ class TestRPMSource(WorkdirFixture):
 
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            with self.assertRaisesRegexp(Fail, f"{path}: 2 specfiles found"):
+            with self.assertRaisesRegex(Fail, f"{path}: 2 specfiles found"):
                 RPMSource.create_from_dir(src, distro=ROCKY9)
 
     def test_from_git_empty(self) -> None:
         git = self.make_git_repo("git")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with self.assertRaisesRegexp(Fail, f"{git.root}: no specfiles found in well-known locations"):
+            with self.assertRaisesRegex(Fail, f"{git.root}: no specfiles found in well-known locations"):
                 RPMSource.create_from_git(src, distro=ROCKY9)
 
     def test_from_git_one_specfile_root(self) -> None:
@@ -128,7 +128,7 @@ class TestRPMSource(WorkdirFixture):
         git.commit("initial")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with self.assertRaisesRegexp(Fail, f"{git.root}: 2 specfiles found"):
+            with self.assertRaisesRegex(Fail, f"{git.root}: 2 specfiles found"):
                 RPMSource.create_from_git(src, distro=ROCKY9)
 
 

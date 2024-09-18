@@ -51,7 +51,7 @@ class TestDebianSource(WorkdirFixture):
         path.touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, File)
-            with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
+            with self.assertRaisesRegex(Fail, f"{path}: cannot detect source type"):
                 DebianSource.create_from_file(src, distro=SID)
 
     def test_from_file_dsc(self) -> None:
@@ -68,7 +68,7 @@ class TestDebianSource(WorkdirFixture):
         path.mkdir()
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
+            with self.assertRaisesRegex(Fail, f"{path}: cannot detect source type"):
                 DebianSource.create_from_dir(src, distro=SID)
 
     def test_from_dir_debian(self) -> None:
@@ -91,7 +91,7 @@ class TestDebianSource(WorkdirFixture):
         git = self.make_git_repo("git")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with self.assertRaisesRegexp(Fail, f"{git.root}: cannot detect source type"):
+            with self.assertRaisesRegex(Fail, f"{git.root}: cannot detect source type"):
                 DebianSource.create_from_git(src, distro=SID)
 
     def test_from_git_debian_legacy(self) -> None:
@@ -419,7 +419,7 @@ class TestDebianDir(TestDebianLegacy):
         with self.source() as src:
             with tempfile.TemporaryDirectory() as destdir_str:
                 destdir = Path(destdir_str)
-                with self.assertRaisesRegexp(Fail, "Tarball \S* not found"):
+                with self.assertRaisesRegex(Fail, "Tarball \S* not found"):
                     src.collect_build_artifacts(destdir)
 
 

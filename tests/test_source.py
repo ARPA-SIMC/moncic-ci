@@ -30,7 +30,7 @@ class TestSourceStack(unittest.TestCase):
 
     def test_enter_twice(self) -> None:
         with SourceStack() as stack:
-            with self.assertRaisesRegexp(RuntimeError, "__enter__ called in multiple Sources of the same chain"):
+            with self.assertRaisesRegex(RuntimeError, "__enter__ called in multiple Sources of the same chain"):
                 with stack:
                     pass
 

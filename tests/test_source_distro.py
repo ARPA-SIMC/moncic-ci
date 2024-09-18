@@ -63,15 +63,15 @@ class TestDistrSource(GitFixture):
 
     def test_create_default_file(self) -> None:
         parent = cast(File, Source.create_local(source=self.path_file))
-        with self.assertRaisesRegexp(Fail, "mock is not applicable on a file"):
+        with self.assertRaisesRegex(Fail, "mock is not applicable on a file"):
             MockSource.prepare_from_file(parent, distro=SID)
 
     def test_create_default_dir(self) -> None:
         parent = cast(Dir, Source.create_local(source=self.path_file))
-        with self.assertRaisesRegexp(Fail, "mock is not applicable on a non-git directory"):
+        with self.assertRaisesRegex(Fail, "mock is not applicable on a non-git directory"):
             MockSource.prepare_from_dir(parent, distro=SID)
 
     def test_create_default_git(self) -> None:
         parent = cast(Git, Source.create_local(source=self.git.root))
-        with self.assertRaisesRegexp(Fail, "mock is not applicable on a git repository"):
+        with self.assertRaisesRegex(Fail, "mock is not applicable on a git repository"):
             MockSource.prepare_from_git(parent, distro=SID)
