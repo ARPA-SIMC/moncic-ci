@@ -1,24 +1,26 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any, Dict, NamedTuple, Tuple
+from typing import Any, NamedTuple
 
 
 class SharedArgument(NamedTuple):
     """
     Information about an argument shared between a parser and its subparsers
     """
+
     action: argparse.Action
-    args: Tuple[Any]
-    kwargs: Dict[str, Any]
+    args: tuple[Any]
+    kwargs: dict[str, Any]
 
 
 class Namespace(argparse.Namespace):
     """
     Hacks around a namespace to allow merging of values set multiple times
     """
+
     def __setattr__(self, name, value):
-        if (arg := self._shared_args.get(name)):
+        if arg := self._shared_args.get(name):
             action_type = arg.kwargs.get("action")
             if action_type == "store_true":
                 # OR values
@@ -30,7 +32,8 @@ class Namespace(argparse.Namespace):
                     super().__setattr__(name, value)
                 elif old != value:
                     raise argparse.ArgumentError(
-                            f"conflicting values provided for {arg.action.dest!r} ({old!r} and {value!r})")
+                        f"conflicting values provided for {arg.action.dest!r} ({old!r} and {value!r})"
+                    )
             else:
                 raise NotImplementedError("Action {action_type!r} for {arg.action.dest!r} is not supported")
         else:
@@ -42,6 +45,7 @@ class ArgumentParser(argparse.ArgumentParser):
     Hacks around a standard ArgumentParser to allow to have a limited set of
     options both outside and inside subcommands
     """
+
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
 

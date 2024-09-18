@@ -8,10 +8,10 @@ import sys
 import tempfile
 import time
 import unittest
-from typing import Generator, Optional
+from collections.abc import Generator
 
-from moncic.system import System
 from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
+from moncic.system import System
 from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 
@@ -45,7 +45,7 @@ class RunTestCase:
                 yield system
 
     @contextlib.contextmanager
-    def container(self, config: Optional[ContainerConfig] = None) -> Generator[Container, None, None]:
+    def container(self, config: ContainerConfig | None = None) -> Generator[Container, None, None]:
         with self.system() as system:
             with system.create_container(config=config) as container:
                 yield container
@@ -76,13 +76,14 @@ class RunTestCase:
     def test_callable(self):
         token = secrets.token_bytes(8)
         with self.container() as container:
+
             def test_function():
                 with open("/tmp/token", "wb") as out:
                     out.write(token)
 
             res = container.run_callable_raw(test_function)
-            self.assertEqual(res.stdout, b'')
-            self.assertEqual(res.stderr, b'')
+            self.assertEqual(res.stdout, b"")
+            self.assertEqual(res.stderr, b"")
             self.assertEqual(res.returncode, 0)
             self.assertIsNone(res.returnvalue)
             self.assertIsNone(res.exc_info)
@@ -96,25 +97,27 @@ class RunTestCase:
 
     def test_callable_prints(self):
         with self.container() as container:
+
             def test_function():
                 print("stdout")
                 print("stderr", file=sys.stderr)
 
             res = container.run_callable_raw(test_function)
-            self.assertEqual(res.stdout, b'stdout\n')
-            self.assertEqual(res.stderr, b'stderr\n')
+            self.assertEqual(res.stdout, b"stdout\n")
+            self.assertEqual(res.stderr, b"stderr\n")
             self.assertEqual(res.returncode, 0)
             self.assertIsNone(res.returnvalue)
             self.assertIsNone(res.exc_info)
 
     def test_callable_returns(self):
         with self.container() as container:
+
             def test_function():
                 return {"success": True}
 
             res = container.run_callable_raw(test_function)
-            self.assertEqual(res.stdout, b'')
-            self.assertEqual(res.stderr, b'')
+            self.assertEqual(res.stdout, b"")
+            self.assertEqual(res.stderr, b"")
             self.assertEqual(res.returncode, 0)
             self.assertEqual(res.returnvalue, {"success": True})
             self.assertIsNone(res.exc_info)
@@ -122,12 +125,13 @@ class RunTestCase:
 
     def test_callable_raises(self):
         with self.container() as container:
+
             def test_function():
                 raise RuntimeError("expected failure")
 
             res = container.run_callable_raw(test_function)
-            self.assertEqual(res.stdout, b'')
-            self.assertEqual(res.stderr, b'')
+            self.assertEqual(res.stdout, b"")
+            self.assertEqual(res.stderr, b"")
             self.assertEqual(res.returncode, 0)
             self.assertIsNone(res.returnvalue)
             self.assertIsNotNone(res.exc_info)
@@ -223,7 +227,8 @@ class RunTestCase:
             # By default, things are run as root
             container_config = ContainerConfig()
             container_config.binds.append(
-                    BindConfig.create(source=workdir, destination="/media/workdir", bind_type="rw"))
+                BindConfig.create(source=workdir, destination="/media/workdir", bind_type="rw")
+            )
             with self.container(config=container_config) as container:
                 container.run(["/bin/touch", "/media/workdir/test"])
                 container.run(["/bin/test", "-e", "/media/workdir/test"])
@@ -246,7 +251,8 @@ class RunTestCase:
             # By default, things are run as root
             container_config = ContainerConfig()
             container_config.binds.append(
-                    BindConfig.create(source=workdir, destination="/media/workdir", bind_type="ro"))
+                BindConfig.create(source=workdir, destination="/media/workdir", bind_type="ro")
+            )
             with self.container(config=container_config) as container:
                 res = container.run(["/bin/touch", "/media/workdir/test"], config=RunConfig(check=False))
                 self.assertEqual(res.returncode, 1)
@@ -271,7 +277,8 @@ class RunTestCase:
             # By default, things are run as root
             container_config = ContainerConfig()
             container_config.binds.append(
-                    BindConfig.create(source=workdir, destination="/media/workdir", bind_type="volatile"))
+                BindConfig.create(source=workdir, destination="/media/workdir", bind_type="volatile")
+            )
             with self.container(config=container_config) as container:
                 container.run(["/bin/touch", "/media/workdir/test"])
                 container.run(["/bin/test", "-e", "/media/workdir/test"])
@@ -308,13 +315,17 @@ class RunTestCase:
             self.assertIsNone(res.exc_info)
             self.assertIsNone(res.result())
 
-            output = [line for line in lg.output if 'asyncio' not in line]
-            self.assertEqual(output, [
-                f"INFO:{container.system.log.name}:Running test_log",
-                f"DEBUG:{container.system.log.name}.root:debug",
-                f"INFO:{container.system.log.name}.root:info",
-                f"WARNING:{container.system.log.name}.root:warning",
-                f"ERROR:{container.system.log.name}.root:error"])
+            output = [line for line in lg.output if "asyncio" not in line]
+            self.assertEqual(
+                output,
+                [
+                    f"INFO:{container.system.log.name}:Running test_log",
+                    f"DEBUG:{container.system.log.name}.root:debug",
+                    f"INFO:{container.system.log.name}.root:info",
+                    f"WARNING:{container.system.log.name}.root:warning",
+                    f"ERROR:{container.system.log.name}.root:error",
+                ],
+            )
 
     def test_issue37(self):
         def test_redirect():

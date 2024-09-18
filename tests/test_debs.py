@@ -40,5 +40,7 @@ class TestDebCache(unittest.TestCase):
                         self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
                         self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
                         make_deb(aptdir, "c", 1500, 3)
+                self.assertTrue(os.path.exists(os.path.join(workdir, "a.deb")))
                 self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))
                 self.assertTrue(os.path.exists(os.path.join(workdir, "c.deb")))
+            self.assertFalse(os.path.exists(os.path.join(workdir, "a.deb")))

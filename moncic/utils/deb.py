@@ -4,7 +4,8 @@ import contextlib
 import os
 import shutil
 import tempfile
-from typing import Dict, Generator, List, NamedTuple, Optional
+from collections.abc import Generator
+from typing import NamedTuple
 
 from ..runner import UserConfig
 from .fs import dirfd
@@ -16,13 +17,13 @@ class FileInfo(NamedTuple):
 
 
 class DebCache:
-    def __init__(self, cache_dir: str, cache_size: int = 512*1024*1024):
+    def __init__(self, cache_dir: str, cache_size: int = 512 * 1024 * 1024):
         self.cache_dir = cache_dir
         # Maximum cache size in bytes
         self.cache_size = cache_size
         # Information about .deb files present in cache
-        self.debs: Dict[str, FileInfo] = {}
-        self.src_dir_fd: Optional[int] = None
+        self.debs: dict[str, FileInfo] = {}
+        self.src_dir_fd: int | None = None
         self.cache_user = UserConfig.from_sudoer()
 
     def __enter__(self):
@@ -46,7 +47,7 @@ class DebCache:
         sdebs = sorted(self.debs.items(), key=lambda x: x[1].atime_ns, reverse=True)
         size = 0
         for name, info in sdebs:
-            if size > self.cache_size:
+            if size + info.size > self.cache_size:
                 os.unlink(name, dir_fd=self.src_dir_fd)
                 del self.debs[name]
             else:
@@ -66,13 +67,13 @@ class DebCache:
                             st = de.stat()
                             self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
                             os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
-                            os.chown(
-                                de.name, 0, 0, dir_fd=dst_dir_fd)
+                            os.chown(de.name, 0, 0, dir_fd=dst_dir_fd)
 
                 try:
                     yield aptdir
                 finally:
                     # Hardlink new debs to cache dir
+                    os.lseek(dst_dir_fd, 0, os.SEEK_SET)
                     with os.scandir(dst_dir_fd) as it:
                         for de in it:
                             if de.name.endswith(".deb"):
@@ -80,12 +81,12 @@ class DebCache:
                                 if de.name not in self.debs:
                                     os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
                                 os.chown(
-                                    de.name, self.cache_user.user_id, self.cache_user.group_id,
-                                    dir_fd=self.src_dir_fd)
+                                    de.name, self.cache_user.user_id, self.cache_user.group_id, dir_fd=self.src_dir_fd
+                                )
                                 self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
 
 
-def apt_get_cmd(*args) -> List[str]:
+def apt_get_cmd(*args) -> list[str]:
     """
     Build an apt-get command
     """
@@ -95,10 +96,15 @@ def apt_get_cmd(*args) -> List[str]:
     if eatmydata:
         res.append(eatmydata)
 
-    res += ["apt-get", "--assume-yes", "--quiet", "--show-upgraded",
-            # The space after -o is odd but required, and I could
-            # not find a better working syntax
-            '-o Dpkg::Options::="--force-confnew"']
+    res += [
+        "apt-get",
+        "--assume-yes",
+        "--quiet",
+        "--show-upgraded",
+        # The space after -o is odd but required, and I could
+        # not find a better working syntax
+        '-o Dpkg::Options::="--force-confnew"',
+    ]
 
     res.extend(args)
 

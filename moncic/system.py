@@ -4,7 +4,7 @@ import dataclasses
 import logging
 import os
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -27,20 +27,21 @@ class SystemConfig:
     """
     Configuration for a system
     """
+
     # Image name
     name: str
     # Path to the image on disk
     path: str
     # Name of the distribution used to bootstrap this image.
     # If missing, this image needs to be created from an existing image
-    distro: Optional[str] = None
+    distro: str | None = None
     # Name of the distribution used as a base for this one.
     # If missing, this image needs to be created by bootstrapping from scratch
-    extends: Optional[str] = None
+    extends: str | None = None
     # List of packages to install
     packages: list[str] = dataclasses.field(default_factory=list)
     # Contents of a script to run for system maintenance
-    maintscript: Optional[str] = None
+    maintscript: str | None = None
     # List of users to propagate from host to image during maintenance
     forward_users: list[str] = dataclasses.field(default_factory=list)
     # When False, a CACHEDIR.TAG is created in the container image as a hint
@@ -51,14 +52,14 @@ class SystemConfig:
     # created. The value is the same as can be set by `btrfs property set
     # compression`. Default: the global 'compression' setting. You can use 'no'
     # or 'none' to ask for no compression when one globally is set.
-    compression: Optional[str] = None
+    compression: str | None = None
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     #
     # Leave to None to use system or container defaults.
-    tmpfs: Optional[bool] = None
+    tmpfs: bool | None = None
 
     @classmethod
-    def find_config(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> Optional[str]:
+    def find_config(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> str | None:
         """
         Find the configuration file for the given image
         """
@@ -71,7 +72,7 @@ class SystemConfig:
         return None
 
     @classmethod
-    def load(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> "SystemConfig":
+    def load(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> SystemConfig:
         """
         Load the configuration from the given path setup.
 
@@ -83,7 +84,7 @@ class SystemConfig:
         which is assumed to be a distribution name.
         """
         if conf_pathname := cls.find_config(mconfig, imagedir, name):
-            with open(conf_pathname, "rt") as fd:
+            with open(conf_pathname) as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
         else:
             conf = None
@@ -146,7 +147,7 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, images: Images, config: SystemConfig, path: Optional[str] = None):
+    def __init__(self, images: Images, config: SystemConfig, path: str | None = None):
         self.images = images
         self.config = config
         self.log = config.logger
@@ -184,7 +185,7 @@ class System:
         """
         return os.path.exists(self.path)
 
-    def local_run(self, cmd: list[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def local_run(self, cmd: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
 
@@ -192,6 +193,7 @@ class System:
         """
         # Import here to avoid dependency loops
         from .runner import LocalRunner
+
         return LocalRunner.run(self.log, cmd, config, self.config)
 
     def _container_chain_forwards_users(self) -> list[str]:
@@ -279,14 +281,14 @@ class System:
         for script in self._container_chain_maintscripts():
             container.run_script(script)
 
-    def describe_container(self) -> Dict[str, Any]:
+    def describe_container(self) -> dict[str, Any]:
         """
         Return a dictionary describing facts about the container
         """
-        res: Dict[str, Any] = {}
+        res: dict[str, Any] = {}
 
         # Forward users if needed
-        if (users_forwarded := self._container_chain_forwards_users()):
+        if users_forwarded := self._container_chain_forwards_users():
             res["users_forwarded"] = users_forwarded
 
         # Build list of packages to install, removing duplicates
@@ -299,20 +301,21 @@ class System:
         if packages:
             with self.create_container() as container:
                 try:
-                    res["packages_installed"] = dict(container.run_callable(
-                            self.distro.get_versions, args=(res["packages_required"],)).result())
+                    res["packages_installed"] = dict(
+                        container.run_callable(self.distro.get_versions, args=(res["packages_required"],)).result()
+                    )
                 except NotImplementedError as e:
                     self.log.info("cannot get details of how package requirements have been resolved: %s", e)
         else:
             res["packages_installed"] = {}
 
         # Describe maintscripts
-        if (scripts := self._container_chain_maintscripts()):
+        if scripts := self._container_chain_maintscripts():
             res["maintscripts"] = scripts
 
         return res
 
-    def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
+    def container_config(self, config: ContainerConfig | None = None) -> ContainerConfig:
         """
         Create or complete a ContainerConfig
         """
@@ -338,8 +341,7 @@ class System:
 
         return config
 
-    def create_container(
-            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+    def create_container(self, instance_name: str | None = None, config: ContainerConfig | None = None) -> Container:
         """
         Boot a container with this system
         """
@@ -347,11 +349,12 @@ class System:
 
         # Import here to avoid an import loop
         from .container import NspawnContainer
+
         return NspawnContainer(self, config, instance_name)
 
 
 class MaintenanceMixin(System):
-    def container_config(self, config: Optional[ContainerConfig] = None) -> ContainerConfig:
+    def container_config(self, config: ContainerConfig | None = None) -> ContainerConfig:
         config = super().container_config(config)
         # Force ephemeral to False in maintenance systems
         config.ephemeral = False
@@ -392,7 +395,7 @@ class MaintenanceSystem(MaintenanceMixin, System):
 
 
 class MockSystem(System):
-    def local_run(self, cmd: list[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def local_run(self, cmd: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
 
@@ -401,12 +404,12 @@ class MockSystem(System):
         self.images.session.mock_log(system=self.name, action="local_run", config=config, cmd=cmd)
         return self.images.session.get_process_result(args=cmd)
 
-    def create_container(
-            self, instance_name: Optional[str] = None, config: Optional[ContainerConfig] = None) -> Container:
+    def create_container(self, instance_name: str | None = None, config: ContainerConfig | None = None) -> Container:
         """
         Boot a container with this system
         """
         from .container import MockContainer
+
         config = self.container_config(config)
         return MockContainer(self, config, instance_name)
 

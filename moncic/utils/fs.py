@@ -4,19 +4,15 @@ import contextlib
 import logging
 import os
 import tempfile
-from typing import Generator, Optional
+from collections.abc import Generator
 
 log = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
 def atomic_writer(
-        fname: str,
-        mode: str = "w+b",
-        chmod: Optional[int] = 0o664,
-        sync: bool = True,
-        use_umask: bool = False,
-        **kw):
+    fname: str, mode: str = "w+b", chmod: int | None = 0o664, sync: bool = True, use_umask: bool = False, **kw
+):
     """
     open/tempfile wrapper to atomically write to a file, by writing its
     contents to a temporary file in the same directory, and renaming it at the
@@ -57,7 +53,7 @@ def atomic_writer(
         outfd.close()
 
 
-def is_on_rotational(pathname: str) -> Optional[bool]:
+def is_on_rotational(pathname: str) -> bool | None:
     """
     Check if the given file is stored on rotational storage.
 
@@ -74,7 +70,7 @@ def is_on_rotational(pathname: str) -> Optional[bool]:
     # Look for queue/rotational in the parent directory (which should be the disk device)
     rotfile = os.path.join(os.path.dirname(fulldev), "queue", "rotational")
     try:
-        with open(rotfile, "rt") as fd:
+        with open(rotfile) as fd:
             return fd.read().strip() == "1"
     except FileNotFoundError:
         return None

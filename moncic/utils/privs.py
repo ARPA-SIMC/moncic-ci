@@ -12,6 +12,7 @@ class ProcessPrivs:
     """
     Drop root privileges and regain them only when needed
     """
+
     def __init__(self):
         self.orig_uid, self.orig_euid, self.orig_suid = os.getresuid()
         self.orig_gid, self.orig_egid, self.orig_sgid = os.getresgid()

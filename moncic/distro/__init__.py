@@ -1,3 +1,3 @@
-from .distro import DistroFamily, Distro
+from .distro import Distro, DistroFamily
 
 __all__ = ["DistroFamily", "Distro"]

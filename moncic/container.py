@@ -13,11 +13,11 @@ import signal
 import subprocess
 import tempfile
 import time
-from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Iterator,
-                    NoReturn, Optional, Protocol, Tuple, TypeVar)
+from collections.abc import Iterator
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, ContextManager, NoReturn, Protocol, TypeVar
 
-from .runner import (CompletedCallable, RunConfig, SetnsCallableRunner,
-                     UserConfig)
+from .runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
 from .utils import libbanana
 from .utils.deb import apt_get_cmd
 from .utils.nspawn import escape_bind_ro
@@ -32,15 +32,16 @@ log = logging.getLogger(__name__)
 re_split_bind = re.compile(r"(?<!\\):")
 
 # PID-specific sequence number used for machine names
-machine_name_sequence_pid: Optional[int] = None
+machine_name_sequence_pid: int | None = None
 machine_name_sequence: int = 0
 
 # Convert PIDs to machine names
 machine_name_generator = libbanana.Codec(
-        alphabets=(
-            "bcdfgjklmnprstvwxyz",
-            "aeiou",
-        )).encode
+    alphabets=(
+        "bcdfgjklmnprstvwxyz",
+        "aeiou",
+    )
+).encode
 
 
 @dataclasses.dataclass
@@ -48,6 +49,7 @@ class BindConfig:
     """
     Configuration of one bind mount requested on the container
     """
+
     # Directory in the host system to be bind mounted in the container
     #
     # The source path may optionally be prefixed with a "+" character. If
@@ -83,10 +85,10 @@ class BindConfig:
     cwd: bool = False
 
     # Setup hook to be run at container startup inside the container
-    setup: Optional[Callable[["BindConfig"], None]] = None
+    setup: Callable[[BindConfig], None] | None = None
 
     # Setup hook to be run before container shutdown inside the container
-    teardown: Optional[Callable[["BindConfig"], None]] = None
+    teardown: Callable[[BindConfig], None] | None = None
 
     def to_nspawn(self) -> str:
         """
@@ -100,19 +102,17 @@ class BindConfig:
             raise ValueError(f"{self.bind_type!r}: invalid bind type")
 
         if self.mount_options:
-            return option + ":".join((
-                escape_bind_ro(self.source),
-                escape_bind_ro(self.destination),
-                ",".join(self.mount_options)))
+            return option + ":".join(
+                (escape_bind_ro(self.source), escape_bind_ro(self.destination), ",".join(self.mount_options))
+            )
         else:
             if self.source == self.destination:
                 return option + escape_bind_ro(self.source)
             else:
-                return option + (escape_bind_ro(self.source) + ":" +
-                                 escape_bind_ro(self.destination))
+                return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
 
     @classmethod
-    def create(cls, source: str, destination: str, bind_type: str, **kw) -> "BindConfig":
+    def create(cls, source: str, destination: str, bind_type: str, **kw) -> BindConfig:
         """
         Create a BindConfig.
 
@@ -142,7 +142,7 @@ class BindConfig:
         return cls(source=source, destination=destination, **kw)
 
     @classmethod
-    def from_nspawn(cls, entry: str, bind_type: str) -> "BindConfig":
+    def from_nspawn(cls, entry: str, bind_type: str) -> BindConfig:
         """
         Create a BindConfig from an nspawn --bind/--bind-ro option.
 
@@ -160,22 +160,17 @@ class BindConfig:
             # a colon-separated pair of paths — in which case the first
             # specified path is the source in the host, and the second path is
             # the destination in the container
-            return cls.create(
-                    parts[0].replace(r"\:", ":"),
-                    parts[1].replace(r"\:", ":"),
-                    bind_type)
+            return cls.create(parts[0].replace(r"\:", ":"), parts[1].replace(r"\:", ":"), bind_type)
         elif len(parts) == 3:
             # a colon-separated triple of source path, destination path and mount options
             return cls.create(
-                    parts[0].replace(r"\:", ":"),
-                    parts[1].replace(r"\:", ":"),
-                    bind_type,
-                    mount_options=parts[2].split(','))
+                parts[0].replace(r"\:", ":"), parts[1].replace(r"\:", ":"), bind_type, mount_options=parts[2].split(",")
+            )
         else:
             raise ValueError(f"{entry!r}: unparsable bind option")
 
     @classmethod
-    def bind_hook_setup_volatile(cls, bind_config: "BindConfig"):
+    def bind_hook_setup_volatile(cls, bind_config: BindConfig):
         """
         Finish setting up volatile binds in the container
         """
@@ -200,14 +195,19 @@ class BindConfig:
         os.makedirs(overlay_work, exist_ok=True)
         os.chown(overlay_work, st.st_uid, st.st_gid)
 
-        cmd = ["mount", "-t", "overlay", "overlay",
-               f"-olowerdir={bind_config.destination},upperdir={overlay_upper},workdir={overlay_work}",
-               bind_config.destination]
+        cmd = [
+            "mount",
+            "-t",
+            "overlay",
+            "overlay",
+            f"-olowerdir={bind_config.destination},upperdir={overlay_upper},workdir={overlay_work}",
+            bind_config.destination,
+        ]
         # logging.debug("Volatile setup command: %r", cmd)
         subprocess.run(cmd, check=True)
 
     @classmethod
-    def bind_hook_setup_aptcache(cls, bind_config: "BindConfig"):
+    def bind_hook_setup_aptcache(cls, bind_config: BindConfig):
         with open("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads", "wt") as fd:
             print('Binary::apt::APT::Keep-Downloaded-Packages "1";', file=fd)
         try:
@@ -218,19 +218,22 @@ class BindConfig:
             os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
 
     @classmethod
-    def bind_hook_teardown_aptcache(cls, bind_config: "BindConfig"):
+    def bind_hook_teardown_aptcache(cls, bind_config: BindConfig):
         try:
             os.unlink("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads")
         except FileNotFoundError:
             pass
 
     @classmethod
-    def bind_hook_setup_aptpackages(cls, bind_config: "BindConfig"):
+    def bind_hook_setup_aptpackages(cls, bind_config: BindConfig):
         mirror_dir = os.path.dirname(bind_config.destination)
         with open(os.path.join(mirror_dir, "Packages"), "wb") as fd:
             subprocess.run(
-                    ["apt-ftparchive", "packages", os.path.basename(bind_config.destination)],
-                    cwd=mirror_dir, stdout=fd, check=True)
+                ["apt-ftparchive", "packages", os.path.basename(bind_config.destination)],
+                cwd=mirror_dir,
+                stdout=fd,
+                check=True,
+            )
 
         with open("/etc/apt/sources.list.d/tmp-moncic-ci.list", "wt") as fd:
             print(f"deb [trusted=yes] file://{mirror_dir} ./", file=fd)
@@ -241,7 +244,7 @@ class BindConfig:
         # subprocess.run(apt_get_cmd("full-upgrade"), env=env)
 
     @classmethod
-    def bind_hook_teardown_aptpackages(cls, bind_config: "BindConfig"):
+    def bind_hook_teardown_aptpackages(cls, bind_config: BindConfig):
         try:
             os.unlink("/etc/apt/sources.list.d/tmp-moncic-ci.list")
         except FileNotFoundError:
@@ -253,26 +256,26 @@ class ContainerConfig:
     """
     Configuration needed to customize starting a container
     """
+
     # If true, changes done to the container filesystem will not persist
     ephemeral: bool = True
 
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     #
     # Leave to None to use system or container defaults.
-    tmpfs: Optional[bool] = None
+    tmpfs: bool | None = None
 
     # List of bind mounts requested on the container
     binds: list[BindConfig] = dataclasses.field(default_factory=list)
 
     # Make sure this user exists in the container.
     # Cannot be used when ephemeral is False
-    forward_user: Optional[UserConfig] = None
+    forward_user: UserConfig | None = None
 
     def check(self):
         """
         Raise exceptions if options are used inconsistently
         """
-        pass
 
     def configure_workdir(self, workdir: str, bind_type="rw", mountpoint="/media"):
         """
@@ -283,15 +286,17 @@ class ContainerConfig:
         """
         workdir = os.path.abspath(workdir)
         mountpoint = os.path.join(mountpoint, os.path.basename(workdir))
-        self.binds.append(BindConfig.create(
-            source=workdir,
-            destination=mountpoint,
-            bind_type=bind_type,
-            cwd=True,
-        ))
+        self.binds.append(
+            BindConfig.create(
+                source=workdir,
+                destination=mountpoint,
+                bind_type=bind_type,
+                cwd=True,
+            )
+        )
         self.forward_user = UserConfig.from_file(workdir)
 
-    def run_config(self, run_config: Optional[RunConfig] = None) -> RunConfig:
+    def run_config(self, run_config: RunConfig | None = None) -> RunConfig:
         if run_config is None:
             res = RunConfig()
         else:
@@ -323,6 +328,7 @@ class Container(ContextManager, Protocol):
     """
     An instance of a System in execution as a container
     """
+
     system: System
     config: ContainerConfig
     # Default to False, set to True to leave the container running on exit
@@ -337,7 +343,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def get_root(self) -> str:
+    def get_root(self) -> Path:
         """
         Return the path to the root directory of this container
         """
@@ -349,7 +355,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run(self, command: list[str], config: Optional[RunConfig] = None) -> CompletedCallable:
+    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
         """
         Run the given command inside the running system.
 
@@ -364,7 +370,7 @@ class Container(ContextManager, Protocol):
         """
         ...
 
-    def run_script(self, body: str, config: Optional[RunConfig] = None) -> CompletedCallable:
+    def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
         """
         Run the given string as a script in the machine.
 
@@ -375,9 +381,12 @@ class Container(ContextManager, Protocol):
         ...
 
     def run_callable_raw(
-            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
-            ) -> CompletedCallable[Result]:
+        self,
+        func: Callable[..., Result],
+        config: RunConfig | None = None,
+        args: tuple = (),
+        kwargs: dict[str, Any] | None = None,
+    ) -> CompletedCallable[Result]:
         """
         Run the given callable in a separate process inside the running
         system. Returns a CompletedCallable describing details of the execution
@@ -385,16 +394,19 @@ class Container(ContextManager, Protocol):
         ...
 
     def run_callable(
-            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
-            ) -> Result:
+        self,
+        func: Callable[..., Result],
+        config: RunConfig | None = None,
+        args: tuple = (),
+        kwargs: dict[str, Any] | None = None,
+    ) -> Result:
         """
         Run the given callable in a separate process inside the running
         system. Returns the function's result
         """
         ...
 
-    def run_shell(self, config: Optional[RunConfig]):
+    def run_shell(self, config: RunConfig | None):
         """
         Open a shell in the container
         """
@@ -405,7 +417,8 @@ class ContainerBase:
     """
     Convenience common base implementation for Container
     """
-    def __init__(self, system: System, config: ContainerConfig, instance_name: Optional[str] = None):
+
+    def __init__(self, system: System, config: ContainerConfig, instance_name: str | None = None):
         global machine_name_sequence_pid, machine_name_sequence
         super().__init__()
         self.system = system
@@ -449,23 +462,29 @@ class ContainerBase:
         if self.started and not self.linger:
             self._stop()
 
-    def run(self, command: list[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
         raise NotImplementedError(f"{self.__class__}._run not implemented")
 
     def run_callable_raw(
-            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
-            ) -> CompletedCallable[Result]:
+        self,
+        func: Callable[..., Result],
+        config: RunConfig | None = None,
+        args: tuple = (),
+        kwargs: dict[str, Any] | None = None,
+    ) -> CompletedCallable[Result]:
         raise NotImplementedError(f"{self.__class__}._run_callable_raw not implemented")
 
     def run_callable(
-            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
-            ) -> Result:
+        self,
+        func: Callable[..., Result],
+        config: RunConfig | None = None,
+        args: tuple = (),
+        kwargs: dict[str, Any] | None = None,
+    ) -> Result:
         completed = self.run_callable_raw(func, config, args, kwargs)
         return completed.result()
 
-    def run_shell(self, config: Optional[RunConfig]):
+    def run_shell(self, config: RunConfig | None):
         shell_candidates = []
         if "SHELL" in os.environ:
             shell_candidates.append(os.environ["SHELL"])
@@ -490,6 +509,7 @@ class NspawnContainer(ContainerBase):
     """
     Running system implemented using systemd nspawn
     """
+
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
         # machinectl properties of the running machine
@@ -497,8 +517,8 @@ class NspawnContainer(ContainerBase):
         # Bind mounts used by this container
         self.active_binds: list[BindConfig] = []
 
-    def get_root(self) -> str:
-        return self.properties["RootDirectory"]
+    def get_root(self) -> Path:
+        return Path(self.properties["RootDirectory"])
 
     def binds(self) -> Iterator[BindConfig]:
         yield from self.active_binds
@@ -509,14 +529,14 @@ class NspawnContainer(ContainerBase):
         using systemd-run
         """
         unit_config = [
-            'KillMode=mixed',
-            'Type=notify',
-            'RestartForceExitStatus=133',
-            'SuccessExitStatus=133',
-            'Slice=machine.slice',
-            'Delegate=yes',
-            'TasksMax=16384',
-            'WatchdogSec=3min',
+            "KillMode=mixed",
+            "Type=notify",
+            "RestartForceExitStatus=133",
+            "SuccessExitStatus=133",
+            "Slice=machine.slice",
+            "Delegate=yes",
+            "TasksMax=16384",
+            "WatchdogSec=3min",
         ]
 
         systemd_run_cmd = ["systemd-run"]
@@ -528,10 +548,12 @@ class NspawnContainer(ContainerBase):
         self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
         res = subprocess.run(systemd_run_cmd, capture_output=True)
         if res.returncode != 0:
-            self.system.log.error("Failed to run %s (exit code %d): %r",
-                                  " ".join(shlex.quote(c) for c in systemd_run_cmd),
-                                  res.returncode,
-                                  res.stderr)
+            self.system.log.error(
+                "Failed to run %s (exit code %d): %r",
+                " ".join(shlex.quote(c) for c in systemd_run_cmd),
+                res.returncode,
+                res.stderr,
+            )
             raise RuntimeError("Failed to start container")
 
     def get_start_command(self):
@@ -566,6 +588,7 @@ class NspawnContainer(ContainerBase):
         """
         Ensure the system has a matching user and group
         """
+
         def forward():
             res = subprocess.run(["id", "-u", str(user.user_id)], capture_output=True, check=False)
             has_user = res.returncode == 0 and int(res.stdout.strip()) == user.user_id
@@ -578,25 +601,30 @@ class NspawnContainer(ContainerBase):
                 raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
             if not has_user and not has_group:
-                subprocess.run([
-                    "groupadd",
-                    "--gid", str(user.group_id),
-                    user.group_name], check=True)
-                subprocess.run([
-                    "useradd",
-                    "--create-home",
-                    "--uid", str(user.user_id),
-                    "--gid", str(user.group_id),
-                    user.user_name], check=True)
+                subprocess.run(["groupadd", "--gid", str(user.group_id), user.group_name], check=True)
+                subprocess.run(
+                    [
+                        "useradd",
+                        "--create-home",
+                        "--uid",
+                        str(user.user_id),
+                        "--gid",
+                        str(user.group_id),
+                        user.user_name,
+                    ],
+                    check=True,
+                )
             else:
                 user.check_system()
+
         forward.__doc__ = f"check or create user {user.user_name!r} and group {user.group_name!r}"
 
         self.run_callable(forward, config=RunConfig(user=UserConfig.root()))
 
     def _start(self):
-        self.system.log.info("Starting system %s as %s using image %s",
-                             self.system.name, self.instance_name, self.system.path)
+        self.system.log.info(
+            "Starting system %s as %s using image %s", self.system.name, self.instance_name, self.system.path
+        )
 
         cmd = self.get_start_command()
 
@@ -604,12 +632,10 @@ class NspawnContainer(ContainerBase):
         self.started = True
 
         # Read machine properties
-        res = subprocess.run(
-                ["machinectl", "show", self.instance_name],
-                capture_output=True, text=True, check=True)
+        res = subprocess.run(["machinectl", "show", self.instance_name], capture_output=True, text=True, check=True)
         self.properties = {}
         for line in res.stdout.splitlines():
-            key, value = line.split('=', 1)
+            key, value = line.split("=", 1)
             self.properties[key] = value
 
         # Do user forwarding if requested
@@ -657,7 +683,7 @@ class NspawnContainer(ContainerBase):
             time.sleep(0.1)
         self.started = False
 
-    def run(self, command: list[str], config: Optional[RunConfig] = None) -> CompletedCallable:
+    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
         run_config = self.config.run_config(config)
 
         exec_func: Callable[[str, list[str]], NoReturn]
@@ -678,7 +704,7 @@ class NspawnContainer(ContainerBase):
 
         return self.run_callable_raw(command_runner, run_config)
 
-    def run_script(self, body: str, config: Optional[RunConfig] = None) -> CompletedCallable:
+    def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
         def script_runner():
             with tempfile.TemporaryDirectory() as workdir:
                 script_path = os.path.join(workdir, "script")
@@ -699,9 +725,12 @@ class NspawnContainer(ContainerBase):
         return self.run_callable_raw(script_runner, config)
 
     def run_callable_raw(
-            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
-            ) -> CompletedCallable[Result]:
+        self,
+        func: Callable[..., Result],
+        config: RunConfig | None = None,
+        args: tuple = (),
+        kwargs: dict[str, Any] | None = None,
+    ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
         completed = runner.execute()
@@ -712,31 +741,38 @@ class MockContainer(ContainerBase):
     """
     Mock container used for tests
     """
-    def get_root(self) -> str:
-        return self.properties["RootDirectory"]
+
+    def get_root(self) -> Path:
+        return Path(self.properties["RootDirectory"])
 
     def _start(self):
-        self.system.images.session.mock_log(
-            system=self.system.name, action="container start")
+        self.system.images.session.mock_log(system=self.system.name, action="container start")
         self.started = True
 
     def _stop(self):
-        self.system.images.session.mock_log(
-            system=self.system.name, action="container stop")
+        self.system.images.session.mock_log(system=self.system.name, action="container stop")
         self.started = False
 
-    def run(self, command: list[str], config: Optional[RunConfig] = None) -> CompletedCallable:
+    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
         run_config = self.config.run_config(config)
-        self.system.images.session.mock_log(
-            system=self.system.name, action="run", config=run_config, cmd=command)
+        self.system.images.session.mock_log(system=self.system.name, action="run", config=run_config, cmd=command)
         return self.system.images.session.get_process_result(args=command)
 
     def run_callable_raw(
-            self, func: Callable[..., Result], config: Optional[RunConfig] = None,
-            args: Tuple = (), kwargs: Optional[dict[str, Any]] = None,
-            ) -> CompletedCallable[Result]:
+        self,
+        func: Callable[..., Result],
+        config: RunConfig | None = None,
+        args: tuple = (),
+        kwargs: dict[str, Any] | None = None,
+    ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
         self.system.images.session.mock_log(
-            system=self.system.name, action="run callable", config=run_config,
-            func=func.__name__, desc=func.__doc__, args=args, kwargs=kwargs)
+            system=self.system.name,
+            action="run callable",
+            config=run_config,
+            func=func.__name__,
+            desc=func.__doc__,
+            args=args,
+            kwargs=kwargs,
+        )
         return CompletedCallable(args=func.__name__, returncode=0)

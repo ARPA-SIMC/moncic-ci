@@ -30,7 +30,7 @@ options:
   --source-only         only build source packages
   --shell               open a shell after the build
   --option OPTION, -O OPTION
-                        key=value option for the build. See `-s list` for a list of available option for each build style
+                        key=value option for the build. See `-O list` for a list of available option for each build style
 ```
 
 Run `monci ci` on a source using a Debian image to attempt to build a Debian

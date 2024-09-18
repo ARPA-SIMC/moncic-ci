@@ -4,7 +4,6 @@ import dataclasses
 import logging
 import os
 import subprocess
-from typing import ContextManager, List, Optional
 
 import yaml
 
@@ -14,7 +13,7 @@ from .utils.privs import ProcessPrivs
 log = logging.getLogger(__name__)
 
 
-def expand_path(path: Optional[str]) -> Optional[str]:
+def expand_path(path: str | None) -> str | None:
     """
     Process a path in the configuration, expanding ~ and making it absolute.
 
@@ -30,26 +29,27 @@ class MoncicConfig:
     """
     Global Moncic-CI configuration
     """
+
     # Directory where images are stored
     imagedir: str = "/var/lib/machines"
     # Directories where image configuration can stored, if not found in
     # imagedir
-    imageconfdirs: List[str] = dataclasses.field(default_factory=list)
+    imageconfdirs: list[str] = dataclasses.field(default_factory=list)
     # Btrfs compression level to set on OS image subvolumes when they are
     # created. The value is the same as can be set by `btrfs property set
     # compression`. Default: nothing is set
-    compression: Optional[str] = None
+    compression: str | None = None
     # Automatically reexec with sudo if permissions are needed
     auto_sudo: bool = True
     # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
     tmpfs: bool = False
     # Directory where .deb files are cached between invocations
-    deb_cache_dir: Optional[str] = "~/.cache/moncic-ci/debs"
+    deb_cache_dir: str | None = "~/.cache/moncic-ci/debs"
     # Directory where extra packages, if present, are added to package sources
     # in containers
-    extra_packages_dir: Optional[str] = None
+    extra_packages_dir: str | None = None
     # Directory where build artifacts will be stored
-    build_artifacts_dir: Optional[str] = None
+    build_artifacts_dir: str | None = None
 
     def __post_init__(self):
         # Allow to use ~ in config files
@@ -66,7 +66,7 @@ class MoncicConfig:
         self.build_artifacts_dir = expand_path(self.build_artifacts_dir)
 
     @classmethod
-    def find_git_dir(cls) -> Optional[str]:
+    def find_git_dir(cls) -> str | None:
         try:
             res = subprocess.run(["git", "rev-parse", "--git-dir"], capture_output=True, text=True)
         except FileNotFoundError:
@@ -85,7 +85,7 @@ class MoncicConfig:
         return os.path.join(config_home, "moncic-ci")
 
     @classmethod
-    def find_config_file(cls) -> Optional[str]:
+    def find_config_file(cls) -> str | None:
         """
         Locate a moncic-ci.yaml configuration file in a list of well known
         directories
@@ -119,7 +119,7 @@ class MoncicConfig:
         return None
 
     @classmethod
-    def load(cls, path: Optional[str] = None):
+    def load(cls, path: str | None = None):
         """
         Load the configuration from the given path, or from a list of default paths.
         """
@@ -130,7 +130,7 @@ class MoncicConfig:
             return cls()
 
         try:
-            with open(path, "rt") as fd:
+            with open(path) as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
             log.info("Configuration loaded from %s", path)
         except FileNotFoundError:
@@ -143,10 +143,8 @@ class Moncic:
     """
     General state of the Moncic-CI setup
     """
-    def __init__(
-            self,
-            config: MoncicConfig,
-            privs: Optional[ProcessPrivs] = None):
+
+    def __init__(self, config: MoncicConfig, privs: ProcessPrivs | None = None):
         self.privs: ProcessPrivs
         if privs is None:
             self.privs = ProcessPrivs()
@@ -160,8 +158,18 @@ class Moncic:
         res = subprocess.run(["systemctl", "--version"], check=True, capture_output=True, text=True)
         self.systemd_version = int(res.stdout.splitlines()[0].split()[1])
 
-    def session(self) -> ContextManager[Session]:
+    def session(self) -> Session:
+        """
+        Create a new work session.
+
+        Session is a context manager, so you can use this as `with moncic.session() as session:`
+        """
         return Session(self)
 
-    def mock_session(self) -> ContextManager[Session]:
+    def mock_session(self) -> Session:
+        """
+        Create a new mock session for tests.
+
+        Session is a context manager, so you can use this as `with moncic.mock_session() as session:`
+        """
         return MockSession(self)

@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 
 import logging
+import sys
+
 import moncic
 from moncic import cli, exceptions
 from moncic.utils import argparse
-
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,12 @@ def main():
     for cls in cli.MAIN_COMMANDS:
         cls.make_subparser(subparsers)
 
-    args = parser.parse_args()
+    try:
+        args = parser.parse_args()
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        return 1
+
     handler = args.handler(args)
     return handler.run()
 

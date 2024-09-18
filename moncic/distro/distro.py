@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 import os
 import tempfile
-from typing import TYPE_CHECKING, Iterable, List, NamedTuple, Optional, Type
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, NamedTuple
 
 from ..utils.osrelease import parse_osrelase
 
@@ -18,6 +19,7 @@ class DistroInfo(NamedTuple):
     """
     Information about a distribution
     """
+
     # Canonical name
     name: str
     shortcuts: list[str]
@@ -27,6 +29,7 @@ class DistroFamily:
     """
     Base class for handling a family of distributions
     """
+
     # Registry of known families
     families: dict[str, DistroFamily] = {}
 
@@ -35,7 +38,7 @@ class DistroFamily:
     SHORTCUTS: dict[str, str] = {}
 
     @classmethod
-    def register(cls, family_cls: Type["DistroFamily"]) -> Type["DistroFamily"]:
+    def register(cls, family_cls: type[DistroFamily]) -> type[DistroFamily]:
         name = getattr(family_cls, "NAME", None)
         if name is None:
             name = family_cls.__name__.lower()
@@ -94,7 +97,7 @@ class DistroFamily:
         # https://www.freedesktop.org/software/systemd/man/os-release.html
 
         # TODO: check if "{path}.yaml" exists
-        info: Optional[dict[str, str]]
+        info: dict[str, str] | None
         try:
             info = parse_osrelase(os.path.join(path, "etc", "os-release"))
         except FileNotFoundError:
@@ -119,26 +122,25 @@ class DistroFamily:
     def __str__(self) -> str:
         return self.name
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         """
         Create a Distro object for a distribution in this family, given its
         version
         """
         raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
 
-    def list_distros(self) -> List[DistroInfo]:
+    def list_distros(self) -> list[DistroInfo]:
         """
         Return a list of distros available in this family
         """
-        return [
-            DistroInfo(name, [shortcut])
-            for shortcut, name in self.SHORTCUTS.items()]
+        return [DistroInfo(name, [shortcut]) for shortcut, name in self.SHORTCUTS.items()]
 
 
 class Distro:
     """
     Common base class for bootstrapping distributions
     """
+
     def __init__(self, name: str):
         self.name = name
 
@@ -157,7 +159,6 @@ class Distro:
         Hook to allow distro-specific container setup
         """
         # Do nothing by default
-        pass
 
     def bootstrap(self, system: System) -> None:
         """
@@ -167,13 +168,17 @@ class Distro:
         # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
         distro, release = self.name.split(":", 1)
         installroot = os.path.abspath(system.path)
-        base_packages = ','.join(self.get_base_packages())
+        base_packages = ",".join(self.get_base_packages())
         with tempfile.TemporaryDirectory() as workdir:
             cmd = [
-                "/usr/bin/mkosi", f"--distribution={distro}",
-                f"--release={release}", "--format=directory",
-                f"--output={installroot}", "--base-packages=true",
-                f"--package={base_packages}", f"--directory={workdir}",
+                "/usr/bin/mkosi",
+                f"--distribution={distro}",
+                f"--release={release}",
+                "--format=directory",
+                f"--output={installroot}",
+                "--base-packages=true",
+                f"--package={base_packages}",
+                f"--directory={workdir}",
                 "--force",
                 # f"--mirror={self.mirror}",
             ]
@@ -214,4 +219,5 @@ class Distro:
         Get the installed versions of packages described in the given list
         """
         raise NotImplementedError(
-                f"getting installed versions for package requirements is not implemented for {self.name}")
+            f"getting installed versions for package requirements is not implemented for {self.name}"
+        )

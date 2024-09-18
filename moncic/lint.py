@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import contextlib
 import re
 from collections import defaultdict
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 import git
 
@@ -14,22 +13,29 @@ if TYPE_CHECKING:
     from ..source.source import Source
 
 
-class Linter(contextlib.ExitStack):
+class Linter:
     """
     Scan sources for potential inconsistencies
     """
+
     def __init__(self, system: System, source: Source):
         super().__init__()
         # System used to analyze the sources
         self.system = system
         # Source to check
         self.source = source
+        # Number of errors found
+        self.error_count: int = 0
+        # Number of warnings found
+        self.warning_count: int = 0
 
     def error(self, message: str):
         print(message)
+        self.error_count += 1
 
     def warning(self, message: str):
         print(message)
+        self.warning_count += 1
 
     @cached_property
     def source_path(self) -> Path:
@@ -45,34 +51,6 @@ class Linter(contextlib.ExitStack):
         Return a dict mapping version type to version strings
         """
         return self.source.find_versions(self.system)
-
-    def check_local_remote_sync(self, name: str) -> str:
-        """
-        Check if branch {name} is in sync between local and remote.
-
-        Return the name of the most up to date branch
-        """
-        if name not in self.repo.references:
-            self.error(f"branch {name!r} does not exist locally")
-
-        remote_name = "origin/" + name
-        if remote_name not in self.repo.references:
-            self.error(f"branch {remote_name!r} does not exist locally")
-
-        local = self.repo.references[name]
-        remote = self.repo.references[remote_name]
-        if local.commit != remote.commit:
-            if self.repo.is_ancestor(local.commit, remote.commit):
-                self.warning(f"branch {remote_name} is ahead of local branch {name}")
-                return remote_name
-            elif self.repo.is_ancestor(remote.commit, local.commit):
-                self.warning(f"branch {name} is ahead of remote branch {remote_name}")
-                return name
-            else:
-                self.warning(f"branch {name} diverged from branch {remote_name}")
-                return name
-        else:
-            return name
 
     @cached_property
     def main_branch(self) -> str:
@@ -122,7 +100,7 @@ class Linter(contextlib.ExitStack):
         return res
 
     @cached_property
-    def upstream_version(self) -> Optional[str]:
+    def upstream_version(self) -> str | None:
         """
         Return the upstream version, if it can be univocally determined, else
         None
@@ -149,7 +127,7 @@ class Linter(contextlib.ExitStack):
                 continue
             changelog = branch.commit.tree["debian"]["changelog"]
             for line in changelog.data_stream.read().decode().splitlines():
-                if (mo := re_changelog.match(line)):
+                if mo := re_changelog.match(line):
                     versions[name] = mo.group(1)
                     break
 
@@ -164,7 +142,7 @@ class Linter(contextlib.ExitStack):
         return versions
 
     @cached_property
-    def version_from_arpa_specfile(self) -> Optional[str]:
+    def version_from_arpa_specfile(self) -> str | None:
         """
         Get the version from ARPA's specfile
         """
@@ -186,18 +164,19 @@ class Linter(contextlib.ExitStack):
             return None
 
         if len(specs) > 1:
-            self.warning(f"Multiple specfiles found in {self.main_branch}:fedora/SPECS:"
-                         f" {', '.join(s.name for s in specs)}")
+            self.warning(
+                f"Multiple specfiles found in {self.main_branch}:fedora/SPECS:" f" {', '.join(s.name for s in specs)}"
+            )
             return None
 
         for line in specs[0].data_stream.read().decode().splitlines():
-            if (mo := re_version.match(line)):
+            if mo := re_version.match(line):
                 return mo.group(1)
 
         return None
 
     @classmethod
-    def same_values(cls, versions: dict[str, str]) -> Optional[str]:
+    def same_values(cls, versions: dict[str, str]) -> str | None:
         """
         If all the dict's entries have the same value, return that value.
 

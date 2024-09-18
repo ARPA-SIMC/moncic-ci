@@ -8,13 +8,13 @@ import re
 import shlex
 import subprocess
 import tempfile
-from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict,
-                    Generator, List, Optional, Union)
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Any, Callable, ContextManager
 from unittest import SkipTest, mock
 
 from .container import RunConfig, UserConfig
-from .runner import CompletedCallable
 from .moncic import Moncic, MoncicConfig
+from .runner import CompletedCallable
 from .system import MaintenanceSystem, SystemConfig
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
@@ -24,8 +24,18 @@ if TYPE_CHECKING:
     from moncic.distro import Distro
 
 TEST_CHROOTS = [
-    "centos7", "centos8", "rocky8", "rocky9", "fedora32", "fedora34",
-    "fedora36", "fedora38", "buster", "bookworm", "bullseye"
+    "centos7",
+    "centos8",
+    "rocky8",
+    "rocky9",
+    "fedora32",
+    "fedora34",
+    "fedora36",
+    "fedora38",
+    "fedora40",
+    "buster",
+    "bookworm",
+    "bullseye",
 ]
 
 log = logging.getLogger(__name__)
@@ -42,7 +52,7 @@ privs.drop()
 
 
 @contextlib.contextmanager
-def make_moncic(config: Optional[MoncicConfig] = None) -> Generator[Moncic, None, None]:
+def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic, None, None]:
     """
     Create a Moncic instance configured to work with the test suite.
     """
@@ -65,13 +75,13 @@ class MockRunLog:
         self.testcase = testcase
         self.log = []
 
-    def append(self, cmd: List[str], kwargs: Dict[str, Any]):
-        self.log.append((' '.join(shlex.quote(c) for c in cmd), kwargs))
+    def append(self, cmd: list[str], kwargs: dict[str, Any]):
+        self.log.append((" ".join(shlex.quote(c) for c in cmd), kwargs))
 
     def append_script(self, body: str):
         self.log.append((f"script:{body}", {}))
 
-    def append_callable(self, func: Callable[[], Optional[int]]):
+    def append_callable(self, func: Callable[[], int | None]):
         self.log.append((f"callable:{func.__name__}", {}))
 
     def append_forward_user(self, user: UserConfig):
@@ -80,7 +90,7 @@ class MockRunLog:
     def append_cachedir(self):
         self.log.append(("cachedir_tag:", {}))
 
-    def assertPopFirstOptional(self, cmd: Union[str, re.Pattern], **kwargs):
+    def assertPopFirstOptional(self, cmd: str | re.Pattern, **kwargs):
         actual_cmd, actual_kwargs = self.log[0]
 
         skip = False
@@ -99,7 +109,7 @@ class MockRunLog:
             self.log.pop(0)
             self.testcase.assertEqual(actual_kwargs, kwargs)
 
-    def assertPopFirst(self, cmd: Union[str, re.Pattern], **kwargs):
+    def assertPopFirst(self, cmd: str | re.Pattern, **kwargs):
         actual_cmd, actual_kwargs = self.log.pop(0)
 
         if isinstance(cmd, str):
@@ -114,7 +124,7 @@ class MockRunLog:
 
 
 @contextlib.contextmanager
-def workdir(filesystem_type: Optional[str] = None):
+def workdir(filesystem_type: str | None = None):
     """
     Create a temporary working directory. If filesystem_type is set to one of
     the supported options, make sure it is backed by that given filessytem
@@ -138,7 +148,7 @@ def workdir(filesystem_type: Optional[str] = None):
                 yield imagedir
             else:
                 with tempfile.NamedTemporaryFile() as backing:
-                    backing.truncate(1024*1024*1024)
+                    backing.truncate(1024 * 1024 * 1024)
                     subprocess.run(["mkfs.btrfs", backing.name], check=True)
                     with privs.root():
                         subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir], check=True)
@@ -153,19 +163,17 @@ class DistroTestMixin:
     """
     TestCase mixin with extra common utility infrastructure to test Moncic-CI
     """
+
     @contextlib.contextmanager
-    def config(self, filesystem_type: Optional[str] = None) -> Generator[MoncicConfig, None, None]:
+    def config(self, filesystem_type: str | None = None) -> Generator[MoncicConfig, None, None]:
         if filesystem_type is None:
             filesystem_type = getattr(self, "DEFAULT_FILESYSTEM_TYPE", None)
 
         with workdir(filesystem_type=filesystem_type) as imagedir:
-            yield MoncicConfig(
-                    imagedir=imagedir,
-                    imageconfdirs=[],
-                    deb_cache_dir=None)
+            yield MoncicConfig(imagedir=imagedir, imageconfdirs=[], deb_cache_dir=None)
 
     @contextlib.contextmanager
-    def _mock_system(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog, None, None]:
+    def _mock_system(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog, None, None]:
         """
         Mock System objects to log operations instead of running them
         """
@@ -179,17 +187,17 @@ class DistroTestMixin:
             rlog.append(["<replace>", self.path, path], {})
             self.path = path
 
-        def _subvolume_local_run(self, cmd: List[str]) -> subprocess.CompletedProcess:
+        def _subvolume_local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
             rlog.append(cmd, {})
-            return subprocess.CompletedProcess(cmd, 0, b'', b'')
+            return subprocess.CompletedProcess(cmd, 0, b"", b"")
 
-        def _images_local_run(self, system_config: SystemConfig, cmd: List[str]) -> subprocess.CompletedProcess:
+        def _images_local_run(self, system_config: SystemConfig, cmd: list[str]) -> subprocess.CompletedProcess:
             rlog.append(cmd, {})
-            return subprocess.CompletedProcess(cmd, 0, b'', b'')
+            return subprocess.CompletedProcess(cmd, 0, b"", b"")
 
-        def _system_local_run(self, cmd: List[str], config: Optional[RunConfig] = None) -> subprocess.CompletedProcess:
+        def _system_local_run(self, cmd: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
             rlog.append(cmd, {})
-            return subprocess.CompletedProcess(cmd, 0, b'', b'')
+            return subprocess.CompletedProcess(cmd, 0, b"", b"")
 
         def _update_cachedir(self):
             rlog.append_cachedir()
@@ -203,7 +211,7 @@ class DistroTestMixin:
                                 yield rlog
 
     @contextlib.contextmanager
-    def _mock_container(self, run_log: Optional[MockRunLog] = None) -> Generator[MockRunLog, None, None]:
+    def _mock_container(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog, None, None]:
         """
         Mock System objects to log operations instead of running them
         """
@@ -222,19 +230,17 @@ class DistroTestMixin:
         def _forward_user(self, user: UserConfig, allow_maint: bool = False):
             rlog.append_forward_user(user)
 
-        def _run(self, command: List[str], config: Optional[RunConfig] = None) -> CompletedCallable:
+        def _run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
             rlog.append(command, {})
-            return CompletedCallable(command, 0, b'', b'')
+            return CompletedCallable(command, 0, b"", b"")
 
-        def _run_script(self, body: str, config: Optional[RunConfig] = None) -> CompletedCallable:
+        def _run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
             rlog.append_script(body)
-            return CompletedCallable(["script"], 0, b'', b'')
+            return CompletedCallable(["script"], 0, b"", b"")
 
-        def _run_callable(
-                self, func: Callable[[], Optional[int]],
-                config: Optional[RunConfig] = None) -> CompletedCallable:
+        def _run_callable(self, func: Callable[[], int | None], config: RunConfig | None = None) -> CompletedCallable:
             rlog.append_callable(func)
-            return CompletedCallable(func.__name__, 0, b'', b'')
+            return CompletedCallable(func.__name__, 0, b"", b"")
 
         with mock.patch("moncic.container.NspawnContainer._start", new=_start):
             with mock.patch("moncic.container.NspawnContainer._stop", new=_stop):
@@ -269,8 +275,8 @@ class DistroTestMixin:
 
     @contextlib.contextmanager
     def make_images(self, distro: Distro) -> Generator[imagestorage.Images, None, None]:
-        with (self.config() as mconfig,
-                make_moncic(mconfig) as moncic):
+        with self.config() as mconfig, make_moncic(mconfig) as moncic:
+
             def _load(mconfig: MoncicConfig, imagedir: str, name: str):
                 return SystemConfig(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
 

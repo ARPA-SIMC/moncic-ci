@@ -8,53 +8,17 @@ import socketserver
 import subprocess
 import tempfile
 import threading
+import unittest
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, Optional, Union
-
-from moncic.build import Build
-from moncic.distro import Distro, DistroFamily
-
-if TYPE_CHECKING:
-    from moncic.source import Source
-
-
-class MockSystem:
-    def __init__(self, distro: Distro):
-        self.distro = distro
-
-
-class MockContainer:
-    def __init__(self, system: MockSystem, root: str):
-        self.system = system
-        self.root = root
-        self.source_dir = os.path.join(self.root, "srv", "moncic-ci", "source")
-        os.makedirs(self.source_dir, exist_ok=True)
-
-    def get_root(self):
-        return self.root
-
-
-class MockBuilder(contextlib.ExitStack):
-    def __init__(self, distro: str, build: Build):
-        super().__init__()
-        self.system = MockSystem(
-                distro=DistroFamily.lookup_distro(distro))
-        self.build = build
-
-    def setup_build(self, *, source: Source, **kw):
-        self.build = Build(source=source, **kw)
-
-    @contextlib.contextmanager
-    def container(self) -> Generator[MockContainer, None, None]:
-        with tempfile.TemporaryDirectory() as container_root:
-            yield MockContainer(self.system, container_root)
 
 
 class GitRepo(contextlib.ExitStack):
     """
     Temporary git repository used for testing
     """
-    def __init__(self, workdir: Optional[Path] = None):
+
+    def __init__(self, workdir: Path | None = None):
         super().__init__()
         if workdir is None:
             self.root = Path(self.enter_context(tempfile.TemporaryDirectory()))
@@ -74,7 +38,7 @@ class GitRepo(contextlib.ExitStack):
         cmd.extend(args)
         subprocess.run(cmd, cwd=self.root, check=True, capture_output=True)
 
-    def add(self, relpath: str, content: Union[str, bytes] = b''):
+    def add(self, relpath: str, content: str | bytes = b""):
         """
         Create a file and git add it
         """
@@ -129,10 +93,13 @@ class GitRepo(contextlib.ExitStack):
                 server.join()
 
 
-class WorkdirFixtureMixin:
+class WorkdirFixture(unittest.TestCase):
+    workdir: Path
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        # We have self.enterContext from Python 3.11
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
         cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory()))
@@ -143,8 +110,77 @@ class WorkdirFixtureMixin:
         super().tearDownClass()
 
 
-class GitFixtureMixin(WorkdirFixtureMixin):
+class GitFixture(WorkdirFixture):
+    path: Path
+    git: GitRepo
+    git_name: str = "repo"
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.git = cls.stack.enter_context(GitRepo(cls.workdir / "repo"))
+        cls.path = cls.workdir / cls.git_name
+        cls.git = cls.stack.enter_context(GitRepo(cls.path))
+
+
+def create_lint_version_fixture_path(path: Path) -> None:
+    (path / "configure.ac").write_text("AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
+    (path / "meson.build").write_text("project('test', 'cpp', version: '1.2')\n")
+    (path / "CMakeLists.txt").write_text('set(PACKAGE_VERSION "1.3")\n')
+    (path / "NEWS.md").write_text("# New in version 1.4\n")
+    (path / "setup.py").write_text(
+        """
+from setuptools import setup
+setup(name='test', packages=['test'])
+"""
+    )
+    (path / "test").mkdir()
+    (path / "test" / "__init__.py").write_text('__version__ = "1.5"')
+    (path / "setup.cfg").write_text("[metadata]\nversion = attr: test.__version__")
+    (path / "debian").mkdir()
+    (path / "debian" / "changelog").write_text("test (1.6-1) UNRELEASED; urgency=low")
+    (path / "fedora" / "SPECS").mkdir(parents=True)
+    (path / "fedora" / "SPECS" / "test.spec").write_text(
+        """
+Name:           test
+Version:        1.6
+Release:        1
+Summary:        test repo
+License:        CC-0
+%description
+test
+"""
+    )
+
+
+def create_lint_version_fixture_git(
+    git: GitRepo, *, upstream: bool = True, rpm: bool = True, debian: bool = True
+) -> None:
+    if upstream:
+        git.add("configure.ac", "AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
+        git.add("meson.build", "project('test', 'cpp', version: '1.2')\n")
+        git.add("CMakeLists.txt", 'set(PACKAGE_VERSION "1.3")\n')
+        git.add("NEWS.md", "# New in version 1.4\n")
+        git.add(
+            "setup.py",
+            """
+from setuptools import setup
+setup(name='test', packages=['test'])
+""",
+        )
+        git.add("test/__init__.py", '__version__ = "1.5"')
+        git.add("setup.cfg", "[metadata]\nversion = attr: test.__version__")
+    if debian:
+        git.add("debian/changelog", "test (1.6-1) UNRELEASED; urgency=low")
+    if rpm:
+        git.add(
+            "fedora/SPECS/test.spec",
+            """
+Name:           test
+Version:        1.6
+Release:        1
+Summary:        test repo
+License:        CC-0
+%description
+test
+""",
+        )

@@ -18,8 +18,7 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic,
-                    NamedTuple, Optional, Type, TypeVar, cast)
+from typing import IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic, NamedTuple, TypeVar, cast
 
 import tblib
 
@@ -42,6 +41,7 @@ class UserConfig(NamedTuple):
     """
     User and group information to use for running processes
     """
+
     user_name: str
     user_id: int
     group_name: str
@@ -114,24 +114,24 @@ class UserConfig(NamedTuple):
         try:
             pw = pwd.getpwuid(self.user_id)
         except KeyError:
-            raise RuntimeError(
-                    f"container has no user {self.user_id} {self.user_name!r}"
-                  ) from None
+            raise RuntimeError(f"container has no user {self.user_id} {self.user_name!r}") from None
 
         try:
             gr = grp.getgrgid(self.group_id)
         except KeyError:
-            raise RuntimeError(
-                    f"container has no group {self.group_id} {self.group_name!r}"
-                  ) from None
+            raise RuntimeError(f"container has no group {self.group_id} {self.group_name!r}") from None
 
         if pw.pw_name != self.user_name:
-            raise RuntimeError(f"user {self.user_id} in container is named {pw.pw_name!r}"
-                               f" but outside it is named {self.user_name!r}")
+            raise RuntimeError(
+                f"user {self.user_id} in container is named {pw.pw_name!r}"
+                f" but outside it is named {self.user_name!r}"
+            )
 
         if gr.gr_name != self.group_name:
-            raise RuntimeError(f"group {self.group_id} in container is named {gr.gr_name!r}"
-                               f" but outside it is named {self.group_name!r}")
+            raise RuntimeError(
+                f"group {self.group_id} in container is named {gr.gr_name!r}"
+                f" but outside it is named {self.group_name!r}"
+            )
 
 
 @dataclasses.dataclass
@@ -139,17 +139,18 @@ class RunConfig:
     """
     Configuration needed to customize running actions in a container
     """
+
     # Set to True to raise CalledProcessError if the process exits with a
     # non-zero exit status
     check: bool = True
 
     # Run in this working directory. Defaults to ContainerConfig.workdir, if
     # set. Else, to the user's home directory
-    cwd: Optional[str] = None
+    cwd: str | None = None
 
     # Run as the given user. Defaults to the owner of ContainerConfig.workdir,
     # if set
-    user: Optional[UserConfig] = None
+    user: UserConfig | None = None
 
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
@@ -164,10 +165,11 @@ class CompletedCallable(Generic[Result], subprocess.CompletedProcess):
     Extension of subprocess.CompletedProcess that can also store a return value
     and exception information
     """
+
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
-        self.returnvalue: Optional[Result] = None
-        self.exc_info: Optional[tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+        self.returnvalue: Result | None = None
+        self.exc_info: tuple[type[BaseException], BaseException, types.TracebackType] | None = None
 
     def result(self) -> Result:
         """
@@ -184,13 +186,14 @@ class Runner:
     """
     Run commands in a system
     """
+
     def __init__(self, logger: logging.Logger, config: RunConfig):
         super().__init__()
         self.log = logger
         self.config = config
         self.stdout: list[bytes] = []
         self.stderr: list[bytes] = []
-        self.exc_info: Optional[tuple[Type[BaseException], BaseException, types.TracebackType]] = None
+        self.exc_info: tuple[type[BaseException], BaseException, types.TracebackType] | None = None
         self.has_result: bool = False
         self.result: Any = None
 
@@ -271,19 +274,16 @@ class AsyncioRunner(Runner):
         stderr = b"".join(self.stderr)
 
         if self.config.check and proc.returncode != 0:
-            raise subprocess.CalledProcessError(
-                    proc.returncode,
-                    self.cmd,
-                    stdout, stderr)
+            raise subprocess.CalledProcessError(proc.returncode, self.cmd, stdout, stderr)
 
-        return subprocess.CompletedProcess(
-                self.cmd, proc.returncode, stdout, stderr)
+        return subprocess.CompletedProcess(self.cmd, proc.returncode, stdout, stderr)
 
 
 class LocalRunner(AsyncioRunner):
     """
     Run a command locally, logging its output
     """
+
     def _get_name(self) -> str:
         return " ".join(shlex.quote(c) for c in self.cmd)
 
@@ -307,18 +307,17 @@ class LocalRunner(AsyncioRunner):
             executable = self.cmd[0]
 
         return await asyncio.create_subprocess_exec(
-                executable, *self.cmd[1:],
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                **kwargs)
+            executable, *self.cmd[1:], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, **kwargs
+        )
 
     @classmethod
     def run(
-            cls,
-            logger: logging.Logger,
-            cmd: list[str],
-            config: Optional[RunConfig] = None,
-            system_config: Optional[SystemConfig] = None):
+        cls,
+        logger: logging.Logger,
+        cmd: list[str],
+        config: RunConfig | None = None,
+        system_config: SystemConfig | None = None,
+    ):
         """
         Run a one-off command
         """
@@ -335,6 +334,7 @@ class PickleStreamHandler(logging.Handler):
     """
     Serialize log records as json over a stream
     """
+
     def __init__(self, logger_name_prefix: str, stream: IO[bytes], level=logging.NOTSET):
         super().__init__(level)
         self.logger_name_prefix = logger_name_prefix
@@ -350,12 +350,13 @@ class PickleStreamHandler(logging.Handler):
 
 class SetnsCallableRunner(Generic[Result], Runner):
     def __init__(
-            self,
-            container: NspawnContainer,
-            config: RunConfig,
-            func: Callable[..., Result],
-            args: tuple[Any] = (),
-            kwargs: Optional[dict[str, Any]] = None):
+        self,
+        container: NspawnContainer,
+        config: RunConfig,
+        func: Callable[..., Result],
+        args: tuple[Any] = (),
+        kwargs: dict[str, Any] | None = None,
+    ):
         super().__init__(container.system.log, config)
         self.container = container
         self.leader_pid = int(container.properties["Leader"])
@@ -371,11 +372,10 @@ class SetnsCallableRunner(Generic[Result], Runner):
         loop = asyncio.get_running_loop()
         reader = asyncio.StreamReader()
         reader_protocol = asyncio.StreamReaderProtocol(reader)
-        transport, protocol = await loop.connect_read_pipe(
-                lambda: reader_protocol, os.fdopen(fd))
+        transport, protocol = await loop.connect_read_pipe(lambda: reader_protocol, os.fdopen(fd))
         return reader
 
-    async def collect_output(self, stdout_r: Optional[int], stderr_r: Optional[int], result_r: int):
+    async def collect_output(self, stdout_r: int | None, stderr_r: int | None, result_r: int):
         # See https://gist.github.com/oconnor663/08c081904264043e55bf
         readers = []
         if stdout_r is not None:
@@ -408,8 +408,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
         Send the current exception to the result stream
         """
         exc_info = sys.exc_info()
-        pickled = pickle.dumps(
-                (exc_info[0], exc_info[1], tblib.Traceback(exc_info[2])), pickle.HIGHEST_PROTOCOL)
+        pickled = pickle.dumps((exc_info[0], exc_info[1], tblib.Traceback(exc_info[2])), pickle.HIGHEST_PROTOCOL)
         self.result_stream_writer.write(struct.pack("=BL", RESULT_EXCEPTION, len(pickled)))
         self.result_stream_writer.write(pickled)
         self.result_stream_writer.flush()
@@ -469,17 +468,17 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 root_logger = logging.getLogger()
                 root_logger.handlers = [
                     PickleStreamHandler(
-                        logger_name_prefix=self.log.name,
-                        stream=self.result_stream_writer,
-                        level=logging.DEBUG)
+                        logger_name_prefix=self.log.name, stream=self.result_stream_writer, level=logging.DEBUG
+                    )
                 ]
                 root_logger.setLevel(logging.DEBUG)
                 root_logger.propagate = False
 
                 setns.nsenter(
-                        self.leader_pid,
-                        # We don't use a private user namespace in containers
-                        user=False)
+                    self.leader_pid,
+                    # We don't use a private user namespace in containers
+                    user=False,
+                )
 
                 user = self.set_user()
                 env["USER"] = user.user_name
@@ -530,8 +529,8 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 os.close(stderr_w)
             os.close(result_w)
 
-        stdout: Optional[bytes]
-        stderr: Optional[bytes]
+        stdout: bytes | None
+        stderr: bytes | None
         if catch_output:
             asyncio.run(self.collect_output(stdout_r, stderr_r, result_r))
             stdout = b"".join(self.stdout)

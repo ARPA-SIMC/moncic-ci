@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.13
+Version:        0.14
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,14 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Fri May 10 2024 Daniele Branchini <dbranchini@arpae.it> - 0.14-1
+- Added `--option include_source=true` to `monci ci` for Debian builds, to run
+  `dpkg-buildpackage` with the `-sa` option. (#105)
+- Validate `--option` based on available options for the selected build, and
+  their type
+- Fixed using `--source-type` with `rpm-arpa*` sources (#103)
+- Added Fedora 39 and 40 to supported distros
+
 * Tue Sep  5 2023 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.13-1
 - `monci ci`: update/upgrade the container before a build, unless `--quick` is
   specified (#100)

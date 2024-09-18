@@ -8,12 +8,13 @@ import shutil
 import stat
 import subprocess
 from collections import defaultdict
-from typing import TYPE_CHECKING, ContextManager, Generator, Optional
+from collections.abc import Generator
+from typing import TYPE_CHECKING, ContextManager
 
-from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 from .distro import DistroFamily
-from .system import MaintenanceSystem, System, SystemConfig, MockMaintenanceSystem, MockSystem
 from .runner import LocalRunner
+from .system import MaintenanceSystem, MockMaintenanceSystem, MockSystem, System, SystemConfig
+from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 
 if TYPE_CHECKING:
     from .session import Session
@@ -27,6 +28,7 @@ class Images:
     """
     Image storage made available as a directory in the file system
     """
+
     def __init__(self, session: Session, imagedir: str):
         self.session = session
         self.imagedir = imagedir
@@ -71,14 +73,14 @@ class Images:
         """
         return LocalRunner.run(system_config.logger, cmd, system_config=system_config)
 
-    def get_distro_tarball(self, distro_name: str) -> Optional[str]:
+    def get_distro_tarball(self, distro_name: str) -> str | None:
         """
         Return the path to a tarball that can be used to bootstrap a chroot for
         this system.
 
         Return None if no such tarball is present
         """
-        for ext in ('.tar.gz', '.tar.xz', '.tar'):
+        for ext in (".tar.gz", ".tar.xz", ".tar"):
             tarball_path = os.path.join(self.imagedir, distro_name + ext)
             if os.path.exists(tarball_path):
                 return tarball_path
@@ -120,12 +122,13 @@ class Images:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.remove_system is not implemented")
 
-    def find_config(self, name: str) -> Optional[str]:
+    def find_config(self, name: str) -> str | None:
         """
         Return the path of the config file of the given image, if it exists
         """
         # Import here to prevent import loops
         from .system import SystemConfig
+
         return SystemConfig.find_config(self.session.moncic.config, self.imagedir, name)
 
     def remove_config(self, name: str):
@@ -147,6 +150,7 @@ class Images:
         """
         # Import here to prevent import loops
         from .system import SystemConfig
+
         res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
             config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
@@ -165,15 +169,13 @@ class MockImages(Images):
     """
     Mock image storage, used for testing
     """
+
     def local_run(self, system_config: SystemConfig, cmd: list[str]) -> subprocess.CompletedProcess:
         self.session.mock_log(system=system_config.name, cmd=cmd)
         return self.session.get_process_result(args=cmd)
 
     def system_config(self, name: str) -> SystemConfig:
-        return SystemConfig(
-                name=name,
-                path="/tmp/mock-moncic-ci",
-                distro=name)
+        return SystemConfig(name=name, path="/tmp/mock-moncic-ci", distro=name)
 
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[System, None, None]:
@@ -225,6 +227,7 @@ class PlainImages(Images):
     """
     Images stored in a non-btrfs filesystem
     """
+
     def system_config(self, name: str) -> SystemConfig:
         system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
@@ -285,6 +288,7 @@ class BtrfsImages(Images):
     """
     Images stored in a btrfs filesystem
     """
+
     def system_config(self, name: str) -> SystemConfig:
         return SystemConfig.load(self.session.moncic.config, self.imagedir, name)
 
@@ -389,7 +393,7 @@ class BtrfsImages(Images):
                     continue
 
                 path = os.path.join(imagedir, entry.name)
-                for (dirpath, dirnames, filenames, dirfd) in os.fwalk(path):
+                for dirpath, dirnames, filenames, dirfd in os.fwalk(path):
                     relpath = os.path.relpath(dirpath, path)
                     for fn in filenames:
                         st = os.lstat(fn, dir_fd=dirfd)
@@ -404,10 +408,7 @@ class BtrfsImages(Images):
                 continue
             saved = 0
             for imgname in images[1:]:
-                saved += do_dedupe(
-                        os.path.join(imagedir, images[0], name),
-                        os.path.join(imagedir, imgname, name),
-                        size)
+                saved += do_dedupe(os.path.join(imagedir, images[0], name), os.path.join(imagedir, imgname, name), size)
             # if saved > 0:
             #     log.info("%s: found in %s, recovered %db", name, ", ".join(images), saved)
             total_saved += saved
@@ -419,6 +420,7 @@ class ImageStorage:
     """
     Interface for handling image storage
     """
+
     def __init__(self, session: Session):
         self.session = session
 
@@ -431,7 +433,7 @@ class ImageStorage:
         raise NotImplementedError(f"{self.__class__.__name__}.imagedir is not implemented")
 
     @classmethod
-    def create(cls, session: Session, path: str) -> "ImageStorage":
+    def create(cls, session: Session, path: str) -> ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """
@@ -450,14 +452,14 @@ class ImageStorage:
             raise RuntimeError(f"images path {path!r} does not point to a directory")
 
     @classmethod
-    def create_default(cls, session: Session) -> "ImageStorage":
+    def create_default(cls, session: Session) -> ImageStorage:
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
         return cls.create(session, MACHINECTL_PATH)
 
     @classmethod
-    def create_mock(cls, session: Session) -> "ImageStorage":
+    def create_mock(cls, session: Session) -> ImageStorage:
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
@@ -468,6 +470,7 @@ class MockImageStorage(ImageStorage):
     """
     Store images in a non-btrfs directory
     """
+
     def __init__(self, session: Session, imagedir: str):
         super().__init__(session)
         self.imagedir = imagedir
@@ -481,6 +484,7 @@ class PlainImageStorage(ImageStorage):
     """
     Store images in a non-btrfs directory
     """
+
     def __init__(self, session: Session, imagedir: str):
         super().__init__(session)
         self.imagedir = imagedir
@@ -494,6 +498,7 @@ class BtrfsImageStorage(ImageStorage):
     """
     Store images in a btrfs directory
     """
+
     def __init__(self, session: Session, imagedir: str):
         super().__init__(session)
         self.imagedir = imagedir
@@ -508,6 +513,7 @@ class PlainMachineImageStorage(PlainImageStorage):
     Store images in /var/lib/machines in a way that is compatibile with
     machinectl
     """
+
     def __init__(self, session: Session):
         super().__init__(session, MACHINECTL_PATH)
 
@@ -521,6 +527,7 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
     Store images in /var/lib/machines in a way that is compatibile with
     machinectl
     """
+
     def __init__(self, session: Session):
         super().__init__(session, MACHINECTL_PATH)
 

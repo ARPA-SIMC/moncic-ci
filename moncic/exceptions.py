@@ -4,11 +4,9 @@ class Fail(BaseException):
 
     No stack trace is printed.
     """
-    pass
 
 
 class Success(BaseException):
     """
     Cause the program to exit successfully
     """
-    pass

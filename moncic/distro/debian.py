@@ -26,14 +26,12 @@ class Debian(DistroFamily):
         "10": "buster",
         "11": "bullseye",
         "12": "bookworm",
+        "13": "trixie",
     }
     EXTRA_SUITES = ("oldstable", "stable", "testing", "unstable")
-    SHORTCUTS = {
-        suite: f"debian:{suite}"
-        for suite in list(VERSION_IDS.values()) + ["sid"]
-    }
+    SHORTCUTS = {suite: f"debian:{suite}" for suite in list(VERSION_IDS.values()) + ["sid"]}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
 
@@ -54,9 +52,7 @@ class Debian(DistroFamily):
         for alias in self.EXTRA_SUITES:
             by_name[f"debian:{alias}"]
 
-        return [
-            DistroInfo(name, shortcuts)
-            for name, shortcuts in by_name.items()]
+        return [DistroInfo(name, shortcuts) for name, shortcuts in by_name.items()]
 
 
 @DistroFamily.register
@@ -68,14 +64,15 @@ class Ubuntu(DistroFamily):
         "21.04": "hirsute",
         "21.10": "impish",
         "22.04": "jammy",
+        "22.10": "kinetic",
+        "23.04": "lunar",
+        "23.10": "mantic",
+        "24.04": "noble",
     }
-    SHORTCUTS = {
-        suite: f"ubuntu:{suite}"
-        for suite in ("xenial", "bionic", "focal", "hirsute", "impish", "jammy")
-    }
+    SHORTCUTS = {suite: f"ubuntu:{suite}" for suite in ("xenial", "bionic", "focal", "hirsute", "impish", "jammy")}
     LEGACY = ("xenial",)
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
 
@@ -94,20 +91,23 @@ class Ubuntu(DistroFamily):
         for vid, suite in self.VERSION_IDS.items():
             by_name[f"ubuntu:{suite}"].append(f"ubuntu:{vid}")
 
-        return [
-            DistroInfo(name, shortcuts)
-            for name, shortcuts in by_name.items()]
+        return [DistroInfo(name, shortcuts) for name, shortcuts in by_name.items()]
 
 
 class DebianDistro(Distro):
     """
     Common implementation for Debian-based distributions
     """
+
     APT_INSTALL_CMD = [
-            "/usr/bin/apt-get", "--assume-yes", "--quiet", "--show-upgraded",
-            # The space after -o is odd but required, and I could
-            # not find a better working syntax
-            '-o Dpkg::Options::="--force-confnew"']
+        "/usr/bin/apt-get",
+        "--assume-yes",
+        "--quiet",
+        "--show-upgraded",
+        # The space after -o is odd but required, and I could
+        # not find a better working syntax
+        '-o Dpkg::Options::="--force-confnew"',
+    ]
 
     def __init__(self, name: str, suite: str, mirror: str = "http://deb.debian.org/debian"):
         super().__init__(name)
@@ -116,17 +116,11 @@ class DebianDistro(Distro):
 
     def container_config_hook(self, system: System, config: ContainerConfig):
         super().container_config_hook(system, config)
-        if (apt_archive_path := system.images.session.apt_archives):
-            config.binds.append(BindConfig.create(
-                apt_archive_path,
-                "/var/cache/apt/archives",
-                "aptcache"))
+        if apt_archive_path := system.images.session.apt_archives:
+            config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", "aptcache"))
 
-        if (extra_packages_dir := system.images.session.extra_packages_dir):
-            config.binds.append(BindConfig.create(
-                extra_packages_dir,
-                "/srv/moncic-ci/mirror/packages",
-                "aptpackages"))
+        if extra_packages_dir := system.images.session.extra_packages_dir:
+            config.binds.append(BindConfig.create(extra_packages_dir, "/srv/moncic-ci/mirror/packages", "aptpackages"))
 
     def get_base_packages(self) -> list[str]:
         res = super().get_base_packages()
@@ -155,9 +149,10 @@ class DebianDistro(Distro):
                 res = requests.get("https://ftp-master.debian.org/keys/release-8.asc")
                 res.raise_for_status()
                 subprocess.run(
-                        ["gpg", "--import", "--no-default-keyring", "--keyring", tmpfile.name],
-                        input=res.content,
-                        check=True)
+                    ["gpg", "--import", "--no-default-keyring", "--keyring", tmpfile.name],
+                    input=res.content,
+                    check=True,
+                )
                 cmd.append(f"--keyring={tmpfile.name}")
 
             cmd += [self.suite, installroot, self.mirror]
@@ -185,17 +180,22 @@ class DebianDistro(Distro):
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
         re_inst = re.compile(r"^Inst (\S+) \((\S+)")
         cmd_prefix = [
-            "apt-get", "satisfy", "-s",
-            "-o", "Dir::state::status=/dev/null",
-            "-o", "APT::Build-Essential=,",
-            "-o", "APT::Get::Show-Versions=true",
+            "apt-get",
+            "satisfy",
+            "-s",
+            "-o",
+            "Dir::state::status=/dev/null",
+            "-o",
+            "APT::Build-Essential=,",
+            "-o",
+            "APT::Get::Show-Versions=true",
         ]
 
         # Get a list of packages that would be installed as build-essential
         base: set[str] = set()
         res = subprocess.run(cmd_prefix + ["build-essential"], stdout=subprocess.PIPE, check=True, text=True)
         for line in res.stdout.splitlines():
-            if (mo := re_inst.match(line)):
+            if mo := re_inst.match(line):
                 base.add(mo.group(1))
 
         result: dict[str, dict[str, str]] = defaultdict(dict)
@@ -207,7 +207,7 @@ class DebianDistro(Distro):
                 continue
             res = subprocess.run(cmd_prefix + [requirement], stdout=subprocess.PIPE, check=True, text=True)
             for line in res.stdout.splitlines():
-                if (mo := re_inst.match(line)):
+                if mo := re_inst.match(line):
                     if (name := mo.group(1)) not in base:
                         result[requirement][name] = mo.group(2)
 
@@ -223,6 +223,7 @@ class UbuntuDistro(DebianDistro):
     """
     Common implementation for Ubuntu-based distributions
     """
+
     def __init__(self, name: str, suite: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"):
         super().__init__(name, suite, mirror=mirror)
 

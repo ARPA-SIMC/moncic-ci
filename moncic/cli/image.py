@@ -9,15 +9,16 @@ import shlex
 import shutil
 import stat
 import sys
-from typing import TYPE_CHECKING, Any, Dict, Generator
+from collections.abc import Generator
+from typing import TYPE_CHECKING, Any
 
 import ruamel.yaml
 import yaml
 
-from ..build import Builder
+from ..operations import query as ops_query
 from ..exceptions import Fail
-from ..utils.fs import atomic_writer
 from ..utils.edit import edit_yaml
+from ..utils.fs import atomic_writer
 from .moncic import MoncicCommand, SourceCommand, main_command
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 class CreateCommand(MoncicCommand):
-    def create(self, contents: Dict[str, Any]):
+    def create(self, contents: dict[str, Any]):
         """
         Create a configuration with the given contents
         """
@@ -37,9 +38,15 @@ class CreateCommand(MoncicCommand):
                     raise Fail(f"{self.args.name}: configuration already exists in {path}")
                 path = os.path.join(self.moncic.config.imageconfdirs[0], f"{self.args.name}.yaml")
                 with atomic_writer(path, "wt", use_umask=True) as fd:
-                    yaml.dump(contents, stream=fd, default_flow_style=False,
-                              allow_unicode=True, explicit_start=True,
-                              sort_keys=False, Dumper=yaml.CDumper)
+                    yaml.dump(
+                        contents,
+                        stream=fd,
+                        default_flow_style=False,
+                        allow_unicode=True,
+                        explicit_start=True,
+                        sort_keys=False,
+                        Dumper=yaml.CDumper,
+                    )
 
             log.info("%s: bootstrapping image", self.args.name)
             try:
@@ -93,7 +100,7 @@ class MaintCommand(MoncicCommand):
                 log.error("%s: cannot update image", self.args.name, exc_info=True)
 
     @contextlib.contextmanager
-    def edit_config(self) -> Generator[Dict[str, Any], None, None]:
+    def edit_config(self) -> Generator[dict[str, Any], None, None]:
         """
         Edit the image configuration file as a parsed yaml structure.
 
@@ -106,7 +113,7 @@ class MaintCommand(MoncicCommand):
                 if path := session.images.find_config(self.args.name):
                     # Use ruamel.yaml to preserve comments
                     ryaml = ruamel.yaml.YAML(typ="rt")
-                    with open(path, "rt") as fd:
+                    with open(path) as fd:
                         data = ryaml.load(fd)
                         st = os.fstat(fd.fileno())
                         mode = stat.S_IMODE(st.st_mode)
@@ -134,8 +141,9 @@ class Setup(MaintCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("command", nargs=argparse.REMAINDER,
-                            help="run and record a maintenance command to setup the image")
+        parser.add_argument(
+            "command", nargs=argparse.REMAINDER, help="run and record a maintenance command to setup the image"
+        )
         return parser
 
     def run(self):
@@ -155,8 +163,7 @@ class Install(MaintCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("packages", nargs="+",
-                            help="packages to install in the image")
+        parser.add_argument("packages", nargs="+", help="packages to install in the image")
         return parser
 
     def run(self):
@@ -177,23 +184,27 @@ class BuildDep(SourceCommand):
     """
     install the build-dependencies of the given sources
     """
+
     NAME = "build-dep"
 
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("source", nargs="?", default=".",
-                            help="path or url of the repository to build. Default: the current directory")
+        parser.add_argument(
+            "source",
+            nargs="?",
+            default=".",
+            help="path or url of the repository to build. Default: the current directory",
+        )
         return parser
 
     def run(self):
         with self.moncic.session() as session:
             images = session.images
-            with images.system(self.args.name) as system:
+            with images.system(self.args.system) as system:
                 with self.source(system.distro) as source:
-                    builder = Builder(system)
-                    log.info("Query using builder %r", builder.__class__.__name__)
-                    packages = builder.get_build_deps(source)
+                    operation = ops_query.BuildDeps(system, source)
+                    packages = operation.host_main()
 
         log.info("Detected build-deps: %r", packages)
 
@@ -218,7 +229,7 @@ class Edit(MaintCommand):
         with self.moncic.session() as session:
             if path := session.images.find_config(self.args.name):
                 with self.moncic.privs.user():
-                    with open(path, "rt") as fd:
+                    with open(path) as fd:
                         buf = fd.read()
                         st = os.fstat(fd.fileno())
                         mode = stat.S_IMODE(st.st_mode)
@@ -238,12 +249,13 @@ class Cat(MoncicCommand):
     """
     show the image configuration
     """
+
     def run(self):
         with self.moncic.session() as session:
             if path := session.images.find_config(self.args.name):
                 with self.moncic.privs.user():
                     print(f"# {path}")
-                    with open(path, "rt") as fd:
+                    with open(path) as fd:
                         shutil.copyfileobj(fd, sys.stdout)
 
 
@@ -251,15 +263,16 @@ class Describe(MoncicCommand):
     """
     show a description of the image
     """
+
     def run(self):
         ryaml = ruamel.yaml.YAML(typ="rt")
         with self.moncic.session() as session:
             with session.images.system(self.args.name) as system:
                 info = system.describe_container()
-                if (maintscripts := info.get("maintscripts")):
+                if maintscripts := info.get("maintscripts"):
                     info["maintscripts"] = [
-                        ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
-                        for maintscript in maintscripts]
+                        ruamel.yaml.scalarstring.LiteralScalarString(maintscript) for maintscript in maintscripts
+                    ]
                 ryaml.dump(info, sys.stdout)
 
 
@@ -272,8 +285,7 @@ class Image(MoncicCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("name",
-                            help="name of the image")
+        parser.add_argument("name", help="name of the image")
 
         subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
         Extends.make_subparser(subparsers)

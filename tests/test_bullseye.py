@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import re
 import unittest
 
@@ -16,10 +17,13 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
                 with images.system("test") as system:
                     path = system.path
 
-        run_log.assertPopFirstOptional(f'btrfs -q subvolume create {path}.new')
-        run_log.assertPopFirst(re.compile(
-            rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
-            rf" --variant=minbase bullseye {path}.new http://deb.debian.org/debian"))
+        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
+        run_log.assertPopFirst(
+            re.compile(
+                rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
+                rf" --variant=minbase bullseye {path}.new http://deb.debian.org/debian"
+            )
+        )
         run_log.assertLogEmpty()
 
     def test_upgrade(self):
@@ -29,12 +33,14 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
             with self.make_system(distro) as system:
                 system.update()
 
-        run_log.assertPopFirst('/usr/bin/apt-get update')
+        run_log.assertPopFirst("/usr/bin/apt-get update")
         run_log.assertPopFirst(
-                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " full-upgrade")
+            "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+            " full-upgrade"
+        )
         run_log.assertPopFirst(
-                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " satisfy bash dbus systemd apt-utils eatmydata iproute2")
+            "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+            " satisfy bash dbus systemd apt-utils eatmydata iproute2"
+        )
         run_log.assertPopFirst("cachedir_tag:")
         run_log.assertLogEmpty()

@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from .container import Container
     from .moncic import Moncic
     from .session import Session
     from .system import System
-    from .container import Container
 
 # Current Moncic instance
 moncic: ContextVar[Moncic] = ContextVar("moncic")

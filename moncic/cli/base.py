@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Any, Optional, Type
+from typing import Any
 
 try:
     import coloredlogs
@@ -13,15 +13,15 @@ except ModuleNotFoundError:
     HAS_COLOREDLOGS = False
 
 
-def _get_first_docstring_line(obj: Any) -> Optional[str]:
+def _get_first_docstring_line(obj: Any) -> str | None:
     try:
         return obj.__doc__.split("\n")[1].strip()
     except (AttributeError, IndexError):
         return None
 
 
-FAIL_EXCEPTIONS: list[Type[BaseException]] = []
-SUCCESS_EXCEPTIONS: list[Type[BaseException]] = []
+FAIL_EXCEPTIONS: list[type[BaseException]] = []
+SUCCESS_EXCEPTIONS: list[type[BaseException]] = []
 
 
 class Command:
@@ -29,7 +29,7 @@ class Command:
     Base class for actions run from command line
     """
 
-    NAME: Optional[str] = None
+    NAME: str | None = None
 
     def __init__(self, args: argparse.Namespace):
         if self.NAME is None:

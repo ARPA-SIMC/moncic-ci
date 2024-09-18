@@ -4,3 +4,9 @@ line-length = 120
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html
 mypy_path = "stubs"
+
+[tool.pylint.MAIN]
+max-line-length = 120
+
+[tool.pylint.'MESSAGES CONTROL']
+disable = "invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments"

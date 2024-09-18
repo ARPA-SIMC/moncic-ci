@@ -1,5 +1,5 @@
-[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora36.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
 [![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora38.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
+[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora40.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
 [![Build Status](https://copr.fedorainfracloud.org/coprs/simc/stable/package/moncic-ci/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/simc/stable/package/moncic-ci/)
 
 # Moncic-CI

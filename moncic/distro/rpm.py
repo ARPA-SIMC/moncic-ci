@@ -23,13 +23,10 @@ log = logging.getLogger(__name__)
 
 @DistroFamily.register
 class Fedora(DistroFamily):
-    VERSIONS = (32, 33, 34, 35, 36, 37, 38)
-    SHORTCUTS = {
-        f"fedora{version}": f"fedora:{version}"
-        for version in VERSIONS
-    }
+    VERSIONS = (32, 33, 34, 35, 36, 37, 38, 39, 40)
+    SHORTCUTS = {f"fedora{version}": f"fedora:{version}" for version in VERSIONS}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         intver = int(version)
         if intver in self.VERSIONS:
             return FedoraDistro(f"fedora:{intver}", intver)
@@ -40,12 +37,9 @@ class Fedora(DistroFamily):
 @DistroFamily.register
 class Rocky(DistroFamily):
     VERSIONS = (8, 9)
-    SHORTCUTS = {
-        f"rocky{version}": f"rocky:{version}"
-        for version in VERSIONS
-    }
+    SHORTCUTS = {f"rocky{version}": f"rocky:{version}" for version in VERSIONS}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         major = int(version.split(".")[0])
         if major in self.VERSIONS:
             return RockyDistro(f"rocky:{major}", major)
@@ -56,12 +50,9 @@ class Rocky(DistroFamily):
 @DistroFamily.register
 class Centos(DistroFamily):
     VERSIONS = (7, 8)
-    SHORTCUTS = {
-        f"centos{version}": f"centos:{version}"
-        for version in VERSIONS
-    }
+    SHORTCUTS = {f"centos{version}": f"centos:{version}" for version in VERSIONS}
 
-    def create_distro(self, version: str) -> "Distro":
+    def create_distro(self, version: str) -> Distro:
         intver = int(version)
         if intver == 7:
             return Centos7(f"centos:{intver}")
@@ -75,6 +66,7 @@ class RpmDistro(Distro):
     """
     Common implementation for rpm-based distributions
     """
+
     version: int
 
     def get_base_packages(self) -> list[str]:
@@ -105,10 +97,17 @@ class RpmDistro(Distro):
         with self.chroot_config() as dnf_config:
             installroot = os.path.abspath(system.path)
             cmd = [
-                installer, "-c", dnf_config, "-y", "-q", "--disablerepo=*",
-                "--enablerepo=chroot-base", "--disableplugin=*",
-                f"--installroot={installroot}", f"--releasever={self.version}",
-                "install"
+                installer,
+                "-c",
+                dnf_config,
+                "-y",
+                "-q",
+                "--disablerepo=*",
+                "--enablerepo=chroot-base",
+                "--disableplugin=*",
+                f"--installroot={installroot}",
+                f"--releasever={self.version}",
+                "install",
             ] + self.get_base_packages()
 
             # If eatmydata is available, we can use it to make boostrap significantly faster
@@ -131,8 +130,9 @@ class RpmDistro(Distro):
                 if os.path.islink(system_rpmdb):
                     system_rpmdb = os.path.realpath(system_rpmdb)
                     if installroot not in os.path.commonprefix((system_rpmdb, installroot)):
-                        raise RuntimeError(f"/var/lib/rpm in installed system points to {system_rpmdb}"
-                                           " which is outside installroot")
+                        raise RuntimeError(
+                            f"/var/lib/rpm in installed system points to {system_rpmdb}" " which is outside installroot"
+                        )
                 shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
             with system.create_container(config=ContainerConfig(ephemeral=False)) as container:
@@ -239,7 +239,7 @@ class Centos8(DnfDistro):
         # Fixup repository information to point at the vault
         for fn in glob.glob(os.path.join(system.path, "etc/yum.repos.d/CentOS-*")):
             log.info("Updating %r to point mirrors to the Vault", fn)
-            with open(fn, "rt") as fd:
+            with open(fn) as fd:
                 st = os.stat(fd.fileno())
                 with atomic_writer(fn, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
                     for line in fd:
