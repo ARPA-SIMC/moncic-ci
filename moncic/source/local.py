@@ -2,17 +2,16 @@ from __future__ import annotations
 
 import abc
 import re
+import shutil
+import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .source import Source
 from .lint import Reporter
-from ..exceptions import Fail
+from ..utils.run import run
 
 import git
-
-if TYPE_CHECKING:
-    from ..distro import Distro
 
 
 class LocalSource(Source, abc.ABC):
@@ -40,15 +39,46 @@ class LocalSource(Source, abc.ABC):
         in a different path inside a guest system.
         """
 
-    def lint_find_versions(self) -> dict[str, str]:
+    def lint_find_versions(self, *, allow_exec: bool = False) -> dict[str, str]:
         """
         Scan sources looking for all places that define a version number.
 
         Distribution-specific subclasses can assume access to distro-specific tools.
 
+        :param allow_exec: if True, allow running code from the repository to
+                           find versions
         :return: a dict mapping place names to versions found
         """
-        versions = {}
+        return {}
+
+
+class File(LocalSource):
+    """
+    A local file
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        assert self.path.is_file()
+
+    def in_path(self, path: Path) -> File:
+        return self.__class__(**self.derive_kwargs(path=path))
+
+
+class Dir(LocalSource):
+    """
+    Local directory that is not a git working directory
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        assert self.path.is_dir()
+
+    def in_path(self, path: Path) -> Dir:
+        return self.__class__(**self.derive_kwargs(path=path))
+
+    def lint_find_versions(self, *, allow_exec: bool = False) -> dict[str, str]:
+        versions = super().lint_find_versions(allow_exec=allow_exec)
 
         if (autotools := self.path / "configure.ac").exists():
             re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
@@ -82,33 +112,17 @@ class LocalSource(Source, abc.ABC):
                         versions["news"] = mo.group(1).strip()
                         break
 
+        # Check setup.py by executing it with --version
+        setup_py = self.path / "setup.py"
+        if allow_exec and setup_py.exists():
+            if python3 := shutil.which("python3"):
+                res = run([python3, setup_py.as_posix(), "--version"], stdout=subprocess.PIPE, text=True, cwd=self.path)
+                if res.returncode == 0:
+                    lines = res.stdout.splitlines()
+                    if lines:
+                        versions["setup.py"] = lines[-1].strip()
+
         return versions
-
-
-class File(LocalSource):
-    """
-    A local file
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        assert self.path.is_file()
-
-    def in_path(self, path: Path) -> File:
-        return self.__class__(**self.derive_kwargs(path=path))
-
-
-class Dir(LocalSource):
-    """
-    Local directory that is not a git working directory
-    """
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        assert self.path.is_dir()
-
-    def in_path(self, path: Path) -> Dir:
-        return self.__class__(**self.derive_kwargs(path=path))
 
 
 class Git(Dir):

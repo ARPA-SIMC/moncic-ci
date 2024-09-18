@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import itertools
 import logging
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -66,6 +67,37 @@ class RPMSource(DistroSource, abc.ABC):
         specfiles = ARPASourceGit.locate_specfiles(parent.path)
         return ARPASourceGit.prepare_from_git(parent=parent, specfiles=specfiles, distro=distro)
 
+    def lint_find_versions(self, *, allow_exec=False) -> dict[str, str]:
+        versions = super().lint_find_versions(allow_exec=allow_exec)
+        spec_path = self.path / self.specfile_path
+
+        # Run in container: rpmspec --parse file.spec
+        if allow_exec and spec_path.exists():
+            res = run(
+                ["/usr/bin/rpmspec", "--parse", spec_path.as_posix()],
+                cwd=self.path,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            if res.returncode == 0:
+                version: str | None = None
+                release: str | None = None
+                for line in res.stdout.splitlines():
+                    if line.startswith("Version:"):
+                        if version is None:
+                            version = line[8:].strip()
+                    if line.startswith("Release:"):
+                        if release is None:
+                            release = line[8:].strip()
+
+                if version is not None:
+                    versions["spec-upstream"] = version
+                    if release is not None:
+                        versions["spec-release"] = version + "-" + release
+
+        return versions
+
 
 class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
     """
@@ -84,31 +116,6 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         """
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
         return [p.relative_to(path) for p in itertools.chain.from_iterable(path.glob(g) for g in spec_globs)]
-
-    def lint_find_versions(self) -> dict[str, str]:
-        versions = super().lint_find_versions()
-        spec_path = self.path / self.specfile_path
-
-        # Run in container: rpmspec --parse file.spec
-        if spec_path.exists():
-            res = run(["/usr/bin/rpmspec", "--parse", spec_path.as_posix()])
-            if res.returncode == 0:
-                version: str | None = None
-                release: str | None = None
-                for line in res.stdout.splitlines():
-                    if line.startswith(b"Version:"):
-                        if version is None:
-                            version = line[8:].strip().decode()
-                    if line.startswith(b"Release:"):
-                        if release is None:
-                            release = line[8:].strip().decode()
-
-                if version is not None:
-                    versions["spec-upstream"] = version
-                    if release is not None:
-                        versions["spec-release"] = version + "-" + release
-
-        return versions
 
     @classmethod
     def prepare_from_dir(

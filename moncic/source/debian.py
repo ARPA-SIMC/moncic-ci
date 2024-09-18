@@ -97,10 +97,11 @@ class SourceInfo:
         Parse gbp.conf returning values for DebianGBP fields
         """
         # Parse gbp.conf
-        cfg = ConfigParser()
+        cfg = ConfigParser(interpolation=None)
         cfg.read(gbp_conf_path)
         upstream_branch = cfg.get("DEFAULT", "upstream-branch", fallback="upstream")
-        upstream_tag = cfg.get("DEFAULT", "upstream-branch", fallback="upstream/%(version)s")
+        upstream_tag = cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
+        debian_branch = cfg.get("DEFAULT", "debian-branch", fallback="master")
         debian_tag = cfg.get("DEFAULT", "debian-tag", fallback="debian/%(version)s")
 
         if "-" in self.version:
@@ -108,7 +109,12 @@ class SourceInfo:
             upstream_tag = upstream_tag % {"version": uv}
             debian_tag = debian_tag % {"version": self.version}
 
-        return GBPInfo(upstream_branch=upstream_branch, upstream_tag=upstream_tag, debian_tag=debian_tag)
+        return GBPInfo(
+            upstream_branch=upstream_branch,
+            upstream_tag=upstream_tag,
+            debian_branch=debian_branch,
+            debian_tag=debian_tag,
+        )
 
 
 @dataclass(kw_only=True)
@@ -157,6 +163,7 @@ class GBPInfo:
 
     upstream_branch: str
     upstream_tag: str
+    debian_branch: str
     debian_tag: str
 
 
@@ -280,8 +287,8 @@ class DebianSource(DistroSource, abc.ABC):
 
         raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
-    def lint_find_versions(self) -> dict[str, str]:
-        versions = super().lint_find_versions()
+    def lint_find_versions(self, allow_exec: bool = False) -> dict[str, str]:
+        versions = super().lint_find_versions(allow_exec=allow_exec)
 
         version = self.source_info.version
         if "-" in version:
@@ -481,6 +488,16 @@ class DebianGBP(DebianSource, Git, abc.ABC):
         run(cmd, cwd=self.path)
 
         return self._find_built_dsc()
+
+    def lint_find_versions(self, allow_exec: bool = False) -> dict[str, str]:
+        versions = super().lint_find_versions(allow_exec=allow_exec)
+        versions["debian-tag-upstream-expected"] = self.gbp_info.upstream_tag
+        versions["debian-tag-debian-expected"] = self.gbp_info.debian_tag
+
+        # TODO: check if self.gbp_info.upstream_branch is tagged
+        # TODO: check if self.gbp_info.debian_branch is tagged
+
+        return versions
 
 
 #     @classmethod

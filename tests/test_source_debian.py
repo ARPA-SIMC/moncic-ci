@@ -25,7 +25,13 @@ from moncic.source.debian import (
     DSCInfo,
 )
 
-from .source import GitFixture, WorkdirFixture, GitRepo
+from .source import (
+    GitFixture,
+    WorkdirFixture,
+    GitRepo,
+    create_lint_version_fixture_path,
+    create_lint_version_fixture_git,
+)
 
 SID = cast(DebianDistro, DistroFamily.lookup_distro("sid"))
 
@@ -268,6 +274,13 @@ Files:
         with self.source() as src:
             self.assertEqual(src.build_source_package(), src.path)
 
+    def test_lint_find_versions(self):
+        with self.source() as src:
+            self.assertEqual(src.lint_find_versions(), {"debian-release": "0.1.0-1", "debian-upstream": "0.1.0"})
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True), {"debian-release": "0.1.0-1", "debian-upstream": "0.1.0"}
+            )
+
 
 class TestDebianLegacy(WorkdirFixture, abc.ABC):
     path: Path
@@ -336,6 +349,32 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
                     ["moncic-ci_0.1.0.orig.tar.xz"],
                 )
 
+    def test_lint_find_versions(self):
+        with self.source() as src:
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                },
+            )
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                },
+            )
+
 
 class TestDebianDir(TestDebianLegacy):
     path: Path
@@ -344,8 +383,10 @@ class TestDebianDir(TestDebianLegacy):
     def setUpClass(cls):
         super().setUpClass()
         cls.path = cls.workdir / "moncic-ci"
+        cls.path.mkdir(parents=True)
+        create_lint_version_fixture_path(cls.path)
         debian_dir = cls.path / "debian"
-        debian_dir.mkdir(parents=True)
+        debian_dir.mkdir(parents=True, exist_ok=True)
         (debian_dir / "changelog").write_text("moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
 
     @contextlib.contextmanager
@@ -388,6 +429,7 @@ class TestDebianDirGit(TestDebianLegacy, GitFixture):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        create_lint_version_fixture_git(cls.git)
         cls.git.add("testfile")
         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low\n")
         cls.git.commit()
@@ -456,6 +498,7 @@ class TestDebianGBPTestUpstream(GitFixture):
         super().setUpClass()
         # Initial upstream
         cls.git.add("testfile")
+        create_lint_version_fixture_git(cls.git, rpm=False, debian=False)
         cls.git.commit("Initial commit")
 
         # Debian branch
@@ -478,7 +521,12 @@ class TestDebianGBPTestUpstream(GitFixture):
         # TODO: add gdb.conf
 
         # Default computed gbp.conf values
-        cls.gbp_info = GBPInfo(upstream_branch="upstream", upstream_tag="upstream/0.1.0", debian_tag="debian/0.1.0-1")
+        cls.gbp_info = GBPInfo(
+            upstream_branch="upstream",
+            upstream_tag="upstream/0.1.0",
+            debian_branch="master",
+            debian_tag="debian/0.1.0-1",
+        )
 
     @contextlib.contextmanager
     def source(self) -> Generator[DebianGBPTestUpstream, None, None]:
@@ -560,6 +608,36 @@ class TestDebianGBPTestUpstream(GitFixture):
                 cwd=src.path,
             )
 
+    def test_lint_find_versions(self):
+        with self.source() as src:
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                    "debian-tag-debian-expected": "debian/0.1.0-1",
+                    "debian-tag-upstream-expected": "upstream/0.1.0",
+                },
+            )
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                    "debian-tag-debian-expected": "debian/0.1.0-1",
+                    "debian-tag-upstream-expected": "upstream/0.1.0",
+                },
+            )
+
 
 # class TestDebianGBPTestUpstreamUnstable(DebianGBPTestUpstreamMixin, unittest.TestCase):
 #     packaging_branch_name = "debian/unstable"
@@ -580,6 +658,7 @@ class TestDebianGBPRelease(GitFixture):
 
         # Initial upstream
         cls.git.add("testfile")
+        create_lint_version_fixture_git(cls.git, rpm=False, debian=False)
         cls.git.commit("Initial commit")
         cls.git.git("tag", "upstream/0.1.0")
 
@@ -675,6 +754,38 @@ debian-branch=debian/unstable
                 cwd=src.path,
             )
 
+    def test_lint_find_versions(self):
+        with self.source() as src:
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                    # TODO: "debian-release-tag": "0.1.0-1",
+                    "debian-tag-debian-expected": "debian/0.1.0-1",
+                    "debian-tag-upstream-expected": "0.1.0",
+                },
+            )
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                    # TODO: "debian-release-tag": "0.1.0-1",
+                    "debian-tag-debian-expected": "debian/0.1.0-1",
+                    "debian-tag-upstream-expected": "0.1.0",
+                },
+            )
+
 
 class TestDebianGBPTestDebian(GitFixture):
     git_name = "moncic-ci"
@@ -687,6 +798,7 @@ class TestDebianGBPTestDebian(GitFixture):
 
         # Initial upstream
         cls.git.add("testfile")
+        create_lint_version_fixture_git(cls.git, rpm=False, debian=False)
         cls.git.commit("Initial commit")
 
         # Debian branch
@@ -773,4 +885,34 @@ debian-branch=debian/unstable
                 ],
                 check=True,
                 cwd=src.path,
+            )
+
+    def test_lint_find_versions(self):
+        with self.source() as src:
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                    "debian-tag-debian-expected": "debian/0.1.0-1",
+                    "debian-tag-upstream-expected": "0.1.0",
+                },
+            )
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    "debian-release": "0.1.0-1",
+                    "debian-upstream": "0.1.0",
+                    "debian-tag-debian-expected": "debian/0.1.0-1",
+                    "debian-tag-upstream-expected": "0.1.0",
+                },
             )

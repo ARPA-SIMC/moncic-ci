@@ -4,9 +4,7 @@ import abc
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar
 from pathlib import Path
-import shutil
 
-from ..utils.run import run
 from .local import LocalSource, File, Dir, Git
 from .lint import Reporter
 from ..exceptions import Fail
@@ -67,9 +65,8 @@ class DistroSource(LocalSource, abc.ABC):
 
         This cannot assume access to the original sources.
         """
-        # TODO: mark guest_only? or is it depending on an upper layer?
         # Check for version mismatches
-        versions = self.lint_find_versions()
+        versions = self.lint_find_versions(allow_exec=True)
 
         by_version: dict[str, list[str]] = defaultdict(list)
         for name, version in versions.items():
@@ -80,23 +77,6 @@ class DistroSource(LocalSource, abc.ABC):
         if len(by_version) > 1:
             descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
             reporter.warning(self, f"Versions mismatch: {'; '.join(descs)}")
-
-    def lint_find_versions(self) -> dict[str, str]:
-        versions = super().lint_find_versions()
-
-        # TODO: see how to ensure that this is only run in a guest system,
-        # without depending on @guest_only
-
-        # Check setup.py by executing it with --version
-        if (self.path / "setup.py").exists():
-            if python3 := shutil.which("python3"):
-                res = run([python3, "setup.py", "--version"])
-                if res.returncode == 0:
-                    lines = res.stdout.splitlines()
-                    if lines:
-                        versions["setup.py"] = lines[-1].strip().decode()
-
-        return versions
 
     @classmethod
     @abc.abstractmethod

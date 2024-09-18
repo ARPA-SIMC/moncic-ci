@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import tempfile
 from pathlib import Path
 from unittest import mock
 from typing import cast, Generator
@@ -12,7 +13,13 @@ from moncic.source import Source
 from moncic.source.local import File, Dir, Git
 from moncic.source.rpm import RPMSource, ARPASource, ARPASourceDir, ARPASourceGit
 
-from .source import WorkdirFixture, GitFixture, GitRepo
+from .source import (
+    WorkdirFixture,
+    GitFixture,
+    GitRepo,
+    create_lint_version_fixture_path,
+    create_lint_version_fixture_git,
+)
 
 ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))
 
@@ -146,8 +153,10 @@ class TestARPASourceDir(WorkdirFixture):
         return specfile
 
     @contextlib.contextmanager
-    def source(self, specfile: Path) -> Generator[ARPASourceDir, None, None]:
-        with Source.create_local(source=self.path) as parent:
+    def source(self, specfile: Path, root: Path | None = None) -> Generator[ARPASourceDir, None, None]:
+        if root is None:
+            root = self.path
+        with Source.create_local(source=root) as parent:
             assert isinstance(parent, Dir)
             src = ARPASource.prepare_from_dir(parent, distro=ROCKY9, specfiles=[specfile])
             assert isinstance(src, ARPASourceDir)
@@ -181,6 +190,32 @@ class TestARPASourceDir(WorkdirFixture):
                 },
             )
 
+    def test_lint_find_versions(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        create_lint_version_fixture_path(path)
+        with self.source(specfile=Path("fedora/SPECS/test.spec"), root=path) as src:
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                },
+            )
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    "spec-upstream": "1.6",
+                    "spec-release": "1.6-1",
+                },
+            )
+
 
 class TestARPASourceGit(GitFixture):
     @classmethod
@@ -200,8 +235,10 @@ class TestARPASourceGit(GitFixture):
         cls.git.git("checkout", "main")
 
     @contextlib.contextmanager
-    def source(self, branch: str, specfile: Path) -> Generator[ARPASourceGit, None, None]:
-        with Source.create_local(source=self.path, branch=branch) as parent:
+    def source(self, branch: str, specfile: Path, root: Path | None = None) -> Generator[ARPASourceGit, None, None]:
+        if root is None:
+            root = self.path
+        with Source.create_local(source=root, branch=branch) as parent:
             assert isinstance(parent, Git)
             src = ARPASource.prepare_from_git(parent, distro=ROCKY9, specfiles=[specfile])
             assert isinstance(src, ARPASourceGit)
@@ -236,6 +273,38 @@ class TestARPASourceGit(GitFixture):
                     "specfile_path": specfile,
                 },
             )
+
+    def test_lint_find_versions(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        git = self.stack.enter_context(GitRepo(path))
+        create_lint_version_fixture_git(git)
+        git.commit()
+
+        with self.source(branch="main", specfile=Path("fedora/SPECS/test.spec"), root=path) as src:
+            assert isinstance(src, Dir)
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                },
+            )
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    "spec-upstream": "1.6",
+                    "spec-release": "1.6-1",
+                },
+            )
+
+        # TODO: check release tag if present
 
 
 # class TestARPA(GitFixtureMixin, unittest.TestCase):

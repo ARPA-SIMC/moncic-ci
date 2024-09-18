@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -7,7 +8,13 @@ from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import File, Dir, Git
 
-from .source import WorkdirFixture, GitFixture
+from .source import (
+    WorkdirFixture,
+    GitFixture,
+    GitRepo,
+    create_lint_version_fixture_path,
+    create_lint_version_fixture_git,
+)
 
 
 class TestFile(WorkdirFixture):
@@ -44,6 +51,11 @@ class TestFile(WorkdirFixture):
             kwargs = src.derive_kwargs()
             self.assertEqual(kwargs, {"parent": src, "name": self.file.as_posix(), "path": self.file})
 
+    def test_lint_find_versions(self):
+        with Source.create_local(source=self.file) as src:
+            assert isinstance(src, File)
+            self.assertEqual(src.lint_find_versions(), {})
+
 
 class TestDir(WorkdirFixture):
     path: Path
@@ -75,6 +87,37 @@ class TestDir(WorkdirFixture):
             assert isinstance(src, Dir)
             kwargs = src.derive_kwargs()
             self.assertEqual(kwargs, {"parent": src, "name": self.path.as_posix(), "path": self.path})
+
+    def test_lint_find_versions(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        create_lint_version_fixture_path(path)
+
+        with Source.create_local(source=path) as src:
+            assert isinstance(src, Dir)
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    # "setup.py": "1.5",
+                    # "debian-upstream": "1.6",
+                    # "debian-release": "1.6-1",
+                },
+            )
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    # "debian-upstream": "1.6",
+                    # "debian-release": "1.6-1",
+                },
+            )
 
 
 class TestGit(GitFixture):
@@ -158,5 +201,38 @@ class TestGit(GitFixture):
                     "path": self.path,
                     "repo": src.repo,
                     "readonly": src.readonly,
+                },
+            )
+
+    def test_lint_find_versions(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        git = self.stack.enter_context(GitRepo(path))
+        create_lint_version_fixture_git(git)
+
+        with Source.create_local(source=path) as src:
+            assert isinstance(src, Git)
+            self.assertEqual(
+                src.lint_find_versions(),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    # "setup.py": "1.5",
+                    # "debian-upstream": "1.6",
+                    # "debian-release": "1.6-1",
+                },
+            )
+
+            self.assertEqual(
+                src.lint_find_versions(allow_exec=True),
+                {
+                    "autotools": "1.1",
+                    "meson": "1.2",
+                    "cmake": "1.3",
+                    "news": "1.4",
+                    "setup.py": "1.5",
+                    # "debian-upstream": "1.6",
+                    # "debian-release": "1.6-1",
                 },
             )

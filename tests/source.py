@@ -120,3 +120,67 @@ class GitFixture(WorkdirFixture):
         super().setUpClass()
         cls.path = cls.workdir / cls.git_name
         cls.git = cls.stack.enter_context(GitRepo(cls.path))
+
+
+def create_lint_version_fixture_path(path: Path) -> None:
+    (path / "configure.ac").write_text("AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
+    (path / "meson.build").write_text("project('test', 'cpp', version: '1.2')\n")
+    (path / "CMakeLists.txt").write_text('set(PACKAGE_VERSION "1.3")\n')
+    (path / "NEWS.md").write_text("# New in version 1.4\n")
+    (path / "setup.py").write_text(
+        """
+from setuptools import setup
+setup(name='test', packages=['test'])
+"""
+    )
+    (path / "test").mkdir()
+    (path / "test" / "__init__.py").write_text('__version__ = "1.5"')
+    (path / "setup.cfg").write_text("[metadata]\nversion = attr: test.__version__")
+    (path / "debian").mkdir()
+    (path / "debian" / "changelog").write_text("test (1.6-1) UNRELEASED; urgency=low")
+    (path / "fedora" / "SPECS").mkdir(parents=True)
+    (path / "fedora" / "SPECS" / "test.spec").write_text(
+        """
+Name:           test
+Version:        1.6
+Release:        1
+Summary:        test repo
+License:        CC-0
+%description
+test
+"""
+    )
+
+
+def create_lint_version_fixture_git(
+    git: GitRepo, *, upstream: bool = True, rpm: bool = True, debian: bool = True
+) -> None:
+    if upstream:
+        git.add("configure.ac", "AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
+        git.add("meson.build", "project('test', 'cpp', version: '1.2')\n")
+        git.add("CMakeLists.txt", 'set(PACKAGE_VERSION "1.3")\n')
+        git.add("NEWS.md", "# New in version 1.4\n")
+        git.add(
+            "setup.py",
+            """
+from setuptools import setup
+setup(name='test', packages=['test'])
+""",
+        )
+        git.add("test/__init__.py", '__version__ = "1.5"')
+        git.add("setup.cfg", "[metadata]\nversion = attr: test.__version__")
+    if debian:
+        git.add("debian/changelog", "test (1.6-1) UNRELEASED; urgency=low")
+    if rpm:
+        git.add(
+            "fedora/SPECS/test.spec",
+            """
+Name:           test
+Version:        1.6
+Release:        1
+Summary:        test repo
+License:        CC-0
+%description
+test
+""",
+        )
