@@ -14,7 +14,6 @@ import git
 
 from moncic.exceptions import Fail
 
-from .lint import Reporter
 from ..utils.run import run
 
 if TYPE_CHECKING:
@@ -213,14 +212,3 @@ class Source(abc.ABC):
             command_log.add_command("git", "checkout", "-b", branch)
 
         return Git(parent=self, path=new_path, repo=repo, readonly=False, command_log=command_log)
-
-    def host_lint(self, reporter: Reporter) -> None:
-        """
-        Perform consistency checks on the source in the host system.
-
-        This cannot assume any distro-specific tools to be available.
-
-        This can assume access to the original sources, unless they are remote.
-        """
-        # Do nothing by default
-        pass

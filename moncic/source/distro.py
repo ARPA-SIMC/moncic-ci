@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import abc
-from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar
 from pathlib import Path
 
 from .local import LocalSource, File, Dir, Git
-from .lint import Reporter
 from ..exceptions import Fail
 
 if TYPE_CHECKING:
@@ -56,27 +54,6 @@ class DistroSource(LocalSource, abc.ABC):
         """
         # Do nothing by default
         pass
-
-    def guest_lint(self, reporter: Reporter) -> None:
-        """
-        Perform consistency checks on the source in the guest system.
-
-        This can assume distro-specific tools to be available.
-
-        This cannot assume access to the original sources.
-        """
-        # Check for version mismatches
-        versions = self.lint_find_versions(allow_exec=True)
-
-        by_version: dict[str, list[str]] = defaultdict(list)
-        for name, version in versions.items():
-            if name.endswith("-release"):
-                by_version[version.split("-", 1)[0]].append(name)
-            else:
-                by_version[version].append(name)
-        if len(by_version) > 1:
-            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            reporter.warning(self, f"Versions mismatch: {'; '.join(descs)}")
 
     @classmethod
     @abc.abstractmethod

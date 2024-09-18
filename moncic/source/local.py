@@ -4,11 +4,11 @@ import abc
 import re
 import shutil
 import subprocess
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
 from .source import Source
-from .lint import Reporter
 from ..utils.run import run
 
 import git
@@ -116,7 +116,13 @@ class Dir(LocalSource):
         setup_py = self.path / "setup.py"
         if allow_exec and setup_py.exists():
             if python3 := shutil.which("python3"):
-                res = run([python3, setup_py.as_posix(), "--version"], stdout=subprocess.PIPE, text=True, cwd=self.path)
+                res = run(
+                    [python3, setup_py.as_posix(), "--version"],
+                    stdout=subprocess.PIPE,
+                    text=True,
+                    cwd=self.path,
+                    check=False,
+                )
                 if res.returncode == 0:
                     lines = res.stdout.splitlines()
                     if lines:
@@ -205,6 +211,16 @@ class Git(Dir):
                 return ref
         return None
 
+    @cached_property
+    def tags_by_name(self) -> dict[str, git.objects.Commit]:
+        """
+        Tags in the repository indexed by their name.
+        """
+        res: dict[str, git.objects.Commit] = {}
+        for tag in self.repo.tags:
+            res[tag.name] = tag
+        return res
+
     def find_tags(self, hexsha: str | None = None) -> dict[str, git.objects.Commit]:
         """
         Return the tags corresponding to the given commit hash (if any)
@@ -219,30 +235,75 @@ class Git(Dir):
 
         return res
 
-    def lint_local_remote_sync(self, name: str, reporter: Reporter) -> str:
+    def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
         """
-        Check if branch {name} is in sync between local and remote.
+        Find the upstream tag matching the current version.
 
-        Return the name of the most up to date branch
+        :return: None if no such tag is found
         """
-        if name not in self.repo.references:
-            reporter.error(self, f"branch {name!r} does not exist locally")
+        return None
 
-        remote_name = f"origin/{name}"
-        if remote_name not in self.repo.references:
-            reporter.error(self, f"branch {remote_name!r} does not exist locally")
+    def lint_find_packaging_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+        """
+        Find the packaging tag matching the current version.
 
-        local = self.repo.references[name]
-        remote = self.repo.references[remote_name]
-        if local.commit != remote.commit:
-            if self.repo.is_ancestor(local.commit, remote.commit):
-                reporter.warning(self, f"branch {remote_name} is ahead of local branch {name}")
-                return remote_name
-            elif self.repo.is_ancestor(remote.commit, local.commit):
-                reporter.warning(self, f"branch {name} is ahead of remote branch {remote_name}")
-                return name
-            else:
-                reporter.warning(self, f"branch {name} diverged from branch {remote_name}")
-                return name
-        else:
-            return name
+        :return: None if no such tag is found
+        """
+        return None
+
+    def lint_find_packaging_branch(self) -> git.refs.symbolic.SymbolicReference | None:
+        """
+        Find the packaging branch
+
+        :return: None if no such branch is found
+        """
+        return None
+
+    def lint_path_is_packaging(self, path: Path) -> bool:
+        """
+        Check if a path looks like packaging instead of upstream
+        """
+        return False
+
+
+#    def lint_local_remote_sync(self, name: str, reporter: Reporter) -> str:
+#        """
+#        Check if branch {name} is in sync between local and remote.
+#
+#        Return the name of the most up to date branch
+#        """
+#        if name not in self.repo.references:
+#            reporter.error(self, f"branch {name!r} does not exist locally")
+#
+#        remote_name = f"origin/{name}"
+#        if remote_name not in self.repo.references:
+#            reporter.error(self, f"branch {remote_name!r} does not exist locally")
+#
+#        local = self.repo.references[name]
+#        remote = self.repo.references[remote_name]
+#        if local.commit != remote.commit:
+#            if self.repo.is_ancestor(local.commit, remote.commit):
+#                reporter.warning(self, f"branch {remote_name} is ahead of local branch {name}")
+#                return remote_name
+#            elif self.repo.is_ancestor(remote.commit, local.commit):
+#                reporter.warning(self, f"branch {name} is ahead of remote branch {remote_name}")
+#                return name
+#            else:
+#                reporter.warning(self, f"branch {name} diverged from branch {remote_name}")
+#                return name
+#        else:
+#            return name
+#
+#    def lint_find_expected_tags(self) -> dict[str, str]:
+#        """
+#        Return a dict mapping branch names to tags that are expected on those
+#        branches.
+#        """
+#        return {}
+#
+#    def lint_find_actual_tags(self) -> dict[str, list[str]]:
+#        """
+#        Return a dict mapping branch names to tags that are found on those
+#        branches.
+#        """
+#        return {}

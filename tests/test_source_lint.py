@@ -10,6 +10,7 @@ from moncic.source.lint import Reporter
 from moncic.source import Source
 from moncic.source.distro import DistroSource
 from moncic.source.local import File, Dir, Git
+from moncic.source.lint import guest_lint
 
 from .source import GitRepo
 
@@ -64,7 +65,7 @@ class TestLint(unittest.TestCase):
         source = MockDistroSource(name="test", path=Path("/dev/null"), distro=SID)
 
         with mock.patch("moncic.source.local.LocalSource.lint_find_versions", return_value=versions):
-            source.guest_lint(reporter)
+            guest_lint(source, reporter)
 
         if errors:
             self.assertEqual(reporter.errors, errors)

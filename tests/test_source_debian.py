@@ -194,6 +194,29 @@ debian-branch=debian/unstable
                 DebianSource.create_from_git(src, distro=SID)
             patched.assert_called_once()
 
+    def test_lint_path_is_packaging(self) -> None:
+        path = self.workdir / "file.dsc"
+        path.write_text(
+            """Format: 3.0 (quilt)
+Source: moncic-ci
+Binary: moncic-ci
+Version: 0.1.0-1
+Files:
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0.orig.tar.gz
+ d41d8cd98f00b204e9800998ecf8427e 0 moncic-ci_0.1.0-1.debian.tar.xz
+"""
+        )
+        with Source.create_local(source=path) as parent:
+            assert isinstance(parent, File)
+            src = DebianSource.create_from_file(parent, distro=SID)
+            assert isinstance(src, DebianDsc)
+            self.assertFalse(src.lint_path_is_packaging(Path("test")))
+            self.assertFalse(src.lint_path_is_packaging(Path("test.spec)")))
+            self.assertTrue(src.lint_path_is_packaging(Path("debian")))
+            self.assertTrue(src.lint_path_is_packaging(Path("debian/control")))
+            self.assertTrue(src.lint_path_is_packaging(Path("debian/foo/bar/baz")))
+            self.assertFalse(src.lint_path_is_packaging(Path("upstream/control")))
+
 
 class TestDebianDsc(WorkdirFixture):
     path: Path
@@ -619,8 +642,6 @@ class TestDebianGBPTestUpstream(GitFixture):
                     "news": "1.4",
                     "debian-release": "0.1.0-1",
                     "debian-upstream": "0.1.0",
-                    "debian-tag-debian-expected": "debian/0.1.0-1",
-                    "debian-tag-upstream-expected": "upstream/0.1.0",
                 },
             )
             self.assertEqual(
@@ -633,8 +654,6 @@ class TestDebianGBPTestUpstream(GitFixture):
                     "setup.py": "1.5",
                     "debian-release": "0.1.0-1",
                     "debian-upstream": "0.1.0",
-                    "debian-tag-debian-expected": "debian/0.1.0-1",
-                    "debian-tag-upstream-expected": "upstream/0.1.0",
                 },
             )
 
@@ -765,9 +784,6 @@ debian-branch=debian/unstable
                     "news": "1.4",
                     "debian-release": "0.1.0-1",
                     "debian-upstream": "0.1.0",
-                    # TODO: "debian-release-tag": "0.1.0-1",
-                    "debian-tag-debian-expected": "debian/0.1.0-1",
-                    "debian-tag-upstream-expected": "0.1.0",
                 },
             )
             self.assertEqual(
@@ -780,9 +796,6 @@ debian-branch=debian/unstable
                     "setup.py": "1.5",
                     "debian-release": "0.1.0-1",
                     "debian-upstream": "0.1.0",
-                    # TODO: "debian-release-tag": "0.1.0-1",
-                    "debian-tag-debian-expected": "debian/0.1.0-1",
-                    "debian-tag-upstream-expected": "0.1.0",
                 },
             )
 
@@ -898,8 +911,6 @@ debian-branch=debian/unstable
                     "news": "1.4",
                     "debian-release": "0.1.0-1",
                     "debian-upstream": "0.1.0",
-                    "debian-tag-debian-expected": "debian/0.1.0-1",
-                    "debian-tag-upstream-expected": "0.1.0",
                 },
             )
             self.assertEqual(
@@ -912,7 +923,5 @@ debian-branch=debian/unstable
                     "setup.py": "1.5",
                     "debian-release": "0.1.0-1",
                     "debian-upstream": "0.1.0",
-                    "debian-tag-debian-expected": "debian/0.1.0-1",
-                    "debian-tag-upstream-expected": "0.1.0",
                 },
             )
