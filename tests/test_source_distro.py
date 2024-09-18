@@ -44,8 +44,8 @@ class TestDistrSource(GitFixture):
         cls.git.commit()
 
     def test_get_source_type(self) -> None:
-        self.assertEquals(MockSource.get_source_type(), "mock")
-        self.assertEquals(MockSource1.get_source_type(), "mocksource1")
+        self.assertEqual(MockSource.get_source_type(), "mock")
+        self.assertEqual(MockSource1.get_source_type(), "mocksource1")
 
     def test_registry(self) -> None:
         self.assertEqual(

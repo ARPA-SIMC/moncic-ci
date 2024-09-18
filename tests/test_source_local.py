@@ -159,7 +159,7 @@ class TestGit(GitFixture):
         with Source.create_local(source=self.git.root, branch="devel") as src:
             assert isinstance(src, Git)
             self.assertEqual(src.name, self.git.root.as_posix())
-            self.assertNotEquals(src.path, self.git.root)
+            self.assertNotEqual(src.path, self.git.root)
             self.assertFalse(src.readonly)
             self.assertEqual(src.repo.active_branch.name, "devel")
 
