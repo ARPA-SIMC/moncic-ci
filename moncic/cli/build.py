@@ -3,7 +3,6 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -75,7 +74,7 @@ class CI(SourceCommand):
         }
 
         if self.args.artifacts:
-            build_kwargs_cmd["artifacts_dir"] = os.path.abspath(self.args.artifacts)
+            build_kwargs_cmd["artifacts_dir"] = self.args.artifacts.absolute()
 
         if self.args.option:
             build_kwargs_cmd.update(self.args.option)
@@ -100,7 +99,7 @@ class CI(SourceCommand):
 
                     if build.artifacts_dir:
                         with self.moncic.privs.user():
-                            os.makedirs(build.artifacts_dir, exist_ok=True)
+                            build.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
                     builder = ops_build.Builder(system, build)
 
