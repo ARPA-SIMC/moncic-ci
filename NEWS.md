@@ -1,7 +1,9 @@
-# Version UNRELEASED
+# Version 0.15
 
 * Redesigned source detection. Some of `monci ci --source-type list` styles have been chanegd
 * Bug fixing (#106)
+* Fixed deprecated methods on python 3.12
+* Some more linter refactoring
 
 # Version 0.14
 

@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.14
+Version:        0.15
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,12 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Tue Oct  8 2024 Daniele Branchini <dbranchini@arpae.it> - 0.15-1
+- Redesigned source detection. Some of `monci ci --source-type list` styles have been chanegd
+- Bug fixing (#106)
+- Fixed deprecated methods on python 3.12
+- Some more linter refactoring
+
 * Fri May 10 2024 Daniele Branchini <dbranchini@arpae.it> - 0.14-1
 - Added `--option include_source=true` to `monci ci` for Debian builds, to run
   `dpkg-buildpackage` with the `-sa` option. (#105)
