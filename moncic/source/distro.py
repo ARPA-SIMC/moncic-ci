@@ -155,7 +155,7 @@ class DistroSource(LocalSource, abc.ABC):
     def _detect_class_for_style(cls, *, distro: Distro, style: str) -> type["DistroSource"]:
         style_cls = source_types.get(style, None)
         if style_cls is None:
-            raise Fail(f"source type {style} not found. Use --source=type=list to get a list of availble ones")
+            raise Fail(f"source type {style} not found. Use --source-type=list to get a list of available ones")
 
         base_cls = cls._detect_class_for_distro(distro=distro)
         if not issubclass(style_cls, base_cls):
