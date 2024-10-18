@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.15
+Version:        0.16
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Fri Oct 18 2024 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.16-1
+- Fixed rpm-arpa build (#108)
+
 * Tue Oct  8 2024 Daniele Branchini <dbranchini@arpae.it> - 0.15-1
 - Redesigned source detection. Some of `monci ci --source-type list` styles have been chanegd
 - Bug fixing (#106)

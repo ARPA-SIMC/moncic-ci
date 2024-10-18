@@ -1,3 +1,7 @@
+# Version 0.16
+
+* Fixed rpm-arpa build (#108)
+
 # Version 0.15
 
 * Redesigned source detection. Some of `monci ci --source-type list` styles have been chanegd
