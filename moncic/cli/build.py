@@ -126,7 +126,9 @@ class CI(SourceCommand):
                                 else:
                                     return super().default(obj)
 
-                        json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
+                        info = dataclasses.asdict(builder.build)
+                        info["source_history"] = builder.build.source.info_history()
+                        json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
                         sys.stdout.write("\n")
 
 

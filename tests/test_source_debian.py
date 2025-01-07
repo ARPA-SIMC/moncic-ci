@@ -320,8 +320,7 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
         )
 
     @abc.abstractmethod
-    def source(self) -> ContextManager[DebianSource]:
-        ...
+    def source(self) -> ContextManager[DebianSource]: ...
 
     def create_tar(self, name: str) -> Path:
         tar_path = self.workdir / name
@@ -592,6 +591,7 @@ class TestDebianGBPTestUpstream(GitFixture):
                     "source_info": self.source_info,
                     "gbp_info": self.gbp_info,
                     "gbp_args": ["--git-upstream-tree=branch", "--git-upstream-branch=main"],
+                    "packaging_branch": "debian/sid",
                 },
             )
 
