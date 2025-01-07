@@ -9,7 +9,7 @@ import shutil
 import subprocess
 from collections.abc import Sequence
 from configparser import ConfigParser
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -174,6 +174,12 @@ class DebianSource(DistroSource, abc.ABC):
     def __init__(self, *, source_info: SourceInfo, **kwargs) -> None:
         super().__init__(**kwargs)
         self.source_info = source_info
+
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["source_info"] = asdict(self.source_info)
+        return res
 
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
@@ -438,6 +444,13 @@ class DebianGBP(DebianSource, Git, abc.ABC):
         self.gbp_info = gbp_info
         self.gbp_args = gbp_args
 
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["gbp_info"] = asdict(self.gbp_info)
+        res["gbp_args"] = self.gbp_args
+        return res
+
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["gbp_info"] = self.gbp_info
@@ -526,6 +539,22 @@ class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
       directory (i.e. testing packaging of an upstream branch)
     """
 
+    packaging_branch: str
+
+    def __init__(self, *, packaging_branch: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.packaging_branch = packaging_branch
+
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["packaging_branch"] = self.packaging_branch
+        return res
+
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["packaging_branch"] = self.packaging_branch
+
     @classmethod
     def prepare_from_git(
         cls,
@@ -587,7 +616,8 @@ class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
                 gbp_info=gbp_info,
                 command_log=command_log,
                 gbp_args=["--git-upstream-tree=branch", f"--git-upstream-branch={active_branch}"],
-            )
+                packaging_branch=branch,
+            ),
         )
 
 

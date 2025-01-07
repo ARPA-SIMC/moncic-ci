@@ -45,6 +45,12 @@ class RPMSource(DistroSource, abc.ABC):
         super().__init__(**kwargs)
         self.specfile_path = specfile_path
 
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["specfile_path"] = self.specfile_path.as_posix()
+        return res
+
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["specfile_path"] = self.specfile_path

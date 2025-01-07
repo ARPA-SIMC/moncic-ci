@@ -27,6 +27,13 @@ class DistroSource(LocalSource, abc.ABC):
         super().__init__(**kwargs)
         self.distro = distro
 
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["style"] = self.style
+        res["distro"] = self.distro
+        return res
+
     def __init_subclass__(cls, style: str | None = None, **kwargs) -> None:
         """Register subclasses."""
         super().__init_subclass__(**kwargs)

@@ -107,6 +107,21 @@ class Source(abc.ABC):
     def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
         return self.stack.__exit__(exc_type, exc_val, exc_tb)
 
+    def info_history(self) -> list[dict[str, Any]]:
+        """Return JSON-able information about this source."""
+        res = []
+        if self.parent is not None:
+            res.extend(self.parent.info_history())
+        res.append(self.info_dict())
+        return res
+
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        return {
+            "name": self.name,
+            "command_log": self.command_log,
+        }
+
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         """
         Add __init__ arguments to kwargs to derive an object from this one

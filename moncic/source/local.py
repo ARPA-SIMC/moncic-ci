@@ -26,6 +26,12 @@ class LocalSource(Source, abc.ABC):
         super().__init__(**kwargs)
         self.path = path
 
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["path"] = self.path
+        return res
+
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["path"] = self.path
@@ -145,6 +151,12 @@ class Git(Dir):
         super().__init__(**kwargs)
         self.repo = repo or git.Repo(self.path)
         self.readonly = readonly
+
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["readonly"] = self.readonly
+        return res
 
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
