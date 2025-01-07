@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import abc
-from collections import defaultdict
 from typing import TYPE_CHECKING, Any, ClassVar
 from pathlib import Path
 
 from .local import LocalSource, File, Dir, Git
-from .lint import Reporter
 from ..exceptions import Fail
 
 if TYPE_CHECKING:
@@ -28,6 +26,13 @@ class DistroSource(LocalSource, abc.ABC):
     def __init__(self, *, distro: Distro, **kwargs) -> None:
         super().__init__(**kwargs)
         self.distro = distro
+
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["style"] = self.style
+        res["distro"] = self.distro
+        return res
 
     def __init_subclass__(cls, style: str | None = None, **kwargs) -> None:
         """Register subclasses."""
@@ -56,27 +61,6 @@ class DistroSource(LocalSource, abc.ABC):
         """
         # Do nothing by default
         pass
-
-    def guest_lint(self, reporter: Reporter) -> None:
-        """
-        Perform consistency checks on the source in the guest system.
-
-        This can assume distro-specific tools to be available.
-
-        This cannot assume access to the original sources.
-        """
-        # Check for version mismatches
-        versions = self.lint_find_versions(allow_exec=True)
-
-        by_version: dict[str, list[str]] = defaultdict(list)
-        for name, version in versions.items():
-            if name.endswith("-release"):
-                by_version[version.split("-", 1)[0]].append(name)
-            else:
-                by_version[version].append(name)
-        if len(by_version) > 1:
-            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            reporter.warning(self, f"Versions mismatch: {'; '.join(descs)}")
 
     @classmethod
     @abc.abstractmethod
@@ -178,7 +162,7 @@ class DistroSource(LocalSource, abc.ABC):
     def _detect_class_for_style(cls, *, distro: Distro, style: str) -> type["DistroSource"]:
         style_cls = source_types.get(style, None)
         if style_cls is None:
-            raise Fail(f"source type {style} not found. Use --source=type=list to get a list of availble ones")
+            raise Fail(f"source type {style} not found. Use --source-type=list to get a list of available ones")
 
         base_cls = cls._detect_class_for_distro(distro=distro)
         if not issubclass(style_cls, base_cls):

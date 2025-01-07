@@ -80,12 +80,13 @@ class ARPA(RPM):
 
         rpmbuild_sources = rpmbuild_path / "SOURCES"
 
+        # Absolute path of specfile
         specfile = self.source.path / self.source.specfile_path
 
         # Install build dependencies
         run(self.builddep + ["-y", specfile.as_posix()])
 
-        if specfile.is_relative_to("fedora/SPECS/"):
+        if self.source.specfile_path.is_relative_to("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
             fedora_sources_dir = Path("fedora/SOURCES")
             if fedora_sources_dir.is_dir():

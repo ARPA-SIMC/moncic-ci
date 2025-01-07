@@ -133,9 +133,9 @@ class DebianDistro(Distro):
         distribution
         """
         if self.suite in ("unstable", "sid"):
-            return ["debian/unstable", "debian/sid"]
+            return ["debian/unstable", "debian/sid", "debian/latest"]
         else:
-            return ["debian/" + self.suite]
+            return ["debian/" + self.suite, "debian/latest"]
 
     def bootstrap(self, system: System):
         with contextlib.ExitStack() as stack:
@@ -232,4 +232,4 @@ class UbuntuDistro(DebianDistro):
         Return the default git-buildpackage debian-branch name for this
         distribution
         """
-        return ["ubuntu/" + self.suite]
+        return ["ubuntu/" + self.suite, "ubuntu/latest", "debian/latest"]

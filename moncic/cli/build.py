@@ -12,6 +12,7 @@ from ..operations import build as ops_build
 from ..operations import query as ops_query
 from ..distro import Distro
 from ..source import Source
+from ..source.lint import host_lint
 from .moncic import SourceCommand, main_command
 from .utils import BuildOptionAction, set_build_option_action
 
@@ -125,7 +126,9 @@ class CI(SourceCommand):
                                 else:
                                     return super().default(obj)
 
-                        json.dump(builder.build, sys.stdout, indent=1, cls=ResultEncoder)
+                        info = dataclasses.asdict(builder.build)
+                        info["source_history"] = builder.build.source.info_history()
+                        json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
                         sys.stdout.write("\n")
 
 
@@ -153,7 +156,7 @@ class Lint(SourceCommand):
 
         reporter = Reporter()
         with self.local_source() as local_source:
-            local_source.host_lint(reporter)
+            host_lint(local_source, reporter)
 
             with self.moncic.session() as session:
                 images = session.images

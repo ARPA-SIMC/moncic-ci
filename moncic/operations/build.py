@@ -13,6 +13,7 @@ from ..build.utils import link_or_copy
 from ..build.build import Build
 from .base import ContainerSourceOperation
 
+
 if TYPE_CHECKING:
     from ..container import Container, System
 

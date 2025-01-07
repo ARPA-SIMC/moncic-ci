@@ -1,18 +1,14 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ..runner import UserConfig
-from ..utils.guest import guest_only, host_only
-from ..utils.run import run
-from . import build
-from ..build.utils import link_or_copy
-from ..build.build import Build
-from ..source.lint import Reporter
+from ..utils.guest import guest_only
+from ..source.lint import Reporter, guest_lint
 from .base import ContainerSourceOperation
+from .. import context
+
 
 if TYPE_CHECKING:
     from ..container import Container, System
@@ -71,5 +67,6 @@ class Lint(ContainerSourceOperation):
         Run the linter
         """
         source = self.get_guest_source()
-        source.guest_lint(self.reporter)
+        with context.moncic.get().privs.user():
+            guest_lint(source, self.reporter)
         return self.reporter

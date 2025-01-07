@@ -39,7 +39,7 @@ class TestRPMSource(WorkdirFixture):
         path.touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, File)
-            with self.assertRaisesRegexp(Fail, f"{path}: cannot detect source type"):
+            with self.assertRaisesRegex(Fail, f"{path}: cannot detect source type"):
                 RPMSource.create_from_file(src, distro=ROCKY9)
 
     def test_from_file_dsc(self) -> None:
@@ -47,7 +47,7 @@ class TestRPMSource(WorkdirFixture):
         path.touch()
         with Source.create_local(source=path) as src:
             assert isinstance(src, File)
-            with self.assertRaisesRegexp(Fail, f"{path}: cannot build Debian source package on a RPM distribution"):
+            with self.assertRaisesRegex(Fail, f"{path}: cannot build Debian source package on a RPM distribution"):
                 RPMSource.create_from_file(src, distro=ROCKY9)
 
     def test_from_dir_empty(self) -> None:
@@ -55,7 +55,7 @@ class TestRPMSource(WorkdirFixture):
         path.mkdir()
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            with self.assertRaisesRegexp(Fail, f"{path}: no specfiles found in well-known locations"):
+            with self.assertRaisesRegex(Fail, f"{path}: no specfiles found in well-known locations"):
                 RPMSource.create_from_dir(src, distro=ROCKY9)
 
     def test_from_dir_one_specfile_root(self) -> None:
@@ -91,14 +91,14 @@ class TestRPMSource(WorkdirFixture):
 
         with Source.create_local(source=path) as src:
             assert isinstance(src, Dir)
-            with self.assertRaisesRegexp(Fail, f"{path}: 2 specfiles found"):
+            with self.assertRaisesRegex(Fail, f"{path}: 2 specfiles found"):
                 RPMSource.create_from_dir(src, distro=ROCKY9)
 
     def test_from_git_empty(self) -> None:
         git = self.make_git_repo("git")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with self.assertRaisesRegexp(Fail, f"{git.root}: no specfiles found in well-known locations"):
+            with self.assertRaisesRegex(Fail, f"{git.root}: no specfiles found in well-known locations"):
                 RPMSource.create_from_git(src, distro=ROCKY9)
 
     def test_from_git_one_specfile_root(self) -> None:
@@ -128,8 +128,23 @@ class TestRPMSource(WorkdirFixture):
         git.commit("initial")
         with Source.create_local(source=git.root) as src:
             assert isinstance(src, Git)
-            with self.assertRaisesRegexp(Fail, f"{git.root}: 2 specfiles found"):
+            with self.assertRaisesRegex(Fail, f"{git.root}: 2 specfiles found"):
                 RPMSource.create_from_git(src, distro=ROCKY9)
+
+    def test_lint_path_is_packaging(self) -> None:
+        path = self.workdir / "path_is_packaging"
+        path.mkdir()
+        (path / "specfile.spec").touch()
+        with Source.create_local(source=path) as parent:
+            assert isinstance(parent, Dir)
+            src = RPMSource.create_from_dir(parent, distro=ROCKY9)
+            assert isinstance(src, ARPASourceDir)
+            self.assertFalse(src.lint_path_is_packaging(Path("test")))
+            self.assertTrue(src.lint_path_is_packaging(Path("test.spec")))
+            self.assertFalse(src.lint_path_is_packaging(Path("spec")))
+            self.assertTrue(src.lint_path_is_packaging(Path("spec.spec")))
+            self.assertFalse(src.lint_path_is_packaging(Path("debian/control")))
+            self.assertTrue(src.lint_path_is_packaging(Path("test/test.spec")))
 
 
 class TestARPA(WorkdirFixture):
@@ -201,6 +216,8 @@ class TestARPASourceDir(WorkdirFixture):
                     "meson": "1.2",
                     "cmake": "1.3",
                     "news": "1.4",
+                    "spec-upstream": "1.6",
+                    "spec-release": "1.6-1",
                 },
             )
             self.assertEqual(
@@ -289,6 +306,8 @@ class TestARPASourceGit(GitFixture):
                     "meson": "1.2",
                     "cmake": "1.3",
                     "news": "1.4",
+                    "spec-upstream": "1.6",
+                    "spec-release": "1.6-1",
                 },
             )
             self.assertEqual(
@@ -304,7 +323,107 @@ class TestARPASourceGit(GitFixture):
                 },
             )
 
-        # TODO: check release tag if present
+    def test_lint_find_tags(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        git = self.stack.enter_context(GitRepo(path))
+        git.add("testfile")
+        git.commit()
+        git.git("tag", "v1.0")
+        git.add(
+            "testfile.spec",
+            """
+Name:           test
+Version:        1.0
+Release:        1
+Summary:        test repo
+License:        CC-0
+%description
+test
+""",
+        )
+        git.commit()
+        git.git("tag", "v1.0-1")
+        with self.source(branch="main", specfile=Path("testfile.spec"), root=path) as src:
+            tag = src.lint_find_upstream_tag()
+            self.assertEqual(tag.name, "v1.0")
+            tag = src.lint_find_packaging_tag()
+            self.assertEqual(tag.name, "v1.0-1")
+
+    def test_lint_find_tags_upstream_dash(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        git = self.stack.enter_context(GitRepo(path))
+        git.add("testfile")
+        git.commit()
+        git.git("tag", "v1.0-1")
+        git.add(
+            "testfile.spec",
+            """
+Name:           test
+Version:        1.0
+Release:        2
+Summary:        test repo
+License:        CC-0
+%description
+test
+""",
+        )
+        git.commit()
+        git.git("tag", "v1.0-2")
+        with self.source(branch="main", specfile=Path("testfile.spec"), root=path) as src:
+            tag = src.lint_find_upstream_tag()
+            self.assertEqual(tag.name, "v1.0-1")
+            tag = src.lint_find_packaging_tag()
+            self.assertEqual(tag.name, "v1.0-2")
+
+    def test_lint_find_tags_release_not_found(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        git = self.stack.enter_context(GitRepo(path))
+        git.add("testfile")
+        git.commit()
+        git.git("tag", "v1.0-1")
+        git.add(
+            "testfile.spec",
+            """
+Name:           test
+Version:        1.0
+Release:        3
+Summary:        test repo
+License:        CC-0
+%description
+test
+""",
+        )
+        git.commit()
+        git.git("tag", "v1.0-2")
+        with self.source(branch="main", specfile=Path("testfile.spec"), root=path) as src:
+            tag = src.lint_find_upstream_tag()
+            self.assertEqual(tag.name, "v1.0-1")
+            tag = src.lint_find_packaging_tag()
+            self.assertIsNone(tag)
+
+    def test_lint_find_tags_not_found(self):
+        path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        git = self.stack.enter_context(GitRepo(path))
+        git.add("testfile")
+        git.commit()
+        git.add(
+            "testfile.spec",
+            """
+Name:           test
+Version:        1.0
+Release:        3
+Summary:        test repo
+License:        CC-0
+%description
+test
+""",
+        )
+        git.commit()
+        with self.source(branch="main", specfile=Path("testfile.spec"), root=path) as src:
+            tag = src.lint_find_upstream_tag()
+            self.assertIsNone(tag)
+            tag = src.lint_find_packaging_tag()
+            self.assertIsNone(tag)
 
 
 # class TestARPA(GitFixtureMixin, unittest.TestCase):

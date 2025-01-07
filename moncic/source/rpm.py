@@ -3,11 +3,14 @@ from __future__ import annotations
 import abc
 import itertools
 import logging
+import shutil
 import subprocess
+from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
-from .. import lint
+import git
+
 from ..exceptions import Fail
 from .local import Dir, Git, File
 from ..utils.run import run
@@ -67,36 +70,66 @@ class RPMSource(DistroSource, abc.ABC):
         specfiles = ARPASourceGit.locate_specfiles(parent.path)
         return ARPASourceGit.prepare_from_git(parent=parent, specfiles=specfiles, distro=distro)
 
+    @cached_property
+    def spec_versions(self) -> tuple[str | None, str | None]:
+        """
+        Return a tuple (upstream version, release version) as parsed from the
+        specfile.
+
+        Versions can be None if not found in the specfile
+        """
+        spec_path = self.path / self.specfile_path
+        if not spec_path.exists():
+            return None, None
+
+        rpmspec = shutil.which("rpmspec")
+        if rpmspec is None:
+            log.warning("rpmspec not found, cannot parse specfile")
+            return None, None
+
+        res = run(
+            [rpmspec, "--parse", spec_path.as_posix()],
+            cwd=self.path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if res.returncode != 0:
+            log.warning("%s: rpmspec failed to parse the specfile: %s", spec_path, res.stderr)
+            return None, None
+
+        version: str | None = None
+        release: str | None = None
+        for line in res.stdout.splitlines():
+            if line.startswith("Version:"):
+                if version is None:
+                    version = line[8:].strip()
+            if line.startswith("Release:"):
+                if release is None:
+                    release = line[8:].strip()
+
+        if version is None:
+            return None, None
+
+        if release is not None:
+            return version, version + "-" + release
+        else:
+            return version, None
+
     def lint_find_versions(self, *, allow_exec=False) -> dict[str, str]:
         versions = super().lint_find_versions(allow_exec=allow_exec)
-        spec_path = self.path / self.specfile_path
-
-        # Run in container: rpmspec --parse file.spec
-        if allow_exec and spec_path.exists():
-            res = run(
-                ["/usr/bin/rpmspec", "--parse", spec_path.as_posix()],
-                cwd=self.path,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            if res.returncode == 0:
-                version: str | None = None
-                release: str | None = None
-                for line in res.stdout.splitlines():
-                    if line.startswith("Version:"):
-                        if version is None:
-                            version = line[8:].strip()
-                    if line.startswith("Release:"):
-                        if release is None:
-                            release = line[8:].strip()
-
-                if version is not None:
-                    versions["spec-upstream"] = version
-                    if release is not None:
-                        versions["spec-release"] = version + "-" + release
-
+        version, release = self.spec_versions
+        if version is not None:
+            versions["spec-upstream"] = version
+        if release is not None:
+            versions["spec-release"] = release
         return versions
+
+    def lint_path_is_packaging(self, path: Path) -> bool:
+        """
+        Check if a path looks like packaging instead of upstream
+        """
+        return path.suffix == ".spec"
 
 
 class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
@@ -163,58 +196,21 @@ class ARPASourceGit(ARPASource, Git):
     configured for travis
     """
 
+    def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+        version, release = self.spec_versions
+        if version is None:
+            return None
+        if (tag := self.tags_by_name.get(f"v{version}")) is not None:
+            return tag
+        return self.tags_by_name.get(f"v{version}-1")
 
-#    def _check_arpa_commits(self, linter: lint.Linter):
-#        repo = self.source.repo
-#
-#        # Get the latest version tag
-#        res = subprocess.run(
-#            ["git", "describe", "--tags", "--abbrev=0", "--match=v[0-9]*"],
-#            cwd=repo.working_dir,
-#            text=True,
-#            capture_output=True,
-#            check=True,
-#        )
-#        last_tag = res.stdout.strip()
-#
-#        if "-" not in last_tag:
-#            return
-#
-#        # Look for a previous version tag
-#        uv, rv = last_tag[1:].split("-", 1)
-#        if (last_ver := int(rv)) == 1:
-#            return
-#
-#        prev_ver: int | None = None
-#        prev_tag: str | None = None
-#        prefix = f"v{uv}-"
-#        for tag in repo.tags:
-#            if tag.name.startswith(prefix):
-#                ver = int(tag.name[len(prefix) :])
-#                if ver < last_ver:
-#                    if prev_ver is None or prev_ver < ver:
-#                        prev_ver = ver
-#                        prev_tag = tag.name
-#
-#        if prev_ver is None:
-#            linter.warning(f"Found tag {last_tag} but no earlier release tag for the same upstream version")
-#            return
-#
-#        # Check that the diff between the two tags only affects files under the
-#        # same directory as the specfile
-#        changes_root = os.path.dirname(self.specfile_path)
-#        prev = repo.commit(prev_tag)
-#        last = repo.commit(last_tag)
-#        upstream_affected: set[str] = set()
-#        for diff in prev.diff(last):
-#            if diff.a_path is not None and not diff.a_path.startswith(changes_root):
-#                upstream_affected.add(diff.a_path)
-#            if diff.b_path is not None and not diff.b_path.startswith(changes_root):
-#                upstream_affected.add(diff.b_path)
-#
-#        for name in sorted(upstream_affected):
-#            linter.warning(f"{name}: upstream file affected by packaging changes")
-#
-#    def lint(self, linter: lint.Linter):
-#        super().lint(linter)
-#        self._check_arpa_commits(linter)
+    def lint_find_packaging_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+        version, release = self.spec_versions
+        if release is None:
+            return None
+        if (tag := self.tags_by_name.get(f"v{release}")) is not None:
+            return tag
+        return None
+
+    def lint_find_packaging_branch(self) -> git.refs.symbolic.SymbolicReference | None:
+        return self.repo.active_branch

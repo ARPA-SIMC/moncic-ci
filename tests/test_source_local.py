@@ -42,7 +42,7 @@ class TestFile(WorkdirFixture):
             self.assertEqual(src.path, self.file)
 
     def test_fail_if_branch_used(self) -> None:
-        with self.assertRaisesRegexp(Fail, "Cannot specify a branch when working on a file"):
+        with self.assertRaisesRegex(Fail, "Cannot specify a branch when working on a file"):
             Source.create_local(source=self.file, branch="test")
 
     def test_derivation(self) -> None:
@@ -79,7 +79,7 @@ class TestDir(WorkdirFixture):
             self.assertEqual(src.path, self.path)
 
     def test_fail_if_branch_used(self) -> None:
-        with self.assertRaisesRegexp(Fail, "Cannot specify a branch when working on a non-git directory"):
+        with self.assertRaisesRegex(Fail, "Cannot specify a branch when working on a non-git directory"):
             Source.create_local(source=self.path, branch="test")
 
     def test_derivation(self) -> None:
@@ -159,7 +159,7 @@ class TestGit(GitFixture):
         with Source.create_local(source=self.git.root, branch="devel") as src:
             assert isinstance(src, Git)
             self.assertEqual(src.name, self.git.root.as_posix())
-            self.assertNotEquals(src.path, self.git.root)
+            self.assertNotEqual(src.path, self.git.root)
             self.assertFalse(src.readonly)
             self.assertEqual(src.repo.active_branch.name, "devel")
 

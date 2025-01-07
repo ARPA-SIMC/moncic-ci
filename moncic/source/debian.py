@@ -9,25 +9,22 @@ import shutil
 import subprocess
 from collections.abc import Sequence
 from configparser import ConfigParser
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, cast, Any
+from typing import TYPE_CHECKING, Any
 
 import git
 
-from .. import context, lint
 from ..build.utils import link_or_copy
 from ..exceptions import Fail
-from ..utils.guest import guest_only, host_only
+from ..utils.guest import host_only
 from ..utils.run import log_run, run
 from .local import Dir, Git, File
-from .source import Source, CommandLog
+from .source import CommandLog
 from .distro import DistroSource
 from ..distro.debian import DebianDistro
 
 if TYPE_CHECKING:
-    from ..build import Build
-    from ..container import Container, System
     from ..distro import Distro
 
 log = logging.getLogger(__name__)
@@ -178,6 +175,12 @@ class DebianSource(DistroSource, abc.ABC):
         super().__init__(**kwargs)
         self.source_info = source_info
 
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["source_info"] = asdict(self.source_info)
+        return res
+
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["source_info"] = self.source_info
@@ -300,6 +303,12 @@ class DebianSource(DistroSource, abc.ABC):
             versions["debian-release"] = version
 
         return versions
+
+    def lint_path_is_packaging(self, path: Path) -> bool:
+        """
+        Check if a path looks like packaging instead of upstream
+        """
+        return path.is_relative_to(Path("debian"))
 
 
 class DebianDsc(DebianSource, File, style="debian-dsc"):
@@ -435,6 +444,13 @@ class DebianGBP(DebianSource, Git, abc.ABC):
         self.gbp_info = gbp_info
         self.gbp_args = gbp_args
 
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["gbp_info"] = asdict(self.gbp_info)
+        res["gbp_args"] = self.gbp_args
+        return res
+
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["gbp_info"] = self.gbp_info
@@ -489,38 +505,17 @@ class DebianGBP(DebianSource, Git, abc.ABC):
 
         return self._find_built_dsc()
 
-    def lint_find_versions(self, allow_exec: bool = False) -> dict[str, str]:
-        versions = super().lint_find_versions(allow_exec=allow_exec)
-        versions["debian-tag-upstream-expected"] = self.gbp_info.upstream_tag
-        versions["debian-tag-debian-expected"] = self.gbp_info.debian_tag
+    def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+        return self.tags_by_name.get(self.gbp_info.upstream_tag)
 
-        # TODO: check if self.gbp_info.upstream_branch is tagged
-        # TODO: check if self.gbp_info.debian_branch is tagged
+    def lint_find_packaging_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+        return self.tags_by_name.get(self.gbp_info.debian_tag)
 
-        return versions
-
-
-#     @classmethod
-#     def read_upstream_branch(cls, repo: git.Repo) -> str | None:
-#         """
-#         Read the upstream branch from gbp.conf
-#
-#         Return None if gbp.conf does not exists or it does not specify an upstream branch
-#         """
-#         cfg = ConfigParser()
-#         cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
-#         return cfg.get("DEFAULT", "upstream-branch", fallback=None)
-#
-#     @classmethod
-#     def read_upstream_tag(cls, repo: git.Repo) -> str | None:
-#         """
-#         Read the upstream tag from gbp.conf
-#
-#         Return the default value if gbp.conf does not exists or it does not specify an upstream tag
-#         """
-#         cfg = ConfigParser()
-#         cfg.read([os.path.join(repo.working_dir, "debian", "gbp.conf")])
-#         return cfg.get("DEFAULT", "upstream-tag", fallback="upstream/%(version)s")
+    def lint_find_packaging_branch(self) -> git.refs.symbolic.SymbolicReference | None:
+        for branch in self.repo.refs:
+            if branch.name == self.gbp_info.debian_branch:
+                return branch
+        return None
 
 
 class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
@@ -543,6 +538,22 @@ class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
     * the git commit being built is not a git tag, and does not contain a `debian/`
       directory (i.e. testing packaging of an upstream branch)
     """
+
+    packaging_branch: str
+
+    def __init__(self, *, packaging_branch: str, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.packaging_branch = packaging_branch
+
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        res = super().info_dict()
+        res["packaging_branch"] = self.packaging_branch
+        return res
+
+    def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
+        super().add_init_args_for_derivation(kwargs)
+        kwargs["packaging_branch"] = self.packaging_branch
 
     @classmethod
     def prepare_from_git(
@@ -605,7 +616,8 @@ class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
                 gbp_info=gbp_info,
                 command_log=command_log,
                 gbp_args=["--git-upstream-tree=branch", f"--git-upstream-branch={active_branch}"],
-            )
+                packaging_branch=branch,
+            ),
         )
 
 
@@ -643,29 +655,6 @@ class DebianGBPRelease(DebianGBP, style="debian-gbp-release"):
                 gbp_args=["--git-upstream-tree=tag"],
             )
         )
-
-
-#     def _check_debian_commits(self, linter: lint.Linter):
-#         repo = self.source.repo
-#
-#         # Check files modified, ensure it's only in debian/
-#         upstream = repo.commit(self.upstream_tag)
-#         debian = repo.commit(self.debian_tag)
-#         upstream_affected: set[str] = set()
-#         for diff in upstream.diff(debian):
-#             if diff.a_path is not None and not diff.a_path.startswith("debian/"):
-#                 upstream_affected.add(diff.a_path)
-#             if diff.b_path is not None and not diff.b_path.startswith("debian/"):
-#                 upstream_affected.add(diff.b_path)
-#
-#         for name in sorted(upstream_affected):
-#             linter.warning(f"{name}: upstream file affected by debian branch")
-
-
-#
-#    def lint(self, linter: lint.Linter):
-#        super().lint(linter)
-#        self._check_debian_commits(linter)
 
 
 class DebianGBPTestDebian(DebianGBP, style="debian-gbp-test"):
@@ -733,68 +722,6 @@ class DebianGBPTestDebian(DebianGBP, style="debian-gbp-test"):
             )
         )
 
-
-#    def _check_debian_commits(self, linter: lint.Linter):
-#        repo = self.source.repo
-#
-#        # Check files modified, ensure it's only in debian/
-#        upstream = repo.commit(self.upstream_tag)
-#        debian = repo.head.commit
-#        upstream_affected: set[str] = set()
-#        for diff in upstream.diff(debian):
-#            if diff.a_path is not None and not diff.a_path.startswith("debian/"):
-#                upstream_affected.add(diff.a_path)
-#            if diff.b_path is not None and not diff.b_path.startswith("debian/"):
-#                upstream_affected.add(diff.b_path)
-#
-#        for name in sorted(upstream_affected):
-#            linter.warning(f"{name}: upstream file affected by debian branch")
-#
-#    def lint(self, linter: lint.Linter):
-#        super().lint(linter)
-#        self._check_debian_commits(linter)
-
-# class GitSource(Source):
-#     """
-#     Source backed by a Git repo
-#     """
-#
-#     # Redefine source specialized as LocalGit
-#     source: LocalGit
-#
-#     def _get_tags_by_hexsha(self) -> dict[str, git.objects.Commit]:
-#         res: dict[str, list[git.objects.Commit]] = defaultdict(list)
-#         for tag in self.source.repo.tags:
-#             res[tag.object.hexsha].append(tag)
-#         return res
-#
-#     def find_versions(self, system: System) -> dict[str, str]:
-#         versions = super().find_versions(system)
-#
-#         re_versioned_tag = re.compile(r"^v?([0-9].+)")
-#
-#         repo = self.source.repo
-#
-#         _tags_by_hexsha = self._get_tags_by_hexsha()
-#
-#         # List tags for the current commit
-#         for tag in _tags_by_hexsha.get(repo.head.commit.hexsha, ()):
-#             if tag.name.startswith("debian/"):
-#                 version = tag.name[7:]
-#                 if "-" in version:
-#                     versions["tag-debian"] = version.split("-", 1)[0]
-#                     versions["tag-debian-release"] = version
-#                 else:
-#                     versions["tag-debian"] = version
-#             elif mo := re_versioned_tag.match(tag.name):
-#                 version = mo.group(1)
-#                 if "-" in version:
-#                     versions["tag-arpa"] = version.split("-", 1)[0]
-#                     versions["tag-arpa-release"] = version
-#                 else:
-#                     versions["tag"] = version
-#
-#         return versions
 
 # @host_only
 # def get_build_deps(self) -> list[str]:

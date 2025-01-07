@@ -14,7 +14,6 @@ import git
 
 from moncic.exceptions import Fail
 
-from .lint import Reporter
 from ..utils.run import run
 
 if TYPE_CHECKING:
@@ -107,6 +106,21 @@ class Source(abc.ABC):
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
         return self.stack.__exit__(exc_type, exc_val, exc_tb)
+
+    def info_history(self) -> list[dict[str, Any]]:
+        """Return JSON-able information about this source."""
+        res = []
+        if self.parent is not None:
+            res.extend(self.parent.info_history())
+        res.append(self.info_dict())
+        return res
+
+    def info_dict(self) -> dict[str, Any]:
+        """Return JSON-able information about this source, without parent information."""
+        return {
+            "name": self.name,
+            "command_log": self.command_log,
+        }
 
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         """
@@ -213,14 +227,3 @@ class Source(abc.ABC):
             command_log.add_command("git", "checkout", "-b", branch)
 
         return Git(parent=self, path=new_path, repo=repo, readonly=False, command_log=command_log)
-
-    def host_lint(self, reporter: Reporter) -> None:
-        """
-        Perform consistency checks on the source in the host system.
-
-        This cannot assume any distro-specific tools to be available.
-
-        This can assume access to the original sources, unless they are remote.
-        """
-        # Do nothing by default
-        pass
