@@ -1,6 +1,7 @@
 # Version 0.17
 
-* Added 
+* Added Fedora 42 support
+* Added debian/latest and ubuntu/latest to candidate branches (per DEP-14)
 
 # Version 0.16
 

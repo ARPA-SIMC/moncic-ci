@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.16
+Version:        0.17
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,10 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Thu Apr 24 2025 Daniele Branchini <dbranchini@arpae.it> - 0.17-1
+- Added Fedora 42 support
+- Added debian/latest and ubuntu/latest to candidate branches (per DEP-14)
+
 * Fri Oct 18 2024 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.16-1
 - Fixed rpm-arpa build (#108)
 
