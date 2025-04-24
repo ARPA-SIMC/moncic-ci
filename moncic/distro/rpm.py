@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 @DistroFamily.register
 class Fedora(DistroFamily):
-    VERSIONS = (32, 33, 34, 35, 36, 37, 38, 39, 40)
+    VERSIONS = (32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42)
     SHORTCUTS = {f"fedora{version}": f"fedora:{version}" for version in VERSIONS}
 
     def create_distro(self, version: str) -> Distro:

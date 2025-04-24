@@ -33,6 +33,7 @@ TEST_CHROOTS = [
     "fedora36",
     "fedora38",
     "fedora40",
+    "fedora42",
     "buster",
     "bookworm",
     "bullseye",
