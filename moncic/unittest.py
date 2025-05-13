@@ -206,7 +206,7 @@ class DistroTestMixin:
 
         with mock.patch("moncic.utils.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
             with mock.patch("moncic.utils.btrfs.Subvolume.local_run", new=_subvolume_local_run):
-                with mock.patch("moncic.imagestorage.Images.local_run", new=_images_local_run):
+                with mock.patch("moncic.nspawn.images.NspawnImages.local_run", new=_images_local_run):
                     with mock.patch("moncic.nspawn.system.NspawnSystem.local_run", new=_system_local_run):
                         with mock.patch("moncic.nspawn.system.MaintenanceSystem.local_run", new=_system_local_run):
                             with mock.patch(

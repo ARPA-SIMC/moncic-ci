@@ -1,15 +1,13 @@
 from __future__ import annotations
 
+import abc
 import contextlib
 import logging
-import os
 from collections.abc import Generator
 from typing import TYPE_CHECKING
 
-from .utils.btrfs import is_btrfs
-from .nspawn.images import Images, MockImages, PlainImages, BtrfsImages
-
 if TYPE_CHECKING:
+    from .images import Images
     from .session import Session
 
 log = logging.getLogger("images")
@@ -17,40 +15,28 @@ log = logging.getLogger("images")
 MACHINECTL_PATH = "/var/lib/machines"
 
 
-class ImageStorage:
-    """
-    Interface for handling image storage
-    """
+class ImageStorage(abc.ABC):
+    """Interface for handling image storage."""
 
-    def __init__(self, session: Session):
+    def __init__(self, session: Session) -> None:
         self.session = session
 
+    @abc.abstractmethod
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
         """
-        Make the image storage available as a directory, for the duration of
-        this context manager
+        Make the image storage accessible for the duration of this context
+        manager
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.imagedir is not implemented")
 
     @classmethod
     def create(cls, session: Session, path: str) -> ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """
-        if os.path.isdir(path):
-            if path == MACHINECTL_PATH:
-                if is_btrfs(path):
-                    return BtrfsMachineImageStorage(session)
-                else:
-                    return PlainMachineImageStorage(session)
-            else:
-                if is_btrfs(path):
-                    return BtrfsImageStorage(session, path)
-                else:
-                    return PlainImageStorage(session, path)
-        else:
-            raise RuntimeError(f"images path {path!r} does not point to a directory")
+        from .nspawn.imagestorage import NspawnImageStorage
+
+        return NspawnImageStorage.create(session, path)
 
     @classmethod
     def create_default(cls, session: Session) -> ImageStorage:
@@ -64,74 +50,31 @@ class ImageStorage:
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        return MockImageStorage(session, MACHINECTL_PATH)
+        from .nspawn.imagestorage import NspawnImageStorage
+
+        return NspawnImageStorage.create_mock(session)
 
 
-class MockImageStorage(ImageStorage):
-    """
-    Store images in a non-btrfs directory
-    """
+class MultiImageStorage(ImageStorage):
+    """Aggregation of multiple image storages."""
 
-    def __init__(self, session: Session, imagedir: str):
+    def __init__(self, session: Session) -> None:
         super().__init__(session)
-        self.imagedir = imagedir
+        self.storages: list[ImageStorage] = []
+
+    def add(self, storage: ImageStorage) -> None:
+        self.storages.append(storage)
 
     @contextlib.contextmanager
     def images(self) -> Generator[Images, None, None]:
-        yield MockImages(self.session, self.imagedir)
+        """
+        Make the image storage accessible for the duration of this context
+        manager
+        """
+        from .images import MultiImages
 
-
-class PlainImageStorage(ImageStorage):
-    """
-    Store images in a non-btrfs directory
-    """
-
-    def __init__(self, session: Session, imagedir: str):
-        super().__init__(session)
-        self.imagedir = imagedir
-
-    @contextlib.contextmanager
-    def images(self) -> Generator[Images, None, None]:
-        yield PlainImages(self.session, self.imagedir)
-
-
-class BtrfsImageStorage(ImageStorage):
-    """
-    Store images in a btrfs directory
-    """
-
-    def __init__(self, session: Session, imagedir: str):
-        super().__init__(session)
-        self.imagedir = imagedir
-
-    @contextlib.contextmanager
-    def images(self) -> Generator[Images, None, None]:
-        yield BtrfsImages(self.session, self.imagedir)
-
-
-class PlainMachineImageStorage(PlainImageStorage):
-    """
-    Store images in /var/lib/machines in a way that is compatibile with
-    machinectl
-    """
-
-    def __init__(self, session: Session):
-        super().__init__(session, MACHINECTL_PATH)
-
-    @contextlib.contextmanager
-    def images(self) -> Generator[Images, None, None]:
-        yield Images(self.session, self.imagedir)
-
-
-class BtrfsMachineImageStorage(BtrfsImageStorage):
-    """
-    Store images in /var/lib/machines in a way that is compatibile with
-    machinectl
-    """
-
-    def __init__(self, session: Session):
-        super().__init__(session, MACHINECTL_PATH)
-
-    @contextlib.contextmanager
-    def images(self) -> Generator[Images, None, None]:
-        yield BtrfsImages(self.session, self.imagedir)
+        with contextlib.ExitStack() as stack:
+            multi_images = MultiImages(self.session)
+            for storage in self.storages:
+                multi_images.add(stack.enter_context(storage.images()))
+            yield multi_images

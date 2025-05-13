@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, ContextManager
 from moncic.distro import DistroFamily
 from moncic.runner import LocalRunner
 from moncic.utils.btrfs import Subvolume, do_dedupe
+from moncic.images import Images
 from .system import NspawnSystem
 from .system import MaintenanceSystem, MockMaintenanceSystem, MockSystem
 from .image import NspawnImage
@@ -26,7 +27,7 @@ log = logging.getLogger("images")
 MACHINECTL_PATH = "/var/lib/machines"
 
 
-class Images:
+class NspawnImages(Images):
     """
     Image storage made available as a directory in the file system
     """
@@ -88,42 +89,6 @@ class Images:
                 return tarball_path
         return None
 
-    def system_config(self, name: str) -> NspawnImage:
-        """
-        Return the configuration for the named system
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.system_config is not implemented")
-
-    def system(self, name: str) -> ContextManager[NspawnSystem]:
-        """
-        Instantiate a System that can only be used for the duration
-        of this context manager.
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
-
-    def maintenance_system(self, name: str) -> ContextManager[MaintenanceSystem]:
-        """
-        Instantiate a MaintenanceSystem that can only be used for the duration
-        of this context manager.
-
-        This allows maintenance to be transactional, limited to backends that
-        support it, so that errors in the maintenance roll back to the previous
-        state and do not leave an inconsistent OS image
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.maintenance_system is not implemented")
-
-    def bootstrap_system(self, name: str):
-        """
-        Bootstrap the given system if missing
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.bootstrap_system is not implemented")
-
-    def remove_system(self, name: str):
-        """
-        Remove the named system if it exists
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.remove_system is not implemented")
-
     def find_config(self, name: str) -> str | None:
         """
         Return the path of the config file of the given image, if it exists
@@ -167,7 +132,7 @@ class Images:
         pass
 
 
-class MockImages(Images):
+class MockImages(NspawnImages):
     """
     Mock image storage, used for testing
     """
@@ -225,7 +190,7 @@ class MockImages(Images):
         self.session.mock_log(system=name, action="rmtree", arg=path)
 
 
-class PlainImages(Images):
+class PlainImages(NspawnImages):
     """
     Images stored in a non-btrfs filesystem
     """
@@ -286,7 +251,7 @@ class PlainImages(Images):
         shutil.rmtree(path)
 
 
-class BtrfsImages(Images):
+class BtrfsImages(NspawnImages):
     """
     Images stored in a btrfs filesystem
     """
