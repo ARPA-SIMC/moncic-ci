@@ -22,7 +22,7 @@ from .utils import SourceTypeAction
 
 if TYPE_CHECKING:
     from ..distro import Distro
-    from ..system import NspawnSystem
+    from moncic.nspawn.system import NspawnSystem
 
 log = logging.getLogger(__name__)
 

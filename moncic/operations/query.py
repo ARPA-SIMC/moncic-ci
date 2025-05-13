@@ -11,7 +11,8 @@ from .. import context
 
 
 if TYPE_CHECKING:
-    from ..container import Container, NspawnSystem
+    from ..container import Container
+    from moncic.nspawn.system import NspawnSystem
 
 log = logging.getLogger(__name__)
 

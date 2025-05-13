@@ -11,7 +11,7 @@ import unittest
 from collections.abc import Generator
 
 from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
-from moncic.system import NspawnSystem
+from moncic.nspawn.system import NspawnSystem
 from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 

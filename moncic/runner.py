@@ -28,7 +28,7 @@ from .utils import guest, setns
 
 if TYPE_CHECKING:
     from .container import NspawnContainer
-    from .system import NspawnImage
+    from .nspawn.image import NspawnImage
 
 Result = TypeVar("Result")
 

@@ -13,7 +13,9 @@ from typing import TYPE_CHECKING, ContextManager
 
 from .distro import DistroFamily
 from .runner import LocalRunner
-from .system import MaintenanceSystem, MockMaintenanceSystem, MockSystem, NspawnSystem, NspawnImage
+from .nspawn.system import NspawnSystem
+from .nspawn.system import MaintenanceSystem, MockMaintenanceSystem, MockSystem
+from .nspawn.image import NspawnImage
 from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 
 if TYPE_CHECKING:

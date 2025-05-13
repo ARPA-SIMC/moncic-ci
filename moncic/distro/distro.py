@@ -10,7 +10,7 @@ from ..utils.osrelease import parse_osrelase
 
 if TYPE_CHECKING:
     from ..container import ContainerConfig
-    from ..system import NspawnSystem
+    from moncic.nspawn.system import NspawnSystem
 
 log = logging.getLogger(__name__)
 

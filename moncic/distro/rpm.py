@@ -16,7 +16,7 @@ from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
-    from ..system import NspawnSystem
+    from moncic.nspawn.system import NspawnSystem
 
 log = logging.getLogger(__name__)
 

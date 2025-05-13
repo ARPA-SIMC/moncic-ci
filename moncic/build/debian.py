@@ -22,7 +22,7 @@ from .utils import link_or_copy
 
 if TYPE_CHECKING:
     from ..container import Container
-    from ..system import NspawnSystem
+    from moncic.nspawn.system import NspawnSystem
 
 log = logging.getLogger(__name__)
 

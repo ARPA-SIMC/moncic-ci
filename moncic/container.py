@@ -23,7 +23,7 @@ from .utils.deb import apt_get_cmd
 from .utils.nspawn import escape_bind_ro
 
 if TYPE_CHECKING:
-    from .system import NspawnSystem
+    from moncic.nspawn.system import NspawnSystem
 
 Result = TypeVar("Result")
 

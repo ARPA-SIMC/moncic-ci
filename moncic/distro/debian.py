@@ -15,7 +15,7 @@ from ..container import BindConfig, ContainerConfig
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
-    from ..system import NspawnSystem
+    from moncic.nspawn.system import NspawnSystem
 
 
 @DistroFamily.register

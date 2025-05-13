@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
-    from ..system import NspawnImage
+    from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
 

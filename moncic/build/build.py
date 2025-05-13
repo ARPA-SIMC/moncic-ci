@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     import subprocess
 
     from ..container import Container
-    from ..system import NspawnSystem
+    from moncic.nspawn.system import NspawnSystem
 
 log = logging.getLogger(__name__)
 

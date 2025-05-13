@@ -15,7 +15,8 @@ from unittest import SkipTest, mock
 from .container import RunConfig, UserConfig
 from .moncic import Moncic, MoncicConfig
 from .runner import CompletedCallable
-from .system import MaintenanceSystem, NspawnImage
+from moncic.nspawn.system import MaintenanceSystem
+from .nspawn.image import NspawnImage
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 
@@ -206,9 +207,11 @@ class DistroTestMixin:
         with mock.patch("moncic.utils.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
             with mock.patch("moncic.utils.btrfs.Subvolume.local_run", new=_subvolume_local_run):
                 with mock.patch("moncic.imagestorage.Images.local_run", new=_images_local_run):
-                    with mock.patch("moncic.system.NspawnSystem.local_run", new=_system_local_run):
-                        with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_system_local_run):
-                            with mock.patch("moncic.system.MaintenanceSystem._update_cachedir", new=_update_cachedir):
+                    with mock.patch("moncic.nspawn.system.NspawnSystem.local_run", new=_system_local_run):
+                        with mock.patch("moncic.nspawn.system.MaintenanceSystem.local_run", new=_system_local_run):
+                            with mock.patch(
+                                "moncic.nspawn.system.MaintenanceSystem._update_cachedir", new=_update_cachedir
+                            ):
                                 yield rlog
 
     @contextlib.contextmanager
@@ -281,7 +284,7 @@ class DistroTestMixin:
             def _load(mconfig: MoncicConfig, imagedir: str, name: str):
                 return NspawnImage(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
 
-            with mock.patch("moncic.system.NspawnImage.load", new=_load):
+            with mock.patch("moncic.nspawn.image.NspawnImage.load", new=_load):
                 with moncic.session() as session:
                     yield session.images
 
