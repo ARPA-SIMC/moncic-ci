@@ -11,7 +11,7 @@ from .. import context
 
 
 if TYPE_CHECKING:
-    from ..container import Container, System
+    from ..container import Container, NspawnSystem
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +57,9 @@ class Lint(ContainerSourceOperation):
     Run linter code using a container
     """
 
-    def __init__(self, system: System, source: DistroSource, *, artifacts_dir: Path | None = None, reporter: Reporter):
+    def __init__(
+        self, system: NspawnSystem, source: DistroSource, *, artifacts_dir: Path | None = None, reporter: Reporter
+    ):
         super().__init__(system, source, artifacts_dir=artifacts_dir)
         self.reporter = reporter
 

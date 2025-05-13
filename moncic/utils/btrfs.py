@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
-    from ..system import SystemConfig
+    from ..system import NspawnImage
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class Subvolume:
     Low-level functions to access and maintain a btrfs subvolume
     """
 
-    def __init__(self, system_config: SystemConfig, mconfig: MoncicConfig):
+    def __init__(self, system_config: NspawnImage, mconfig: MoncicConfig):
         self.log = system_config.logger
         self.system_config = system_config
         self.mconfig = mconfig

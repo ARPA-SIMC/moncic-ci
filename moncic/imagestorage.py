@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, ContextManager
 
 from .distro import DistroFamily
 from .runner import LocalRunner
-from .system import MaintenanceSystem, MockMaintenanceSystem, MockSystem, System, SystemConfig
+from .system import MaintenanceSystem, MockMaintenanceSystem, MockSystem, NspawnSystem, NspawnImage
 from .utils.btrfs import Subvolume, do_dedupe, is_btrfs
 
 if TYPE_CHECKING:
@@ -67,7 +67,7 @@ class Images:
 
         return sorted(res)
 
-    def local_run(self, system_config: SystemConfig, cmd: list[str]) -> subprocess.CompletedProcess:
+    def local_run(self, system_config: NspawnImage, cmd: list[str]) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
         """
@@ -86,13 +86,13 @@ class Images:
                 return tarball_path
         return None
 
-    def system_config(self, name: str) -> SystemConfig:
+    def system_config(self, name: str) -> NspawnImage:
         """
         Return the configuration for the named system
         """
         raise NotImplementedError(f"{self.__class__.__name__}.system_config is not implemented")
 
-    def system(self, name: str) -> ContextManager[System]:
+    def system(self, name: str) -> ContextManager[NspawnSystem]:
         """
         Instantiate a System that can only be used for the duration
         of this context manager.
@@ -127,9 +127,9 @@ class Images:
         Return the path of the config file of the given image, if it exists
         """
         # Import here to prevent import loops
-        from .system import SystemConfig
+        from .system import NspawnImage
 
-        return SystemConfig.find_config(self.session.moncic.config, self.imagedir, name)
+        return NspawnImage.find_config(self.session.moncic.config, self.imagedir, name)
 
     def remove_config(self, name: str):
         """
@@ -149,11 +149,11 @@ class Images:
         another, the base image is listed before those that depend on it.
         """
         # Import here to prevent import loops
-        from .system import SystemConfig
+        from .system import NspawnImage
 
         res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
-            config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+            config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
             if config.extends is not None:
                 res.add(config.name, config.extends)
             else:
@@ -170,15 +170,15 @@ class MockImages(Images):
     Mock image storage, used for testing
     """
 
-    def local_run(self, system_config: SystemConfig, cmd: list[str]) -> subprocess.CompletedProcess:
+    def local_run(self, system_config: NspawnImage, cmd: list[str]) -> subprocess.CompletedProcess:
         self.session.mock_log(system=system_config.name, cmd=cmd)
         return self.session.get_process_result(args=cmd)
 
-    def system_config(self, name: str) -> SystemConfig:
-        return SystemConfig(name=name, path="/tmp/mock-moncic-ci", distro=name)
+    def system_config(self, name: str) -> NspawnImage:
+        return NspawnImage(name=name, path="/tmp/mock-moncic-ci", distro=name)
 
     @contextlib.contextmanager
-    def system(self, name: str) -> Generator[System, None, None]:
+    def system(self, name: str) -> Generator[NspawnSystem, None, None]:
         system_config = self.system_config(name)
         yield MockSystem(self, system_config)
 
@@ -228,17 +228,17 @@ class PlainImages(Images):
     Images stored in a non-btrfs filesystem
     """
 
-    def system_config(self, name: str) -> SystemConfig:
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+    def system_config(self, name: str) -> NspawnImage:
+        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
         return system_config
 
     @contextlib.contextmanager
-    def system(self, name: str) -> Generator[System, None, None]:
+    def system(self, name: str) -> Generator[NspawnSystem, None, None]:
         system_config = self.system_config(name)
-        yield System(self, system_config)
+        yield NspawnSystem(self, system_config)
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
@@ -246,7 +246,7 @@ class PlainImages(Images):
         yield MaintenanceSystem(self, system_config)
 
     def bootstrap_system(self, name: str):
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
         if os.path.exists(system_config.path):
             return
 
@@ -289,17 +289,17 @@ class BtrfsImages(Images):
     Images stored in a btrfs filesystem
     """
 
-    def system_config(self, name: str) -> SystemConfig:
-        return SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+    def system_config(self, name: str) -> NspawnImage:
+        return NspawnImage.load(self.session.moncic.config, self.imagedir, name)
 
     @contextlib.contextmanager
-    def system(self, name: str) -> Generator[System, None, None]:
+    def system(self, name: str) -> Generator[NspawnSystem, None, None]:
         system_config = self.system_config(name)
-        yield System(self, system_config)
+        yield NspawnSystem(self, system_config)
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
         path = os.path.join(self.imagedir, name)
         work_path = path + ".new"
         if os.path.exists(work_path):
@@ -333,7 +333,7 @@ class BtrfsImages(Images):
                 subvolume.replace_subvolume(path)
 
     def bootstrap_system(self, name: str):
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
         if os.path.exists(system_config.path):
             return
 
@@ -360,7 +360,7 @@ class BtrfsImages(Images):
                         distro = DistroFamily.lookup_distro(system_config.distro)
                         distro.bootstrap(system)
         except BaseException:
-            # TODO: remove work_path is currently not needed as System is
+            # TODO: remove work_path is currently not needed as NspawnSystem is
             #       doing it. Maybe move that here?
             raise
         else:
@@ -370,7 +370,7 @@ class BtrfsImages(Images):
     def remove_system(self, name: str):
         if not os.path.exists(os.path.join(self.imagedir, name)):
             return
-        system_config = SystemConfig.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
         subvolume = Subvolume(system_config, self.session.moncic.config)
         subvolume.remove()
 

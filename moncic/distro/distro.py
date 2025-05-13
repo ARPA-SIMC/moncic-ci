@@ -10,7 +10,7 @@ from ..utils.osrelease import parse_osrelase
 
 if TYPE_CHECKING:
     from ..container import ContainerConfig
-    from ..system import System
+    from ..system import NspawnSystem
 
 log = logging.getLogger(__name__)
 
@@ -154,13 +154,13 @@ class Distro:
         """
         return ["bash", "dbus"]
 
-    def container_config_hook(self, system: System, config: ContainerConfig):
+    def container_config_hook(self, system: NspawnSystem, config: ContainerConfig):
         """
         Hook to allow distro-specific container setup
         """
         # Do nothing by default
 
-    def bootstrap(self, system: System) -> None:
+    def bootstrap(self, system: NspawnSystem) -> None:
         """
         Boostrap a fresh system inside the given directory
         """
@@ -190,25 +190,25 @@ class Distro:
         except FileNotFoundError:
             pass
 
-    def get_setup_network_script(self, system: System) -> list[list[str]]:
+    def get_setup_network_script(self, system: NspawnSystem) -> list[list[str]]:
         """
         Get the sequence of commands to use to setup networking
         """
         return []
 
-    def get_update_pkgdb_script(self, system: System) -> list[list[str]]:
+    def get_update_pkgdb_script(self, system: NspawnSystem) -> list[list[str]]:
         """
         Get the sequence of commands to use to update package information
         """
         return []
 
-    def get_upgrade_system_script(self, system: System) -> list[list[str]]:
+    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
         """
         Get the sequence of commands to use to upgrade system packages
         """
         return []
 
-    def get_install_packages_script(self, system: System, packages: list[str]) -> list[list[str]]:
+    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]) -> list[list[str]]:
         """
         Get the sequence of commands to use to install packages
         """

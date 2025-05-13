@@ -16,7 +16,7 @@ from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
-    from ..system import System
+    from ..system import NspawnSystem
 
 log = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class RpmDistro(Distro):
             fd.flush()
             yield fd.name
 
-    def bootstrap(self, system: System):
+    def bootstrap(self, system: NspawnSystem):
         installer = shutil.which("dnf")
         if installer is None:
             installer = shutil.which("yum")
@@ -143,17 +143,17 @@ class YumDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["yum"]
 
-    def get_update_pkgdb_script(self, system: System):
+    def get_update_pkgdb_script(self, system: NspawnSystem):
         res = super().get_update_pkgdb_script(system)
         res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, system: System) -> list[list[str]]:
+    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
         res = super().get_upgrade_system_script(system)
         res.append(["/usr/bin/yum", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, system: System, packages: list[str]) -> list[list[str]]:
+    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]) -> list[list[str]]:
         res = super().get_install_packages_script(system, packages)
         res.append(["/usr/bin/yum", "install", "-q", "-y"] + packages)
         return res
@@ -163,22 +163,22 @@ class DnfDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["dnf"]
 
-    def get_setup_network_script(self, system: System):
+    def get_setup_network_script(self, system: NspawnSystem):
         res = super().get_setup_network_script(system)
         res.append(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
         return res
 
-    def get_update_pkgdb_script(self, system: System):
+    def get_update_pkgdb_script(self, system: NspawnSystem):
         res = super().get_update_pkgdb_script(system)
         res.append(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, system: System) -> list[list[str]]:
+    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
         res = super().get_upgrade_system_script(system)
         res.append(["/usr/bin/dnf", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, system: System, packages: list[str]):
+    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]):
         res = super().get_install_packages_script(system, packages)
         res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
         return res
@@ -219,7 +219,7 @@ class Centos7(YumDistro):
     baseurl = "{mirror}/centos/7/os/$basearch"
     version = 7
 
-    def bootstrap(self, system: System):
+    def bootstrap(self, system: NspawnSystem):
         super().bootstrap(system)
         installroot = os.path.abspath(system.path)
         varsdir = os.path.join(installroot, "etc", "yum", "vars")
@@ -233,7 +233,7 @@ class Centos8(DnfDistro):
     baseurl = "{mirror}/centos/8/BaseOS//$basearch/os/"
     version = 8
 
-    def bootstrap(self, system: System):
+    def bootstrap(self, system: NspawnSystem):
         super().bootstrap(system)
         # self.system.local_run(["tar", "-C", self.system.path, "-zxf", "images/centos8.tar.gz"])
         # Fixup repository information to point at the vault

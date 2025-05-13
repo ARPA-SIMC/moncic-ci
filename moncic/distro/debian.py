@@ -15,7 +15,7 @@ from ..container import BindConfig, ContainerConfig
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
-    from ..system import System
+    from ..system import NspawnSystem
 
 
 @DistroFamily.register
@@ -114,7 +114,7 @@ class DebianDistro(Distro):
         self.mirror = mirror
         self.suite = suite
 
-    def container_config_hook(self, system: System, config: ContainerConfig):
+    def container_config_hook(self, system: NspawnSystem, config: ContainerConfig):
         super().container_config_hook(system, config)
         if apt_archive_path := system.images.session.apt_archives:
             config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", "aptcache"))
@@ -137,7 +137,7 @@ class DebianDistro(Distro):
         else:
             return ["debian/" + self.suite, "debian/latest"]
 
-    def bootstrap(self, system: System):
+    def bootstrap(self, system: NspawnSystem):
         with contextlib.ExitStack() as stack:
             installroot = os.path.abspath(system.path)
             cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
@@ -162,17 +162,17 @@ class DebianDistro(Distro):
                 cmd.insert(0, eatmydata)
             system.local_run(cmd)
 
-    def get_update_pkgdb_script(self, system: System):
+    def get_update_pkgdb_script(self, system: NspawnSystem):
         res = super().get_update_pkgdb_script(system)
         res.append(["/usr/bin/apt-get", "update"])
         return res
 
-    def get_upgrade_system_script(self, system: System) -> list[list[str]]:
+    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
         res = super().get_upgrade_system_script(system)
         res.append(self.APT_INSTALL_CMD + ["full-upgrade"])
         return res
 
-    def get_install_packages_script(self, system: System, packages: list[str]) -> list[list[str]]:
+    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]) -> list[list[str]]:
         res = super().get_install_packages_script(system, packages)
         res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res

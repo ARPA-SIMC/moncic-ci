@@ -11,7 +11,7 @@ import unittest
 from collections.abc import Generator
 
 from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
-from moncic.system import System
+from moncic.system import NspawnSystem
 from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 
@@ -35,7 +35,7 @@ class RunTestCase:
         super().tearDownClass()
 
     @contextlib.contextmanager
-    def system(self) -> Generator[System, None, None]:
+    def system(self) -> Generator[NspawnSystem, None, None]:
         with privs.root():
             if self.distro_name not in self.session.images.list_images():
                 raise unittest.SkipTest(f"Image {self.distro_name} not available")

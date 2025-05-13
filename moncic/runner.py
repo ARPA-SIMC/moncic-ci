@@ -2,6 +2,7 @@
 Infrastructure for running commands (in local or running systems) and logging
 their output
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,7 +28,7 @@ from .utils import guest, setns
 
 if TYPE_CHECKING:
     from .container import NspawnContainer
-    from .system import SystemConfig
+    from .system import NspawnImage
 
 Result = TypeVar("Result")
 
@@ -316,7 +317,7 @@ class LocalRunner(AsyncioRunner):
         logger: logging.Logger,
         cmd: list[str],
         config: RunConfig | None = None,
-        system_config: SystemConfig | None = None,
+        system_config: NspawnImage | None = None,
     ):
         """
         Run a one-off command

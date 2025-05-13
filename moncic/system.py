@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass
-class SystemConfig:
+class NspawnImage:
     """
     Configuration for a system
     """
@@ -72,7 +72,7 @@ class SystemConfig:
         return None
 
     @classmethod
-    def load(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> SystemConfig:
+    def load(cls, mconfig: MoncicConfig, imagedir: str, name: str) -> NspawnImage:
         """
         Load the configuration from the given path setup.
 
@@ -123,7 +123,7 @@ class SystemConfig:
         elif not has_distro and not has_extends:
             raise RuntimeError(f"{name}: neither 'distro' nor 'extends' have been specified")
 
-        allowed_names = {f.name for f in dataclasses.fields(SystemConfig)}
+        allowed_names = {f.name for f in dataclasses.fields(NspawnImage)}
         if unsupported_names := conf.keys() - allowed_names:
             for name in unsupported_names:
                 log.debug("%s: ignoring unsupported configuration: %r", conf_pathname, name)
@@ -139,7 +139,7 @@ class SystemConfig:
         return logging.getLogger(f"system.{self.name}")
 
 
-class System:
+class NspawnSystem:
     """
     A system configured in the CI.
 
@@ -147,7 +147,7 @@ class System:
     instantiate objects used to work with, and maintain, the system
     """
 
-    def __init__(self, images: Images, config: SystemConfig, path: str | None = None):
+    def __init__(self, images: Images, config: NspawnImage, path: str | None = None):
         self.images = images
         self.config = config
         self.log = config.logger
@@ -353,7 +353,7 @@ class System:
         return NspawnContainer(self, config, instance_name)
 
 
-class MaintenanceMixin(System):
+class MaintenanceMixin(NspawnSystem):
     def container_config(self, config: ContainerConfig | None = None) -> ContainerConfig:
         config = super().container_config(config)
         # Force ephemeral to False in maintenance systems
@@ -388,13 +388,13 @@ class MaintenanceMixin(System):
                     print("# See https://bford.info/cachedir/", file=fd)
 
 
-class MaintenanceSystem(MaintenanceMixin, System):
+class MaintenanceSystem(MaintenanceMixin, NspawnSystem):
     """
     System used to do maintenance on an OS image
     """
 
 
-class MockSystem(System):
+class MockSystem(NspawnSystem):
     def local_run(self, cmd: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.

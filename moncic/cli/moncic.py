@@ -22,7 +22,7 @@ from .utils import SourceTypeAction
 
 if TYPE_CHECKING:
     from ..distro import Distro
-    from ..system import System
+    from ..system import NspawnSystem
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def main_command(cls):
 
 
 @contextlib.contextmanager
-def checkout(system: System, repo: str | None = None, branch: str | None = None):
+def checkout(system: NspawnSystem, repo: str | None = None, branch: str | None = None):
     if repo is None:
         yield None
         return

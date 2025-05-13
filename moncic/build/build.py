@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     import subprocess
 
     from ..container import Container
-    from ..system import System
+    from ..system import NspawnSystem
 
 log = logging.getLogger(__name__)
 
@@ -183,7 +183,7 @@ class Build:
         # TODO: remove in favour of something more specific
 
     @guest_only
-    def setup_container_guest(self, system: System):
+    def setup_container_guest(self, system: NspawnSystem):
         """
         Set up the build environment in the container
         """

@@ -15,7 +15,7 @@ from unittest import SkipTest, mock
 from .container import RunConfig, UserConfig
 from .moncic import Moncic, MoncicConfig
 from .runner import CompletedCallable
-from .system import MaintenanceSystem, SystemConfig
+from .system import MaintenanceSystem, NspawnImage
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 
@@ -192,7 +192,7 @@ class DistroTestMixin:
             rlog.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b"", b"")
 
-        def _images_local_run(self, system_config: SystemConfig, cmd: list[str]) -> subprocess.CompletedProcess:
+        def _images_local_run(self, system_config: NspawnImage, cmd: list[str]) -> subprocess.CompletedProcess:
             rlog.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b"", b"")
 
@@ -206,7 +206,7 @@ class DistroTestMixin:
         with mock.patch("moncic.utils.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
             with mock.patch("moncic.utils.btrfs.Subvolume.local_run", new=_subvolume_local_run):
                 with mock.patch("moncic.imagestorage.Images.local_run", new=_images_local_run):
-                    with mock.patch("moncic.system.System.local_run", new=_system_local_run):
+                    with mock.patch("moncic.system.NspawnSystem.local_run", new=_system_local_run):
                         with mock.patch("moncic.system.MaintenanceSystem.local_run", new=_system_local_run):
                             with mock.patch("moncic.system.MaintenanceSystem._update_cachedir", new=_update_cachedir):
                                 yield rlog
@@ -279,9 +279,9 @@ class DistroTestMixin:
         with self.config() as mconfig, make_moncic(mconfig) as moncic:
 
             def _load(mconfig: MoncicConfig, imagedir: str, name: str):
-                return SystemConfig(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
+                return NspawnImage(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
 
-            with mock.patch("moncic.system.SystemConfig.load", new=_load):
+            with mock.patch("moncic.system.NspawnImage.load", new=_load):
                 with moncic.session() as session:
                     yield session.images
 

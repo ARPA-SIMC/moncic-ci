@@ -23,7 +23,7 @@ from .utils.deb import apt_get_cmd
 from .utils.nspawn import escape_bind_ro
 
 if TYPE_CHECKING:
-    from .system import System
+    from .system import NspawnSystem
 
 Result = TypeVar("Result")
 
@@ -329,7 +329,7 @@ class Container(ContextManager, Protocol):
     An instance of a System in execution as a container
     """
 
-    system: System
+    system: NspawnSystem
     config: ContainerConfig
     # Default to False, set to True to leave the container running on exit
     linger: bool
@@ -418,7 +418,7 @@ class ContainerBase:
     Convenience common base implementation for Container
     """
 
-    def __init__(self, system: System, config: ContainerConfig, instance_name: str | None = None):
+    def __init__(self, system: NspawnSystem, config: ContainerConfig, instance_name: str | None = None):
         global machine_name_sequence_pid, machine_name_sequence
         super().__init__()
         self.system = system

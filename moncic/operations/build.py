@@ -15,7 +15,7 @@ from .base import ContainerSourceOperation
 
 
 if TYPE_CHECKING:
-    from ..container import Container, System
+    from ..container import Container, NspawnSystem
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class Builder(ContainerSourceOperation):
     Build a Source using a container
     """
 
-    def __init__(self, system: System, build: Build):
+    def __init__(self, system: NspawnSystem, build: Build):
         super().__init__(system=system, source=build.source, artifacts_dir=build.artifacts_dir)
         # Build object that is being built
         self.build: Build = build

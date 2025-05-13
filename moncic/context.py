@@ -7,7 +7,7 @@ if TYPE_CHECKING:
     from .container import Container
     from .moncic import Moncic
     from .session import Session
-    from .system import System
+    from .system import NspawnSystem
 
 # Current Moncic instance
 moncic: ContextVar[Moncic] = ContextVar("moncic")
@@ -16,7 +16,7 @@ moncic: ContextVar[Moncic] = ContextVar("moncic")
 session: ContextVar[Session] = ContextVar("session")
 
 # Current Moncic system (set only when executing in a container)
-system: ContextVar[System] = ContextVar("system")
+system: ContextVar[NspawnSystem] = ContextVar("system")
 
 # Current Moncic container (set only when executing in a container)
 container: ContextVar[Container] = ContextVar("container")

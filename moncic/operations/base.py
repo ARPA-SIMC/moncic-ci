@@ -17,7 +17,7 @@ from . import build
 from ..source.distro import DistroSource
 
 if TYPE_CHECKING:
-    from ..container import Container, System
+    from ..container import Container, NspawnSystem
 
 log = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class ContainerSourceOperation(abc.ABC):
     Base class for operations on sources performed inside a container
     """
 
-    def __init__(self, system: System, source: DistroSource, *, artifacts_dir: Path | None = None):
+    def __init__(self, system: NspawnSystem, source: DistroSource, *, artifacts_dir: Path | None = None):
         #: System used for container operations
         self.system = system
         #: Source to work on
