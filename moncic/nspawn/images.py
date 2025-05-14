@@ -156,12 +156,6 @@ class PlainImages(NspawnImages):
         image = self.image(name)
         yield MaintenanceSystem(self, image)
 
-    def remove_system(self, name: str):
-        path = os.path.join(self.imagedir, name)
-        if not os.path.exists(path):
-            return
-        shutil.rmtree(path)
-
 
 class BtrfsImages(NspawnImages):
     """
@@ -211,13 +205,6 @@ class BtrfsImages(NspawnImages):
                 image.logger.info("Committing maintenance changes")
                 # Swap and remove
                 subvolume.replace_subvolume(path)
-
-    def remove_system(self, name: str):
-        if not os.path.exists(os.path.join(self.imagedir, name)):
-            return
-        image = NspawnImageBtrfs.load(self.session.moncic.config, self, name)
-        subvolume = Subvolume(image, self.session.moncic.config)
-        subvolume.remove()
 
     def deduplicate(self):
         """

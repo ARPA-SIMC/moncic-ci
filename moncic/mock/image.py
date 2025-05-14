@@ -41,3 +41,7 @@ class MockImage(NspawnImage):
                 self.images.session.mock_log(system=self.name, action="mv", src=work_path, dst=self.path)
         finally:
             self.path = orig_path
+
+    @override
+    def remove(self) -> None:
+        self.session.mock_log(system=self.name, action="rmtree", arg=self.path)

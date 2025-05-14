@@ -37,11 +37,11 @@ class Bootstrap(MoncicCommand):
             systems = images.add_dependencies(systems)
 
             for name in systems:
-                if self.args.recreate:
-                    images.remove_system(name)
+                image = images.image(name)
 
+                if self.args.recreate:
+                    image.remove()
                 try:
-                    image = images.image(name)
                     image.bootstrap()
                 except Exception:
                     log.critical("%s: cannot create image", name, exc_info=True)
@@ -124,7 +124,8 @@ class Remove(MoncicCommand):
         with self.moncic.session() as session:
             images = session.images
             for name in self.args.systems:
-                images.remove_system(name)
+                image = images.image(name)
+                image.remove()
                 if self.args.purge:
                     images.remove_config(name)
 

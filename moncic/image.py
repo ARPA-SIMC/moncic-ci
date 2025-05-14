@@ -39,3 +39,7 @@ class Image(abc.ABC):
     @abc.abstractmethod
     def bootstrap(self) -> None:
         """Bootstrap the image if missing."""
+
+    @abc.abstractmethod
+    def remove(self) -> None:
+        """Remove the system image if it exists."""

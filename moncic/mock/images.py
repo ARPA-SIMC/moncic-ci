@@ -33,7 +33,3 @@ class MockImages(NspawnImages):
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
         image = self.image(name)
         yield MockMaintenanceSystem(self, image)
-
-    def remove_system(self, name: str):
-        path = os.path.join(self.imagedir, name)
-        self.session.mock_log(system=name, action="rmtree", arg=path)

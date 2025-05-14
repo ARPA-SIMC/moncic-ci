@@ -40,7 +40,8 @@ maintscript: |
     @classmethod
     def tearDownClass(cls):
         with privs.root():
-            cls.images.remove_system(test_image_name)
+            image = cls.images.image(test_image_name)
+            image.remove()
             try:
                 os.unlink(cls.test_image_config_file)
             except FileNotFoundError:

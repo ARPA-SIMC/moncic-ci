@@ -55,13 +55,6 @@ class Images:
         # TODO: move to Image
 
     @abc.abstractmethod
-    def remove_system(self, name: str):
-        """
-        Remove the named system if it exists
-        """
-        # TODO: move to Image
-
-    @abc.abstractmethod
     def find_config(self, name: str) -> str | None:
         """
         Return the path of the config file of the given image, if it exists
@@ -119,18 +112,6 @@ class MultiImages(Images):
         This allows maintenance to be transactional, limited to backends that
         support it, so that errors in the maintenance roll back to the previous
         state and do not leave an inconsistent OS image
-        """
-
-    @abc.abstractmethod
-    def bootstrap_system(self, name: str):
-        """
-        Bootstrap the given system if missing
-        """
-
-    @abc.abstractmethod
-    def remove_system(self, name: str):
-        """
-        Remove the named system if it exists
         """
 
     @abc.abstractmethod

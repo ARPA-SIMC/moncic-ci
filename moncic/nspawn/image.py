@@ -187,6 +187,12 @@ class NspawnImagePlain(NspawnImage):
         finally:
             self.path = orig_path
 
+    @override
+    def remove(self) -> None:
+        if not self.path.exists():
+            return
+        shutil.rmtree(self.path)
+
 
 class NspawnImageBtrfs(NspawnImage):
     @override
@@ -227,3 +233,10 @@ class NspawnImageBtrfs(NspawnImage):
                     work_path.rename(orig_path)
         finally:
             self.path = orig_path
+
+    @override
+    def remove(self) -> None:
+        if not self.path.exists():
+            return
+        subvolume = Subvolume(self, self.images.session.moncic.config)
+        subvolume.remove()
