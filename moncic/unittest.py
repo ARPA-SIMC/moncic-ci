@@ -16,7 +16,7 @@ from .container import RunConfig, UserConfig
 from .moncic import Moncic, MoncicConfig
 from .runner import CompletedCallable
 from moncic.nspawn.system import MaintenanceSystem
-from .nspawn.image import NspawnImage
+from moncic.nspawn.image import NspawnImage
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 

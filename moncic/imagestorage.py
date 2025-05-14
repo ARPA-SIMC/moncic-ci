@@ -50,7 +50,7 @@ class ImageStorage(abc.ABC):
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        from .nspawn.imagestorage import NspawnImageStorage
+        from .mock.imagestorage import NspawnImageStorage
 
         return NspawnImageStorage.create_mock(session)
 

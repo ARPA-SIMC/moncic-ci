@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from moncic.utils.btrfs import is_btrfs
 from moncic.imagestorage import ImageStorage
-from .images import PlainImages, BtrfsImages
+from .images import PlainImages, BtrfsImages, NspawnImages
 
 if TYPE_CHECKING:
     from moncic.session import Session
@@ -38,27 +38,6 @@ class NspawnImageStorage(ImageStorage):
                     return PlainImageStorage(session, path)
         else:
             raise RuntimeError(f"images path {path!r} does not point to a directory")
-
-    @classmethod
-    def create_mock(cls, session: "Session") -> ImageStorage:
-        """
-        Instantiate a default ImageStorage in case no path has been provided
-        """
-        return MockImageStorage(session, MACHINECTL_PATH)
-
-
-class MockImageStorage(NspawnImageStorage):
-    """
-    Store images in a non-btrfs directory
-    """
-
-    def __init__(self, session: "Session", imagedir: str):
-        super().__init__(session)
-        self.imagedir = imagedir
-
-    @contextlib.contextmanager
-    def images(self) -> Generator["Images", None, None]:
-        yield MockImages(self.session, self.imagedir)
 
 
 class PlainImageStorage(NspawnImageStorage):
@@ -100,7 +79,7 @@ class PlainMachineImageStorage(PlainImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
-        yield Images(self.session, self.imagedir)
+        yield NspawnImages(self.session, self.imagedir)
 
 
 class BtrfsMachineImageStorage(BtrfsImageStorage):
