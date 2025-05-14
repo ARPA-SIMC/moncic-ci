@@ -10,6 +10,7 @@ from moncic.distro import DistroFamily
 
 if TYPE_CHECKING:
     from moncic.moncic import MoncicConfig
+    from .images import NspawnImages
 
 log = logging.getLogger("nspawn")
 
@@ -19,8 +20,10 @@ class NspawnImage(Image):
     Configuration for a system
     """
 
-    def __init__(self, *, name: str, path: Path) -> None:
-        super().__init__(image_type=ImageType.NSPAWN, name=name)
+    images: "NspawnImages"
+
+    def __init__(self, *, images: "NspawnImages", name: str, path: Path) -> None:
+        super().__init__(images=images, image_type=ImageType.NSPAWN, name=name)
         # Path to the image on disk
         self.path: Path = path
         # Name of the distribution used to bootstrap this image.
@@ -66,7 +69,7 @@ class NspawnImage(Image):
         return None
 
     @classmethod
-    def load(cls, mconfig: "MoncicConfig", imagedir: Path, name: str) -> Self:
+    def load(cls, mconfig: "MoncicConfig", images: "NspawnImages", name: str) -> Self:
         """
         Load the configuration from the given path setup.
 
@@ -77,15 +80,15 @@ class NspawnImage(Image):
         Otherwise, configuration is inferred from the basename of the path,
         which is assumed to be a distribution name.
         """
-        if conf_path := cls.find_config(mconfig, imagedir, name):
+        if conf_path := cls.find_config(mconfig, images.imagedir, name):
             with conf_path.open() as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
         else:
             conf = None
 
-        image_path = (imagedir / name).absolute()
+        image_path = (images.imagedir / name).absolute()
         log.debug("%s: image pathname: %s", name, image_path)
-        image = cls(name=name, path=image_path)
+        image = cls(images=images, name=name, path=image_path)
 
         if conf is None:
             try:

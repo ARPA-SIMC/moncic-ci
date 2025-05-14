@@ -1,5 +1,9 @@
 import enum
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .images import Images
 
 log = logging.getLogger("image")
 
@@ -16,7 +20,9 @@ class Image:
     Identify an image from which systems can be started.
     """
 
-    def __init__(self, *, image_type: ImageType, name: str) -> None:
+    def __init__(self, *, images: "Images", image_type: ImageType, name: str) -> None:
+        #: Images container
+        self.images = images
         #: Container type
         self.image_type: ImageType = image_type
         #: Image name

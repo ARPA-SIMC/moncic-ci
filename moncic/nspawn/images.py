@@ -121,7 +121,7 @@ class NspawnImages(Images):
 
         res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
-            config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
+            config = NspawnImage.load(self.session.moncic.config, self, name)
             if config.extends is not None:
                 res.add(config.name, config.extends)
             else:
@@ -139,7 +139,7 @@ class PlainImages(NspawnImages):
     """
 
     def system_config(self, name: str) -> NspawnImage:
-        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
         system_config.tmpfs = True
@@ -156,7 +156,7 @@ class PlainImages(NspawnImages):
         yield MaintenanceSystem(self, system_config)
 
     def bootstrap_system(self, name: str):
-        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self, name)
         if os.path.exists(system_config.path):
             return
 
@@ -200,7 +200,7 @@ class BtrfsImages(NspawnImages):
     """
 
     def system_config(self, name: str) -> NspawnImage:
-        return NspawnImage.load(self.session.moncic.config, self.imagedir, name)
+        return NspawnImage.load(self.session.moncic.config, self, name)
 
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[NspawnSystem, None, None]:
@@ -209,7 +209,7 @@ class BtrfsImages(NspawnImages):
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self, name)
         path = os.path.join(self.imagedir, name)
         work_path = path + ".new"
         if os.path.exists(work_path):
@@ -243,7 +243,7 @@ class BtrfsImages(NspawnImages):
                 subvolume.replace_subvolume(path)
 
     def bootstrap_system(self, name: str):
-        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self, name)
         if os.path.exists(system_config.path):
             return
 
@@ -280,7 +280,7 @@ class BtrfsImages(NspawnImages):
     def remove_system(self, name: str):
         if not os.path.exists(os.path.join(self.imagedir, name)):
             return
-        system_config = NspawnImage.load(self.session.moncic.config, self.imagedir, name)
+        system_config = NspawnImage.load(self.session.moncic.config, self, name)
         subvolume = Subvolume(system_config, self.session.moncic.config)
         subvolume.remove()
 

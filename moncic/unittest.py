@@ -19,6 +19,7 @@ from .moncic import Moncic, MoncicConfig
 from .runner import CompletedCallable
 from moncic.nspawn.system import MaintenanceSystem
 from moncic.nspawn.image import NspawnImage
+from moncic.nspawn.images import NspawnImages
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 
@@ -288,8 +289,8 @@ class DistroTestMixin:
     def make_images(self, distro: Distro) -> Generator[imagestorage.Images, None, None]:
         with self.config() as mconfig, make_moncic(mconfig) as moncic:
 
-            def _load(mconfig: MoncicConfig, imagedir: str, name: str):
-                image = NspawnImage(name=name, path=os.path.join(mconfig.imagedir, "test"))
+            def _load(mconfig: MoncicConfig, images: NspawnImages, name: str):
+                image = NspawnImage(images=images, name=name, path=mconfig.imagedir / "test")
                 image.distro = distro.name
                 return image
 
