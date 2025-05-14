@@ -29,11 +29,10 @@ class Images:
         """List the names of images found in image directories."""
 
     @abc.abstractmethod
-    def system_config(self, name: str) -> Image:
+    def image(self, name: str) -> Image:
         """
         Return the configuration for the named system
         """
-        # TODO: rename to image(name: str)
 
     @abc.abstractmethod
     def system(self, name: str) -> ContextManager[System]:
@@ -106,11 +105,10 @@ class MultiImages(Images):
         return res
 
     @abc.abstractmethod
-    def system_config(self, name: str) -> Image:
+    def image(self, name: str) -> Image:
         """
         Return the configuration for the named system
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.system_config is not implemented")
 
     @abc.abstractmethod
     def system(self, name: str) -> ContextManager[System]:

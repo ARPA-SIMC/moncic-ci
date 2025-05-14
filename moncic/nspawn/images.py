@@ -6,18 +6,17 @@ import logging
 import os
 import shutil
 import stat
-import subprocess
 from collections import defaultdict
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from moncic.distro import DistroFamily
 from moncic.utils.btrfs import Subvolume, do_dedupe
 from moncic.images import Images
 from .system import NspawnSystem
 from .system import MaintenanceSystem
-from .image import NspawnImage
+from .image import NspawnImage, NspawnImagePlain, NspawnImageBtrfs
 
 if TYPE_CHECKING:
     from moncic.session import Session
@@ -131,25 +130,26 @@ class PlainImages(NspawnImages):
     Images stored in a non-btrfs filesystem
     """
 
-    def system_config(self, name: str) -> NspawnImage:
-        system_config = NspawnImage.load(self.session.moncic.config, self, name)
+    @override
+    def image(self, name: str) -> NspawnImage:
+        image = NspawnImagePlain.load(self.session.moncic.config, self, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
-        system_config.tmpfs = True
-        return system_config
+        image.tmpfs = True
+        return image
 
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[NspawnSystem, None, None]:
-        system_config = self.system_config(name)
-        yield NspawnSystem(self, system_config)
+        image = self.image(name)
+        yield NspawnSystem(self, image)
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = self.system_config(name)
-        yield MaintenanceSystem(self, system_config)
+        image = self.image(name)
+        yield MaintenanceSystem(self, image)
 
     def bootstrap_system(self, name: str):
-        image = NspawnImage.load(self.session.moncic.config, self, name)
+        image = NspawnImagePlain.load(self.session.moncic.config, self, name)
         if image.path.exists():
             return
 
@@ -192,75 +192,76 @@ class BtrfsImages(NspawnImages):
     Images stored in a btrfs filesystem
     """
 
-    def system_config(self, name: str) -> NspawnImage:
-        return NspawnImage.load(self.session.moncic.config, self, name)
+    @override
+    def image(self, name: str) -> NspawnImage:
+        return NspawnImageBtrfs.load(self.session.moncic.config, self, name)
 
     @contextlib.contextmanager
     def system(self, name: str) -> Generator[NspawnSystem, None, None]:
-        system_config = self.system_config(name)
-        yield NspawnSystem(self, system_config)
+        image = self.image(name)
+        yield NspawnSystem(self, image)
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = NspawnImage.load(self.session.moncic.config, self, name)
-        path = os.path.join(self.imagedir, name)
-        work_path = path + ".new"
-        if os.path.exists(work_path):
+        image = NspawnImageBtrfs.load(self.session.moncic.config, self, name)
+        path = self.imagedir / name
+        work_path = self.imagedir / f"{name}.new"
+        if work_path.exists():
             raise RuntimeError(f"Found existing {work_path} which should be removed")
-        system_config.path = work_path
-        if not os.path.exists(path):
+        image.path = work_path
+        if not path.exists():
             # Transactional work on a new path
             try:
-                yield MaintenanceSystem(self, system_config)
+                yield MaintenanceSystem(self, image)
             except BaseException:
                 # TODO: remove work_path is currently not needed as System is
                 #       doing it. Maybe move that here?
                 raise
             else:
-                if os.path.exists(work_path):
-                    os.rename(work_path, path)
+                if work_path.exists():
+                    work_path.rename(path)
         else:
             # Update
-            subvolume = Subvolume(system_config, self.session.moncic.config)
+            subvolume = Subvolume(image, self.session.moncic.config)
             # Create work_path as a snapshot of path
             subvolume.snapshot(path)
             try:
-                yield MaintenanceSystem(self, system_config)
+                yield MaintenanceSystem(self, image)
             except BaseException:
-                system_config.logger.warning("Rolling back maintenance changes")
+                image.logger.warning("Rolling back maintenance changes")
                 subvolume.remove()
                 raise
             else:
-                system_config.logger.info("Committing maintenance changes")
+                image.logger.info("Committing maintenance changes")
                 # Swap and remove
                 subvolume.replace_subvolume(path)
 
     def bootstrap_system(self, name: str):
-        system_config = NspawnImage.load(self.session.moncic.config, self, name)
-        if os.path.exists(system_config.path):
+        image = NspawnImageBtrfs.load(self.session.moncic.config, self, name)
+        if os.path.exists(image.path):
             return
 
         log.info("%s: bootstrapping subvolume", name)
 
-        path = os.path.join(self.imagedir, name)
-        work_path = path + ".new"
-        system_config.path = work_path
+        path = self.imagedir / name
+        work_path = self.imagedir / f"{name}.new"
+        image.path = work_path
 
         try:
-            if system_config.extends is not None:
-                with self.system(system_config.extends) as parent:
-                    subvolume = Subvolume(system_config, self.session.moncic.config)
+            if image.extends is not None:
+                with self.system(image.extends) as parent:
+                    subvolume = Subvolume(image, self.session.moncic.config)
                     subvolume.snapshot(parent.path)
             else:
-                tarball_path = self.get_distro_tarball(system_config.distro)
-                subvolume = Subvolume(system_config, self.session.moncic.config)
+                tarball_path = self.get_distro_tarball(image.distro)
+                subvolume = Subvolume(image, self.session.moncic.config)
                 with subvolume.create():
                     if tarball_path is not None:
                         # Shortcut in case we have a chroot in a tarball
-                        self.local_run(system_config, ["tar", "-C", work_path, "-axf", tarball_path])
+                        image.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
                     else:
-                        system = MaintenanceSystem(self, system_config)
-                        distro = DistroFamily.lookup_distro(system_config.distro)
+                        system = MaintenanceSystem(self, image)
+                        distro = DistroFamily.lookup_distro(image.distro)
                         distro.bootstrap(system)
         except BaseException:
             # TODO: remove work_path is currently not needed as NspawnSystem is
@@ -273,8 +274,8 @@ class BtrfsImages(NspawnImages):
     def remove_system(self, name: str):
         if not os.path.exists(os.path.join(self.imagedir, name)):
             return
-        system_config = NspawnImage.load(self.session.moncic.config, self, name)
-        subvolume = Subvolume(system_config, self.session.moncic.config)
+        image = NspawnImageBtrfs.load(self.session.moncic.config, self, name)
+        subvolume = Subvolume(image, self.session.moncic.config)
         subvolume.remove()
 
     def deduplicate(self):

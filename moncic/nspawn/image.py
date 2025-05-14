@@ -143,3 +143,11 @@ class NspawnImage(Image):
         Run a command on the host system.
         """
         return LocalRunner.run(self.logger, cmd, system_config=self)
+
+
+class NspawnImagePlain(NspawnImage):
+    pass
+
+
+class NspawnImageBtrfs(NspawnImage):
+    pass

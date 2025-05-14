@@ -1,14 +1,14 @@
 import contextlib
 import logging
 import os
-import subprocess
-from typing import Generator
+from pathlib import Path
+from typing import Generator, override
 
-from moncic.nspawn.image import NspawnImage
 from moncic.nspawn.images import NspawnImages
 from moncic.nspawn.system import MaintenanceSystem
 
 from .system import MockMaintenanceSystem, MockSystem
+from .image import MockImage
 
 log = logging.getLogger("images")
 
@@ -18,21 +18,24 @@ class MockImages(NspawnImages):
     Mock image storage, used for testing
     """
 
-    def system_config(self, name: str) -> NspawnImage:
-        return NspawnImage(name=name, path="/tmp/mock-moncic-ci", distro=name)
+    @override
+    def image(self, name: str) -> MockImage:
+        image = MockImage(images=self, name=name, path=Path("/tmp/mock-moncic-ci"))
+        image.distro = name
+        return image
 
     @contextlib.contextmanager
-    def system(self, name: str) -> Generator[NspawnSystem, None, None]:
-        system_config = self.system_config(name)
-        yield MockSystem(self, system_config)
+    def system(self, name: str) -> Generator[MockSystem, None, None]:
+        image = self.image(name)
+        yield MockSystem(self, image)
 
     @contextlib.contextmanager
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        system_config = self.system_config(name)
-        yield MockMaintenanceSystem(self, system_config)
+        image = self.image(name)
+        yield MockMaintenanceSystem(self, image)
 
     def bootstrap_system(self, name: str):
-        image = self.system_config(name)
+        image = self.image(name)
         if image.path.exists():
             return
 
