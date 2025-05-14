@@ -50,7 +50,8 @@ class CreateCommand(MoncicCommand):
 
             log.info("%s: bootstrapping image", self.args.name)
             try:
-                session.images.bootstrap_system(self.args.name)
+                image = session.images.image(self.args.name)
+                image.bootstrap()
             except Exception:
                 log.error("%s: cannot create image", self.args.name, exc_info=True)
 

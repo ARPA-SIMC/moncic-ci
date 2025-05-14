@@ -13,7 +13,8 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
 
         with self.mock() as run_log:
             with self.make_images(distro) as images:
-                images.bootstrap_system("test")
+                image = images.image("test")
+                image.bootstrap()
                 with images.system("test") as system:
                     path = system.path
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import copy
-import dataclasses
 import logging
 import os
 import re
@@ -10,7 +9,7 @@ import shlex
 import subprocess
 import tempfile
 from collections.abc import Generator
-from typing import TYPE_CHECKING, Any, Callable, ContextManager, Generator
+from typing import TYPE_CHECKING, Any, Callable, ContextManager
 from pathlib import Path
 from unittest import SkipTest, mock
 
@@ -18,7 +17,7 @@ from .container import RunConfig, UserConfig
 from .moncic import Moncic, MoncicConfig
 from .runner import CompletedCallable
 from moncic.nspawn.system import MaintenanceSystem
-from moncic.nspawn.image import NspawnImage
+from moncic.nspawn.image import NspawnImage, NspawnImagePlain
 from moncic.nspawn.images import NspawnImages
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
@@ -290,7 +289,7 @@ class DistroTestMixin:
         with self.config() as mconfig, make_moncic(mconfig) as moncic:
 
             def _load(mconfig: MoncicConfig, images: NspawnImages, name: str):
-                image = NspawnImage(images=images, name=name, path=mconfig.imagedir / "test")
+                image = NspawnImagePlain(images=images, name=name, path=mconfig.imagedir / "test")
                 image.distro = distro.name
                 return image
 

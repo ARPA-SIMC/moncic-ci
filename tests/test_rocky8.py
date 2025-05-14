@@ -13,7 +13,7 @@ class Rocky8(DistroTestMixin, unittest.TestCase):
 
         with self.mock() as run_log:
             with self.make_images(distro) as images:
-                images.bootstrap_system("test")
+                images.image("test").bootstrap()
                 with images.system("test") as system:
                     path = system.path
 

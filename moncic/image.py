@@ -1,3 +1,4 @@
+import abc
 import enum
 import logging
 from typing import TYPE_CHECKING
@@ -15,7 +16,7 @@ class ImageType(enum.StrEnum):
     PODMAN = "podman"
 
 
-class Image:
+class Image(abc.ABC):
     """
     Identify an image from which systems can be started.
     """
@@ -34,3 +35,7 @@ class Image:
         Return a logger for this system
         """
         return logging.getLogger(f"system.{self.name}")
+
+    @abc.abstractmethod
+    def bootstrap(self) -> None:
+        """Bootstrap the image if missing."""

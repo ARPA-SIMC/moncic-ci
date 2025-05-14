@@ -41,7 +41,8 @@ class Bootstrap(MoncicCommand):
                     images.remove_system(name)
 
                 try:
-                    images.bootstrap_system(name)
+                    image = images.image(name)
+                    image.bootstrap()
                 except Exception:
                     log.critical("%s: cannot create image", name, exc_info=True)
                     return 5

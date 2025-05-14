@@ -55,13 +55,6 @@ class Images:
         # TODO: move to Image
 
     @abc.abstractmethod
-    def bootstrap_system(self, name: str):
-        """
-        Bootstrap the given system if missing
-        """
-        # TODO: move to Image
-
-    @abc.abstractmethod
     def remove_system(self, name: str):
         """
         Remove the named system if it exists

@@ -23,16 +23,16 @@ class Subvolume:
     Low-level functions to access and maintain a btrfs subvolume
     """
 
-    def __init__(self, system_config: NspawnImage, mconfig: MoncicConfig):
-        self.log = system_config.logger
-        self.system_config = system_config
+    def __init__(self, image: NspawnImage, mconfig: MoncicConfig):
+        self.log = image.logger
+        self.image = image
         self.mconfig = mconfig
-        self.path = system_config.path
-        self.compression = system_config.compression
+        self.path = image.path
+        self.compression = image.compression
         if self.compression is None:
             self.compression = mconfig.compression
 
-    def replace_subvolume(self, path: str):
+    def replace_subvolume(self, path: Path):
         """
         Replace the given subvolume with this one.
 
@@ -40,11 +40,11 @@ class Subvolume:
         """
         # We can do this because we stay on the same directory, which should
         # only be writable by root
-        stash_path = path + ".tmp"
-        os.rename(path, stash_path)
-        os.rename(self.path, path)
+        stash_path = path.parent / f"{path.name}.tmp"
+        path.rename(stash_path)
+        self.path.rename(path)
         self.path = path
-        old = Subvolume(self.system_config, self.mconfig)
+        old = Subvolume(self.image, self.mconfig)
         old.path = stash_path
         old.remove()
 
@@ -55,7 +55,7 @@ class Subvolume:
         # Import here to avoid dependency loops
         from ..runner import LocalRunner
 
-        return LocalRunner.run(self.log, cmd, system_config=self.system_config)
+        return LocalRunner.run(self.log, cmd, system_config=self.image)
 
     @contextlib.contextmanager
     def create(self):
@@ -67,10 +67,12 @@ class Subvolume:
             raise RuntimeError(f"{self.path!r} already exists")
 
         # See if there is a compression level configured that we should apply
-        self.local_run(["btrfs", "-q", "subvolume", "create", self.path])
+        self.local_run(["btrfs", "-q", "subvolume", "create", self.path.as_posix()])
         try:
             if self.compression is not None:
-                self.local_run(["btrfs", "-q", "property", "set", self.path, "compression", self.compression])
+                self.local_run(
+                    ["btrfs", "-q", "property", "set", self.path.as_posix(), "compression", self.compression]
+                )
             yield
         except BaseException:
             # Catch BaseException instead of Exception to also cleanup in case
@@ -78,7 +80,7 @@ class Subvolume:
             self.remove()
             raise
 
-    def snapshot(self, source_path: str):
+    def snapshot(self, source_path: Path):
         """
         Create a btrfs subvolume, and leave it on exit only if the context
         manager did not raise an exception
@@ -88,7 +90,7 @@ class Subvolume:
         if os.path.exists(self.path):
             raise RuntimeError(f"{self.path!r} already exists")
 
-        self.local_run(["btrfs", "-q", "subvolume", "snapshot", source_path, self.path])
+        self.local_run(["btrfs", "-q", "subvolume", "snapshot", source_path.as_posix(), self.path.as_posix()])
 
     def remove(self):
         """
@@ -100,7 +102,7 @@ class Subvolume:
         # names
         re_btrfslist = re.compile(r"^ID (\d+) gen \d+ top level \d+ path (.+)$")
         res = subprocess.run(
-            ["btrfs", "subvolume", "list", "-o", self.path], check=True, text=True, capture_output=True
+            ["btrfs", "subvolume", "list", "-o", self.path.as_posix()], check=True, text=True, capture_output=True
         )
         to_delete = []
         for line in res.stdout.splitlines():
@@ -112,10 +114,10 @@ class Subvolume:
         # Delete in reverse order
         for subvolid, subvolpath in to_delete[::-1]:
             log.info("removing btrfs subvolume %r", subvolpath)
-            self.local_run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, self.path])
+            self.local_run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, self.path.as_posix()])
 
         # Delete the subvolume itself
-        self.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
+        self.local_run(["btrfs", "-q", "subvolume", "delete", self.path.as_posix()])
 
 
 FIDEDUPERANGE = 0xC0189436

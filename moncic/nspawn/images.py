@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 import contextlib
 import graphlib
 import logging
@@ -26,7 +27,7 @@ log = logging.getLogger("images")
 MACHINECTL_PATH = "/var/lib/machines"
 
 
-class NspawnImages(Images):
+class NspawnImages(Images, abc.ABC):
     """
     Image storage made available as a directory in the file system
     """
@@ -34,6 +35,13 @@ class NspawnImages(Images):
     def __init__(self, session: Session, imagedir: Path):
         self.session = session
         self.imagedir = imagedir
+
+    @abc.abstractmethod
+    @override
+    def image(self, name: str) -> NspawnImage:
+        """
+        Return the configuration for the named system
+        """
 
     def list_images(self, skip_unaccessible: bool = False) -> list[str]:
         """
@@ -113,11 +121,11 @@ class NspawnImages(Images):
 
         res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
-            config = NspawnImage.load(self.session.moncic.config, self, name)
-            if config.extends is not None:
-                res.add(config.name, config.extends)
+            image = self.image(name)
+            if image.extends is not None:
+                res.add(image.name, image.extends)
             else:
-                res.add(config.name)
+                res.add(image.name)
 
         return list(res.static_order())
 
@@ -147,38 +155,6 @@ class PlainImages(NspawnImages):
     def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
         image = self.image(name)
         yield MaintenanceSystem(self, image)
-
-    def bootstrap_system(self, name: str):
-        image = NspawnImagePlain.load(self.session.moncic.config, self, name)
-        if image.path.exists():
-            return
-
-        log.info("%s: bootstrapping directory", name)
-
-        path = self.imagedir / name
-        work_path = self.imagedir / f"{name}.new"
-        image.path = work_path
-
-        try:
-            if image.extends is not None:
-                with self.system(image.extends) as parent:
-                    image.local_run(["cp", "--reflink=auto", "-a", parent.path.as_posix(), work_path.as_posix()])
-            else:
-                tarball_path = self.get_distro_tarball(image.distro)
-                if tarball_path is not None:
-                    # Shortcut in case we have a chroot in a tarball
-                    os.mkdir(work_path)
-                    image.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
-                else:
-                    system = MaintenanceSystem(self, image)
-                    distro = DistroFamily.lookup_distro(image.distro)
-                    distro.bootstrap(system)
-        except BaseException:
-            shutil.rmtree(work_path)
-            raise
-        else:
-            if os.path.exists(work_path):
-                os.rename(work_path, path)
 
     def remove_system(self, name: str):
         path = os.path.join(self.imagedir, name)
@@ -235,41 +211,6 @@ class BtrfsImages(NspawnImages):
                 image.logger.info("Committing maintenance changes")
                 # Swap and remove
                 subvolume.replace_subvolume(path)
-
-    def bootstrap_system(self, name: str):
-        image = NspawnImageBtrfs.load(self.session.moncic.config, self, name)
-        if os.path.exists(image.path):
-            return
-
-        log.info("%s: bootstrapping subvolume", name)
-
-        path = self.imagedir / name
-        work_path = self.imagedir / f"{name}.new"
-        image.path = work_path
-
-        try:
-            if image.extends is not None:
-                with self.system(image.extends) as parent:
-                    subvolume = Subvolume(image, self.session.moncic.config)
-                    subvolume.snapshot(parent.path)
-            else:
-                tarball_path = self.get_distro_tarball(image.distro)
-                subvolume = Subvolume(image, self.session.moncic.config)
-                with subvolume.create():
-                    if tarball_path is not None:
-                        # Shortcut in case we have a chroot in a tarball
-                        image.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
-                    else:
-                        system = MaintenanceSystem(self, image)
-                        distro = DistroFamily.lookup_distro(image.distro)
-                        distro.bootstrap(system)
-        except BaseException:
-            # TODO: remove work_path is currently not needed as NspawnSystem is
-            #       doing it. Maybe move that here?
-            raise
-        else:
-            if os.path.exists(work_path):
-                os.rename(work_path, path)
 
     def remove_system(self, name: str):
         if not os.path.exists(os.path.join(self.imagedir, name)):

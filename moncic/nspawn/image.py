@@ -1,14 +1,16 @@
 import logging
 import os
+import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, Self, override
 
 import yaml
 
 from moncic.runner import LocalRunner
 from moncic.image import Image, ImageType
 from moncic.distro import DistroFamily
+from moncic.utils.btrfs import Subvolume
 
 if TYPE_CHECKING:
     from moncic.moncic import MoncicConfig
@@ -82,6 +84,8 @@ class NspawnImage(Image):
         Otherwise, configuration is inferred from the basename of the path,
         which is assumed to be a distribution name.
         """
+        from .system import MaintenanceSystem
+
         if conf_path := cls.find_config(mconfig, images.imagedir, name):
             with conf_path.open() as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
@@ -146,8 +150,80 @@ class NspawnImage(Image):
 
 
 class NspawnImagePlain(NspawnImage):
-    pass
+    @override
+    def bootstrap(self) -> None:
+        from .system import MaintenanceSystem
+
+        if self.path.exists():
+            return
+
+        log.info("%s: bootstrapping directory", self.name)
+
+        orig_path = self.path
+        work_path = self.path.parent / f"{self.path.name}.new"
+        try:
+            self.path = work_path
+            try:
+                if self.extends is not None:
+                    parent = self.images.image(self.extends)
+                    assert isinstance(parent, NspawnImage)
+                    self.local_run(["cp", "--reflink=auto", "-a", parent.path.as_posix(), work_path.as_posix()])
+                else:
+                    tarball_path = self.images.get_distro_tarball(self.distro)
+                    if tarball_path is not None:
+                        # Shortcut in case we have a chroot in a tarball
+                        os.mkdir(work_path)
+                        self.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
+                    else:
+                        system = MaintenanceSystem(self.images, self)
+                        distro = DistroFamily.lookup_distro(self.distro)
+                        distro.bootstrap(system)
+            except BaseException:
+                shutil.rmtree(work_path)
+                raise
+            else:
+                if work_path.exists():
+                    work_path.rename(orig_path)
+        finally:
+            self.path = orig_path
 
 
 class NspawnImageBtrfs(NspawnImage):
-    pass
+    @override
+    def bootstrap(self) -> None:
+        from .system import MaintenanceSystem
+
+        if self.path.exists():
+            return
+
+        log.info("%s: bootstrapping subvolume", self.name)
+
+        orig_path = self.path
+        work_path = self.path.parent / f"{self.path.name}.new"
+        try:
+            self.path = work_path
+            try:
+                if self.extends is not None:
+                    parent = self.images.image(self.extends)
+                    assert isinstance(parent, NspawnImage)
+                    subvolume = Subvolume(self, self.images.session.moncic.config)
+                    subvolume.snapshot(parent.path)
+                else:
+                    tarball_path = self.images.get_distro_tarball(self.distro)
+                    subvolume = Subvolume(self, self.images.session.moncic.config)
+                    with subvolume.create():
+                        if tarball_path is not None:
+                            # Shortcut in case we have a chroot in a tarball
+                            self.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
+                        else:
+                            system = MaintenanceSystem(self.images, self)
+                            distro = DistroFamily.lookup_distro(self.distro)
+                            distro.bootstrap(system)
+            except BaseException:
+                shutil.rmtree(work_path)
+                raise
+            else:
+                if work_path.exists():
+                    work_path.rename(orig_path)
+        finally:
+            self.path = orig_path
