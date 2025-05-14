@@ -93,7 +93,8 @@ class Images(MoncicCommand):
         with self.moncic.session() as session:
             images = session.images
             for name in images.list_images(skip_unaccessible=True):
-                with images.system(name) as system:
+                image = images.image(name)
+                with image.system() as system:
                     output.add_row((name, system.distro.name, "yes" if name in bootstrapped else "no", system.path))
         output.flush()
 

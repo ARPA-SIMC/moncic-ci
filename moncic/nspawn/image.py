@@ -1,9 +1,11 @@
+import abc
+import contextlib
 import logging
 import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, override
+from typing import TYPE_CHECKING, Self, override, ContextManager, Generator
 
 import yaml
 
@@ -15,11 +17,12 @@ from moncic.utils.btrfs import Subvolume
 if TYPE_CHECKING:
     from moncic.moncic import MoncicConfig
     from .images import NspawnImages
+    from .system import NspawnSystem, MaintenanceSystem
 
 log = logging.getLogger("nspawn")
 
 
-class NspawnImage(Image):
+class NspawnImage(Image, abc.ABC):
     """
     Configuration for a system
     """
@@ -156,6 +159,17 @@ class NspawnImage(Image):
         log.info("%s: removing image configuration file", self.config_path)
         self.config_path.unlink()
 
+    @abc.abstractmethod
+    def maintenance_system(self) -> ContextManager["MaintenanceSystem"]:
+        """
+        Instantiate a MaintenanceSystem that can only be used for the duration
+        of this context manager.
+
+        This allows maintenance to be transactional, limited to backends that
+        support it, so that errors in the maintenance roll back to the previous
+        state and do not leave an inconsistent OS image
+        """
+
 
 class NspawnImagePlain(NspawnImage):
     @override
@@ -200,6 +214,18 @@ class NspawnImagePlain(NspawnImage):
         if not self.path.exists():
             return
         shutil.rmtree(self.path)
+
+    @contextlib.contextmanager
+    def system(self) -> Generator["NspawnSystem", None, None]:
+        from .system import NspawnSystem
+
+        yield NspawnSystem(self.images, self)
+
+    @contextlib.contextmanager
+    def maintenance_system(self) -> Generator["MaintenanceSystem", None, None]:
+        from .system import MaintenanceSystem
+
+        yield MaintenanceSystem(self.images, self)
 
 
 class NspawnImageBtrfs(NspawnImage):
@@ -248,3 +274,49 @@ class NspawnImageBtrfs(NspawnImage):
             return
         subvolume = Subvolume(self, self.images.session.moncic.config)
         subvolume.remove()
+
+    @contextlib.contextmanager
+    def system(self) -> Generator["NspawnSystem", None, None]:
+        from .system import NspawnSystem
+
+        yield NspawnSystem(self.images, self)
+
+    @contextlib.contextmanager
+    def maintenance_system(self) -> Generator["MaintenanceSystem", None, None]:
+        from .system import MaintenanceSystem
+
+        orig_path = self.path
+        work_path = self.path.parent / f"{self.path.name}.new"
+        if work_path.exists():
+            raise RuntimeError(f"Found existing {work_path} which should be removed")
+
+        self.path = work_path
+        try:
+            if not orig_path.exists():
+                # Transactional work on a new path
+                try:
+                    yield MaintenanceSystem(self.images, self)
+                except BaseException:
+                    # TODO: remove work_path is currently not needed as System is
+                    #       doing it. Maybe move that here?
+                    raise
+                else:
+                    if work_path.exists():
+                        work_path.rename(orig_path)
+            else:
+                # Update
+                subvolume = Subvolume(self, self.images.session.moncic.config)
+                # Create work_path as a snapshot of path
+                subvolume.snapshot(orig_path)
+                try:
+                    yield MaintenanceSystem(self.images, self)
+                except BaseException:
+                    self.logger.warning("Rolling back maintenance changes")
+                    subvolume.remove()
+                    raise
+                else:
+                    self.logger.info("Committing maintenance changes")
+                    # Swap and remove
+                    subvolume.replace_subvolume(orig_path)
+        finally:
+            self.path = orig_path

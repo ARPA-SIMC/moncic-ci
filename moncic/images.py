@@ -35,26 +35,6 @@ class Images:
         """
 
     @abc.abstractmethod
-    def system(self, name: str) -> ContextManager[System]:
-        """
-        Instantiate a System that can only be used for the duration
-        of this context manager.
-        """
-        # TODO: move to Image
-
-    @abc.abstractmethod
-    def maintenance_system(self, name: str) -> ContextManager[MaintenanceSystem]:
-        """
-        Instantiate a MaintenanceSystem that can only be used for the duration
-        of this context manager.
-
-        This allows maintenance to be transactional, limited to backends that
-        support it, so that errors in the maintenance roll back to the previous
-        state and do not leave an inconsistent OS image
-        """
-        # TODO: move to Image
-
-    @abc.abstractmethod
     def deduplicate(self):
         """Deduplicate storage of common files (if supported)."""
 
@@ -76,29 +56,12 @@ class MultiImages(Images):
             res += image.list_images(skip_unaccessible=skip_unaccessible)
         return res
 
-    @abc.abstractmethod
     def image(self, name: str) -> Image:
         """
         Return the configuration for the named system
         """
-
-    @abc.abstractmethod
-    def system(self, name: str) -> ContextManager[System]:
-        """
-        Instantiate a System that can only be used for the duration
-        of this context manager.
-        """
-
-    @abc.abstractmethod
-    def maintenance_system(self, name: str) -> ContextManager[MaintenanceSystem]:
-        """
-        Instantiate a MaintenanceSystem that can only be used for the duration
-        of this context manager.
-
-        This allows maintenance to be transactional, limited to backends that
-        support it, so that errors in the maintenance roll back to the previous
-        state and do not leave an inconsistent OS image
-        """
+        # TODO: try all Images in sequence
+        raise NotImplementedError()
 
     def deduplicate(self):
         for images in self.images:

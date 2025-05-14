@@ -40,7 +40,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log, make_moncic(mconfig) as moncic, moncic.session() as session:
                 images = session.images
-                with images.maintenance_system("test") as system:
+                image = images.image("test")
+                with image.maintenance_system() as system:
                     system.update()
 
         run_log.assertPopFirst(f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}")
@@ -89,7 +90,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log, make_moncic(mconfig) as moncic, moncic.session() as session:
                 images = session.images
-                with images.maintenance_system("test") as system:
+                image = session.image("test")
+                with image.maintenance_system() as system:
                     system.update()
                     path = system.path[:-4]
 
@@ -118,7 +120,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log, make_moncic(mconfig) as moncic, moncic.session() as session:
                 images = session.images
-                with images.maintenance_system("test") as system:
+                image = images.image("test")
+                with image.maintenance_system() as system:
                     system.update()
                     path = system.path[:-4]
 
@@ -146,7 +149,8 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log, make_moncic(mconfig) as moncic, moncic.session() as session:
                 images = session.images
-                with images.maintenance_system("test") as system:
+                image = images.image("test")
+                with image.maintenance_system() as system:
                     system.update()
                     path = system.path[:-4]
 

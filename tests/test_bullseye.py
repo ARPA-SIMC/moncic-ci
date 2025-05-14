@@ -15,7 +15,7 @@ class Bullseye(DistroTestMixin, unittest.TestCase):
             with self.make_images(distro) as images:
                 image = images.image("test")
                 image.bootstrap()
-                with images.system("test") as system:
+                with image.system() as system:
                     path = system.path
 
         run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")

@@ -56,7 +56,8 @@ maintscript: |
         with privs.root():
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
-            with self.images.maintenance_system(test_image_name) as system:
+            image = self.images.image(test_image_name)
+            with image.maintenance_system() as system:
                 # Check that we are working on a temporary snapshot
                 self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
 
@@ -88,7 +89,8 @@ maintscript: |
 
             with self.assertRaises(RuntimeError):
                 with self.assertLogs(level=logging.WARNING):
-                    with self.images.maintenance_system(test_image_name) as system:
+                    image = self.images.image(test_image_name)
+                    with image.maintenance_system() as system:
                         # Check that we are working on a temporary snapshot
                         self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
 

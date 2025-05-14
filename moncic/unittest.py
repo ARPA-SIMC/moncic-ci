@@ -300,5 +300,6 @@ class DistroTestMixin:
     @contextlib.contextmanager
     def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
         with self.make_images(distro) as images:
-            with images.maintenance_system("test") as system:
+            image = images.image("test")
+            with image.maintenance_system() as system:
                 yield system

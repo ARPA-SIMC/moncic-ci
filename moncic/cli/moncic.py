@@ -212,12 +212,13 @@ class ImageActionCommand(MoncicCommand):
     def container(self):
         with self.moncic.session() as session:
             images = session.images
+            image = images.image(self.args.system)
             if self.args.maintenance:
-                make_system = images.maintenance_system
+                make_system = image.maintenance_system
             else:
-                make_system = images.system
+                make_system = image.system
 
-            with make_system(self.args.system) as system:
+            with make_system() as system:
                 if not system.is_bootstrapped():
                     raise Fail(f"{system.name!r} has not been bootstrapped")
 

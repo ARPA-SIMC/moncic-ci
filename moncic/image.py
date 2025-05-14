@@ -1,10 +1,11 @@
 import abc
 import enum
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ContextManager
 
 if TYPE_CHECKING:
     from .images import Images
+    from .system import System
 
 log = logging.getLogger("image")
 
@@ -47,3 +48,11 @@ class Image(abc.ABC):
     @abc.abstractmethod
     def remove_config(self) -> None:
         """Remove the configuration file, if it exists."""
+
+    @abc.abstractmethod
+    def system(self) -> ContextManager["System"]:
+        """
+        Instantiate a System that can only be used for the duration
+        of this context manager.
+        """
+        # TODO: move to Image

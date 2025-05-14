@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import ruamel.yaml
 import yaml
 
+from moncic.nspawn.image import NspawnImage
 from ..operations import query as ops_query
 from ..exceptions import Fail
 from ..utils.edit import edit_yaml
@@ -92,7 +93,9 @@ class MaintCommand(MoncicCommand):
         """
         Run system maintenance
         """
-        with session.images.maintenance_system(self.args.name) as system:
+        image = session.images.image(self.args.name)
+        assert isinstance(image, NspawnImage)
+        with image.maintenance_system() as system:
             if not system.is_bootstrapped():
                 return
             log.info("%s: updating image", self.args.name)
@@ -204,7 +207,8 @@ class BuildDep(SourceCommand):
     def run(self):
         with self.moncic.session() as session:
             images = session.images
-            with images.system(self.args.system) as system:
+            image = images.image(self.args.system)
+            with image.system() as system:
                 with self.source(system.distro) as source:
                     operation = ops_query.BuildDeps(system, source)
                     packages = operation.host_main()
@@ -272,7 +276,8 @@ class Describe(MoncicCommand):
     def run(self):
         ryaml = ruamel.yaml.YAML(typ="rt")
         with self.moncic.session() as session:
-            with session.images.system(self.args.name) as system:
+            image = session.images.image(self.args.name)
+            with image.system() as system:
                 info = system.describe_container()
                 if maintscripts := info.get("maintscripts"):
                     info["maintscripts"] = [

@@ -128,16 +128,6 @@ class PlainImages(NspawnImages):
         image.tmpfs = True
         return image
 
-    @contextlib.contextmanager
-    def system(self, name: str) -> Generator[NspawnSystem, None, None]:
-        image = self.image(name)
-        yield NspawnSystem(self, image)
-
-    @contextlib.contextmanager
-    def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        image = self.image(name)
-        yield MaintenanceSystem(self, image)
-
 
 class BtrfsImages(NspawnImages):
     """
@@ -147,46 +137,6 @@ class BtrfsImages(NspawnImages):
     @override
     def image(self, name: str) -> NspawnImage:
         return NspawnImageBtrfs.load(self.session.moncic.config, self, name)
-
-    @contextlib.contextmanager
-    def system(self, name: str) -> Generator[NspawnSystem, None, None]:
-        image = self.image(name)
-        yield NspawnSystem(self, image)
-
-    @contextlib.contextmanager
-    def maintenance_system(self, name: str) -> Generator[MaintenanceSystem, None, None]:
-        image = NspawnImageBtrfs.load(self.session.moncic.config, self, name)
-        path = self.imagedir / name
-        work_path = self.imagedir / f"{name}.new"
-        if work_path.exists():
-            raise RuntimeError(f"Found existing {work_path} which should be removed")
-        image.path = work_path
-        if not path.exists():
-            # Transactional work on a new path
-            try:
-                yield MaintenanceSystem(self, image)
-            except BaseException:
-                # TODO: remove work_path is currently not needed as System is
-                #       doing it. Maybe move that here?
-                raise
-            else:
-                if work_path.exists():
-                    work_path.rename(path)
-        else:
-            # Update
-            subvolume = Subvolume(image, self.session.moncic.config)
-            # Create work_path as a snapshot of path
-            subvolume.snapshot(path)
-            try:
-                yield MaintenanceSystem(self, image)
-            except BaseException:
-                image.logger.warning("Rolling back maintenance changes")
-                subvolume.remove()
-                raise
-            else:
-                image.logger.info("Committing maintenance changes")
-                # Swap and remove
-                subvolume.replace_subvolume(path)
 
     def deduplicate(self):
         """

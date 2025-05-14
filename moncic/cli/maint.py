@@ -47,7 +47,7 @@ class Bootstrap(MoncicCommand):
                     log.critical("%s: cannot create image", name, exc_info=True)
                     return 5
 
-                with images.maintenance_system(name) as system:
+                with image.maintenance_system() as system:
                     log.info("%s: updating image", name)
                     try:
                         system.update()
@@ -84,10 +84,10 @@ class Update(MoncicCommand):
             count_failed = 0
 
             for name in systems:
-                with images.maintenance_system(name) as system:
-                    if not os.path.exists(system.path):
+                image = images.image(name)
+                with image.maintenance_system() as system:
+                    if not system.path.exists():
                         continue
-
                     log.info("%s: updating image", name)
                     try:
                         system.update()

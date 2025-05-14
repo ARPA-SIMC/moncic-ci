@@ -13,8 +13,9 @@ class Centos8(DistroTestMixin, unittest.TestCase):
 
         with self.mock() as run_log:
             with self.make_images(distro) as images:
-                images.image("test").bootstrap()
-                with images.system("test") as system:
+                image = images.image("test")
+                image.bootstrap()
+                with image.system() as system:
                     path = system.path
 
         run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")

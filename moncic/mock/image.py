@@ -1,7 +1,11 @@
 import subprocess
-from typing import override
+import contextlib
+from typing import override, TYPE_CHECKING, Generator
 
 from moncic.nspawn.image import NspawnImage
+
+if TYPE_CHECKING:
+    from .system import MockSystem, MockMaintenanceSystem
 
 
 class MockImage(NspawnImage):
@@ -22,7 +26,8 @@ class MockImage(NspawnImage):
             self.path = work_path
             try:
                 if self.extends is not None:
-                    with self.images.system(self.extends) as parent:
+                    image = self.images.image(self.extends)
+                    with image.system() as parent:
                         self.local_run(["cp", "--reflink=auto", "-a", parent.path.as_posix(), work_path.as_posix()])
                 else:
                     tarball_path = self.images.get_distro_tarball(self.distro)
@@ -49,3 +54,16 @@ class MockImage(NspawnImage):
     @override
     def remove_config(self) -> None:
         raise NotImplementedError()
+
+    @contextlib.contextmanager
+    def system(self) -> Generator["MockSystem", None, None]:
+        from .system import MockSystem
+
+        yield MockSystem(self.images, self)
+
+    @contextlib.contextmanager
+    def maintenance_system(self) -> Generator["MaintenanceSystem", None, None]:
+        from .system import MockMaintenanceSystem
+
+        image = self.image(name)
+        yield MockMaintenanceSystem(self.images, self)

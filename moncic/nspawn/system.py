@@ -49,7 +49,8 @@ class NspawnSystem(System):
         Return the distribution this system is based on
         """
         if self.config.extends is not None:
-            with self.images.system(self.config.extends) as parent:
+            image = self.images.image(self.config.extends)
+            with image.system() as parent:
                 return parent.distro
         elif self.config.distro is not None:
             return DistroFamily.lookup_distro(self.config.distro)
@@ -79,7 +80,8 @@ class NspawnSystem(System):
         """
         res = set(self.config.forward_users)
         if self.config.extends is not None:
-            with self.images.system(self.config.extends) as parent:
+            parent_image = self.images.image(self.config.extends)
+            with parent_image.system() as parent:
                 res.update(parent._container_chain_forwards_users())
         return sorted(res)
 
@@ -90,7 +92,8 @@ class NspawnSystem(System):
         """
         res = []
         if self.config.extends is not None:
-            with self.images.system(self.config.extends) as parent:
+            parent_image = self.images.image(self.config.extends)
+            with parent_image.system() as parent:
                 res.extend(parent._container_chain_package_list())
         res.extend(self.distro.get_base_packages())
         res.extend(self.config.packages)
@@ -103,7 +106,8 @@ class NspawnSystem(System):
         """
         res = []
         if self.config.extends is not None:
-            with self.images.system(self.config.extends) as parent:
+            parent_image = self.images.image(self.config.extends)
+            with parent_image.system() as parent:
                 res.extend(parent._container_chain_config_package_list())
         res.extend(self.config.packages)
         return res
@@ -115,7 +119,8 @@ class NspawnSystem(System):
         """
         res = []
         if self.config.extends is not None:
-            with self.images.system(self.config.extends) as parent:
+            parent_image = self.images.image(self.config.extends)
+            with parent_image.system() as parent:
                 res.extend(parent._container_chain_maintscripts())
         if self.config.maintscript:
             res.append(self.config.maintscript)

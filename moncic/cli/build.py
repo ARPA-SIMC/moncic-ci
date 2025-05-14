@@ -82,7 +82,8 @@ class CI(SourceCommand):
 
         with self.moncic.session() as session:
             images = session.images
-            with images.system(self.args.system) as system:
+            image = images.image(self.args.system)
+            with image.system() as system:
                 with self.source(system.distro) as source:
                     log.info("Source type: %s", source.__class__)
 
@@ -160,7 +161,8 @@ class Lint(SourceCommand):
 
             with self.moncic.session() as session:
                 images = session.images
-                with images.system(self.args.system) as system:
+                image = images.image(self.args.system)
+                with image.system() as system:
                     source = self.distro_source(local_source, system.distro)
                     operation = ops_query.Lint(system, source, reporter=reporter)
                     reporter = operation.host_main()
@@ -195,7 +197,8 @@ class QuerySource(SourceCommand):
     def run(self):
         with self.moncic.session() as session:
             images = session.images
-            with images.system(self.args.system) as system:
+            image = images.image(self.args.system)
+            with image.system() as system:
                 with self.source(system.distro) as source:
                     operation = ops_query.Query(system, source)
                     result = operation.host_main()
