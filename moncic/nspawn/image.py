@@ -28,8 +28,10 @@ class NspawnImage(Image):
 
     def __init__(self, *, images: "NspawnImages", name: str, path: Path) -> None:
         super().__init__(images=images, image_type=ImageType.NSPAWN, name=name)
-        # Path to the image on disk
+        #: Path to the image on disk
         self.path: Path = path
+        #: Path to the config file
+        self.config_path: Path | None = None
         # Name of the distribution used to bootstrap this image.
         # If missing, this image needs to be created from an existing image
         self.distro: str | None = None
@@ -84,8 +86,6 @@ class NspawnImage(Image):
         Otherwise, configuration is inferred from the basename of the path,
         which is assumed to be a distribution name.
         """
-        from .system import MaintenanceSystem
-
         if conf_path := cls.find_config(mconfig, images.imagedir, name):
             with conf_path.open() as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
@@ -105,6 +105,7 @@ class NspawnImage(Image):
             except PermissionError:
                 image.distro = name
         else:
+            image.config_path = conf_path
             has_distro = "distro" in conf
             has_extends = "extends" in conf
             if has_distro and has_extends:
@@ -147,6 +148,13 @@ class NspawnImage(Image):
         Run a command on the host system.
         """
         return LocalRunner.run(self.logger, cmd, system_config=self)
+
+    @override
+    def remove_config(self) -> None:
+        if self.config_path is None:
+            return
+        log.info("%s: removing image configuration file", self.config_path)
+        self.config_path.unlink()
 
 
 class NspawnImagePlain(NspawnImage):

@@ -55,20 +55,6 @@ class Images:
         # TODO: move to Image
 
     @abc.abstractmethod
-    def find_config(self, name: str) -> str | None:
-        """
-        Return the path of the config file of the given image, if it exists
-        """
-        # TODO: rename to find_image
-
-    @abc.abstractmethod
-    def remove_config(self, name: str):
-        """
-        Remove the configuration for the named system, if it exists
-        """
-        # TODO: move the remove method to Image
-
-    @abc.abstractmethod
     def deduplicate(self):
         """Deduplicate storage of common files (if supported)."""
 
@@ -113,21 +99,6 @@ class MultiImages(Images):
         support it, so that errors in the maintenance roll back to the previous
         state and do not leave an inconsistent OS image
         """
-
-    @abc.abstractmethod
-    def find_config(self, name: str) -> str | None:
-        """
-        Return the path of the config file of the given image, if it exists
-        """
-
-    def remove_config(self, name: str):
-        """
-        Remove the configuration for the named system, if it exists
-        """
-        # Import here to prevent import loops
-        if path := self.find_config(name):
-            log.info("%s: removing image configuration file", path)
-            os.unlink(path)
 
     def deduplicate(self):
         for images in self.images:

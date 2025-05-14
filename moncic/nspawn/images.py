@@ -90,24 +90,6 @@ class NspawnImages(Images, abc.ABC):
                 return tarball_path
         return None
 
-    def find_config(self, name: str) -> str | None:
-        """
-        Return the path of the config file of the given image, if it exists
-        """
-        # Import here to prevent import loops
-        from .system import NspawnImage
-
-        return NspawnImage.find_config(self.session.moncic.config, self.imagedir, name)
-
-    def remove_config(self, name: str):
-        """
-        Remove the configuration for the named system, if it exists
-        """
-        # Import here to prevent import loops
-        if path := self.find_config(name):
-            log.info("%s: removing image configuration file", path)
-            os.unlink(path)
-
     def add_dependencies(self, images: list[str]) -> list[str]:
         """
         Add dependencies to the given list of images, returning the extended

@@ -45,3 +45,7 @@ class MockImage(NspawnImage):
     @override
     def remove(self) -> None:
         self.session.mock_log(system=self.name, action="rmtree", arg=self.path)
+
+    @override
+    def remove_config(self) -> None:
+        raise NotImplementedError()

@@ -34,7 +34,8 @@ class CreateCommand(MoncicCommand):
         """
         with self.moncic.session() as session:
             with self.moncic.privs.user():
-                if path := session.images.find_config(self.args.name):
+                image = session.images.image(self.args.name)
+                if path := image.config_path:
                     raise Fail(f"{self.args.name}: configuration already exists in {path}")
                 path = os.path.join(self.moncic.config.imageconfdirs[0], f"{self.args.name}.yaml")
                 with atomic_writer(path, "wt", use_umask=True) as fd:
@@ -111,7 +112,8 @@ class MaintCommand(MoncicCommand):
         changed = False
         with self.moncic.session() as session:
             with self.moncic.privs.user():
-                if path := session.images.find_config(self.args.name):
+                image = session.images.image(self.args.name)
+                if path := image.config_path:
                     # Use ruamel.yaml to preserve comments
                     ryaml = ruamel.yaml.YAML(typ="rt")
                     with open(path) as fd:
@@ -228,7 +230,8 @@ class Edit(MaintCommand):
         changed = False
 
         with self.moncic.session() as session:
-            if path := session.images.find_config(self.args.name):
+            image = session.images.image(self.args.name)
+            if path := image.config_path:
                 with self.moncic.privs.user():
                     with open(path) as fd:
                         buf = fd.read()
@@ -253,7 +256,8 @@ class Cat(MoncicCommand):
 
     def run(self):
         with self.moncic.session() as session:
-            if path := session.images.find_config(self.args.name):
+            image = session.images.image(self.args.name)
+            if path := image.config_path:
                 with self.moncic.privs.user():
                     print(f"# {path}")
                     with open(path) as fd:

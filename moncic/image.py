@@ -43,3 +43,7 @@ class Image(abc.ABC):
     @abc.abstractmethod
     def remove(self) -> None:
         """Remove the system image if it exists."""
+
+    @abc.abstractmethod
+    def remove_config(self) -> None:
+        """Remove the configuration file, if it exists."""
