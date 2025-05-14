@@ -1,4 +1,3 @@
-import dataclasses
 import enum
 import logging
 
@@ -12,16 +11,16 @@ class ImageType(enum.StrEnum):
     PODMAN = "podman"
 
 
-@dataclasses.dataclass(kw_only=True)
 class Image:
     """
     Identify an image from which systems can be started.
     """
 
-    #: Container type
-    image_type: ImageType = dataclasses.field(init=False)
-    #: Image name
-    name: str
+    def __init__(self, *, image_type: ImageType, name: str) -> None:
+        #: Container type
+        self.image_type: ImageType = image_type
+        #: Image name
+        self.name: str = name
 
     @property
     def logger(self):

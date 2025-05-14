@@ -282,7 +282,9 @@ class DistroTestMixin:
         with self.config() as mconfig, make_moncic(mconfig) as moncic:
 
             def _load(mconfig: MoncicConfig, imagedir: str, name: str):
-                return NspawnImage(name=name, path=os.path.join(mconfig.imagedir, "test"), distro=distro.name)
+                image = NspawnImage(name=name, path=os.path.join(mconfig.imagedir, "test"))
+                image.distro = distro.name
+                return image
 
             with mock.patch("moncic.nspawn.image.NspawnImage.load", new=_load):
                 with moncic.session() as session:

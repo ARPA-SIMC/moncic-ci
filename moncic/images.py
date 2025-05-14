@@ -18,7 +18,7 @@ MACHINECTL_PATH = "/var/lib/machines"
 
 class Images:
     """
-    Image storage made available as a directory in the file system
+    Manage access to a group of container images.
     """
 
     def __init__(self, session: Session) -> None:

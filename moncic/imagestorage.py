@@ -16,7 +16,12 @@ MACHINECTL_PATH = "/var/lib/machines"
 
 
 class ImageStorage(abc.ABC):
-    """Interface for handling image storage."""
+    """
+    Interface for handling image storage.
+
+    This allows to manage access to image repositories, some of which may need
+    to be activated before use and deactivated after use.
+    """
 
     def __init__(self, session: Session) -> None:
         self.session = session
