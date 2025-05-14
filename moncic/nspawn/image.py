@@ -1,10 +1,12 @@
 import logging
 import os
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 import yaml
 
+from moncic.runner import LocalRunner
 from moncic.image import Image, ImageType
 from moncic.distro import DistroFamily
 
@@ -135,3 +137,9 @@ class NspawnImage(Image):
                 log.debug("%s: ignoring unsupported configuration: %r", conf_path, key)
 
         return image
+
+    def local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
+        """
+        Run a command on the host system.
+        """
+        return LocalRunner.run(self.logger, cmd, system_config=self)

@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from moncic.distro import DistroFamily
-from moncic.runner import LocalRunner
 from moncic.utils.btrfs import Subvolume, do_dedupe
 from moncic.images import Images
 from .system import NspawnSystem
@@ -70,12 +69,6 @@ class NspawnImages(Images):
                     raise
 
         return sorted(res)
-
-    def local_run(self, system_config: NspawnImage, cmd: list[str]) -> subprocess.CompletedProcess:
-        """
-        Run a command on the host system.
-        """
-        return LocalRunner.run(system_config.logger, cmd, system_config=system_config)
 
     def get_distro_tarball(self, distro_name: str) -> str | None:
         """
@@ -156,29 +149,29 @@ class PlainImages(NspawnImages):
         yield MaintenanceSystem(self, system_config)
 
     def bootstrap_system(self, name: str):
-        system_config = NspawnImage.load(self.session.moncic.config, self, name)
-        if os.path.exists(system_config.path):
+        image = NspawnImage.load(self.session.moncic.config, self, name)
+        if image.path.exists():
             return
 
         log.info("%s: bootstrapping directory", name)
 
-        path = os.path.join(self.imagedir, name)
-        work_path = path + ".new"
-        system_config.path = work_path
+        path = self.imagedir / name
+        work_path = self.imagedir / f"{name}.new"
+        image.path = work_path
 
         try:
-            if system_config.extends is not None:
-                with self.system(system_config.extends) as parent:
-                    self.local_run(system_config, ["cp", "--reflink=auto", "-a", parent.path, work_path])
+            if image.extends is not None:
+                with self.system(image.extends) as parent:
+                    image.local_run(["cp", "--reflink=auto", "-a", parent.path.as_posix(), work_path.as_posix()])
             else:
-                tarball_path = self.get_distro_tarball(system_config.distro)
+                tarball_path = self.get_distro_tarball(image.distro)
                 if tarball_path is not None:
                     # Shortcut in case we have a chroot in a tarball
                     os.mkdir(work_path)
-                    self.local_run(system_config, ["tar", "-C", work_path, "-axf", tarball_path])
+                    image.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
                 else:
-                    system = MaintenanceSystem(self, system_config)
-                    distro = DistroFamily.lookup_distro(system_config.distro)
+                    system = MaintenanceSystem(self, image)
+                    distro = DistroFamily.lookup_distro(image.distro)
                     distro.bootstrap(system)
         except BaseException:
             shutil.rmtree(work_path)
