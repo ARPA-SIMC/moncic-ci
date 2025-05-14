@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 from collections.abc import Iterable
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
 from ..utils.osrelease import parse_osrelase
@@ -88,7 +89,7 @@ class DistroFamily:
         raise KeyError(f"Distro {name!r} not found")
 
     @classmethod
-    def from_path(cls, path: str) -> Distro:
+    def from_path(cls, path: Path) -> Distro:
         """
         Instantiate a Distro from an existing filesystem tree
         """
@@ -99,15 +100,25 @@ class DistroFamily:
         # TODO: check if "{path}.yaml" exists
         info: dict[str, str] | None
         try:
-            info = parse_osrelase(os.path.join(path, "etc", "os-release"))
+            info = parse_osrelase(path / "etc" / "os-release")
         except FileNotFoundError:
             info = None
 
-        if info is None or "ID" not in info or "VERSION_ID" not in info:
-            return cls.lookup_distro(os.path.basename(path))
-        else:
-            family = cls.lookup_family(info["ID"])
-            return family.create_distro(info["VERSION_ID"])
+        if info is None:
+            return cls.lookup_distro(path.name)
+
+        if (os_id := info.get("ID")) is None:
+            return cls.lookup_distro(path.name)
+
+        os_version = info.get("VERSION_ID")
+        if os_version is None and os_id == "debian":
+            os_version = "sid"
+
+        if os_version is None:
+            return cls.lookup_distro(path.name)
+
+        family = cls.lookup_family(os_id)
+        return family.create_distro(os_version)
 
     @property
     def name(self) -> str:

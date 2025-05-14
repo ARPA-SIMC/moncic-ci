@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Self
 
 import yaml
@@ -18,10 +19,10 @@ class NspawnImage(Image):
     Configuration for a system
     """
 
-    def __init__(self, *, name: str, path: str) -> None:
+    def __init__(self, *, name: str, path: Path) -> None:
         super().__init__(image_type=ImageType.NSPAWN, name=name)
         # Path to the image on disk
-        self.path: str = path
+        self.path: Path = path
         # Name of the distribution used to bootstrap this image.
         # If missing, this image needs to be created from an existing image
         self.distro: str | None = None
@@ -49,20 +50,23 @@ class NspawnImage(Image):
         self.tmpfs: bool | None = None
 
     @classmethod
-    def find_config(cls, mconfig: "MoncicConfig", imagedir: str, name: str) -> str | None:
+    def find_config(cls, mconfig: "MoncicConfig", imagedir: Path, name: str) -> Path | None:
         """
         Find the configuration file for the given image
         """
         for path in [imagedir] + mconfig.imageconfdirs:
-            conf_pathname = os.path.join(path, name) + ".yaml"
-            log.debug("%s: look for configuration on %s", name, conf_pathname)
-            if os.path.exists(conf_pathname):
-                log.debug("%s: configuration found at %s", name, conf_pathname)
-                return conf_pathname
+            conf_path = path / f"{name}.yaml"
+            log.debug("%s: look for configuration on %s", name, conf_path)
+            try:
+                if conf_path.exists():
+                    log.debug("%s: configuration found at %s", name, conf_path)
+                    return conf_path
+            except PermissionError:
+                pass
         return None
 
     @classmethod
-    def load(cls, mconfig: "MoncicConfig", imagedir: str, name: str) -> Self:
+    def load(cls, mconfig: "MoncicConfig", imagedir: Path, name: str) -> Self:
         """
         Load the configuration from the given path setup.
 
@@ -73,20 +77,23 @@ class NspawnImage(Image):
         Otherwise, configuration is inferred from the basename of the path,
         which is assumed to be a distribution name.
         """
-        if conf_pathname := cls.find_config(mconfig, imagedir, name):
-            with open(conf_pathname) as fd:
+        if conf_path := cls.find_config(mconfig, imagedir, name):
+            with conf_path.open() as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
         else:
             conf = None
 
-        image_pathname = os.path.abspath(os.path.join(imagedir, name))
-        log.debug("%s: image pathname: %s", name, image_pathname)
-        image = cls(name=name, path=image_pathname)
+        image_path = (imagedir / name).absolute()
+        log.debug("%s: image pathname: %s", name, image_path)
+        image = cls(name=name, path=image_path)
 
         if conf is None:
-            if os.path.exists(image_pathname):
-                image.distro = DistroFamily.from_path(image_pathname).name
-            else:
+            try:
+                if image_path.exists():
+                    image.distro = DistroFamily.from_path(image_path).name
+                else:
+                    image.distro = name
+            except PermissionError:
                 image.distro = name
         else:
             has_distro = "distro" in conf
@@ -122,6 +129,6 @@ class NspawnImage(Image):
             image.tmpfs = conf.pop("tmpfs", None)
 
             for key in conf.keys():
-                log.debug("%s: ignoring unsupported configuration: %r", conf_pathname, key)
+                log.debug("%s: ignoring unsupported configuration: %r", conf_path, key)
 
         return image

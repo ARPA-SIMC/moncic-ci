@@ -9,6 +9,7 @@ import stat
 import subprocess
 from collections import defaultdict
 from collections.abc import Generator
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from moncic.distro import DistroFamily
@@ -32,7 +33,7 @@ class NspawnImages(Images):
     Image storage made available as a directory in the file system
     """
 
-    def __init__(self, session: Session, imagedir: str):
+    def __init__(self, session: Session, imagedir: Path):
         self.session = session
         self.imagedir = imagedir
 

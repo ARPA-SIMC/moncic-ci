@@ -6,6 +6,7 @@ import os
 import tempfile
 import urllib.parse
 from collections.abc import Generator
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import git
@@ -91,6 +92,7 @@ class MoncicCommand(Command):
                 "--imagedir",
                 action="store",
                 shared=True,
+                type=Path,
                 help="path to the directory that contains container images."
                 " Default: from configuration file, or /var/lib/machines",
             )
@@ -99,6 +101,7 @@ class MoncicCommand(Command):
                 "--config",
                 action="store",
                 shared=True,
+                type=Path,
                 help="path to the Moncic-CI config file to use. By default,"
                 " look in a number of well-known locations, see"
                 " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md",
@@ -107,6 +110,7 @@ class MoncicCommand(Command):
                 "--extra-packages-dir",
                 action="store",
                 shared=True,
+                type=Path,
                 help="directory where extra packages, if present, are added to package sources" " in containers",
             )
         return parser

@@ -1,7 +1,7 @@
 import contextlib
 import logging
-import os
 from collections.abc import Generator
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from moncic.utils.btrfs import is_btrfs
@@ -14,18 +14,18 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("images")
 
-MACHINECTL_PATH = "/var/lib/machines"
+MACHINECTL_PATH = Path("/var/lib/machines")
 
 
 class NspawnImageStorage(ImageStorage):
     """Image storage for nspawn images."""
 
     @classmethod
-    def create(cls, session: "Session", path: str) -> ImageStorage:
+    def create(cls, session: "Session", path: Path) -> ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """
-        if os.path.isdir(path):
+        if path.is_dir():
             if path == MACHINECTL_PATH:
                 if is_btrfs(path):
                     return BtrfsMachineImageStorage(session)
@@ -45,7 +45,7 @@ class PlainImageStorage(NspawnImageStorage):
     Store images in a non-btrfs directory
     """
 
-    def __init__(self, session: "Session", imagedir: str):
+    def __init__(self, session: "Session", imagedir: Path):
         super().__init__(session)
         self.imagedir = imagedir
 
@@ -59,7 +59,7 @@ class BtrfsImageStorage(NspawnImageStorage):
     Store images in a btrfs directory
     """
 
-    def __init__(self, session: "Session", imagedir: str):
+    def __init__(self, session: "Session", imagedir: Path):
         super().__init__(session)
         self.imagedir = imagedir
 

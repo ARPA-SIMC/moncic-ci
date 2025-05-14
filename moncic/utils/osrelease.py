@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shlex
+from pathlib import Path
 from collections.abc import Iterator
 
 
@@ -17,11 +18,11 @@ def iter_assigns(tokens: Iterator[str]):
         yield (name, value)
 
 
-def parse_osrelase(fname: str) -> dict[str, str]:
+def parse_osrelase(fname: Path) -> dict[str, str]:
     """
     Parse an os-release file into a dict
     """
-    with open(fname) as fd:
+    with fname.open() as fd:
         lexer = shlex.shlex(fd, fname, posix=True)
         # Python 3.9 needs this, python 3.7 did not need it, release note don't
         # seem to mention a relevant change

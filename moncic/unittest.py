@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import dataclasses
 import logging
 import os
@@ -9,7 +10,8 @@ import shlex
 import subprocess
 import tempfile
 from collections.abc import Generator
-from typing import TYPE_CHECKING, Any, Callable, ContextManager
+from typing import TYPE_CHECKING, Any, Callable, ContextManager, Generator
+from pathlib import Path
 from unittest import SkipTest, mock
 
 from .container import RunConfig, UserConfig
@@ -60,13 +62,13 @@ def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic, None, N
     """
     if config is not None:
         # Use dataclasses.replace to make a copy
-        config = dataclasses.replace(config)
+        config = copy.deepcopy(config)
     else:
         config = MoncicConfig.load()
 
     if not os.path.isdir(config.imagedir):
         with tempfile.TemporaryDirectory() as imagedir:
-            config.imagedir = imagedir
+            config.imagedir = Path(imagedir)
             yield Moncic(config=config, privs=privs)
     else:
         yield Moncic(config=config, privs=privs)
@@ -126,26 +128,27 @@ class MockRunLog:
 
 
 @contextlib.contextmanager
-def workdir(filesystem_type: str | None = None):
+def workdir(filesystem_type: str | None = None) -> Generator[Path, None, None]:
     """
     Create a temporary working directory. If filesystem_type is set to one of
     the supported options, make sure it is backed by that given filessytem
     """
     if filesystem_type is None or filesystem_type == "default":
         # Default: let tempfile choose
-        with tempfile.TemporaryDirectory() as imagedir:
-            yield imagedir
+        with tempfile.TemporaryDirectory() as imagedir_str:
+            yield Path(imagedir_str)
     elif filesystem_type == "tmpfs":
-        with tempfile.TemporaryDirectory() as imagedir:
+        with tempfile.TemporaryDirectory() as imagedir_str:
             with privs.root():
-                subprocess.run(["mount", "-t", "tmpfs", "none", imagedir], check=True)
+                subprocess.run(["mount", "-t", "tmpfs", "none", imagedir_str], check=True)
             try:
-                yield imagedir
+                yield Path(imagedir_str)
             finally:
                 with privs.root():
-                    subprocess.run(["umount", imagedir], check=True)
+                    subprocess.run(["umount", imagedir_str], check=True)
     elif filesystem_type == "btrfs":
-        with tempfile.TemporaryDirectory() as imagedir:
+        with tempfile.TemporaryDirectory() as imagedir_str:
+            imagedir = Path(imagedir_str)
             if is_btrfs(imagedir):
                 yield imagedir
             else:
@@ -153,12 +156,12 @@ def workdir(filesystem_type: str | None = None):
                     backing.truncate(1024 * 1024 * 1024)
                     subprocess.run(["mkfs.btrfs", backing.name], check=True)
                     with privs.root():
-                        subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir], check=True)
+                        subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir.as_posix()], check=True)
                     try:
                         yield imagedir
                     finally:
                         with privs.root():
-                            subprocess.run(["umount", imagedir], check=True)
+                            subprocess.run(["umount", imagedir.as_posix()], check=True)
 
 
 class DistroTestMixin:
@@ -172,7 +175,11 @@ class DistroTestMixin:
             filesystem_type = getattr(self, "DEFAULT_FILESYSTEM_TYPE", None)
 
         with workdir(filesystem_type=filesystem_type) as imagedir:
-            yield MoncicConfig(imagedir=imagedir, imageconfdirs=[], deb_cache_dir=None)
+            res = MoncicConfig()
+            res.imagedir = imagedir
+            res.imageconfdirs = []
+            res.deb_cache_dir = None
+            yield res
 
     @contextlib.contextmanager
     def _mock_system(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog, None, None]:

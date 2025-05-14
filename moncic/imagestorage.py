@@ -4,6 +4,7 @@ import abc
 import contextlib
 import logging
 from collections.abc import Generator
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -35,7 +36,7 @@ class ImageStorage(abc.ABC):
         """
 
     @classmethod
-    def create(cls, session: Session, path: str) -> ImageStorage:
+    def create(cls, session: Session, path: Path) -> ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """

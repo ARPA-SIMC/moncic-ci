@@ -8,6 +8,7 @@ import re
 import struct
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -164,13 +165,15 @@ def do_dedupe(src_file: str, dst_file: str, size: int):
     return total_bytes_deduped
 
 
-def is_btrfs(path: str) -> bool:
+def is_btrfs(path: Path) -> bool:
     """
     Check if a path is on a btrfs filesystem
     """
     # FIXME: One could use os.statvfs, but its Python version does not (yet?)
     #        expose the f_type field in its output
-    res = subprocess.run(["stat", "--file-system", "--format=%T", path], capture_output=True, text=True, check=True)
+    res = subprocess.run(
+        ["stat", "--file-system", "--format=%T", path.as_posix()], capture_output=True, text=True, check=True
+    )
     return res.stdout.strip() == "btrfs"
 
 
