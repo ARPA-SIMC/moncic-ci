@@ -35,7 +35,7 @@ class Session(contextlib.ExitStack):
         if self.moncic.config.imagedir is None:
             return imagestorage.ImageStorage.create_default(self)
         else:
-            return imagestorage.ImageStorage.create(self, self.moncic.config.imagedir)
+            return imagestorage.ImageStorage.create_from_path(self, self.moncic.config.imagedir)
 
     def __enter__(self):
         self.orig_moncic = context.moncic.set(self.moncic)

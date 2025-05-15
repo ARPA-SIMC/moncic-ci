@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("images")
 
-MACHINECTL_PATH = "/var/lib/machines"
+MACHINECTL_PATH = Path("/var/lib/machines")
 
 
 class ImageStorage(abc.ABC):
@@ -36,20 +36,20 @@ class ImageStorage(abc.ABC):
         """
 
     @classmethod
-    def create(cls, session: Session, path: Path) -> ImageStorage:
+    def create_default(cls, session: Session) -> ImageStorage:
+        """
+        Instantiate a default ImageStorage in case no path has been provided
+        """
+        return cls.create_from_path(session, MACHINECTL_PATH)
+
+    @classmethod
+    def create_from_path(cls, session: Session, path: Path) -> ImageStorage:
         """
         Instantiate the right ImageStorage for a path
         """
         from .nspawn.imagestorage import NspawnImageStorage
 
         return NspawnImageStorage.create(session, path)
-
-    @classmethod
-    def create_default(cls, session: Session) -> ImageStorage:
-        """
-        Instantiate a default ImageStorage in case no path has been provided
-        """
-        return cls.create(session, MACHINECTL_PATH)
 
     @classmethod
     def create_mock(cls, session: Session) -> ImageStorage:
