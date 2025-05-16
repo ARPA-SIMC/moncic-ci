@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 from collections.abc import Generator
+from pathlib import Path
 from typing import NamedTuple
 
 from ..runner import UserConfig
@@ -17,7 +18,7 @@ class FileInfo(NamedTuple):
 
 
 class DebCache:
-    def __init__(self, cache_dir: str, cache_size: int = 512 * 1024 * 1024):
+    def __init__(self, cache_dir: Path, cache_size: int = 512 * 1024 * 1024):
         self.cache_dir = cache_dir
         # Maximum cache size in bytes
         self.cache_size = cache_size
@@ -27,7 +28,7 @@ class DebCache:
         self.cache_user = UserConfig.from_sudoer()
 
     def __enter__(self):
-        os.makedirs(self.cache_dir, exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.src_dir_fd = os.open(self.cache_dir, os.O_RDONLY)
         return self
 
