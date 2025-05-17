@@ -38,7 +38,7 @@ class MoncicConfig:
 
     def __init__(self) -> None:
         # Directory where images are stored
-        self.imagedir: Path = Path("/var/lib/machines")
+        self.imagedir: Path | None = None
         # Directories where image configuration can stored, if not found in
         # imagedir
         self.imageconfdirs: list[Path] = [self.xdg_local_config_dir()]

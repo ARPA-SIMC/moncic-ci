@@ -1,22 +1,16 @@
 from __future__ import annotations
 
 import abc
-import contextlib
 import graphlib
 import logging
 import os
-import shutil
 import stat
 from collections import defaultdict
-from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from moncic.distro import DistroFamily
-from moncic.utils.btrfs import Subvolume, do_dedupe
+from moncic.utils.btrfs import do_dedupe
 from moncic.images import Images
-from .system import NspawnSystem
-from .system import MaintenanceSystem
 from .image import NspawnImage, NspawnImagePlain, NspawnImageBtrfs
 
 if TYPE_CHECKING:

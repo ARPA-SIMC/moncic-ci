@@ -40,7 +40,10 @@ class ImageStorage(abc.ABC):
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        return cls.create_from_path(session, MACHINECTL_PATH)
+        combined = MultiImageStorage(session)
+        combined.add(cls.create_from_path(session, MACHINECTL_PATH))
+        combined.add(cls.create_podman(session))
+        return combined
 
     @classmethod
     def create_from_path(cls, session: Session, path: Path) -> ImageStorage:
@@ -50,6 +53,13 @@ class ImageStorage(abc.ABC):
         from .nspawn.imagestorage import NspawnImageStorage
 
         return NspawnImageStorage.create(session, path)
+
+    @classmethod
+    def create_podman(cls, session: Session) -> ImageStorage:
+        """Instantiate a podman image storage."""
+        from .podman.imagestorage import PodmanImageStorage
+
+        return PodmanImageStorage(session)
 
     @classmethod
     def create_mock(cls, session: Session) -> ImageStorage:

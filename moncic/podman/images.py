@@ -13,7 +13,7 @@ log = logging.getLogger("images")
 class PodmanImages(Images):
     """Access podman images."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: "Session") -> None:
         self.session = session
 
     @override
@@ -21,13 +21,19 @@ class PodmanImages(Images):
         """
         Return the configuration for the named system
         """
-        raise NotImplementedError()
+        from .image import PodmanImage
+
+        return PodmanImage(images=self, name=name)
 
     def list_images(self, skip_unaccessible: bool = False) -> list[str]:
         """
         List the names of images found in image directories
         """
-        return []
+        images: list[str] = []
+        for image in self.session.podman.images.list():
+            for tag in image.tags:
+                images.append(tag)
+        return images
 
     def deduplicate(self):
         pass

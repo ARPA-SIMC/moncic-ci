@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import os
 import re
 import shlex
 import subprocess
@@ -14,6 +15,7 @@ from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
 
 if TYPE_CHECKING:
+    import podman
     from .moncic import Moncic
 
 
@@ -49,6 +51,13 @@ class Session(contextlib.ExitStack):
         if self.orig_moncic is not None:
             context.moncic.set(self.orig_moncic)
         return res
+
+    @cached_property
+    def podman(self) -> "podman.PodmanClient":
+        import podman
+
+        uri = f"unix:///run/user/{os.getuid()}/podman/podman.sock"
+        return self.enter_context(podman.PodmanClient(base_url=uri))
 
     @cached_property
     def images(self) -> imagestorage.Images:

@@ -52,16 +52,18 @@ class MultiImages(Images):
     def list_images(self, skip_unaccessible: bool = False) -> list[str]:
         """List the names of images found in image directories."""
         res: list[str] = []
-        for image in self.images:
-            res += image.list_images(skip_unaccessible=skip_unaccessible)
+        for images in self.images:
+            res += images.list_images(skip_unaccessible=skip_unaccessible)
         return res
 
     def image(self, name: str) -> Image:
         """
         Return the configuration for the named system
         """
-        # TODO: try all Images in sequence
-        raise NotImplementedError()
+        for images in self.images:
+            if name in images.list_images(skip_unaccessible=True):
+                return images.image(name)
+        raise RuntimeError(f"Image {name} not found")
 
     def deduplicate(self):
         for images in self.images:
