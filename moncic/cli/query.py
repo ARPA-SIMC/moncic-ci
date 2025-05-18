@@ -78,7 +78,12 @@ class Images(MoncicCommand):
             output = CSVOutput(sys.stdout)
         else:
             output = TableOutput(
-                sys.stdout, TextColumn("Name"), TextColumn("Distro"), TextColumn("Boostrapped"), TextColumn("Path")
+                sys.stdout,
+                TextColumn("Name"),
+                TextColumn("Distro"),
+                TextColumn("Boostrapped"),
+                TextColumn("Backend"),
+                TextColumn("Backend ID"),
             )
 
         # List images that have been bootstrapped
@@ -93,9 +98,15 @@ class Images(MoncicCommand):
         with self.moncic.session() as session:
             images = session.images
             for image in images.list_images():
-                # with image.system() as system:
-                #     output.add_row((name, system.distro.name, "yes" if name in bootstrapped else "no", system.path))
-                output.add_row((image.name, image.distro, "-", "-"))
+                output.add_row(
+                    (
+                        image.name,
+                        image.distro,
+                        "yes" if image.bootstrapped else "no",
+                        image.image_type,
+                        image.get_backend_id(),
+                    )
+                )
         output.flush()
 
 

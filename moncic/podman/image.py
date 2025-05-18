@@ -29,9 +29,13 @@ class PodmanImage(Image):
             osr = parse_osrelase_contents(fd, f"{name}:/etc/os-release")
         distro = DistroFamily.from_osrelease(osr, "test")
 
-        super().__init__(images=images, image_type=ImageType.PODMAN, name=name, distro=distro)
+        super().__init__(images=images, image_type=ImageType.PODMAN, name=name, distro=distro, bootstrapped=True)
         self.id: str = image.id
         self.short_id: str = image.short_id
+
+    @override
+    def get_backend_id(self) -> str:
+        return self.id
 
     def local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
         """

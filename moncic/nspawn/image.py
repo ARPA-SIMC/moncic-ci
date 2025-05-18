@@ -129,7 +129,15 @@ class NspawnImage(Image, abc.ABC):
         distro: Distro,
         path: Path,
     ) -> None:
-        super().__init__(images=images, image_type=ImageType.NSPAWN, name=name, distro=distro)
+        try:
+            bootstrapped = path.exists()
+        except PermissionError:
+            with images.session.moncic.privs.root():
+                bootstrapped = path.exists()
+
+        super().__init__(
+            images=images, image_type=ImageType.NSPAWN, name=name, distro=distro, bootstrapped=bootstrapped
+        )
         #: Path to the image on disk
         self.path: Path = path
         #: Path to the config file
@@ -220,6 +228,10 @@ class NspawnImage(Image, abc.ABC):
         Run a command on the host system.
         """
         return LocalRunner.run(self.logger, cmd, system_config=self)
+
+    @override
+    def get_backend_id(self) -> str:
+        return self.path.as_posix()
 
     @override
     def remove_config(self) -> None:

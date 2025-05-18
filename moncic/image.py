@@ -24,7 +24,9 @@ class Image(abc.ABC):
     Identify an image from which systems can be started.
     """
 
-    def __init__(self, *, images: "Images", image_type: ImageType, name: str, distro: Distro) -> None:
+    def __init__(
+        self, *, images: "Images", image_type: ImageType, name: str, distro: Distro, bootstrapped: bool
+    ) -> None:
         #: Images container
         self.images = images
         #: Container type
@@ -33,6 +35,8 @@ class Image(abc.ABC):
         self.name: str = name
         #: Image distribution
         self.distro: Distro = distro
+        #: True if the image is bootstrapped
+        self.bootstrapped: bool = bootstrapped
 
     @property
     def logger(self):
@@ -40,6 +44,10 @@ class Image(abc.ABC):
         Return a logger for this system
         """
         return logging.getLogger(f"system.{self.name}")
+
+    @abc.abstractmethod
+    def get_backend_id(self) -> str:
+        """Return how the image is called in the backend."""
 
     @abc.abstractmethod
     def bootstrap(self) -> None:
