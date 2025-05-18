@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import shlex
 from pathlib import Path
 from collections.abc import Iterator
+from typing import IO
 
 
 def iter_assigns(tokens: Iterator[str]):
@@ -23,8 +22,15 @@ def parse_osrelase(fname: Path) -> dict[str, str]:
     Parse an os-release file into a dict
     """
     with fname.open() as fd:
-        lexer = shlex.shlex(fd, fname, posix=True)
-        # Python 3.9 needs this, python 3.7 did not need it, release note don't
-        # seem to mention a relevant change
-        lexer.wordchars += "-"
-        return dict(iter_assigns(lexer))
+        return parse_osrelase_contents(fd, fname.as_posix())
+
+
+def parse_osrelase_contents(fd: IO[str], filename: str) -> dict[str, str]:
+    """
+    Parse an os-release file into a dict
+    """
+    lexer = shlex.shlex(fd, filename, posix=True)
+    # Python 3.9 needs this, python 3.7 did not need it, release note don't
+    # seem to mention a relevant change
+    lexer.wordchars += "-"
+    return dict(iter_assigns(lexer))

@@ -3,11 +3,10 @@ from __future__ import annotations
 import dataclasses
 import logging
 import os
-from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from moncic.container import ContainerConfig, RunConfig, UserConfig
-from moncic.distro import DistroFamily
 from moncic.system import System
 from .image import NspawnImage
 
@@ -31,7 +30,7 @@ class NspawnSystem(System):
 
     image: NspawnImage
 
-    def __init__(self, images: Images, config: NspawnImage, path: str | None = None) -> None:
+    def __init__(self, images: Images, config: NspawnImage, path: Path | None = None) -> None:
         super().__init__(images, config)
         self.images = images
         self.config = config
@@ -48,14 +47,7 @@ class NspawnSystem(System):
         """
         Return the distribution this system is based on
         """
-        if self.config.extends is not None:
-            image = self.images.image(self.config.extends)
-            with image.system() as parent:
-                return parent.distro
-        elif self.config.distro is not None:
-            return DistroFamily.lookup_distro(self.config.distro)
-        else:
-            raise RuntimeError("System configuration has neither `extends` nor `distro` set")
+        return self.config.distro
 
     def is_bootstrapped(self) -> bool:
         """
@@ -78,9 +70,9 @@ class NspawnSystem(System):
         """
         Check if any container in the chain forwards users
         """
-        res = set(self.config.forward_users)
-        if self.config.extends is not None:
-            parent_image = self.images.image(self.config.extends)
+        res = set(self.config.bootstrap_info.forward_users)
+        if self.config.bootstrap_info.extends is not None:
+            parent_image = self.images.image(self.config.bootstrap_info.extends)
             with parent_image.system() as parent:
                 res.update(parent._container_chain_forwards_users())
         return sorted(res)
@@ -91,12 +83,12 @@ class NspawnSystem(System):
         chain
         """
         res = []
-        if self.config.extends is not None:
-            parent_image = self.images.image(self.config.extends)
+        if self.config.bootstrap_info.extends is not None:
+            parent_image = self.images.image(self.config.bootstrap_info.extends)
             with parent_image.system() as parent:
                 res.extend(parent._container_chain_package_list())
         res.extend(self.distro.get_base_packages())
-        res.extend(self.config.packages)
+        res.extend(self.config.bootstrap_info.packages)
         return res
 
     def _container_chain_config_package_list(self) -> list[str]:
@@ -105,11 +97,11 @@ class NspawnSystem(System):
         chain
         """
         res = []
-        if self.config.extends is not None:
-            parent_image = self.images.image(self.config.extends)
+        if self.config.bootstrap_info.extends is not None:
+            parent_image = self.images.image(self.config.bootstrap_info.extends)
             with parent_image.system() as parent:
                 res.extend(parent._container_chain_config_package_list())
-        res.extend(self.config.packages)
+        res.extend(self.config.bootstrap_info.packages)
         return res
 
     def _container_chain_maintscripts(self) -> list[str]:
@@ -118,12 +110,12 @@ class NspawnSystem(System):
         calling distro.get_{name}_script on all the containers in the chain
         """
         res = []
-        if self.config.extends is not None:
-            parent_image = self.images.image(self.config.extends)
+        if self.config.bootstrap_info.extends is not None:
+            parent_image = self.images.image(self.config.bootstrap_info.extends)
             with parent_image.system() as parent:
                 res.extend(parent._container_chain_maintscripts())
-        if self.config.maintscript:
-            res.append(self.config.maintscript)
+        if self.config.bootstrap_info.maintscript:
+            res.append(self.config.bootstrap_info.maintscript)
         return res
 
     def _update_container(self, container: Container):
@@ -203,15 +195,15 @@ class NspawnSystem(System):
         """
         if config is None:
             config = ContainerConfig()
-            if self.config.tmpfs is not None:
-                config.tmpfs = self.config.tmpfs
+            if self.config.container_info.tmpfs is not None:
+                config.tmpfs = self.config.container_info.tmpfs
             else:
                 config.tmpfs = self.images.session.moncic.config.tmpfs
         elif config.ephemeral and config.tmpfs is None:
             # Make a copy to prevent changing the caller's config
             config = dataclasses.replace(config)
-            if self.config.tmpfs is not None:
-                config.tmpfs = self.config.tmpfs
+            if self.config.container_info.tmpfs is not None:
+                config.tmpfs = self.config.container_info.tmpfs
             else:
                 config.tmpfs = self.images.session.moncic.config.tmpfs
 

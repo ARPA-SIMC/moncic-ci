@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING, override
 
 from moncic.images import Images
+from moncic.image import Image
 
 if TYPE_CHECKING:
     from moncic.session import Session
@@ -25,14 +26,19 @@ class PodmanImages(Images):
 
         return PodmanImage(images=self, name=name)
 
-    def list_images(self, skip_unaccessible: bool = False) -> list[str]:
+    def has_image(self, name: str) -> bool:
+        """Check if the named image exists."""
+        raise NotImplementedError()
+
+    def list_images(self) -> list[Image]:
         """
         List the names of images found in image directories
         """
-        images: list[str] = []
-        for image in self.session.podman.images.list():
-            for tag in image.tags:
-                images.append(tag)
+        images: list[Image] = []
+        with self.session.moncic.privs.user():
+            for image in self.session.podman.images.list():
+                for tag in image.tags:
+                    images.append(self.image(tag))
         return images
 
     def deduplicate(self):

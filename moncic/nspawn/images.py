@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, override
 
 from moncic.utils.btrfs import do_dedupe
 from moncic.images import Images
+from moncic.image import Image
 from .image import NspawnImage, NspawnImagePlain, NspawnImageBtrfs
 
 if TYPE_CHECKING:
@@ -37,39 +38,28 @@ class NspawnImages(Images, abc.ABC):
         Return the configuration for the named system
         """
 
-    def list_images(self, skip_unaccessible: bool = False) -> list[str]:
+    @override
+    def has_image(self, name: str) -> bool:
+        """Check if the named image exists."""
+        for path in self.session.moncic.config.imageconfdirs:
+            if any((x.exists() for x in (path / name, path / f"{name}.yaml"))):
+                return True
+        return False
+
+    def list_images(self) -> list[Image]:
         """
         List the names of images found in image directories
         """
         res = set()
-        try:
-            with os.scandir(self.imagedir) as it:
-                for entry in it:
-                    if entry.name.startswith("."):
-                        continue
-
-                    if entry.is_dir():
-                        res.add(entry.name)
-                    elif entry.name.endswith(".yaml"):
-                        res.add(entry.name[:-5])
-        except PermissionError:
-            if not skip_unaccessible:
-                raise
-
         for path in self.session.moncic.config.imageconfdirs:
-            try:
-                with os.scandir(path) as it:
-                    for entry in it:
-                        if entry.name.startswith(".") or entry.is_dir():
-                            continue
-                        if not entry.name.endswith(".yaml") or entry.name == "moncic-ci.yaml":
-                            continue
-                        res.add(entry.name[:-5])
-            except PermissionError:
-                if not skip_unaccessible:
-                    raise
-
-        return sorted(res)
+            with os.scandir(path) as it:
+                for entry in it:
+                    if entry.name.startswith(".") or entry.is_dir():
+                        continue
+                    if not entry.name.endswith(".yaml") or entry.name == "moncic-ci.yaml":
+                        continue
+                    res.add(entry.name[:-5])
+        return [self.image(name) for name in sorted(res)]
 
     def get_distro_tarball(self, distro_name: str) -> str | None:
         """

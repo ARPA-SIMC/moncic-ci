@@ -3,6 +3,8 @@ import enum
 import logging
 from typing import TYPE_CHECKING, ContextManager
 
+from moncic.distro import Distro
+
 if TYPE_CHECKING:
     from .images import Images
     from .system import System
@@ -22,13 +24,15 @@ class Image(abc.ABC):
     Identify an image from which systems can be started.
     """
 
-    def __init__(self, *, images: "Images", image_type: ImageType, name: str) -> None:
+    def __init__(self, *, images: "Images", image_type: ImageType, name: str, distro: Distro) -> None:
         #: Images container
         self.images = images
         #: Container type
         self.image_type: ImageType = image_type
         #: Image name
         self.name: str = name
+        #: Image distribution
+        self.distro: Distro = distro
 
     @property
     def logger(self):

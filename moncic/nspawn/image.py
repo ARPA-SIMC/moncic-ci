@@ -5,13 +5,13 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, override, ContextManager, Generator
+from typing import TYPE_CHECKING, Self, override, ContextManager, Generator, NamedTuple, Any
 
 import yaml
 
 from moncic.runner import LocalRunner
 from moncic.image import Image, ImageType
-from moncic.distro import DistroFamily
+from moncic.distro import DistroFamily, Distro
 from moncic.utils.btrfs import Subvolume
 
 if TYPE_CHECKING:
@@ -22,6 +22,98 @@ if TYPE_CHECKING:
 log = logging.getLogger("nspawn")
 
 
+class BootstrapInfo(NamedTuple):
+    """Information used to bootstrap an image."""
+
+    # Name of the distribution used to bootstrap this image.
+    # If missing, this image needs to be created from an existing image
+    distro: str | None
+    # Name of the distribution used as a base for this one.
+    # If missing, this image needs to be created by bootstrapping from scratch
+    extends: str | None
+    # List of packages to install
+    packages: list[str]
+    # Contents of a script to run for system maintenance
+    maintscript: str | None
+    # List of users to propagate from host to image during maintenance
+    forward_users: list[str]
+    # When False, a CACHEDIR.TAG is created in the container image as a hint
+    # for backup programs to skip backing up an image that can be recreated
+    # from scratch
+    backup: bool
+    # Btrfs compression level to set on the OS image subvolume when it is
+    # created. The value is the same as can be set by `btrfs property set
+    # compression`. Default: the global 'compression' setting. You can use 'no'
+    # or 'none' to ask for no compression when one globally is set.
+    compression: str | None
+
+    @classmethod
+    def from_distro(cls, distro: Distro) -> Self:
+        return cls(
+            distro=distro.name,
+            extends=None,
+            packages=[],
+            maintscript=None,
+            forward_users=[],
+            backup=False,
+            compression=None,
+        )
+
+    @classmethod
+    def load(cls, conf: dict[str, Any]) -> Self:
+        """
+        Create from a parsed config file.
+
+        Remove parsed elements from dict.
+        """
+        distro = conf.pop("distro", None)
+        extends = conf.pop("extends", None)
+
+        # Make sure forward_users, if present, is a list of strings
+
+        if (fu := conf.pop("forward_user", None)) is None:
+            forward_users = []
+        elif isinstance(fu, str):
+            forward_users = [fu]
+        else:
+            forward_users = [str(e) for e in fu]
+
+        # Prepend a default shebang to the maintscript if missing
+        maintscript = conf.pop("maintscript", None)
+        if maintscript is not None and not maintscript.startswith("#!"):
+            maintscript = "#!/bin/sh\n" + maintscript
+
+        return cls(
+            distro=distro,
+            extends=extends,
+            packages=conf.pop("packages", None) or [],
+            maintscript=maintscript or None,
+            forward_users=forward_users,
+            backup=conf.pop("backup", False),
+            compression=conf.pop("compression", None),
+        )
+
+
+class ContainerInfo(NamedTuple):
+    """Information used to start a container."""
+
+    # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
+    #
+    # Leave to None to use system or container defaults.
+    tmpfs: bool | None = None
+
+    @classmethod
+    def load(cls, conf: dict[str, Any]) -> Self:
+        """
+        Create from a parsed config file.
+
+        Remove parsed elements from dict.
+        """
+        return cls(
+            tmpfs=conf.pop("tmpfs", None),
+        )
+
+
 class NspawnImage(Image, abc.ABC):
     """
     Configuration for a system
@@ -29,37 +121,23 @@ class NspawnImage(Image, abc.ABC):
 
     images: "NspawnImages"
 
-    def __init__(self, *, images: "NspawnImages", name: str, path: Path) -> None:
-        super().__init__(images=images, image_type=ImageType.NSPAWN, name=name)
+    def __init__(
+        self,
+        *,
+        images: "NspawnImages",
+        name: str,
+        distro: Distro,
+        path: Path,
+    ) -> None:
+        super().__init__(images=images, image_type=ImageType.NSPAWN, name=name, distro=distro)
         #: Path to the image on disk
         self.path: Path = path
         #: Path to the config file
         self.config_path: Path | None = None
-        # Name of the distribution used to bootstrap this image.
-        # If missing, this image needs to be created from an existing image
-        self.distro: str | None = None
-        # Name of the distribution used as a base for this one.
-        # If missing, this image needs to be created by bootstrapping from scratch
-        self.extends: str | None = None
-        # List of packages to install
-        self.packages: list[str] = []
-        # Contents of a script to run for system maintenance
-        self.maintscript: str | None = None
-        # List of users to propagate from host to image during maintenance
-        self.forward_users: list[str] = []
-        # When False, a CACHEDIR.TAG is created in the container image as a hint
-        # for backup programs to skip backing up an image that can be recreated
-        # from scratch
-        self.backup: bool = False
-        # Btrfs compression level to set on the OS image subvolume when it is
-        # created. The value is the same as can be set by `btrfs property set
-        # compression`. Default: the global 'compression' setting. You can use 'no'
-        # or 'none' to ask for no compression when one globally is set.
-        self.compression: str | None = None
-        # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
-        #
-        # Leave to None to use system or container defaults.
-        self.tmpfs: bool | None = None
+        #: Information used to bootstrap the image
+        self.bootstrap_info: BootstrapInfo = BootstrapInfo.from_distro(distro)
+        #: Information used to start containers
+        self.container_info: ContainerInfo = ContainerInfo()
 
     @classmethod
     def find_config(cls, mconfig: "MoncicConfig", imagedir: Path, name: str) -> Path | None:
@@ -97,52 +175,43 @@ class NspawnImage(Image, abc.ABC):
 
         image_path = (images.imagedir / name).absolute()
         log.debug("%s: image pathname: %s", name, image_path)
-        image = cls(images=images, name=name, path=image_path)
 
+        # Find distro
         if conf is None:
             try:
                 if image_path.exists():
-                    image.distro = DistroFamily.from_path(image_path).name
+                    distro = DistroFamily.from_path(image_path)
                 else:
-                    image.distro = name
+                    distro = DistroFamily.lookup_distro(name)
             except PermissionError:
-                image.distro = name
+                privs = images.session.moncic.privs
+                with privs.root():
+                    if image_path.exists():
+                        distro = DistroFamily.from_path(image_path)
+                    else:
+                        distro = DistroFamily.lookup_distro(name)
+            return cls(images=images, name=name, distro=distro, path=image_path)
+
+        distro_name = conf.pop("distro", None)
+        extends_name = conf.pop("extends", None)
+        if distro_name and extends_name:
+            raise RuntimeError(f"{name}: both 'distro' and 'extends' have been specified")
+        elif not distro_name and not extends_name:
+            raise RuntimeError(f"{name}: neither 'distro' nor 'extends' have been specified")
+
+        if distro_name:
+            distro = DistroFamily.lookup_distro(distro_name)
         else:
-            image.config_path = conf_path
-            has_distro = "distro" in conf
-            has_extends = "extends" in conf
-            if has_distro and has_extends:
-                raise RuntimeError(f"{name}: both 'distro' and 'extends' have been specified")
-            elif not has_distro and not has_extends:
-                raise RuntimeError(f"{name}: neither 'distro' nor 'extends' have been specified")
-            image.distro = conf.pop("distro", None)
-            image.extends = conf.pop("extends", None)
+            parent = images.image(extends_name)
+            distro = parent.distro
 
-            # Make sure forward_users, if present, is a list of strings
-            forward_users = conf.pop("forward_user", None)
-            if forward_users is None:
-                pass
-            elif isinstance(forward_users, str):
-                image.forward_users = [forward_users]
-            else:
-                image.forward_users = [str(e) for e in forward_users]
+        image = cls(images=images, name=name, path=image_path, distro=distro)
+        image.config_path = conf_path
+        image.bootstrap_info = BootstrapInfo.load(conf)
+        image.container_info = ContainerInfo.load(conf)
 
-            # Prepend a default shebang to the maintscript if missing
-            maintscript = conf.pop("maintscript", None)
-            if maintscript is not None and not maintscript.startswith("#!"):
-                image.maintscript = "#!/bin/sh\n" + maintscript
-            else:
-                image.maintscript = maintscript
-
-            if packages := conf.pop("packages", None):
-                image.packages = packages
-
-            image.backup = conf.pop("backup", False)
-            image.compression = conf.pop("compression", None)
-            image.tmpfs = conf.pop("tmpfs", None)
-
-            for key in conf.keys():
-                log.debug("%s: ignoring unsupported configuration: %r", conf_path, key)
+        for key in conf.keys():
+            log.debug("%s: ignoring unsupported configuration: %r", conf_path, key)
 
         return image
 
@@ -179,6 +248,9 @@ class NspawnImagePlain(NspawnImage):
         if self.path.exists():
             return
 
+        if self.bootstrap_info is None:
+            raise RuntimeError(f"{self.name} has no bootstrap information")
+
         log.info("%s: bootstrapping directory", self.name)
 
         orig_path = self.path
@@ -186,20 +258,19 @@ class NspawnImagePlain(NspawnImage):
         try:
             self.path = work_path
             try:
-                if self.extends is not None:
+                if self.bootstrap_info.extends is not None:
                     parent = self.images.image(self.extends)
                     assert isinstance(parent, NspawnImage)
                     self.local_run(["cp", "--reflink=auto", "-a", parent.path.as_posix(), work_path.as_posix()])
                 else:
-                    tarball_path = self.images.get_distro_tarball(self.distro)
+                    tarball_path = self.images.get_distro_tarball(self.bootstrap_info.distro)
                     if tarball_path is not None:
                         # Shortcut in case we have a chroot in a tarball
                         os.mkdir(work_path)
                         self.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
                     else:
                         system = MaintenanceSystem(self.images, self)
-                        distro = DistroFamily.lookup_distro(self.distro)
-                        distro.bootstrap(system)
+                        self.distro.bootstrap(system)
             except BaseException:
                 shutil.rmtree(work_path)
                 raise

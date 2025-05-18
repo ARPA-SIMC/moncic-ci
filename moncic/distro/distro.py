@@ -107,15 +107,22 @@ class DistroFamily:
         if info is None:
             return cls.lookup_distro(path.name)
 
+        return cls.from_osrelease(info, path.name)
+
+    @classmethod
+    def from_osrelease(cls, info: dict[str, str], fallback_name: str) -> Distro:
+        """
+        Instantiate a Distro from a parsed os-release file
+        """
         if (os_id := info.get("ID")) is None:
-            return cls.lookup_distro(path.name)
+            return cls.lookup_distro(fallback_name)
 
         os_version = info.get("VERSION_ID")
         if os_version is None and os_id == "debian":
             os_version = "sid"
 
         if os_version is None:
-            return cls.lookup_distro(path.name)
+            return cls.lookup_distro(fallback_name)
 
         family = cls.lookup_family(os_id)
         return family.create_distro(os_version)

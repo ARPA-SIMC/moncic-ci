@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import copy
 import logging
-import os
 import re
 import shlex
 import subprocess
@@ -66,7 +65,7 @@ def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic, None, N
     else:
         config = MoncicConfig.load()
 
-    if not os.path.isdir(config.imagedir):
+    if config.imagedir is None or not config.imagedir.is_dir():
         with tempfile.TemporaryDirectory() as imagedir:
             config.imagedir = Path(imagedir)
             yield Moncic(config=config, privs=privs)
@@ -289,9 +288,12 @@ class DistroTestMixin:
         with self.config() as mconfig, make_moncic(mconfig) as moncic:
 
             def _load(mconfig: MoncicConfig, images: NspawnImages, name: str):
-                image = NspawnImagePlain(images=images, name=name, path=mconfig.imagedir / "test")
-                image.distro = distro.name
-                return image
+                return NspawnImagePlain(
+                    images=images,
+                    name=name,
+                    distro=distro,
+                    path=mconfig.imagedir / "test",
+                )
 
             with mock.patch("moncic.nspawn.image.NspawnImage.load", new=_load):
                 with moncic.session() as session:
