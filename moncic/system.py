@@ -37,7 +37,3 @@ class System(abc.ABC):
     def is_bootstrapped(self) -> bool:
         """Check if the image has been bootstrapped."""
         return self.image.bootstrapped
-
-    @abc.abstractmethod
-    def describe_container(self) -> dict[str, Any]:
-        """Return a dictionary describing facts about the container."""

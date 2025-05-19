@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import abc
 import dataclasses
 import errno
 import hashlib
@@ -15,15 +16,15 @@ import tempfile
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ContextManager, NoReturn, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, ContextManager, NoReturn, TypeVar
 
+from .image import Image
 from .runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
 from .utils import libbanana
 from .utils.deb import apt_get_cmd
 from .utils.nspawn import escape_bind_ro
+from .nspawn.image import NspawnImage
 
-if TYPE_CHECKING:
-    from moncic.nspawn.system import NspawnSystem
 
 Result = TypeVar("Result")
 
@@ -324,106 +325,22 @@ class ContainerConfig:
         return res
 
 
-class Container(ContextManager, Protocol):
+class Container(ContextManager, abc.ABC):
     """
     An instance of a System in execution as a container
     """
 
-    system: NspawnSystem
-    config: ContainerConfig
-    # Default to False, set to True to leave the container running on exit
-    linger: bool
     # Name of the running container instance, which can be used to access it
     # with normal user commands
     instance_name: str
 
-    def forward_user(self, user: UserConfig, allow_maint: bool = False):
-        """
-        Ensure the system has a matching user and group
-        """
-        ...
-
-    def get_root(self) -> Path:
-        """
-        Return the path to the root directory of this container
-        """
-        ...
-
-    def binds(self) -> Iterator[BindConfig]:
-        """
-        Iterate the bind mounts active on this container
-        """
-        ...
-
-    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
-        """
-        Run the given command inside the running system.
-
-        Returns a dict with:
-        {
-            "stdout": bytes,
-            "stderr": bytes,
-            "returncode": int,
-        }
-
-        stdout and stderr are logged in real time as the process is running.
-        """
-        ...
-
-    def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
-        """
-        Run the given string as a script in the machine.
-
-        A shebang at the beginning of the script will be honored.
-
-        Returns the process exit status.
-        """
-        ...
-
-    def run_callable_raw(
-        self,
-        func: Callable[..., Result],
-        config: RunConfig | None = None,
-        args: tuple = (),
-        kwargs: dict[str, Any] | None = None,
-    ) -> CompletedCallable[Result]:
-        """
-        Run the given callable in a separate process inside the running
-        system. Returns a CompletedCallable describing details of the execution
-        """
-        ...
-
-    def run_callable(
-        self,
-        func: Callable[..., Result],
-        config: RunConfig | None = None,
-        args: tuple = (),
-        kwargs: dict[str, Any] | None = None,
-    ) -> Result:
-        """
-        Run the given callable in a separate process inside the running
-        system. Returns the function's result
-        """
-        ...
-
-    def run_shell(self, config: RunConfig | None):
-        """
-        Open a shell in the container
-        """
-        ...
-
-
-class ContainerBase:
-    """
-    Convenience common base implementation for Container
-    """
-
-    def __init__(self, system: NspawnSystem, config: ContainerConfig, instance_name: str | None = None):
+    def __init__(self, image: Image, config: ContainerConfig, instance_name: str | None = None):
         global machine_name_sequence_pid, machine_name_sequence
         super().__init__()
-        self.system = system
-        self.linger = False
-
+        self.image = image
+        self.config = config
+        #: Default to False, set to True to leave the container running on exit
+        self.linger: bool = False
         if instance_name is None:
             current_pid = os.getpid()
             if machine_name_sequence_pid is None or machine_name_sequence_pid != current_pid:
@@ -442,12 +359,6 @@ class ContainerBase:
         self.config = config
         self.started = False
 
-    def _start(self):
-        raise NotImplementedError(f"{self.__class__}._start not implemented")
-
-    def _stop(self):
-        raise NotImplementedError(f"{self.__class__}._stop not implemented")
-
     def __enter__(self):
         if not self.started:
             try:
@@ -462,9 +373,56 @@ class ContainerBase:
         if self.started and not self.linger:
             self._stop()
 
-    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
-        raise NotImplementedError(f"{self.__class__}._run not implemented")
+    @abc.abstractmethod
+    def _start(self): ...
 
+    @abc.abstractmethod
+    def _stop(self): ...
+
+    @abc.abstractmethod
+    def forward_user(self, user: UserConfig, allow_maint: bool = False):
+        """
+        Ensure the system has a matching user and group
+        """
+
+    @abc.abstractmethod
+    def get_root(self) -> Path:
+        """
+        Return the path to the root directory of this container
+        """
+
+    @abc.abstractmethod
+    def binds(self) -> Iterator[BindConfig]:
+        """
+        Iterate the bind mounts active on this container
+        """
+
+    @abc.abstractmethod
+    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
+        """
+        Run the given command inside the running system.
+
+        Returns a dict with:
+        {
+            "stdout": bytes,
+            "stderr": bytes,
+            "returncode": int,
+        }
+
+        stdout and stderr are logged in real time as the process is running.
+        """
+
+    @abc.abstractmethod
+    def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
+        """
+        Run the given string as a script in the machine.
+
+        A shebang at the beginning of the script will be honored.
+
+        Returns the process exit status.
+        """
+
+    @abc.abstractmethod
     def run_callable_raw(
         self,
         func: Callable[..., Result],
@@ -472,7 +430,10 @@ class ContainerBase:
         args: tuple = (),
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
-        raise NotImplementedError(f"{self.__class__}._run_callable_raw not implemented")
+        """
+        Run the given callable in a separate process inside the running
+        system. Returns a CompletedCallable describing details of the execution
+        """
 
     def run_callable(
         self,
@@ -481,10 +442,17 @@ class ContainerBase:
         args: tuple = (),
         kwargs: dict[str, Any] | None = None,
     ) -> Result:
+        """
+        Run the given callable in a separate process inside the running
+        system. Returns the function's result
+        """
         completed = self.run_callable_raw(func, config, args, kwargs)
         return completed.result()
 
-    def run_shell(self, config: RunConfig | None):
+    def run_shell(self, config: RunConfig | None) -> CompletedCallable:
+        """
+        Open a shell in the container
+        """
         shell_candidates = []
         if "SHELL" in os.environ:
             shell_candidates.append(os.environ["SHELL"])
@@ -505,10 +473,12 @@ class ContainerBase:
         return self.run([shell, "--login"], config=config)
 
 
-class NspawnContainer(ContainerBase):
+class NspawnContainer(Container):
     """
     Running system implemented using systemd nspawn
     """
+
+    image: NspawnImage
 
     def __init__(self, *args, **kw) -> None:
         super().__init__(*args, **kw)
@@ -545,10 +515,10 @@ class NspawnContainer(ContainerBase):
 
         systemd_run_cmd.extend(cmd)
 
-        self.system.log.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
+        self.image.logger.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
         res = subprocess.run(systemd_run_cmd, capture_output=True)
         if res.returncode != 0:
-            self.system.log.error(
+            self.image.logger.error(
                 "Failed to run %s (exit code %d): %r",
                 " ".join(shlex.quote(c) for c in systemd_run_cmd),
                 res.returncode,
@@ -560,7 +530,7 @@ class NspawnContainer(ContainerBase):
         cmd = [
             "systemd-nspawn",
             "--quiet",
-            f"--directory={self.system.path}",
+            f"--directory={self.image.path}",
             f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
@@ -579,7 +549,7 @@ class NspawnContainer(ContainerBase):
                 cmd.append("--read-only")
             else:
                 cmd.append("--ephemeral")
-        if self.system.images.session.moncic.systemd_version >= 250:
+        if self.image.images.session.moncic.systemd_version >= 250:
             cmd.append("--suppress-sync=yes")
         cmd.append(f"systemd.hostname={self.instance_name}")
         return cmd
@@ -622,8 +592,8 @@ class NspawnContainer(ContainerBase):
         self.run_callable(forward, config=RunConfig(user=UserConfig.root()))
 
     def _start(self):
-        self.system.log.info(
-            "Starting system %s as %s using image %s", self.system.name, self.instance_name, self.system.path
+        self.image.logger.info(
+            "Starting system %s as %s using image %s", self.image.name, self.instance_name, self.image.path
         )
 
         cmd = self.get_start_command()
@@ -737,7 +707,7 @@ class NspawnContainer(ContainerBase):
         return completed
 
 
-class MockContainer(ContainerBase):
+class MockContainer(Container):
     """
     Mock container used for tests
     """
@@ -746,17 +716,17 @@ class MockContainer(ContainerBase):
         return Path(self.properties["RootDirectory"])
 
     def _start(self):
-        self.system.images.session.mock_log(system=self.system.name, action="container start")
+        self.image.images.session.mock_log(system=self.image.name, action="container start")
         self.started = True
 
     def _stop(self):
-        self.system.images.session.mock_log(system=self.system.name, action="container stop")
+        self.image.images.session.mock_log(system=self.image.name, action="container stop")
         self.started = False
 
     def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
         run_config = self.config.run_config(config)
-        self.system.images.session.mock_log(system=self.system.name, action="run", config=run_config, cmd=command)
-        return self.system.images.session.get_process_result(args=command)
+        self.image.images.session.mock_log(system=self.image.name, action="run", config=run_config, cmd=command)
+        return self.image.images.session.get_process_result(args=command)
 
     def run_callable_raw(
         self,
@@ -766,8 +736,8 @@ class MockContainer(ContainerBase):
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
-        self.system.images.session.mock_log(
-            system=self.system.name,
+        self.image.images.session.mock_log(
+            system=self.image.name,
             action="run callable",
             config=run_config,
             func=func.__name__,

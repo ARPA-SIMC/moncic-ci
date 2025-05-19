@@ -82,7 +82,7 @@ class NspawnSystem(System):
         # Import here to avoid an import loop
         from moncic.container import NspawnContainer
 
-        return NspawnContainer(self, config, instance_name)
+        return NspawnContainer(self.image, config, instance_name)
 
 
 class MaintenanceMixin(NspawnSystem):

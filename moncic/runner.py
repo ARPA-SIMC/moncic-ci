@@ -358,7 +358,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
         args: tuple[Any] = (),
         kwargs: dict[str, Any] | None = None,
     ):
-        super().__init__(container.system.log, config)
+        super().__init__(container.image.logger, config)
         self.container = container
         self.leader_pid = int(container.properties["Leader"])
         self.func = func
@@ -501,7 +501,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 # Refork to actually enter the PID namespace
                 pid = os.fork()
                 if pid == 0:
-                    context.system.set(self.container.system)
+                    context.system.set(self.container.image)
                     context.container.set(self.container)
                     try:
                         guest.in_guest = True
