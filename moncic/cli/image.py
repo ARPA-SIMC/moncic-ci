@@ -277,13 +277,12 @@ class Describe(MoncicCommand):
         ryaml = ruamel.yaml.YAML(typ="rt")
         with self.moncic.session() as session:
             image = session.images.image(self.args.name)
-            with image.system() as system:
-                info = system.describe_container()
-                if maintscripts := info.get("maintscripts"):
-                    info["maintscripts"] = [
-                        ruamel.yaml.scalarstring.LiteralScalarString(maintscript) for maintscript in maintscripts
-                    ]
-                ryaml.dump(info, sys.stdout)
+            info = image.describe_container()
+            if maintscripts := info.get("maintscripts"):
+                info["maintscripts"] = [
+                    ruamel.yaml.scalarstring.LiteralScalarString(maintscript) for maintscript in maintscripts
+                ]
+            ryaml.dump(info, sys.stdout)
 
 
 @main_command

@@ -28,7 +28,8 @@ class PodmanImages(Images):
 
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
-        raise NotImplementedError()
+        with self.session.moncic.privs.user():
+            return self.session.podman.images.exists(name)
 
     def list_images(self) -> list[Image]:
         """

@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     import subprocess
 
     from moncic.container import Container
-    from moncic.distro import Distro
     from moncic.imagestorage import Images
 
 log = logging.getLogger(__name__)
@@ -30,30 +29,15 @@ class NspawnSystem(System):
 
     image: NspawnImage
 
-    def __init__(self, images: Images, config: NspawnImage, path: Path | None = None) -> None:
+    def __init__(self, images: Images, config: NspawnImage) -> None:
         super().__init__(images, config)
         self.images = images
         self.config = config
         self.log = config.logger
-        if path is None:
-            self.path = self.config.path
-        else:
-            self.path = path
+        self.path = self.config.path
 
     def __repr__(self) -> str:
         return f"{self.distro}@{self.path}"
-
-    def _get_distro(self) -> Distro:
-        """
-        Return the distribution this system is based on
-        """
-        return self.config.distro
-
-    def is_bootstrapped(self) -> bool:
-        """
-        Check if the image has been bootstrapped
-        """
-        return os.path.exists(self.path)
 
     def local_run(self, cmd: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
         """
@@ -61,133 +45,7 @@ class NspawnSystem(System):
 
         This is used for bootstrapping or removing a system.
         """
-        # Import here to avoid dependency loops
-        from moncic.runner import LocalRunner
-
-        return LocalRunner.run(self.log, cmd, config, self.config)
-
-    def _container_chain_forwards_users(self) -> list[str]:
-        """
-        Check if any container in the chain forwards users
-        """
-        res = set(self.config.bootstrap_info.forward_users)
-        if self.config.bootstrap_info.extends is not None:
-            parent_image = self.images.image(self.config.bootstrap_info.extends)
-            with parent_image.system() as parent:
-                res.update(parent._container_chain_forwards_users())
-        return sorted(res)
-
-    def _container_chain_package_list(self) -> list[str]:
-        """
-        Concatenate the requested package lists for all containers in the
-        chain
-        """
-        res = []
-        if self.config.bootstrap_info.extends is not None:
-            parent_image = self.images.image(self.config.bootstrap_info.extends)
-            with parent_image.system() as parent:
-                res.extend(parent._container_chain_package_list())
-        res.extend(self.distro.get_base_packages())
-        res.extend(self.config.bootstrap_info.packages)
-        return res
-
-    def _container_chain_config_package_list(self) -> list[str]:
-        """
-        Concatenate the requested package lists for all containers in the
-        chain
-        """
-        res = []
-        if self.config.bootstrap_info.extends is not None:
-            parent_image = self.images.image(self.config.bootstrap_info.extends)
-            with parent_image.system() as parent:
-                res.extend(parent._container_chain_config_package_list())
-        res.extend(self.config.bootstrap_info.packages)
-        return res
-
-    def _container_chain_maintscripts(self) -> list[str]:
-        """
-        Build a script with the concatenation of all scripts coming from
-        calling distro.get_{name}_script on all the containers in the chain
-        """
-        res = []
-        if self.config.bootstrap_info.extends is not None:
-            parent_image = self.images.image(self.config.bootstrap_info.extends)
-            with parent_image.system() as parent:
-                res.extend(parent._container_chain_maintscripts())
-        if self.config.bootstrap_info.maintscript:
-            res.append(self.config.bootstrap_info.maintscript)
-        return res
-
-    def _update_container(self, container: Container):
-        """
-        Run update machinery on a container.
-        """
-        # Forward users if needed
-        for u in self._container_chain_forwards_users():
-            container.forward_user(UserConfig.from_user(u), allow_maint=True)
-
-        # Setup network
-        for cmd in self.distro.get_setup_network_script(self):
-            container.run(cmd)
-
-        # Update package databases
-        for cmd in self.distro.get_update_pkgdb_script(self):
-            container.run(cmd)
-
-        # Upgrade system packages
-        for cmd in self.distro.get_upgrade_system_script(self):
-            container.run(cmd)
-
-        # Build list of packages to install, removing duplicates
-        packages: list[str] = []
-        seen: set[str] = set()
-        for pkg in self._container_chain_package_list():
-            if pkg in seen:
-                continue
-            packages.append(pkg)
-            seen.add(pkg)
-
-        # Install packages
-        for cmd in self.distro.get_install_packages_script(self, packages):
-            container.run(cmd)
-
-        # Run maintscripts
-        for script in self._container_chain_maintscripts():
-            container.run_script(script)
-
-    def describe_container(self) -> dict[str, Any]:
-        """
-        Return a dictionary describing facts about the container
-        """
-        res: dict[str, Any] = {}
-
-        # Forward users if needed
-        if users_forwarded := self._container_chain_forwards_users():
-            res["users_forwarded"] = users_forwarded
-
-        # Build list of packages to install, removing duplicates
-        packages: set[str] = set()
-        for pkg in self._container_chain_config_package_list():
-            packages.add(pkg)
-
-        res["packages_required"] = sorted(packages)
-
-        if packages:
-            with self.create_container() as container:
-                try:
-                    res["packages_installed"] = dict(
-                        container.run_callable(self.distro.get_versions, args=(res["packages_required"],)).result()
-                    )
-                except NotImplementedError as e:
-                    self.log.info("cannot get details of how package requirements have been resolved: %s", e)
-        else:
-            res["packages_installed"] = {}
-
-        # Describe maintscripts
-        if scripts := self._container_chain_maintscripts():
-            res["maintscripts"] = scripts
-
-        return res
+        return self.config.local_run(cmd, config)
 
     def container_config(self, config: ContainerConfig | None = None) -> ContainerConfig:
         """
@@ -233,6 +91,43 @@ class MaintenanceMixin(NspawnSystem):
         # Force ephemeral to False in maintenance systems
         config.ephemeral = False
         return config
+
+    def _update_container(self, container: Container):
+        """
+        Run update machinery on a container.
+        """
+        # Forward users if needed
+        for u in self.config.forwards_users:
+            container.forward_user(UserConfig.from_user(u), allow_maint=True)
+
+        # Setup network
+        for cmd in self.distro.get_setup_network_script(self):
+            container.run(cmd)
+
+        # Update package databases
+        for cmd in self.distro.get_update_pkgdb_script(self):
+            container.run(cmd)
+
+        # Upgrade system packages
+        for cmd in self.distro.get_upgrade_system_script(self):
+            container.run(cmd)
+
+        # Build list of packages to install, removing duplicates
+        packages: list[str] = []
+        seen: set[str] = set()
+        for pkg in self.config.package_list:
+            if pkg in seen:
+                continue
+            packages.append(pkg)
+            seen.add(pkg)
+
+        # Install packages
+        for cmd in self.distro.get_install_packages_script(self, packages):
+            container.run(cmd)
+
+        # Run maintscripts
+        for script in self.config.maintscripts:
+            container.run_script(script)
 
     def update(self):
         """

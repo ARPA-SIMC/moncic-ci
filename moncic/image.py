@@ -1,7 +1,7 @@
 import abc
 import enum
 import logging
-from typing import TYPE_CHECKING, ContextManager
+from typing import TYPE_CHECKING, ContextManager, Any
 
 from moncic.distro import Distro
 
@@ -68,3 +68,7 @@ class Image(abc.ABC):
         of this context manager.
         """
         # TODO: move to Image
+
+    def describe_container(self) -> dict[str, Any]:
+        """Return a dictionary describing facts about the container."""
+        return {}

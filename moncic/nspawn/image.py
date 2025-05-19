@@ -1,4 +1,5 @@
 import abc
+from functools import cached_property
 import contextlib
 import logging
 import os
@@ -9,7 +10,7 @@ from typing import TYPE_CHECKING, Self, override, ContextManager, Generator, Nam
 
 import yaml
 
-from moncic.runner import LocalRunner
+from moncic.container import RunConfig
 from moncic.image import Image, ImageType
 from moncic.distro import DistroFamily, Distro
 from moncic.utils.btrfs import Subvolume
@@ -223,11 +224,15 @@ class NspawnImage(Image, abc.ABC):
 
         return image
 
-    def local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
+    def local_run(self, cmd: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
+
+        This is used for bootstrapping or removing a system.
         """
-        return LocalRunner.run(self.logger, cmd, system_config=self)
+        from moncic.runner import LocalRunner
+
+        return LocalRunner.run(self.logger, cmd, config, system_config=self)
 
     @override
     def get_backend_id(self) -> str:
@@ -250,6 +255,94 @@ class NspawnImage(Image, abc.ABC):
         support it, so that errors in the maintenance roll back to the previous
         state and do not leave an inconsistent OS image
         """
+
+    @cached_property
+    def forwards_users(self) -> list[str]:
+        """
+        Check if any container in the chain forwards users
+        """
+        res = set(self.bootstrap_info.forward_users)
+        if self.bootstrap_info.extends is not None:
+            parent = self.images.image(self.bootstrap_info.extends)
+            res.update(parent.forwards_users)
+        return sorted(res)
+
+    @cached_property
+    def package_list(self) -> list[str]:
+        """
+        Concatenate the requested package lists for all containers in the
+        chain
+        """
+        res = []
+        if self.bootstrap_info.extends is not None:
+            parent = self.images.image(self.bootstrap_info.extends)
+            res.extend(parent.package_list)
+        res.extend(self.distro.get_base_packages())
+        res.extend(self.bootstrap_info.packages)
+        return res
+
+    @cached_property
+    def config_package_list(self) -> list[str]:
+        """
+        Concatenate the requested package lists for all containers in the
+        chain
+        """
+        res = []
+        if self.bootstrap_info.extends is not None:
+            parent = self.images.image(self.bootstrap_info.extends)
+            res.extend(parent.config_package_list)
+        res.extend(self.bootstrap_info.packages)
+        return res
+
+    @cached_property
+    def maintscripts(self) -> list[str]:
+        """
+        Build a script with the concatenation of all scripts coming from
+        calling distro.get_{name}_script on all the containers in the chain
+        """
+        res = []
+        if self.bootstrap_info.extends is not None:
+            parent = self.images.image(self.bootstrap_info.extends)
+            res.extend(parent.maintscripts)
+        if self.bootstrap_info.maintscript:
+            res.append(self.bootstrap_info.maintscript)
+        return res
+
+    @override
+    def describe_container(self) -> dict[str, Any]:
+        """
+        Return a dictionary describing facts about the container
+        """
+        res: dict[str, Any] = super().describe_container()
+
+        # Forward users if needed
+        if users_forwarded := self.forwards_users:
+            res["users_forwarded"] = users_forwarded
+
+        # Build list of packages to install, removing duplicates
+        packages: set[str] = set()
+        for pkg in self.config_package_list:
+            packages.add(pkg)
+
+        res["packages_required"] = sorted(packages)
+
+        # TODO: move to parent image once we can instantiate containers?
+        # if packages:
+        #     with self.create_container() as container:
+        #         try:
+        #             res["packages_installed"] = dict(
+        #                 container.run_callable(self.distro.get_versions, args=(res["packages_required"],)).result()
+        #             )
+        #         except NotImplementedError as e:
+        #             self.log.info("cannot get details of how package requirements have been resolved: %s", e)
+        # else:
+        #     res["packages_installed"] = {}
+
+        # Describe maintscripts
+        if scripts := self.maintscripts:
+            res["maintscripts"] = scripts
+
+        return res
 
 
 class NspawnImagePlain(NspawnImage):

@@ -15,7 +15,7 @@ from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
 
 if TYPE_CHECKING:
-    import podman
+    import podman as _podman
     from .moncic import Moncic
 
 
@@ -53,7 +53,7 @@ class Session(contextlib.ExitStack):
         return res
 
     @cached_property
-    def podman(self) -> "podman.PodmanClient":
+    def podman(self) -> "_podman.PodmanClient":
         import podman
 
         uri = f"unix:///run/user/{os.getuid()}/podman/podman.sock"

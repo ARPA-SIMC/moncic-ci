@@ -29,18 +29,14 @@ class System(abc.ABC):
     def name(self) -> str:
         return self.image.name
 
-    @abc.abstractmethod
-    def _get_distro(self) -> "Distro":
-        """Return the distribution this system is based on."""
-
     @cached_property
     def distro(self) -> "Distro":
         """Return the distribution this system is based on."""
-        return self._get_distro()
+        return self.image.distro
 
-    @abc.abstractmethod
     def is_bootstrapped(self) -> bool:
         """Check if the image has been bootstrapped."""
+        return self.image.bootstrapped
 
     @abc.abstractmethod
     def describe_container(self) -> dict[str, Any]:
