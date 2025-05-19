@@ -80,7 +80,7 @@ class NspawnSystem(System):
         config = self.container_config(config)
 
         # Import here to avoid an import loop
-        from moncic.container import NspawnContainer
+        from .container import NspawnContainer
 
         return NspawnContainer(self.image, config, instance_name)
 

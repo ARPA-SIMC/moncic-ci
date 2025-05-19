@@ -252,12 +252,12 @@ class DistroTestMixin:
             rlog.append_callable(func)
             return CompletedCallable(func.__name__, 0, b"", b"")
 
-        with mock.patch("moncic.container.NspawnContainer._start", new=_start):
-            with mock.patch("moncic.container.NspawnContainer._stop", new=_stop):
-                with mock.patch("moncic.container.NspawnContainer.forward_user", new=_forward_user):
-                    with mock.patch("moncic.container.NspawnContainer.run", new=_run):
-                        with mock.patch("moncic.container.NspawnContainer.run_script", new=_run_script):
-                            with mock.patch("moncic.container.NspawnContainer.run_callable", new=_run_callable):
+        with mock.patch("moncic.nspawn.container.NspawnContainer._start", new=_start):
+            with mock.patch("moncic.nspawn.container.NspawnContainer._stop", new=_stop):
+                with mock.patch("moncic.nspawn.container.NspawnContainer.forward_user", new=_forward_user):
+                    with mock.patch("moncic.nspawn.container.NspawnContainer.run", new=_run):
+                        with mock.patch("moncic.nspawn.container.NspawnContainer.run_script", new=_run_script):
+                            with mock.patch("moncic.nspawn.container.NspawnContainer.run_callable", new=_run_callable):
                                 yield rlog
 
     @contextlib.contextmanager
