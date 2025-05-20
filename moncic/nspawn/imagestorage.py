@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from moncic.imagestorage import ImageStorage
 from moncic.utils.btrfs import is_btrfs
 
-from .images import BtrfsImages, NspawnImages, PlainImages
+from .images import BtrfsImages, PlainImages, PlainMachinectlImages, BtrfsMachinectlImages
 
 if TYPE_CHECKING:
     from moncic.images import Images
@@ -80,7 +80,7 @@ class PlainMachineImageStorage(PlainImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
-        yield NspawnImages(self.session, self.imagedir)
+        yield PlainMachinectlImages(self.session, self.imagedir)
 
 
 class BtrfsMachineImageStorage(BtrfsImageStorage):
@@ -94,4 +94,4 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
-        yield BtrfsImages(self.session, self.imagedir)
+        yield BtrfsMachinectlImages(self.session, self.imagedir)

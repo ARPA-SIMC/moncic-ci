@@ -4,6 +4,7 @@ import abc
 import graphlib
 import logging
 import os
+import subprocess
 import stat
 from collections import defaultdict
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, override
 from moncic.image import Image
 from moncic.images import Images
 from moncic.utils.btrfs import do_dedupe
+from moncic.context import privs
 
 from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
 
@@ -48,6 +50,7 @@ class NspawnImages(Images, abc.ABC):
                 return True
         return False
 
+    @override
     def list_images(self) -> list[Image]:
         """
         List the names of images found in image directories
@@ -160,3 +163,36 @@ class BtrfsImages(NspawnImages):
             total_saved += saved
 
         log.info("%d total bytes are currently deduplicated", total_saved)
+
+
+class MachinectlImages(NspawnImages):
+    def _list_machines(self) -> set[str]:
+        res = subprocess.run(
+            ["machinectl", "list-images", "--no-pager", "--no-legend"], check=True, stdout=subprocess.PIPE, text=True
+        )
+        names: set[str] = set()
+        for line in res.stdout.splitlines():
+            names.add(line.split()[0])
+        return names
+
+    @override
+    def has_image(self, name: str) -> bool:
+        """Check if the named image exists."""
+        return name in self._list_machines()
+
+    @override
+    def list_images(self) -> list[Image]:
+        """
+        List the names of images found in image directories
+        """
+        res = self._list_machines()
+        with privs.root():
+            return [self.image(name) for name in sorted(res)]
+
+
+class PlainMachinectlImages(MachinectlImages, PlainImages):
+    pass
+
+
+class BtrfsMachinectlImages(MachinectlImages, BtrfsImages):
+    pass
