@@ -56,14 +56,23 @@ class MockImage(NspawnImage):
         raise NotImplementedError()
 
     @contextlib.contextmanager
-    def system(self) -> Generator["MockSystem", None, None]:
+    def container(self) -> Generator["MockSystem", None, None]:
         from .system import MockSystem
 
         yield MockSystem(self.images, self)
 
     @contextlib.contextmanager
-    def maintenance_system(self) -> Generator["MaintenanceSystem", None, None]:
+    def maintenance_container(self) -> Generator["MaintenanceSystem", None, None]:
         from .system import MockMaintenanceSystem
 
         image = self.image(name)
         yield MockMaintenanceSystem(self.images, self)
+
+    def create_container(self, instance_name: str | None = None, config: ContainerConfig | None = None) -> Container:
+        """
+        Boot a container with this system
+        """
+        from moncic.container import MockContainer
+
+        config = self.container_config(config)
+        return MockContainer(self, config, instance_name)

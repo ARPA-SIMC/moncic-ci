@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import abc
 import logging
-import os
-from typing import TYPE_CHECKING, ContextManager
+from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
     from .image import Image
     from .session import Session
-    from .system import System
 
 log = logging.getLogger("images")
 

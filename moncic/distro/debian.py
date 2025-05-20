@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 import contextlib
-import os
 import re
 import shutil
 import subprocess
 import tempfile
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import requests
 
-from ..container import BindConfig, ContainerConfig
+from ..container import Container, BindConfig, ContainerConfig
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.image import Image
 
 
 @DistroFamily.register
@@ -114,12 +113,12 @@ class DebianDistro(Distro):
         self.mirror = mirror
         self.suite = suite
 
-    def container_config_hook(self, system: NspawnSystem, config: ContainerConfig):
-        super().container_config_hook(system, config)
-        if apt_archive_path := system.images.session.apt_archives:
+    def container_config_hook(self, image: "Image", config: ContainerConfig):
+        super().container_config_hook(image, config)
+        if apt_archive_path := image.images.session.apt_archives:
             config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", "aptcache"))
 
-        if extra_packages_dir := system.images.session.extra_packages_dir:
+        if extra_packages_dir := image.images.session.extra_packages_dir:
             config.binds.append(BindConfig.create(extra_packages_dir, "/srv/moncic-ci/mirror/packages", "aptpackages"))
 
     def get_base_packages(self) -> list[str]:
@@ -137,9 +136,14 @@ class DebianDistro(Distro):
         else:
             return ["debian/" + self.suite, "debian/latest"]
 
-    def bootstrap(self, system: NspawnSystem):
+    @override
+    def bootstrap(self, container: "Container"):
+        from moncic.nspawn.container import NspawnContainer
+
+        if not isinstance(container, NspawnContainer):
+            raise NotImplementedError
         with contextlib.ExitStack() as stack:
-            installroot = os.path.abspath(system.path)
+            installroot = container.path.absolute()
             cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
 
             # TODO: use version to fetch the key, to make this generic
@@ -155,25 +159,25 @@ class DebianDistro(Distro):
                 )
                 cmd.append(f"--keyring={tmpfile.name}")
 
-            cmd += [self.suite, installroot, self.mirror]
+            cmd += [self.suite, installroot.as_posix(), self.mirror]
             # If eatmydata is available, we can use it to make deboostrap significantly faster
             eatmydata = shutil.which("eatmydata")
             if eatmydata is not None:
                 cmd.insert(0, eatmydata)
-            system.local_run(cmd)
+            container.image.local_run(cmd)
 
-    def get_update_pkgdb_script(self, system: NspawnSystem):
-        res = super().get_update_pkgdb_script(system)
+    def get_update_pkgdb_script(self, image: "Image"):
+        res = super().get_update_pkgdb_script(image)
         res.append(["/usr/bin/apt-get", "update"])
         return res
 
-    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
-        res = super().get_upgrade_system_script(system)
+    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
+        res = super().get_upgrade_system_script(image)
         res.append(self.APT_INSTALL_CMD + ["full-upgrade"])
         return res
 
-    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]) -> list[list[str]]:
-        res = super().get_install_packages_script(system, packages)
+    def get_install_packages_script(self, image: "Image", packages: list[str]) -> list[list[str]]:
+        res = super().get_install_packages_script(image, packages)
         res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res
 

@@ -1,13 +1,13 @@
 import abc
 import enum
 import logging
-from typing import TYPE_CHECKING, ContextManager, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 from moncic.distro import Distro
 
 if TYPE_CHECKING:
     from .images import Images
-    from .system import System
+    from .container import Container, ContainerConfig
 
 log = logging.getLogger("image")
 
@@ -54,6 +54,10 @@ class Image(abc.ABC):
         """Bootstrap the image if missing."""
 
     @abc.abstractmethod
+    def update(self):
+        """Run periodic maintenance on the system."""
+
+    @abc.abstractmethod
     def remove(self) -> None:
         """Remove the system image if it exists."""
 
@@ -61,14 +65,20 @@ class Image(abc.ABC):
     def remove_config(self) -> None:
         """Remove the configuration file, if it exists."""
 
-    @abc.abstractmethod
-    def system(self) -> ContextManager["System"]:
-        """
-        Instantiate a System that can only be used for the duration
-        of this context manager.
-        """
-        # TODO: move to Image
-
     def describe_container(self) -> dict[str, Any]:
         """Return a dictionary describing facts about the container."""
         return {}
+
+    @abc.abstractmethod
+    def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
+        """
+        Boot a container with this system
+        """
+
+    @abc.abstractmethod
+    def maintenance_container(
+        self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
+    ) -> "Container":
+        """
+        Boot a container with this system
+        """

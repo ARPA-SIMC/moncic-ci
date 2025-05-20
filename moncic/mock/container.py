@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, override
 
 from moncic.container import Container, Result
 from moncic.runner import CompletedCallable, RunConfig
@@ -10,22 +10,27 @@ class MockContainer(Container):
     Mock container used for tests
     """
 
+    @override
     def get_root(self) -> Path:
         return Path(self.properties["RootDirectory"])
 
+    @override
     def _start(self):
         self.image.images.session.mock_log(system=self.image.name, action="container start")
         self.started = True
 
-    def _stop(self):
+    @override
+    def _stop(self, exc: Exception | None = None):
         self.image.images.session.mock_log(system=self.image.name, action="container stop")
         self.started = False
 
+    @override
     def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
         run_config = self.config.run_config(config)
         self.image.images.session.mock_log(system=self.image.name, action="run", config=run_config, cmd=command)
         return self.image.images.session.get_process_result(args=command)
 
+    @override
     def run_callable_raw(
         self,
         func: Callable[..., Result],

@@ -1,12 +1,11 @@
 import abc
-from functools import cached_property
 import contextlib
+from functools import cached_property
 import logging
-import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, override, ContextManager, Generator, NamedTuple, Any
+from typing import TYPE_CHECKING, Self, override, NamedTuple, Any, Optional, ContextManager, Generator
 
 import yaml
 
@@ -17,8 +16,8 @@ from moncic.utils.btrfs import Subvolume
 
 if TYPE_CHECKING:
     from moncic.moncic import MoncicConfig
+    from moncic.container import Container, ContainerConfig
     from .images import NspawnImages
-    from .system import NspawnSystem, MaintenanceSystem
 
 log = logging.getLogger("nspawn")
 
@@ -232,7 +231,22 @@ class NspawnImage(Image, abc.ABC):
         """
         from moncic.runner import LocalRunner
 
-        return LocalRunner.run(self.logger, cmd, config, system_config=self)
+        return LocalRunner.run(self.logger, cmd, config, image=self)
+
+    @override
+    def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
+        from .container import NspawnContainer
+
+        return NspawnContainer(self, path=self.path, config=config, instance_name=instance_name)
+
+    @override
+    def maintenance_container(
+        self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
+    ) -> "Container":
+        from .container import NspawnMaintenanceContainer
+
+        with self.transactional_workdir() as work_path:
+            return NspawnMaintenanceContainer(self, path=work_path, config=config, instance_name=instance_name)
 
     @override
     def get_backend_id(self) -> str:
@@ -244,17 +258,6 @@ class NspawnImage(Image, abc.ABC):
             return
         log.info("%s: removing image configuration file", self.config_path)
         self.config_path.unlink()
-
-    @abc.abstractmethod
-    def maintenance_system(self) -> ContextManager["MaintenanceSystem"]:
-        """
-        Instantiate a MaintenanceSystem that can only be used for the duration
-        of this context manager.
-
-        This allows maintenance to be transactional, limited to backends that
-        support it, so that errors in the maintenance roll back to the previous
-        state and do not leave an inconsistent OS image
-        """
 
     @cached_property
     def forwards_users(self) -> list[str]:
@@ -344,12 +347,64 @@ class NspawnImage(Image, abc.ABC):
 
         return res
 
+    def _update_container(self, container: "Container"):
+        """
+        Run update machinery on a container.
+        """
+        from moncic.runner import UserConfig
 
-class NspawnImagePlain(NspawnImage):
+        # Forward users if needed
+        for u in self.forwards_users:
+            container.forward_user(UserConfig.from_user(u), allow_maint=True)
+
+        # Setup network
+        for cmd in self.distro.get_setup_network_script(self):
+            container.run(cmd)
+
+        # Update package databases
+        for cmd in self.distro.get_update_pkgdb_script(self):
+            container.run(cmd)
+
+        # Upgrade system packages
+        for cmd in self.distro.get_upgrade_system_script(self):
+            container.run(cmd)
+
+        # Build list of packages to install, removing duplicates
+        packages: list[str] = []
+        seen: set[str] = set()
+        for pkg in self.package_list:
+            if pkg in seen:
+                continue
+            packages.append(pkg)
+            seen.add(pkg)
+
+        # Install packages
+        for cmd in self.distro.get_install_packages_script(self, packages):
+            container.run(cmd)
+
+        # Run maintscripts
+        for script in self.maintscripts:
+            container.run_script(script)
+
+    @abc.abstractmethod
+    def _extend_parent(self, path: Path) -> None:
+        """Initialize self.path with a clone of the parent image."""
+
+    @abc.abstractmethod
+    def _bootstrap_new(self, path: Path) -> None:
+        """Bootstrap a new OS image from scratch."""
+
+    @abc.abstractmethod
+    def transactional_workdir(self) -> ContextManager[Path]:
+        """
+        Create a working directory for transactional maintenance of the image.
+
+        If the code is successful, the image in the working directory will
+        replace the original one.
+        """
+
     @override
     def bootstrap(self) -> None:
-        from .system import MaintenanceSystem
-
         if self.path.exists():
             return
 
@@ -358,32 +413,78 @@ class NspawnImagePlain(NspawnImage):
 
         log.info("%s: bootstrapping directory", self.name)
 
-        orig_path = self.path
-        work_path = self.path.parent / f"{self.path.name}.new"
-        try:
-            self.path = work_path
+        with self.transactional_workdir() as work_path:
+            if self.bootstrap_info.extends is not None:
+                self._extend_parent(work_path)
+            else:
+                self._bootstrap_new(work_path)
+
+    def update(self):
+        """
+        Run periodic maintenance on the system
+        """
+        with self.maintenance_container() as container:
+            self._update_container(container)
+        self._update_cachedir()
+
+    def _update_cachedir(self):
+        """
+        Create or remove a CACHEDIR.TAG file, depending on the image
+        configuration
+        """
+        cachedir_path = self.path / "CACHEDIR.TAG"
+        if self.backup:
             try:
-                if self.bootstrap_info.extends is not None:
-                    parent = self.images.image(self.extends)
-                    assert isinstance(parent, NspawnImage)
-                    self.local_run(["cp", "--reflink=auto", "-a", parent.path.as_posix(), work_path.as_posix()])
-                else:
-                    tarball_path = self.images.get_distro_tarball(self.bootstrap_info.distro)
-                    if tarball_path is not None:
-                        # Shortcut in case we have a chroot in a tarball
-                        os.mkdir(work_path)
-                        self.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
-                    else:
-                        system = MaintenanceSystem(self.images, self)
-                        self.distro.bootstrap(system)
+                cachedir_path.unlink()
+            except FileNotFoundError:
+                pass
+        else:
+            if not cachedir_path.exists():
+                with cachedir_path.open("wt") as fd:
+                    # See https://bford.info/cachedir/
+                    print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
+                    print("# This file hints to backup software that they can skip this directory.", file=fd)
+                    print("# See https://bford.info/cachedir/", file=fd)
+
+
+class NspawnImagePlain(NspawnImage):
+    @override
+    @contextlib.contextmanager
+    def transactional_workdir(self) -> Generator[Path, None, None]:
+        if self.path.exists():
+            self.logger.info("%s: transactional updates on non-btrfs nspawn images are not supported", self.path)
+            yield self.path
+        else:
+            work_path = self.path.parent / f"{self.path.name}.new"
+            try:
+                yield work_path
             except BaseException:
-                shutil.rmtree(work_path)
+                if work_path.exists():
+                    shutil.rmtree(work_path)
                 raise
             else:
                 if work_path.exists():
-                    work_path.rename(orig_path)
-        finally:
-            self.path = orig_path
+                    work_path.rename(self.path)
+
+    @override
+    def _extend_parent(self, path: Path) -> None:
+        assert self.bootstrap_info.extends is not None
+        parent = self.images.image(self.bootstrap_info.extends)
+        assert isinstance(parent, NspawnImage)
+        self.local_run(["cp", "--reflink=auto", "-a", parent.path.as_posix(), path.as_posix()])
+
+    @override
+    def _bootstrap_new(self, path: Path) -> None:
+        from .container import NspawnMaintenanceContainer
+
+        tarball_path = self.images.get_distro_tarball(self.distro)
+        if tarball_path is not None:
+            # Shortcut in case we have a chroot in a tarball
+            self.path.mkdir()
+            self.local_run(["tar", "-C", self.path.as_posix(), "-axf", path.as_posix()])
+        else:
+            container = NspawnMaintenanceContainer(self, path=path)
+            self.distro.bootstrap(container)
 
     @override
     def remove(self) -> None:
@@ -391,108 +492,59 @@ class NspawnImagePlain(NspawnImage):
             return
         shutil.rmtree(self.path)
 
-    @contextlib.contextmanager
-    def system(self) -> Generator["NspawnSystem", None, None]:
-        from .system import NspawnSystem
-
-        yield NspawnSystem(self.images, self)
-
-    @contextlib.contextmanager
-    def maintenance_system(self) -> Generator["MaintenanceSystem", None, None]:
-        from .system import MaintenanceSystem
-
-        yield MaintenanceSystem(self.images, self)
-
 
 class NspawnImageBtrfs(NspawnImage):
     @override
-    def bootstrap(self) -> None:
-        from .system import MaintenanceSystem
-
-        if self.path.exists():
-            return
-
-        log.info("%s: bootstrapping subvolume", self.name)
-
-        orig_path = self.path
+    @contextlib.contextmanager
+    def transactional_workdir(self) -> Generator[Path, None, None]:
         work_path = self.path.parent / f"{self.path.name}.new"
-        try:
-            self.path = work_path
-            try:
-                if self.extends is not None:
-                    parent = self.images.image(self.extends)
-                    assert isinstance(parent, NspawnImage)
-                    subvolume = Subvolume(self, self.images.session.moncic.config)
-                    subvolume.snapshot(parent.path)
+        subvolume = Subvolume(self.images.session.moncic.config, work_path, self.bootstrap_info.compression)
+        if not self.path.exists():
+            with subvolume.create():
+                try:
+                    yield work_path
+                except BaseException:
+                    subvolume.remove()
+                    raise
                 else:
-                    tarball_path = self.images.get_distro_tarball(self.distro)
-                    subvolume = Subvolume(self, self.images.session.moncic.config)
-                    with subvolume.create():
-                        if tarball_path is not None:
-                            # Shortcut in case we have a chroot in a tarball
-                            self.local_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path])
-                        else:
-                            system = MaintenanceSystem(self.images, self)
-                            distro = DistroFamily.lookup_distro(self.distro)
-                            distro.bootstrap(system)
+                    work_path.rename(self.path)
+        else:
+            subvolume = Subvolume(self.images.session.moncic.config, work_path, self.bootstrap_info.compression)
+            # Create work_path as a snapshot of path
+            subvolume.snapshot(self.path)
+            try:
+                yield work_path
             except BaseException:
-                shutil.rmtree(work_path)
+                subvolume.remove()
                 raise
             else:
-                if work_path.exists():
-                    work_path.rename(orig_path)
-        finally:
-            self.path = orig_path
+                subvolume.replace_subvolume(self.path)
+
+    @override
+    def _extend_parent(self, path: Path) -> None:
+        assert self.bootstrap_info.extends is not None
+        parent = self.images.image(self.bootstrap_info.extends)
+        assert isinstance(parent, NspawnImage)
+        subvolume = Subvolume(self.images.session.moncic.config, path, self.bootstrap_info.compression)
+        subvolume.snapshot(parent.path)
+
+    @override
+    def _bootstrap_new(self, path: Path) -> None:
+        from .container import NspawnMaintenanceContainer
+
+        tarball_path = self.images.get_distro_tarball(self.distro)
+        subvolume = Subvolume(self.images.session.moncic.config, self.path, self.bootstrap_info.compression)
+        with subvolume.create():
+            if tarball_path is not None:
+                # Shortcut in case we have a chroot in a tarball
+                self.local_run(["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
+            else:
+                container = NspawnMaintenanceContainer(self, path=path)
+                self.distro.bootstrap(container)
 
     @override
     def remove(self) -> None:
         if not self.path.exists():
             return
-        subvolume = Subvolume(self, self.images.session.moncic.config)
+        subvolume = Subvolume(self.images.session.moncic.config, self.path, self.bootstrap_info.compression)
         subvolume.remove()
-
-    @contextlib.contextmanager
-    def system(self) -> Generator["NspawnSystem", None, None]:
-        from .system import NspawnSystem
-
-        yield NspawnSystem(self.images, self)
-
-    @contextlib.contextmanager
-    def maintenance_system(self) -> Generator["MaintenanceSystem", None, None]:
-        from .system import MaintenanceSystem
-
-        orig_path = self.path
-        work_path = self.path.parent / f"{self.path.name}.new"
-        if work_path.exists():
-            raise RuntimeError(f"Found existing {work_path} which should be removed")
-
-        self.path = work_path
-        try:
-            if not orig_path.exists():
-                # Transactional work on a new path
-                try:
-                    yield MaintenanceSystem(self.images, self)
-                except BaseException:
-                    # TODO: remove work_path is currently not needed as System is
-                    #       doing it. Maybe move that here?
-                    raise
-                else:
-                    if work_path.exists():
-                        work_path.rename(orig_path)
-            else:
-                # Update
-                subvolume = Subvolume(self, self.images.session.moncic.config)
-                # Create work_path as a snapshot of path
-                subvolume.snapshot(orig_path)
-                try:
-                    yield MaintenanceSystem(self.images, self)
-                except BaseException:
-                    self.logger.warning("Rolling back maintenance changes")
-                    subvolume.remove()
-                    raise
-                else:
-                    self.logger.info("Committing maintenance changes")
-                    # Swap and remove
-                    subvolume.replace_subvolume(orig_path)
-        finally:
-            self.path = orig_path

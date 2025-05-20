@@ -9,14 +9,15 @@ import shutil
 import stat
 import subprocess
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
-from ..container import ContainerConfig
+from ..container import Container, ContainerConfig
 from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.image import Image
+
 
 log = logging.getLogger(__name__)
 
@@ -87,15 +88,20 @@ class RpmDistro(Distro):
             fd.flush()
             yield fd.name
 
-    def bootstrap(self, system: NspawnSystem):
+    @override
+    def bootstrap(self, container: "Container"):
+        from moncic.nspawn.container import NspawnContainer
+
         installer = shutil.which("dnf")
         if installer is None:
             installer = shutil.which("yum")
         if installer is None:
             raise RuntimeError("yum or dnf not found")
+        if not isinstance(container, NspawnContainer):
+            raise NotImplementedError()
 
         with self.chroot_config() as dnf_config:
-            installroot = os.path.abspath(system.path)
+            installroot = container.path.absolute()
             cmd = [
                 installer,
                 "-c",
@@ -119,12 +125,12 @@ class RpmDistro(Distro):
             # if eatmydata is not None:
             #     cmd.insert(0, eatmydata)
 
-            system.local_run(cmd)
+            container.image.local_run(cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
             # created system. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
-            private_rpmdb = os.path.join(installroot, "root", ".rpmdb")
-            system_rpmdb = os.path.join(installroot, "var", "lib", "rpm")
+            private_rpmdb = installroot / "root" / ".rpmdb"
+            system_rpmdb = installroot / "var" / "lib" / "rpm"
             if os.path.isdir(private_rpmdb):
                 log.info("Moving %r to %r", private_rpmdb, system_rpmdb)
                 if os.path.islink(system_rpmdb):
@@ -135,26 +141,25 @@ class RpmDistro(Distro):
                         )
                 shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-            with system.create_container(config=ContainerConfig(ephemeral=False)) as container:
-                container.run(["/usr/bin/rpmdb", "--rebuilddb"])
+            container.run(["/usr/bin/rpmdb", "--rebuilddb"])
 
 
 class YumDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["yum"]
 
-    def get_update_pkgdb_script(self, system: NspawnSystem):
-        res = super().get_update_pkgdb_script(system)
+    def get_update_pkgdb_script(self, image: "Image"):
+        res = super().get_update_pkgdb_script(image)
         res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
-        res = super().get_upgrade_system_script(system)
+    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
+        res = super().get_upgrade_system_script(image)
         res.append(["/usr/bin/yum", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]) -> list[list[str]]:
-        res = super().get_install_packages_script(system, packages)
+    def get_install_packages_script(self, image: "Image", packages: list[str]) -> list[list[str]]:
+        res = super().get_install_packages_script(image, packages)
         res.append(["/usr/bin/yum", "install", "-q", "-y"] + packages)
         return res
 
@@ -163,23 +168,23 @@ class DnfDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["dnf"]
 
-    def get_setup_network_script(self, system: NspawnSystem):
-        res = super().get_setup_network_script(system)
+    def get_setup_network_script(self, image: "Image"):
+        res = super().get_setup_network_script(image)
         res.append(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
         return res
 
-    def get_update_pkgdb_script(self, system: NspawnSystem):
-        res = super().get_update_pkgdb_script(system)
+    def get_update_pkgdb_script(self, image: "Image"):
+        res = super().get_update_pkgdb_script(image)
         res.append(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
-        res = super().get_upgrade_system_script(system)
+    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
+        res = super().get_upgrade_system_script(image)
         res.append(["/usr/bin/dnf", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]):
-        res = super().get_install_packages_script(system, packages)
+    def get_install_packages_script(self, image: "Image", packages: list[str]):
+        res = super().get_install_packages_script(image, packages)
         res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
         return res
 
@@ -219,12 +224,17 @@ class Centos7(YumDistro):
     baseurl = "{mirror}/centos/7/os/$basearch"
     version = 7
 
-    def bootstrap(self, system: NspawnSystem):
-        super().bootstrap(system)
-        installroot = os.path.abspath(system.path)
-        varsdir = os.path.join(installroot, "etc", "yum", "vars")
+    @override
+    def bootstrap(self, container: "Container"):
+        super().bootstrap(container)
+        from moncic.nspawn.container import NspawnContainer
+
+        if not isinstance(container, NspawnContainer):
+            raise NotImplementedError()
+        installroot = container.path.absolute()
+        varsdir = installroot / "etc" / "yum" / "vars"
         os.makedirs(varsdir, exist_ok=True)
-        with open(os.path.join(varsdir, "releasever"), "wt") as fd:
+        with open(varsdir / "releasever", "wt") as fd:
             print("7", file=fd)
 
 
@@ -233,15 +243,20 @@ class Centos8(DnfDistro):
     baseurl = "{mirror}/centos/8/BaseOS//$basearch/os/"
     version = 8
 
-    def bootstrap(self, system: NspawnSystem):
-        super().bootstrap(system)
+    @override
+    def bootstrap(self, container: "Container"):
+        from moncic.nspawn.container import NspawnContainer
+
+        if not isinstance(container, NspawnContainer):
+            raise NotImplementedError()
+        super().bootstrap(container)
         # self.system.local_run(["tar", "-C", self.system.path, "-zxf", "images/centos8.tar.gz"])
         # Fixup repository information to point at the vault
-        for fn in glob.glob(os.path.join(system.path, "etc/yum.repos.d/CentOS-*")):
-            log.info("Updating %r to point mirrors to the Vault", fn)
-            with open(fn) as fd:
+        for path in (container.path / "etc/yum.repos.d/").glob("CentOS-*"):
+            log.info("Updating %s to point mirrors to the Vault", path)
+            with path.open() as fd:
                 st = os.stat(fd.fileno())
-                with atomic_writer(fn, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
+                with atomic_writer(path, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
                     for line in fd:
                         if line.startswith("mirrorlist="):
                             print(f"#{line}", file=tf)

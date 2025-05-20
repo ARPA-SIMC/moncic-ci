@@ -12,10 +12,9 @@ from typing import TYPE_CHECKING, Any, Callable, ContextManager
 from pathlib import Path
 from unittest import SkipTest, mock
 
-from .container import RunConfig, UserConfig
+from .container import Container, RunConfig, UserConfig
 from .moncic import Moncic, MoncicConfig
 from .runner import CompletedCallable
-from moncic.nspawn.system import MaintenanceSystem
 from moncic.nspawn.image import NspawnImage, NspawnImagePlain
 from moncic.nspawn.images import NspawnImages
 from .utils.btrfs import is_btrfs
@@ -203,22 +202,14 @@ class DistroTestMixin:
             rlog.append(cmd, {})
             return subprocess.CompletedProcess(cmd, 0, b"", b"")
 
-        def _system_local_run(self, cmd: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess:
-            rlog.append(cmd, {})
-            return subprocess.CompletedProcess(cmd, 0, b"", b"")
-
         def _update_cachedir(self):
             rlog.append_cachedir()
 
         with mock.patch("moncic.utils.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
             with mock.patch("moncic.utils.btrfs.Subvolume.local_run", new=_subvolume_local_run):
                 with mock.patch("moncic.nspawn.image.NspawnImage.local_run", new=_images_local_run):
-                    with mock.patch("moncic.nspawn.system.NspawnSystem.local_run", new=_system_local_run):
-                        with mock.patch("moncic.nspawn.system.MaintenanceSystem.local_run", new=_system_local_run):
-                            with mock.patch(
-                                "moncic.nspawn.system.MaintenanceSystem._update_cachedir", new=_update_cachedir
-                            ):
-                                yield rlog
+                    with mock.patch("moncic.nspawn.image.NspawnImage._update_cachedir", new=_update_cachedir):
+                        yield rlog
 
     @contextlib.contextmanager
     def _mock_container(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog, None, None]:
@@ -234,7 +225,7 @@ class DistroTestMixin:
         def _start(self):
             self.started = True
 
-        def _stop(self):
+        def _stop(self, exc: Exception | None):
             self.started = False
 
         def _forward_user(self, user: UserConfig, allow_maint: bool = False):
@@ -300,8 +291,8 @@ class DistroTestMixin:
                     yield session.images
 
     @contextlib.contextmanager
-    def make_system(self, distro: Distro) -> Generator[MaintenanceSystem, None, None]:
+    def make_container(self, distro: Distro) -> Generator[Container, None, None]:
         with self.make_images(distro) as images:
             image = images.image("test")
-            with image.maintenance_system() as system:
-                yield system
+            with image.maintenance_container() as container:
+                yield container

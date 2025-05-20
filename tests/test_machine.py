@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import logging
 import os
@@ -8,15 +6,18 @@ import sys
 import tempfile
 import time
 import unittest
+from typing import ClassVar
 from collections.abc import Generator
 
 from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
-from moncic.nspawn.system import NspawnSystem
+from moncic.session import Session
+from moncic.nspawn.image import NspawnImage
 from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 
 class RunTestCase:
     distro_name: str
+    session: ClassVar[Session]
 
     @classmethod
     def setUpClass(cls):
@@ -35,19 +36,20 @@ class RunTestCase:
         super().tearDownClass()
 
     @contextlib.contextmanager
-    def system(self) -> Generator[NspawnSystem, None, None]:
+    def image(self) -> Generator[NspawnImage, None, None]:
         with privs.root():
             if self.distro_name not in self.session.images.list_images():
                 raise unittest.SkipTest(f"Image {self.distro_name} not available")
-            with self.session.images.system(self.distro_name) as system:
-                if not os.path.exists(system.path):
-                    raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
-                yield system
+            image = self.session.images.image(self.distro_name)
+            assert isinstance(image, NspawnImage)
+            if not image.path.exists():
+                raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
+            yield image
 
     @contextlib.contextmanager
     def container(self, config: ContainerConfig | None = None) -> Generator[Container, None, None]:
-        with self.system() as system:
-            with system.create_container(config=config) as container:
+        with self.image() as image:
+            with image.container(config=config) as container:
                 yield container
 
     def test_true(self):
@@ -142,12 +144,12 @@ class RunTestCase:
                 res.result()
 
     def test_multi_maint_runs(self):
-        with self.system() as system:
-            with system.create_container() as container:
+        with self.image() as image:
+            with image.container() as container:
                 res = container.run(["/bin/echo", "1"])
                 self.assertEqual(res.stdout, b"1\n")
                 self.assertEqual(res.stderr, b"")
-            with system.create_container() as container:
+            with image.container() as container:
                 res = container.run(["/bin/echo", "2"])
                 self.assertEqual(res.stdout, b"2\n")
                 self.assertEqual(res.stderr, b"")
@@ -166,9 +168,9 @@ class RunTestCase:
         user = UserConfig.from_sudoer()
 
         # By default, things are run as root
-        with self.system() as system:
+        with self.image() as image:
             container_config = ContainerConfig()
-            with system.create_container(config=container_config) as container:
+            with image.container(config=container_config) as container:
                 u = container.run_callable(get_user)
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 
@@ -179,7 +181,7 @@ class RunTestCase:
                 self.assertEqual(str(e.exception), "container has no user 1000 'enrico'")
 
             container_config = ContainerConfig(forward_user=user)
-            with system.create_container(config=container_config) as container:
+            with image.container(config=container_config) as container:
                 u = container.run_callable(get_user)
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 

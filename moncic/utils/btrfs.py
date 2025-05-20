@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import fcntl
 import logging
@@ -13,7 +11,6 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
-    from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
 
@@ -23,14 +20,14 @@ class Subvolume:
     Low-level functions to access and maintain a btrfs subvolume
     """
 
-    def __init__(self, image: NspawnImage, mconfig: MoncicConfig):
-        self.log = image.logger
-        self.image = image
+    def __init__(self, mconfig: "MoncicConfig", path: Path, compression: str | None):
         self.mconfig = mconfig
-        self.path = image.path
-        self.compression = image.compression
-        if self.compression is None:
+        self.path = path
+        self.compression: str | None
+        if compression is None:
             self.compression = mconfig.compression
+        else:
+            self.compression = compression
 
     def replace_subvolume(self, path: Path):
         """
@@ -44,18 +41,14 @@ class Subvolume:
         path.rename(stash_path)
         self.path.rename(path)
         self.path = path
-        old = Subvolume(self.image, self.mconfig)
-        old.path = stash_path
+        old = Subvolume(self.mconfig, stash_path, self.compression)
         old.remove()
 
     def local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
         """
         Run a command on the host system.
         """
-        # Import here to avoid dependency loops
-        from ..runner import LocalRunner
-
-        return LocalRunner.run(self.log, cmd, system_config=self.image)
+        return subprocess.run(cmd)
 
     @contextlib.contextmanager
     def create(self):

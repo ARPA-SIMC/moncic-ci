@@ -16,6 +16,7 @@ from .image import NspawnImage, NspawnImagePlain, NspawnImageBtrfs
 
 if TYPE_CHECKING:
     from moncic.session import Session
+    from moncic.distro import Distro
 
 log = logging.getLogger("images")
 
@@ -61,7 +62,7 @@ class NspawnImages(Images, abc.ABC):
                     res.add(entry.name[:-5])
         return [self.image(name) for name in sorted(res)]
 
-    def get_distro_tarball(self, distro_name: str) -> str | None:
+    def get_distro_tarball(self, distro: "Distro") -> Path | None:
         """
         Return the path to a tarball that can be used to bootstrap a chroot for
         this system.
@@ -69,8 +70,8 @@ class NspawnImages(Images, abc.ABC):
         Return None if no such tarball is present
         """
         for ext in (".tar.gz", ".tar.xz", ".tar"):
-            tarball_path = os.path.join(self.imagedir, distro_name + ext)
-            if os.path.exists(tarball_path):
+            tarball_path = self.imagedir / (distro.name + ext)
+            if tarball_path.exists():
                 return tarball_path
         return None
 
@@ -82,17 +83,13 @@ class NspawnImages(Images, abc.ABC):
         The list returned is ordered by dependencies: if an image extends
         another, the base image is listed before those that depend on it.
         """
-        # Import here to prevent import loops
-        from .system import NspawnImage
-
         res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
         for name in images:
             image = self.image(name)
-            if image.extends is not None:
-                res.add(image.name, image.extends)
+            if image.bootstrap_info.extends is not None:
+                res.add(image.name, image.bootstrap_info.extends)
             else:
                 res.add(image.name)
-
         return list(res.static_order())
 
     def deduplicate(self):
@@ -109,7 +106,7 @@ class PlainImages(NspawnImages):
         image = NspawnImagePlain.load(self.session.moncic.config, self, name)
         # Force using tmpfs backing for ephemeral containers, since we cannot
         # use snapshots
-        image.tmpfs = True
+        image.container_info = image.container_info._replace(tmpfs=True)
         return image
 
 

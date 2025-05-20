@@ -317,15 +317,15 @@ class LocalRunner(AsyncioRunner):
         logger: logging.Logger,
         cmd: list[str],
         config: RunConfig | None = None,
-        system_config: NspawnImage | None = None,
+        image: NspawnImage | None = None,
     ):
         """
         Run a one-off command
         """
         if config is None:
             config = RunConfig()
-        if system_config and os.path.exists(system_config.path) and config.cwd is None:
-            config.cwd = system_config.path
+        if image and image.path.exists() and config.cwd is None:
+            config.cwd = image.path.as_posix()
 
         runner = LocalRunner(logger, config, cmd)
         return runner.execute()
@@ -501,7 +501,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 # Refork to actually enter the PID namespace
                 pid = os.fork()
                 if pid == 0:
-                    context.system.set(self.container.image)
+                    context.image.set(self.container.image)
                     context.container.set(self.container)
                     try:
                         guest.in_guest = True

@@ -23,7 +23,7 @@ from .utils import SourceTypeAction
 
 if TYPE_CHECKING:
     from ..distro import Distro
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
 
@@ -40,12 +40,14 @@ def main_command(cls):
 
 
 @contextlib.contextmanager
-def checkout(system: NspawnSystem, repo: str | None = None, branch: str | None = None):
+def checkout(
+    image: NspawnImage, repo: str | None = None, branch: str | None = None
+) -> Generator[Path | None, None, None]:
     if repo is None:
         yield None
         return
 
-    with system.images.session.moncic.privs.user():
+    with image.images.session.moncic.privs.user():
         # If repo points to a local path, use its absolute path
         parsed = urllib.parse.urlparse(repo)
         if parsed.scheme not in ("", "file"):
@@ -54,8 +56,8 @@ def checkout(system: NspawnSystem, repo: str | None = None, branch: str | None =
             repo_abspath = os.path.abspath(parsed.path)
             gitrepo = git.Repo(parsed.path)
             if gitrepo.active_branch == branch:
-                system.images.session.moncic.privs.regain()
-                yield repo_abspath
+                image.images.session.moncic.privs.regain()
+                yield Path(repo_abspath)
                 return
 
         with tempfile.TemporaryDirectory() as workdir:
@@ -63,7 +65,7 @@ def checkout(system: NspawnSystem, repo: str | None = None, branch: str | None =
             cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]
             if branch is not None:
                 cmd += ["--branch", branch]
-            system.local_run(cmd, config=RunConfig(cwd=workdir))
+            image.local_run(cmd, config=RunConfig(cwd=workdir))
             # Look for the directory that git created
             names = os.listdir(workdir)
             if len(names) != 1:
@@ -71,8 +73,8 @@ def checkout(system: NspawnSystem, repo: str | None = None, branch: str | None =
 
             repo_path = os.path.join(workdir, names[0])
 
-            system.images.session.moncic.privs.regain()
-            yield repo_path
+            image.images.session.moncic.privs.regain()
+            yield Path(repo_path)
 
 
 class MoncicCommand(Command):
@@ -159,10 +161,10 @@ class ImageActionCommand(MoncicCommand):
 
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
-            "-w", "--workdir", help="bind mount (writable) the given directory as working directory"
+            "-w", "--workdir", type=Path, help="bind mount (writable) the given directory as working directory"
         )
         git_workdir.add_argument(
-            "-W", "--workdir-volatile", help="bind mount (volatile) the given directory as working directory"
+            "-W", "--workdir-volatile", type=Path, help="bind mount (volatile) the given directory as working directory"
         )
         git_workdir.add_argument(
             "--clone", metavar="repository", help="checkout the given repository (local or remote) in the chroot"
@@ -213,46 +215,42 @@ class ImageActionCommand(MoncicCommand):
         with self.moncic.session() as session:
             images = session.images
             image = images.image(self.args.system)
-            if self.args.maintenance:
-                make_system = image.maintenance_system
-            else:
-                make_system = image.system
+            if not image.bootstrapped:
+                raise Fail(f"{image.name!r} has not been bootstrapped")
 
-            with make_system() as system:
-                if not system.is_bootstrapped():
-                    raise Fail(f"{system.name!r} has not been bootstrapped")
-
-                workdir_bind_type = None
-                with checkout(system, self.args.clone) as workdir:
-                    if workdir is None:
-                        if self.args.workdir:
-                            workdir = self.args.workdir
-                            workdir_bind_type = "rw"
-                        elif self.args.workdir_volatile:
-                            workdir = self.args.workdir_volatile
-                            workdir_bind_type = "volatile"
-                    elif self.args.clone and workdir_bind_type is None:
+            workdir_bind_type = None
+            with checkout(image, self.args.clone) as workdir:
+                if workdir is None:
+                    if self.args.workdir:
+                        workdir = self.args.workdir
+                        workdir_bind_type = "rw"
+                    elif self.args.workdir_volatile:
+                        workdir = self.args.workdir_volatile
                         workdir_bind_type = "volatile"
+                elif self.args.clone and workdir_bind_type is None:
+                    workdir_bind_type = "volatile"
 
-                    config = ContainerConfig(ephemeral=not self.args.maintenance)
+            config = ContainerConfig()
+            if workdir is not None:
+                config.configure_workdir(workdir, bind_type=workdir_bind_type)
+            elif self.args.user:
+                config.forward_user = UserConfig.from_sudoer()
+            if self.args.bind:
+                for entry in self.args.bind:
+                    config.binds.append(BindConfig.from_nspawn(entry, bind_type="rw"))
+            if self.args.bind_ro:
+                for entry in self.args.bind_ro:
+                    config.binds.append(BindConfig.from_nspawn(entry, bind_type="ro"))
+            if self.args.bind_volatile:
+                for entry in self.args.bind_volatile:
+                    config.binds.append(BindConfig.from_nspawn(entry, bind_type="volatile"))
 
-                    if workdir is not None:
-                        config.configure_workdir(workdir, bind_type=workdir_bind_type)
-                    elif self.args.user:
-                        config.forward_user = UserConfig.from_sudoer()
-
-                    if self.args.bind:
-                        for entry in self.args.bind:
-                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="rw"))
-                    if self.args.bind_ro:
-                        for entry in self.args.bind_ro:
-                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="ro"))
-                    if self.args.bind_volatile:
-                        for entry in self.args.bind_volatile:
-                            config.binds.append(BindConfig.from_nspawn(entry, bind_type="volatile"))
-
-                    with system.create_container(config=config) as container:
-                        yield container
+            if self.args.maintenance:
+                with image.maintenance_container(config=config) as container:
+                    yield container
+            else:
+                with image.container(config=config) as container:
+                    yield container
 
 
 class SourceCommand(MoncicCommand):

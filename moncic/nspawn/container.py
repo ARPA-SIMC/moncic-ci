@@ -1,3 +1,4 @@
+import dataclasses
 import errno
 import logging
 import os
@@ -8,9 +9,9 @@ import tempfile
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Callable, NoReturn
+from typing import Any, Callable, NoReturn, override
 
-from moncic.container import Container, BindConfig, Result
+from moncic.container import Container, BindConfig, Result, ContainerConfig
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
 
 from .image import NspawnImage
@@ -23,13 +24,45 @@ class NspawnContainer(Container):
 
     image: NspawnImage
 
-    def __init__(self, *args, **kw) -> None:
-        super().__init__(*args, **kw)
+    def __init__(
+        self, image: NspawnImage, path: Path, *, config: ContainerConfig | None = None, instance_name: str | None = None
+    ) -> None:
+        config = self._container_config(image, config)
+        super().__init__(image, config=config, instance_name=instance_name)
+        self.path = path
         # machinectl properties of the running machine
         self.properties: dict[str, str] = {}
         # Bind mounts used by this container
         self.active_binds: list[BindConfig] = []
 
+    @classmethod
+    def _container_config(cls, image: NspawnImage, config: ContainerConfig | None = None) -> ContainerConfig:
+        """
+        Create or complete a ContainerConfig
+        """
+        if config is None:
+            config = ContainerConfig()
+            if image.container_info.tmpfs is not None:
+                config.tmpfs = image.container_info.tmpfs
+            else:
+                config.tmpfs = image.images.session.moncic.config.tmpfs
+        elif config.ephemeral and config.tmpfs is None:
+            # Make a copy to prevent changing the caller's config
+            config = dataclasses.replace(config)
+            if image.container_info.tmpfs is not None:
+                config.tmpfs = image.container_info.tmpfs
+            else:
+                config.tmpfs = image.images.session.moncic.config.tmpfs
+
+        # Allow distro-specific setup
+        image.distro.container_config_hook(image, config)
+
+        # Force ephemeral to True in plain systems
+        config.ephemeral = True
+
+        return config
+
+    @override
     def get_root(self) -> Path:
         return Path(self.properties["RootDirectory"])
 
@@ -73,7 +106,7 @@ class NspawnContainer(Container):
         cmd = [
             "systemd-nspawn",
             "--quiet",
-            f"--directory={self.image.path}",
+            f"--directory={self.path}",
             f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
@@ -97,6 +130,7 @@ class NspawnContainer(Container):
         cmd.append(f"systemd.hostname={self.instance_name}")
         return cmd
 
+    @override
     def forward_user(self, user: UserConfig, allow_maint=False) -> None:
         """
         Ensure the system has a matching user and group
@@ -134,6 +168,7 @@ class NspawnContainer(Container):
 
         self.run_callable(forward, config=RunConfig(user=UserConfig.root()))
 
+    @override
     def _start(self):
         self.image.logger.info(
             "Starting system %s as %s using image %s", self.image.name, self.instance_name, self.image.path
@@ -178,7 +213,8 @@ class NspawnContainer(Container):
             if bind.teardown:
                 bind.teardown(bind)
 
-    def _stop(self):
+    @override
+    def _stop(self, exc: Exception | None = None):
         # Run teardown script frombinds
         if any(bind.teardown for bind in self.active_binds):
             self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
@@ -196,6 +232,7 @@ class NspawnContainer(Container):
             time.sleep(0.1)
         self.started = False
 
+    @override
     def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
         run_config = self.config.run_config(config)
 
@@ -217,6 +254,7 @@ class NspawnContainer(Container):
 
         return self.run_callable_raw(command_runner, run_config)
 
+    @override
     def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
         def script_runner():
             with tempfile.TemporaryDirectory() as workdir:
@@ -237,6 +275,7 @@ class NspawnContainer(Container):
 
         return self.run_callable_raw(script_runner, config)
 
+    @override
     def run_callable_raw(
         self,
         func: Callable[..., Result],
@@ -248,3 +287,14 @@ class NspawnContainer(Container):
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
         completed = runner.execute()
         return completed
+
+
+class NspawnMaintenanceContainer(NspawnContainer):
+    """Non-ephemeral container."""
+
+    @classmethod
+    def _container_config(cls, image: NspawnImage, config: ContainerConfig | None = None) -> ContainerConfig:
+        config = super()._container_config(image, config)
+        # Force ephemeral to False in maintenance systems
+        config.ephemeral = False
+        return config

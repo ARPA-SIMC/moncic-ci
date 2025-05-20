@@ -2,15 +2,15 @@ import io
 import contextlib
 import logging
 import subprocess
-from typing import TYPE_CHECKING, override, Generator
+from typing import TYPE_CHECKING, override, Generator, Optional
 
 from moncic.image import Image, ImageType
 from moncic.distro import DistroFamily
 from moncic.utils.osrelease import parse_osrelase_contents
 
 if TYPE_CHECKING:
+    from moncic.container import Container, ContainerConfig
     from .images import PodmanImages
-    from moncic.system import System
 
 log = logging.getLogger("nspawn")
 
@@ -48,14 +48,23 @@ class PodmanImage(Image):
         raise NotImplementedError()
 
     @override
-    @contextlib.contextmanager
-    def system(self) -> Generator["System", None, None]:
-        raise NotImplementedError()
-
-    @override
     def bootstrap(self) -> None:
         raise NotImplementedError()
 
     @override
+    def update(self) -> None:
+        raise NotImplementedError()
+
+    @override
     def remove(self) -> None:
+        raise NotImplementedError()
+
+    @override
+    def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
+        raise NotImplementedError()
+
+    @override
+    def maintenance_container(
+        self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
+    ) -> "Container":
         raise NotImplementedError()

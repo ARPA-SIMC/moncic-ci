@@ -1,17 +1,15 @@
-from __future__ import annotations
-
 import logging
 import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, List
 
 from ..utils.osrelease import parse_osrelase
 
 if TYPE_CHECKING:
-    from ..container import ContainerConfig
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.container import Container, ContainerConfig
+    from moncic.image import Image
 
 log = logging.getLogger(__name__)
 
@@ -32,14 +30,14 @@ class DistroFamily:
     """
 
     # Registry of known families
-    families: dict[str, DistroFamily] = {}
+    families: dict[str, "DistroFamily"] = {}
 
     # Registry mapping known shortcut names to the corresponding full
     # ``family:version`` name
     SHORTCUTS: dict[str, str] = {}
 
     @classmethod
-    def register(cls, family_cls: type[DistroFamily]) -> type[DistroFamily]:
+    def register(cls, family_cls: type["DistroFamily"]) -> type["DistroFamily"]:
         name = getattr(family_cls, "NAME", None)
         if name is None:
             name = family_cls.__name__.lower()
@@ -54,17 +52,17 @@ class DistroFamily:
         from . import debian, rpm  # noqa
 
     @classmethod
-    def list(cls) -> Iterable[DistroFamily]:
+    def list(cls) -> Iterable["DistroFamily"]:
         cls.populate()
         return cls.families.values()
 
     @classmethod
-    def lookup_family(cls, name: str) -> DistroFamily:
+    def lookup_family(cls, name: str) -> "DistroFamily":
         cls.populate()
         return cls.families[name]
 
     @classmethod
-    def lookup_distro(cls, name: str) -> Distro:
+    def lookup_distro(cls, name: str) -> "Distro":
         """
         Lookup a Distro object by name.
 
@@ -79,7 +77,7 @@ class DistroFamily:
             return cls._lookup_shortcut(name)
 
     @classmethod
-    def _lookup_shortcut(cls, name: str) -> Distro:
+    def _lookup_shortcut(cls, name: str) -> "Distro":
         """
         Lookup a Distro object by shortcut
         """
@@ -89,7 +87,7 @@ class DistroFamily:
         raise KeyError(f"Distro {name!r} not found")
 
     @classmethod
-    def from_path(cls, path: Path) -> Distro:
+    def from_path(cls, path: Path) -> "Distro":
         """
         Instantiate a Distro from an existing filesystem tree
         """
@@ -110,7 +108,7 @@ class DistroFamily:
         return cls.from_osrelease(info, path.name)
 
     @classmethod
-    def from_osrelease(cls, info: dict[str, str], fallback_name: str) -> Distro:
+    def from_osrelease(cls, info: dict[str, str], fallback_name: str) -> "Distro":
         """
         Instantiate a Distro from a parsed os-release file
         """
@@ -140,14 +138,14 @@ class DistroFamily:
     def __str__(self) -> str:
         return self.name
 
-    def create_distro(self, version: str) -> Distro:
+    def create_distro(self, version: str) -> "Distro":
         """
         Create a Distro object for a distribution in this family, given its
         version
         """
         raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
 
-    def list_distros(self) -> list[DistroInfo]:
+    def list_distros(self) -> List[DistroInfo]:
         """
         Return a list of distros available in this family
         """
@@ -172,20 +170,24 @@ class Distro:
         """
         return ["bash", "dbus"]
 
-    def container_config_hook(self, system: NspawnSystem, config: ContainerConfig):
+    def container_config_hook(self, image: "Image", config: "ContainerConfig"):
         """
         Hook to allow distro-specific container setup
         """
         # Do nothing by default
 
-    def bootstrap(self, system: NspawnSystem) -> None:
+    def bootstrap(self, container: "Container") -> None:
         """
         Boostrap a fresh system inside the given directory
         """
+        from moncic.nspawn.container import NspawnContainer
+
+        if not isinstance(container, NspawnContainer):
+            raise NotImplementedError()
         # At least on Debian, mkosi does not seem able to install working
         # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
         distro, release = self.name.split(":", 1)
-        installroot = os.path.abspath(system.path)
+        installroot = container.path.absolute()
         base_packages = ",".join(self.get_base_packages())
         with tempfile.TemporaryDirectory() as workdir:
             cmd = [
@@ -200,7 +202,7 @@ class Distro:
                 "--force",
                 # f"--mirror={self.mirror}",
             ]
-            system.local_run(cmd)
+            container.image.local_run(cmd)
 
         # Cleanup mkosi manifest file
         try:
@@ -208,25 +210,25 @@ class Distro:
         except FileNotFoundError:
             pass
 
-    def get_setup_network_script(self, system: NspawnSystem) -> list[list[str]]:
+    def get_setup_network_script(self, image: "Image") -> list[list[str]]:
         """
         Get the sequence of commands to use to setup networking
         """
         return []
 
-    def get_update_pkgdb_script(self, system: NspawnSystem) -> list[list[str]]:
+    def get_update_pkgdb_script(self, image: "Image") -> list[list[str]]:
         """
         Get the sequence of commands to use to update package information
         """
         return []
 
-    def get_upgrade_system_script(self, system: NspawnSystem) -> list[list[str]]:
+    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
         """
         Get the sequence of commands to use to upgrade system packages
         """
         return []
 
-    def get_install_packages_script(self, system: NspawnSystem, packages: list[str]) -> list[list[str]]:
+    def get_install_packages_script(self, image: "Image", packages: list[str]) -> list[list[str]]:
         """
         Get the sequence of commands to use to install packages
         """

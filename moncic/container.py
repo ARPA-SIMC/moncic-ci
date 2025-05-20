@@ -321,14 +321,14 @@ class ContainerConfig:
 
 class Container(ContextManager, abc.ABC):
     """
-    An instance of a System in execution as a container
+    An instance of an Image in execution as a container
     """
 
     # Name of the running container instance, which can be used to access it
     # with normal user commands
     instance_name: str
 
-    def __init__(self, image: Image, config: ContainerConfig, instance_name: str | None = None):
+    def __init__(self, image: Image, *, config: ContainerConfig, instance_name: str | None = None):
         global machine_name_sequence_pid, machine_name_sequence
         super().__init__()
         self.image = image
@@ -365,13 +365,13 @@ class Container(ContextManager, abc.ABC):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.started and not self.linger:
-            self._stop()
+            self._stop(exc_val)
 
     @abc.abstractmethod
     def _start(self): ...
 
     @abc.abstractmethod
-    def _stop(self): ...
+    def _stop(self, exc: Exception | None = None): ...
 
     @abc.abstractmethod
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
