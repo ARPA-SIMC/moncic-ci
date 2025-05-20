@@ -28,7 +28,7 @@ from . import context
 from .utils import guest, setns
 
 if TYPE_CHECKING:
-    from .container import NspawnContainer
+    from .container import Container
     from .nspawn.image import NspawnImage
 
 Result = TypeVar("Result")
@@ -353,15 +353,15 @@ class PickleStreamHandler(logging.Handler):
 class SetnsCallableRunner(Generic[Result], Runner):
     def __init__(
         self,
-        container: NspawnContainer,
+        container: Container,
         config: RunConfig,
         func: Callable[..., Result],
-        args: tuple[Any] = (),
+        args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ):
         super().__init__(container.image.logger, config)
         self.container = container
-        self.leader_pid = int(container.properties["Leader"])
+        self.leader_pid = container.get_pid()
         self.func = func
         self.args = args
         self.kwargs = kwargs

@@ -68,6 +68,10 @@ class NspawnContainer(Container):
     def get_root(self) -> Path:
         return Path(self.properties["RootDirectory"])
 
+    @override
+    def get_pid(self) -> int:
+        return int(self.properties["Leader"])
+
     def binds(self) -> Iterator[BindConfig]:
         yield from self.active_binds
 

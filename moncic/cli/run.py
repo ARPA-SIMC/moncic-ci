@@ -17,6 +17,7 @@ class Shell(ImageActionCommand):
     def run(self):
         run_config = self.get_run_config()
         run_config.check = False
+        run_config.interactive = True
 
         with self.container() as container:
             res = container.run_shell(config=run_config)

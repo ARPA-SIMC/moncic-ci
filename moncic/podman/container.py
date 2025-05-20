@@ -1,13 +1,18 @@
-import logging
 import subprocess
-import time
+import signal
+import os
+import warnings
+import tempfile
 from pathlib import Path
 from typing import Any, override
 from collections.abc import Callable
 from collections.abc import Iterator
 
+import podman
+
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
+from moncic.context import privs
 
 from .image import PodmanImage
 
@@ -24,6 +29,7 @@ class PodmanContainer(Container):
     ) -> None:
         config = self._container_config(image, config)
         super().__init__(image, config=config, instance_name=instance_name)
+        self.container: podman.domain.containers.Container | None = None
 
     @classmethod
     def _container_config(cls, image: PodmanImage, config: ContainerConfig | None = None) -> ContainerConfig:
@@ -46,6 +52,13 @@ class PodmanContainer(Container):
         raise NotImplementedError()
 
     @override
+    def get_pid(self) -> int:
+        assert self.container is not None
+        info = self.container.inspect()
+        pidfile = Path(info["PidFile"])
+        return int(pidfile.read_text())
+
+    @override
     def binds(self) -> Iterator[BindConfig]:
         raise NotImplementedError()
 
@@ -55,9 +68,59 @@ class PodmanContainer(Container):
 
     @override
     def _start(self):
-        # self.container.start()
-        # self.container.wait(condition="running")
+        if self.container is not None:
+            raise RuntimeError("Container already started")
+        self.container = self.image.images.session.podman.containers.create(
+            self.image.podman_image,
+            ["sleep", "inf"],
+            auto_remove=True,
+            detach=True,
+            # TODO: environment
+            # TODO: group_add
+            # TODO: what is isolation?
+            # TODO: mounts
+            # TODO: name
+            # TODO: privileged
+            # TODO: read_only
+            # TODO: read_write_tmpfs
+            remove=True,
+            stdout=False,
+            stderr=False,
+            # TODO: stream
+            # TODO: ulimits
+            # TODO: user
+        )
+        self.container.start()
+        self.container.wait(condition="running")
         self.started = True
+
+        # def _create(self, command: list[str], config: RunConfig) -> podman.domain.containers.Container:
+        #     podman_container = self.image.images.session.podman.containers.create(
+        #         self.image.podman_image,
+        #         command,
+        #         auto_remove=True,
+        #         detach=False,
+        #         # TODO: environment
+        #         # TODO: group_add
+        #         # TODO: what is isolation?
+        #         # TODO: mounts
+        #         # TODO: name
+        #         # TODO: privileged
+        #         # TODO: read_only
+        #         # TODO: read_write_tmpfs
+        #         remove=True,
+        #         stdout=False,
+        #         stderr=False,
+        #         # TODO: stream
+        #         # TODO: ulimits
+        #         # TODO: user
+        #         working_dir=config.cwd,
+        #     )
+        #     # TODO: handle run_config: user
+        #     # if run_config.user:
+        #     #     podman_command += ["--user", run_config.user.user_name]
+        #     # TODO: handle run_config: use_path (not supported)
+        #     return podman_container
 
         # # Read machine properties
         # res = subprocess.run(["machinectl", "show", self.instance_name], capture_output=True, text=True, check=True)
@@ -80,36 +143,53 @@ class PodmanContainer(Container):
 
     @override
     def _stop(self, exc: Exception | None = None):
-        # self.container.stop()
-        # self.container.wait(condition="stopped")
+        if self.container is None:
+            return
+        self.container.reload()
+        self.container.kill(signal.SIGKILL)
+        self.container.wait(condition="stopped")
+        self.container = None
         self.started = False
+
+    def _run(self, command: list[str], config: RunConfig) -> subprocess.CompletedProcess:
+        assert self.container is not None
+        kwargs: dict[str, Any] = {}
+        podman_command = ["podman", "exec"]
+        if config.interactive:
+            podman_command += ["--interactive", "--tty"]
+        else:
+            kwargs["capture_output"] = True
+        if config.check:
+            kwargs["check"] = True
+
+        podman_command.append(self.container.id)
+        podman_command += command
+        return subprocess.run(podman_command, **kwargs)
 
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
-        assert self.started
+        assert self.container is not None
         run_config = self.config.run_config(config)
-        podman_command = ["podman", "run", "--rm"]
-        kwargs: dict[str, Any] = {}
-        if not run_config.interactive:
-            kwargs["text"] = True
-            kwargs["capture_output"] = True
-        if run_config.check:
-            kwargs["check"] = True
-
-        # TODO: handle run_config: user
-        if run_config.user:
-            podman_command += ["--user", run_config.user.user_name]
-        # TODO: handle run_config: cwd
-        # TODO: handle run_config: use_path
-
-        podman_command += [self.image.id]
-        podman_command += command
-        res = subprocess.run(podman_command, **kwargs)
+        res = self._run(command, run_config)
         return CompletedCallable(command, res.returncode, res.stdout, res.stderr)
 
     @override
     def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
-        raise NotImplementedError()
+        assert self.container is not None
+        if len(body) > 200:
+            name = f"script: {body[:200]!r}…"
+        else:
+            name = f"script: {body!r}"
+
+        with tempfile.NamedTemporaryFile("w+t") as tf:
+            tf.write(body)
+            tf.flush()
+            os.fchmod(tf.fileno(), 0o700)
+            subprocess.run(["podman", "cp", tf.name, f"{self.container.id}:/root/script"], check=True)
+
+        run_config = self.config.run_config(config)
+        res = self._run(["/root/script"], run_config)
+        return CompletedCallable(name, res.returncode, res.stdout, res.stderr)
 
     @override
     def run_callable_raw(
@@ -119,7 +199,11 @@ class PodmanContainer(Container):
         args: tuple = (),
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
-        raise NotImplementedError()
+        warnings.warn("please migrate away from run_callable which requires root", DeprecationWarning)
+        run_config = self.config.run_config(config)
+        runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
+        with privs.root():
+            return runner.execute()
 
 
 class PodmanMaintenanceContainer(PodmanContainer):

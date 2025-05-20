@@ -9,6 +9,7 @@ import pwd
 import re
 import shutil
 import subprocess
+import shlex
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, ContextManager, TypeVar
@@ -381,9 +382,11 @@ class Container(ContextManager, abc.ABC):
 
     @abc.abstractmethod
     def get_root(self) -> Path:
-        """
-        Return the path to the root directory of this container
-        """
+        """Return the path to the root directory of this container."""
+
+    @abc.abstractmethod
+    def get_pid(self) -> int:
+        """Return the PID of the main container process."""
 
     @abc.abstractmethod
     def binds(self) -> Iterator[BindConfig]:
@@ -453,15 +456,16 @@ class Container(ContextManager, abc.ABC):
             shell_candidates.append(os.path.basename(os.environ["SHELL"]))
         shell_candidates.extend(("bash", "sh"))
 
-        def find_shell():
-            """
-            lookup for a valid shell in the container
-            """
-            for cand in shell_candidates:
-                pathname = shutil.which(cand)
-                if pathname is not None:
-                    return pathname
-            raise RuntimeError(f"No valid shell found. Tried: {', '.join(shell_candidates)}")
+        script = f"""#!/bin/sh
 
-        shell = self.run_callable(find_shell)
+for candidate in {shlex.join(shell_candidates)}
+do
+    command -v $candidate && break
+done
+"""
+        res = self.run_script(script)
+        shell = res.stdout.strip().decode()
+        if not shell:
+            raise RuntimeError(f"No valid shell found. Tried: {shlex.join(shell_candidates)}")
+
         return self.run([shell, "--login"], config=config)
