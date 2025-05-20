@@ -29,6 +29,9 @@ class ProcessPrivs:
         self.dropped = not self.have_sudo
         self.auto_sudo = False
 
+    def can_regain(self) -> bool:
+        return self.have_sudo or self.auto_sudo
+
     def update_env(self):
         uid = os.getuid()
         if uid == 0:

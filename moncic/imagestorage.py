@@ -7,6 +7,8 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from moncic.context import privs
+
 if TYPE_CHECKING:
     from .images import Images
     from .session import Session
@@ -41,7 +43,8 @@ class ImageStorage(abc.ABC):
         Instantiate a default ImageStorage in case no path has been provided
         """
         combined = MultiImageStorage(session)
-        combined.add(cls.create_from_path(session, MACHINECTL_PATH))
+        if privs.can_regain():
+            combined.add(cls.create_from_path(session, MACHINECTL_PATH))
         combined.add(cls.create_podman(session))
         return combined
 

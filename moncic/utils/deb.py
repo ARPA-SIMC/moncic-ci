@@ -61,7 +61,7 @@ class DebCache:
         """
         Create a directory that can be bind mounted as /apt/cache/apt/archives
         """
-        with privs.root(), tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir:
+        with tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir:
             with dirfd(aptdir) as dst_dir_fd:
                 # Handlink debs to temp dir
                 with os.scandir(self.src_dir_fd) as it:
@@ -70,7 +70,6 @@ class DebCache:
                             st = de.stat()
                             self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
                             os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
-                            os.chown(de.name, 0, 0, dir_fd=dst_dir_fd)
 
                 try:
                     with privs.user():
@@ -84,9 +83,14 @@ class DebCache:
                                 st = de.stat()
                                 if de.name not in self.debs:
                                     os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
-                                os.chown(
-                                    de.name, self.cache_user.user_id, self.cache_user.group_id, dir_fd=self.src_dir_fd
-                                )
+                                if st.st_uid != self.cache_user.user_id:
+                                    with privs.root():
+                                        os.chown(
+                                            de.name,
+                                            self.cache_user.user_id,
+                                            self.cache_user.group_id,
+                                            dir_fd=self.src_dir_fd,
+                                        )
                                 self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
 
 
