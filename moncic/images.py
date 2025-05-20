@@ -4,7 +4,6 @@ import abc
 import logging
 from typing import TYPE_CHECKING
 
-
 if TYPE_CHECKING:
     from .image import Image
     from .session import Session

@@ -8,7 +8,8 @@ import subprocess
 import tempfile
 import urllib.parse
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Optional
+from collections.abc import Sequence
 
 import git
 
@@ -17,7 +18,7 @@ from moncic.exceptions import Fail
 from ..utils.run import run
 
 if TYPE_CHECKING:
-    from .local import LocalSource, Git
+    from .local import Git, LocalSource
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class SourceStack(contextlib.ExitStack):
         super().__init__()
         self.entered: bool = False
 
-    def __enter__(self) -> "SourceStack":  # TODO: use Self from 3.11+
+    def __enter__(self) -> SourceStack:  # TODO: use Self from 3.11+
         if self.entered:
             raise RuntimeError("__enter__ called in multiple Sources of the same chain")
         super().__enter__()
@@ -75,7 +76,7 @@ class Source(abc.ABC):
     #: User-provided name for this resource
     name: str
     #: Source from which this one was generated. None if this is the original source
-    parent: Optional["Source"]
+    parent: Source | None
     #: ExitStack to use for temporary state
     stack: contextlib.ExitStack
     #: Commands that can be used to recreate this source
@@ -100,7 +101,7 @@ class Source(abc.ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
-    def __enter__(self) -> "Source":
+    def __enter__(self) -> Source:
         self.stack.__enter__()
         return self
 
@@ -142,7 +143,7 @@ class Source(abc.ABC):
         return new_kwargs
 
     @classmethod
-    def create_local(cls, *, source: str | Path, branch: str | None = None) -> "LocalSource":
+    def create_local(cls, *, source: str | Path, branch: str | None = None) -> LocalSource:
         """
         Create a distro-agnostic source from a user-defined string
         """
@@ -184,7 +185,7 @@ class Source(abc.ABC):
                 raise Fail("Cannot specify a branch when working on a file")
             return File(name=name, path=source.absolute())
 
-    def _git_clone(self, repository: str, branch: str | None = None) -> "Git":
+    def _git_clone(self, repository: str, branch: str | None = None) -> Git:
         """
         Derive a Git source from this one, by cloning a git repository
         Clone this git repository into a temporary working directory.

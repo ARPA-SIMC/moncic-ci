@@ -6,11 +6,10 @@ from typing import TYPE_CHECKING
 from unittest import mock
 
 from moncic.distro import DistroFamily
-from moncic.source.lint import Reporter
 from moncic.source import Source
 from moncic.source.distro import DistroSource
-from moncic.source.local import File, Dir, Git
-from moncic.source.lint import guest_lint
+from moncic.source.lint import Reporter, guest_lint
+from moncic.source.local import Dir, File, Git
 
 from .source import GitRepo
 
@@ -24,15 +23,15 @@ SID = DistroFamily.lookup_distro("sid")
 
 class MockDistroSource(DistroSource):
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
+    def create_from_file(cls, parent: File, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
     def in_path(self, path: Path) -> LocalSource:  # TODO: use Self in 3.11+

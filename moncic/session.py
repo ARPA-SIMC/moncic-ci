@@ -16,6 +16,7 @@ from .utils.fs import extra_packages_dir
 
 if TYPE_CHECKING:
     import podman as _podman
+
     from .moncic import Moncic
 
 
@@ -53,7 +54,7 @@ class Session(contextlib.ExitStack):
         return res
 
     @cached_property
-    def podman(self) -> "_podman.PodmanClient":
+    def podman(self) -> _podman.PodmanClient:
         import podman
 
         uri = f"unix:///run/user/{os.getuid()}/podman/podman.sock"
@@ -115,7 +116,7 @@ class MockSession(Session):
         self.log.append(kwargs)
 
     def get_process_result(self, *, args: list[str]) -> subprocess.CompletedProcess:
-        cmdline = " ".join(shlex.quote(c) for c in args)
+        cmdline = shlex.join(args)
         for regex, result in self.process_result_queue.items():
             if re.search(regex, cmdline):
                 self.process_result_queue.pop(regex)

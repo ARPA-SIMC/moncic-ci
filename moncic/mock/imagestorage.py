@@ -3,11 +3,12 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 from moncic.nspawn.imagestorage import NspawnImageStorage
+
 from .images import MockImages
 
 if TYPE_CHECKING:
-    from moncic.session import Session
     from moncic.images import Images
+    from moncic.session import Session
 
 
 class MockImageStorage(NspawnImageStorage):

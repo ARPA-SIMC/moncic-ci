@@ -19,7 +19,6 @@ from .utils import libbanana
 from .utils.deb import apt_get_cmd
 from .utils.nspawn import escape_bind_ro
 
-
 Result = TypeVar("Result")
 
 log = logging.getLogger(__name__)
@@ -203,7 +202,7 @@ class BindConfig:
 
     @classmethod
     def bind_hook_setup_aptcache(cls, bind_config: BindConfig):
-        with open("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads", "wt") as fd:
+        with open("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads", "w") as fd:
             print('Binary::apt::APT::Keep-Downloaded-Packages "1";', file=fd)
         try:
             apt_user = pwd.getpwnam("_apt")
@@ -230,7 +229,7 @@ class BindConfig:
                 check=True,
             )
 
-        with open("/etc/apt/sources.list.d/tmp-moncic-ci.list", "wt") as fd:
+        with open("/etc/apt/sources.list.d/tmp-moncic-ci.list", "w") as fd:
             print(f"deb [trusted=yes] file://{mirror_dir} ./", file=fd)
 
         # env = dict(os.environ)

@@ -8,17 +8,18 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, cast, Any
+from typing import IO, TYPE_CHECKING, Any, cast
 
 from ..container import ContainerConfig
 from ..runner import UserConfig
+from ..source.distro import DistroSource
 from ..utils.guest import guest_only, host_only
 from . import build
-from ..source.distro import DistroSource
 
 if TYPE_CHECKING:
-    from ..container import Container
     from moncic.nspawn.system import NspawnSystem
+
+    from ..container import Container
 
 log = logging.getLogger(__name__)
 

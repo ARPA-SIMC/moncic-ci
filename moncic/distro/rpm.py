@@ -89,7 +89,7 @@ class RpmDistro(Distro):
             yield fd.name
 
     @override
-    def bootstrap(self, container: "Container"):
+    def bootstrap(self, container: Container):
         from moncic.nspawn.container import NspawnContainer
 
         installer = shutil.which("dnf")
@@ -148,17 +148,17 @@ class YumDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["yum"]
 
-    def get_update_pkgdb_script(self, image: "Image"):
+    def get_update_pkgdb_script(self, image: Image):
         res = super().get_update_pkgdb_script(image)
         res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
+    def get_upgrade_system_script(self, image: Image) -> list[list[str]]:
         res = super().get_upgrade_system_script(image)
         res.append(["/usr/bin/yum", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, image: "Image", packages: list[str]) -> list[list[str]]:
+    def get_install_packages_script(self, image: Image, packages: list[str]) -> list[list[str]]:
         res = super().get_install_packages_script(image, packages)
         res.append(["/usr/bin/yum", "install", "-q", "-y"] + packages)
         return res
@@ -168,22 +168,22 @@ class DnfDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["dnf"]
 
-    def get_setup_network_script(self, image: "Image"):
+    def get_setup_network_script(self, image: Image):
         res = super().get_setup_network_script(image)
         res.append(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
         return res
 
-    def get_update_pkgdb_script(self, image: "Image"):
+    def get_update_pkgdb_script(self, image: Image):
         res = super().get_update_pkgdb_script(image)
         res.append(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
+    def get_upgrade_system_script(self, image: Image) -> list[list[str]]:
         res = super().get_upgrade_system_script(image)
         res.append(["/usr/bin/dnf", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, image: "Image", packages: list[str]):
+    def get_install_packages_script(self, image: Image, packages: list[str]):
         res = super().get_install_packages_script(image, packages)
         res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
         return res
@@ -213,7 +213,7 @@ for requirement in requirements:
 json.dump(res, sys.stdout)
 """
 
-        with open("/tmp/script", "wt") as fd:
+        with open("/tmp/script", "w") as fd:
             fd.write(script)
         res = subprocess.run(["/usr/bin/python3", "/tmp/script"], stdout=subprocess.PIPE, text=True, check=True)
         return json.loads(res.stdout)
@@ -225,7 +225,7 @@ class Centos7(YumDistro):
     version = 7
 
     @override
-    def bootstrap(self, container: "Container"):
+    def bootstrap(self, container: Container):
         super().bootstrap(container)
         from moncic.nspawn.container import NspawnContainer
 
@@ -234,7 +234,7 @@ class Centos7(YumDistro):
         installroot = container.path.absolute()
         varsdir = installroot / "etc" / "yum" / "vars"
         os.makedirs(varsdir, exist_ok=True)
-        with open(varsdir / "releasever", "wt") as fd:
+        with open(varsdir / "releasever", "w") as fd:
             print("7", file=fd)
 
 
@@ -244,7 +244,7 @@ class Centos8(DnfDistro):
     version = 8
 
     @override
-    def bootstrap(self, container: "Container"):
+    def bootstrap(self, container: Container):
         from moncic.nspawn.container import NspawnContainer
 
         if not isinstance(container, NspawnContainer):

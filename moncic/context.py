@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .container import Container
+    from .image import Image
     from .moncic import Moncic
     from .session import Session
 

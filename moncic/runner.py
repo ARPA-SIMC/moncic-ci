@@ -19,7 +19,8 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic, NamedTuple, TypeVar, cast
+from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic,
+                    NamedTuple, TypeVar, cast)
 
 import tblib
 
@@ -286,7 +287,7 @@ class LocalRunner(AsyncioRunner):
     """
 
     def _get_name(self) -> str:
-        return " ".join(shlex.quote(c) for c in self.cmd)
+        return shlex.join(self.cmd)
 
     async def start_process(self):
         if self.config.user is not None:

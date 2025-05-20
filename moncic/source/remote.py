@@ -3,8 +3,8 @@ from __future__ import annotations
 import urllib.parse
 from typing import Any
 
-from .source import Source
 from .local import Git
+from .source import Source
 
 
 class URL(Source):

@@ -5,10 +5,10 @@ import unittest
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from moncic.source.source import CommandLog, SourceStack, Source
-from moncic.source.local import Git
-
 import git
+
+from moncic.source.local import Git
+from moncic.source.source import CommandLog, Source, SourceStack
 
 from .source import GitFixture
 

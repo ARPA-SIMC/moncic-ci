@@ -23,7 +23,7 @@ def log_run(cmd: Sequence[str], **kw) -> None:
     else:
         prompt += "$"
 
-    log.info("%s %s", prompt, " ".join(shlex.quote(x) for x in cmd))
+    log.info("%s %s", prompt, shlex.join(cmd))
 
 
 def run(cmd: Sequence[str], check: bool = True, **kw) -> subprocess.CompletedProcess:

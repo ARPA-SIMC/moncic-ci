@@ -16,8 +16,9 @@ import ruamel.yaml
 import yaml
 
 from moncic.nspawn.image import NspawnImage
-from ..operations import query as ops_query
+
 from ..exceptions import Fail
+from ..operations import query as ops_query
 from ..utils.edit import edit_yaml
 from ..utils.fs import atomic_writer
 from .moncic import MoncicCommand, SourceCommand, main_command
@@ -105,7 +106,7 @@ class MaintCommand(MoncicCommand):
                 log.error("%s: cannot update image", self.args.name, exc_info=True)
 
     @contextlib.contextmanager
-    def edit_config(self) -> Generator[dict[str, Any], None, None]:
+    def edit_config(self) -> Generator[dict[str, Any]]:
         """
         Edit the image configuration file as a parsed yaml structure.
 
@@ -155,9 +156,9 @@ class Setup(MaintCommand):
     def run(self):
         with self.edit_config() as data:
             if maintscript := data.get("maintscript"):
-                maintscript += "\n" + " ".join(shlex.quote(c) for c in self.args.command)
+                maintscript += "\n" + shlex.join(self.args.command)
             else:
-                maintscript = " ".join(shlex.quote(c) for c in self.args.command)
+                maintscript = shlex.join(self.args.command)
             data["maintscript"] = ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
 
 

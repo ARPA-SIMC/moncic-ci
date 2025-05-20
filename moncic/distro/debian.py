@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, override
 
 import requests
 
-from ..container import Container, BindConfig, ContainerConfig
+from ..container import BindConfig, Container, ContainerConfig
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
@@ -113,7 +113,7 @@ class DebianDistro(Distro):
         self.mirror = mirror
         self.suite = suite
 
-    def container_config_hook(self, image: "Image", config: ContainerConfig):
+    def container_config_hook(self, image: Image, config: ContainerConfig):
         super().container_config_hook(image, config)
         if apt_archive_path := image.images.session.apt_archives:
             config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", "aptcache"))
@@ -137,7 +137,7 @@ class DebianDistro(Distro):
             return ["debian/" + self.suite, "debian/latest"]
 
     @override
-    def bootstrap(self, container: "Container"):
+    def bootstrap(self, container: Container):
         from moncic.nspawn.container import NspawnContainer
 
         if not isinstance(container, NspawnContainer):
@@ -166,17 +166,17 @@ class DebianDistro(Distro):
                 cmd.insert(0, eatmydata)
             container.image.local_run(cmd)
 
-    def get_update_pkgdb_script(self, image: "Image"):
+    def get_update_pkgdb_script(self, image: Image):
         res = super().get_update_pkgdb_script(image)
         res.append(["/usr/bin/apt-get", "update"])
         return res
 
-    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
+    def get_upgrade_system_script(self, image: Image) -> list[list[str]]:
         res = super().get_upgrade_system_script(image)
         res.append(self.APT_INSTALL_CMD + ["full-upgrade"])
         return res
 
-    def get_install_packages_script(self, image: "Image", packages: list[str]) -> list[list[str]]:
+    def get_install_packages_script(self, image: Image, packages: list[str]) -> list[list[str]]:
         res = super().get_install_packages_script(image, packages)
         res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res

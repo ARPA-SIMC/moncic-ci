@@ -4,34 +4,23 @@ import abc
 import contextlib
 import tempfile
 from pathlib import Path
+from typing import ContextManager, cast
+from collections.abc import Generator
 from unittest import mock
-from typing import cast, Generator, ContextManager
 
 from moncic.distro import DistroFamily
 from moncic.distro.debian import DebianDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
-from moncic.source.local import File, Dir, Git
-from moncic.source.debian import (
-    DebianSource,
-    DebianDir,
-    DebianDsc,
-    SourceInfo,
-    GBPInfo,
-    DebianDirGit,
-    DebianGBPTestDebian,
-    DebianGBPTestUpstream,
-    DebianGBPRelease,
-    DSCInfo,
-)
+from moncic.source.debian import (DebianDir, DebianDirGit, DebianDsc,
+                                  DebianGBPRelease, DebianGBPTestDebian,
+                                  DebianGBPTestUpstream, DebianSource, DSCInfo,
+                                  GBPInfo, SourceInfo)
+from moncic.source.local import Dir, File, Git
 
-from .source import (
-    GitFixture,
-    WorkdirFixture,
-    GitRepo,
-    create_lint_version_fixture_path,
-    create_lint_version_fixture_git,
-)
+from .source import (GitFixture, GitRepo, WorkdirFixture,
+                     create_lint_version_fixture_git,
+                     create_lint_version_fixture_path)
 
 SID = cast(DebianDistro, DistroFamily.lookup_distro("sid"))
 
@@ -248,7 +237,7 @@ Files:
         )
 
     @contextlib.contextmanager
-    def source(self) -> Generator[DebianDsc, None, None]:
+    def source(self) -> Generator[DebianDsc]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, File)
             src = DebianDsc.prepare_from_file(parent, distro=SID)
@@ -412,7 +401,7 @@ class TestDebianDir(TestDebianLegacy):
         (debian_dir / "changelog").write_text("moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
 
     @contextlib.contextmanager
-    def source(self) -> Generator[DebianDir, None, None]:
+    def source(self) -> Generator[DebianDir]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, Dir)
             src = DebianDir.prepare_from_dir(parent, distro=SID)
@@ -441,7 +430,7 @@ class TestDebianDir(TestDebianLegacy):
         with self.source() as src:
             with tempfile.TemporaryDirectory() as destdir_str:
                 destdir = Path(destdir_str)
-                with self.assertRaisesRegex(Fail, "Tarball \S* not found"):
+                with self.assertRaisesRegex(Fail, r"Tarball \S* not found"):
                     src.collect_build_artifacts(destdir)
 
 
@@ -457,7 +446,7 @@ class TestDebianDirGit(TestDebianLegacy, GitFixture):
         cls.git.commit()
 
     @contextlib.contextmanager
-    def source(self) -> Generator[DebianDirGit, None, None]:
+    def source(self) -> Generator[DebianDirGit]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, Git)
             src = DebianDir.prepare_from_git(parent, distro=SID, source_info=self.source_info)
@@ -551,7 +540,7 @@ class TestDebianGBPTestUpstream(GitFixture):
         )
 
     @contextlib.contextmanager
-    def source(self) -> Generator[DebianGBPTestUpstream, None, None]:
+    def source(self) -> Generator[DebianGBPTestUpstream]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, Git)
             src = DebianGBPTestUpstream.prepare_from_git(
@@ -700,7 +689,7 @@ debian-branch=debian/unstable
         cls.gbp_info = cls.source_info.parse_gbp(cls.path / "debian" / "gbp.conf")
 
     @contextlib.contextmanager
-    def source(self) -> Generator[DebianGBPRelease, None, None]:
+    def source(self) -> Generator[DebianGBPRelease]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, Git)
             src = DebianGBPRelease.prepare_from_git(
@@ -840,7 +829,7 @@ debian-branch=debian/unstable
         cls.gbp_info = cls.source_info.parse_gbp(cls.path / "debian" / "gbp.conf")
 
     @contextlib.contextmanager
-    def source(self) -> Generator[DebianGBPTestDebian, None, None]:
+    def source(self) -> Generator[DebianGBPTestDebian]:
         with Source.create_local(source=self.path) as parent:
             assert isinstance(parent, Git)
             src = DebianGBPTestDebian.prepare_from_git(

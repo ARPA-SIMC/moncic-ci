@@ -29,7 +29,7 @@ class ImageStorage(abc.ABC):
 
     @abc.abstractmethod
     @contextlib.contextmanager
-    def images(self) -> Generator[Images, None, None]:
+    def images(self) -> Generator[Images]:
         """
         Make the image storage accessible for the duration of this context
         manager
@@ -82,7 +82,7 @@ class MultiImageStorage(ImageStorage):
         self.storages.append(storage)
 
     @contextlib.contextmanager
-    def images(self) -> Generator[Images, None, None]:
+    def images(self) -> Generator[Images]:
         """
         Make the image storage accessible for the duration of this context
         manager

@@ -1,18 +1,18 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING, Any, ClassVar
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from .local import LocalSource, File, Dir, Git
 from ..exceptions import Fail
+from .local import Dir, File, Git, LocalSource
 
 if TYPE_CHECKING:
     from ..distro import Distro
 
 
 # Registry of known builders
-source_types: dict[str, type["DistroSource"]] = {}
+source_types: dict[str, type[DistroSource]] = {}
 
 
 class DistroSource(LocalSource, abc.ABC):
@@ -64,7 +64,7 @@ class DistroSource(LocalSource, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def create_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
+    def create_from_file(cls, parent: File, *, distro: Distro) -> DistroSource:
         """
         Create a distro-specific source from a File.
 
@@ -73,7 +73,7 @@ class DistroSource(LocalSource, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> DistroSource:
         """
         Create a distro-specific source from a Dir directory.
 
@@ -82,7 +82,7 @@ class DistroSource(LocalSource, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> DistroSource:
         """
         Create a distro-specific source from a Git repo.
 
@@ -90,7 +90,7 @@ class DistroSource(LocalSource, abc.ABC):
         """
 
     @classmethod
-    def prepare_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
+    def prepare_from_file(cls, parent: File, *, distro: Distro) -> DistroSource:
         """
         Create a distro-specific source from a File.
 
@@ -100,7 +100,7 @@ class DistroSource(LocalSource, abc.ABC):
         raise Fail(f"{cls.get_source_type()} is not applicable on a file")
 
     @classmethod
-    def prepare_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
+    def prepare_from_dir(cls, parent: Dir, *, distro: Distro) -> DistroSource:
         """
         Create a distro-specific source from a Dir directory.
 
@@ -110,7 +110,7 @@ class DistroSource(LocalSource, abc.ABC):
         raise Fail(f"{cls.get_source_type()} is not applicable on a non-git directory")
 
     @classmethod
-    def prepare_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
+    def prepare_from_git(cls, parent: Git, *, distro: Distro) -> DistroSource:
         """
         Create a distro-specific source from a Git repo.
 
@@ -120,9 +120,9 @@ class DistroSource(LocalSource, abc.ABC):
         raise Fail(f"{cls.get_source_type()} is not applicable on a git repository")
 
     @classmethod
-    def create_from_local(cls, parent: LocalSource, *, distro: Distro, style: str | None = None) -> "DistroSource":
+    def create_from_local(cls, parent: LocalSource, *, distro: Distro, style: str | None = None) -> DistroSource:
         """Create a distro-specific source from a local source."""
-        source_cls: type["DistroSource"]
+        source_cls: type[DistroSource]
         if style is None:
             source_cls = cls._detect_class_for_distro(distro=distro)
             factory_method = "create_from_"
@@ -143,7 +143,7 @@ class DistroSource(LocalSource, abc.ABC):
         return meth(parent, distro=distro)
 
     @classmethod
-    def _detect_class_for_distro(cls, *, distro: Distro) -> type["DistroSource"]:
+    def _detect_class_for_distro(cls, *, distro: Distro) -> type[DistroSource]:
         from ..distro.debian import DebianDistro
         from ..distro.rpm import RpmDistro
 
@@ -159,7 +159,7 @@ class DistroSource(LocalSource, abc.ABC):
             raise NotImplementedError(f"No suitable git builder found for distribution {distro!r}")
 
     @classmethod
-    def _detect_class_for_style(cls, *, distro: Distro, style: str) -> type["DistroSource"]:
+    def _detect_class_for_style(cls, *, distro: Distro, style: str) -> type[DistroSource]:
         style_cls = source_types.get(style, None)
         if style_cls is None:
             raise Fail(f"source type {style} not found. Use --source-type=list to get a list of available ones")

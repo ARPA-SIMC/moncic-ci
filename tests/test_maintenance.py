@@ -26,7 +26,7 @@ class TestMaintenance(unittest.TestCase):
         with privs.root():
             if base_image_name not in cls.images.list_images():
                 raise unittest.SkipTest(f"Image {base_image_name} not available")
-            with open(cls.test_image_config_file, "wt") as fd:
+            with open(cls.test_image_config_file, "w") as fd:
                 fd.write(
                     f"""
 extends: {base_image_name}
@@ -64,7 +64,7 @@ maintscript: |
                 with system.create_container() as container:
 
                     def test_function():
-                        with open("/root/token", "wt") as out:
+                        with open("/root/token", "w") as out:
                             out.write("test_transactional_updates")
                         return ("result", 123)
 
@@ -97,7 +97,7 @@ maintscript: |
                         with system.create_container() as container:
 
                             def test_function():
-                                with open("/root/token", "wt") as out:
+                                with open("/root/token", "w") as out:
                                     out.write("test_transactional_updates")
                                 raise RuntimeError("expected error")
 

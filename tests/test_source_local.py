@@ -6,15 +6,11 @@ from typing import Any
 
 from moncic.exceptions import Fail
 from moncic.source import Source
-from moncic.source.local import File, Dir, Git
+from moncic.source.local import Dir, File, Git
 
-from .source import (
-    WorkdirFixture,
-    GitFixture,
-    GitRepo,
-    create_lint_version_fixture_path,
-    create_lint_version_fixture_git,
-)
+from .source import (GitFixture, GitRepo, WorkdirFixture,
+                     create_lint_version_fixture_git,
+                     create_lint_version_fixture_path)
 
 
 class TestFile(WorkdirFixture):

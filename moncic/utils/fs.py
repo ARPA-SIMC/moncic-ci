@@ -90,7 +90,7 @@ def cd(path: str):
 
 
 @contextlib.contextmanager
-def dirfd(path: str) -> Generator[int, None, None]:
+def dirfd(path: str) -> Generator[int]:
     """
     Open a directory as a file descriptor
     """
@@ -102,7 +102,7 @@ def dirfd(path: str) -> Generator[int, None, None]:
 
 
 @contextlib.contextmanager
-def extra_packages_dir(path: str) -> Generator[str, None, None]:
+def extra_packages_dir(path: str) -> Generator[str]:
     """
     Create a temporary directory where all packages found in path are
     hardlinked

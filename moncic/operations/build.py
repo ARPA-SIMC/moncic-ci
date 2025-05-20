@@ -5,18 +5,18 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from ..build.build import Build
+from ..build.utils import link_or_copy
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 from . import build
-from ..build.utils import link_or_copy
-from ..build.build import Build
 from .base import ContainerSourceOperation
 
-
 if TYPE_CHECKING:
-    from ..container import Container
     from moncic.nspawn.system import NspawnSystem
+
+    from ..container import Container
 
 log = logging.getLogger(__name__)
 

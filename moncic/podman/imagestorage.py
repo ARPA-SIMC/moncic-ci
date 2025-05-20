@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from moncic.imagestorage import ImageStorage
+
 from .images import PodmanImages
 
 if TYPE_CHECKING:
-    from moncic.session import Session
     from moncic.images import Images
+    from moncic.session import Session
 
 log = logging.getLogger("images")
 

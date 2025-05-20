@@ -8,10 +8,10 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from .source import Source
-from ..utils.run import run
-
 import git
+
+from ..utils.run import run
+from .source import Source
 
 
 class LocalSource(Source, abc.ABC):

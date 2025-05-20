@@ -3,7 +3,7 @@ import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, List
+from typing import TYPE_CHECKING, List, NamedTuple
 
 from ..utils.osrelease import parse_osrelase
 
@@ -145,7 +145,7 @@ class DistroFamily:
         """
         raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
 
-    def list_distros(self) -> List[DistroInfo]:
+    def list_distros(self) -> list[DistroInfo]:
         """
         Return a list of distros available in this family
         """

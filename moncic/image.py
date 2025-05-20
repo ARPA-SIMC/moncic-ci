@@ -6,8 +6,8 @@ from typing import TYPE_CHECKING, Any, Optional
 from moncic.distro import Distro
 
 if TYPE_CHECKING:
-    from .images import Images
     from .container import Container, ContainerConfig
+    from .images import Images
 
 log = logging.getLogger("image")
 

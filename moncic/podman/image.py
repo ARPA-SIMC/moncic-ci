@@ -1,15 +1,17 @@
-import io
 import contextlib
+import io
 import logging
 import subprocess
-from typing import TYPE_CHECKING, override, Generator, Optional
+from typing import TYPE_CHECKING, Optional, override
+from collections.abc import Generator
 
-from moncic.image import Image, ImageType
 from moncic.distro import DistroFamily
+from moncic.image import Image, ImageType
 from moncic.utils.osrelease import parse_osrelase_contents
 
 if TYPE_CHECKING:
     from moncic.container import Container, ContainerConfig
+
     from .images import PodmanImages
 
 log = logging.getLogger("nspawn")

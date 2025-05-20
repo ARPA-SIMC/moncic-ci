@@ -1,11 +1,12 @@
-import subprocess
 import contextlib
-from typing import override, TYPE_CHECKING, Generator
+import subprocess
+from typing import TYPE_CHECKING, override
+from collections.abc import Generator
 
 from moncic.nspawn.image import NspawnImage
 
 if TYPE_CHECKING:
-    from .system import MockSystem, MockMaintenanceSystem
+    from .system import MockMaintenanceSystem, MockSystem
 
 
 class MockImage(NspawnImage):

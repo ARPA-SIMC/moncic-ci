@@ -1,11 +1,12 @@
 import logging
 from typing import TYPE_CHECKING, override
 
-from moncic.images import Images
 from moncic.image import Image
+from moncic.images import Images
 
 if TYPE_CHECKING:
     from moncic.session import Session
+
     from .image import PodmanImage
 
 log = logging.getLogger("images")

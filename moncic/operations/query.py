@@ -4,15 +4,15 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ..utils.guest import guest_only
-from ..source.lint import Reporter, guest_lint
-from .base import ContainerSourceOperation
 from .. import context
-
+from ..source.lint import Reporter, guest_lint
+from ..utils.guest import guest_only
+from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:
-    from ..container import Container
     from moncic.nspawn.system import NspawnSystem
+
+    from ..container import Container
 
 log = logging.getLogger(__name__)
 

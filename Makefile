@@ -17,7 +17,7 @@ isort:
 	isort monci moncic tests
 
 flake8:
-	flake8 monci moncic tests
+	pyflakes3 monci moncic tests
 
 mypy:
 	mypy monci moncic tests

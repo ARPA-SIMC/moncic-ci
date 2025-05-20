@@ -55,7 +55,7 @@ class DebCache:
                 size += info.size
 
     @contextlib.contextmanager
-    def apt_archives(self) -> Generator[str, None, None]:
+    def apt_archives(self) -> Generator[str]:
         """
         Create a directory that can be bind mounted as /apt/cache/apt/archives
         """

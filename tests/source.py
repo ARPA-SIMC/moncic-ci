@@ -59,7 +59,7 @@ class GitRepo(contextlib.ExitStack):
         self.git("commit", "-m", message)
 
     @contextlib.contextmanager
-    def serve(self) -> Generator[str, None, None]:
+    def serve(self) -> Generator[str]:
         """
         Run a webserver serving the repo contents for the duration of this
         context manager.

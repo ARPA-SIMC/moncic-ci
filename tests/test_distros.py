@@ -4,9 +4,9 @@ import abc
 import re
 import unittest
 from pathlib import Path
-from typing import ClassVar, override, Any
+from typing import Any, ClassVar, override
 
-from moncic.distro import DistroFamily, Distro
+from moncic.distro import Distro, DistroFamily
 from moncic.unittest import DistroTestMixin, MockRunLog
 
 

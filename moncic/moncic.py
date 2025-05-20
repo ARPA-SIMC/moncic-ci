@@ -4,7 +4,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import overload, Self
+from typing import Self, overload
 
 import yaml
 

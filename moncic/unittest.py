@@ -8,15 +8,16 @@ import shlex
 import subprocess
 import tempfile
 from collections.abc import Generator
-from typing import TYPE_CHECKING, Any, Callable, ContextManager
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, ContextManager
 from unittest import SkipTest, mock
+
+from moncic.nspawn.image import NspawnImage, NspawnImagePlain
+from moncic.nspawn.images import NspawnImages
 
 from .container import Container, RunConfig, UserConfig
 from .moncic import Moncic, MoncicConfig
 from .runner import CompletedCallable
-from moncic.nspawn.image import NspawnImage, NspawnImagePlain
-from moncic.nspawn.images import NspawnImages
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 
@@ -54,7 +55,7 @@ privs.drop()
 
 
 @contextlib.contextmanager
-def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic, None, None]:
+def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic]:
     """
     Create a Moncic instance configured to work with the test suite.
     """
@@ -78,7 +79,7 @@ class MockRunLog:
         self.log = []
 
     def append(self, cmd: list[str], kwargs: dict[str, Any]):
-        self.log.append((" ".join(shlex.quote(c) for c in cmd), kwargs))
+        self.log.append((shlex.join(cmd), kwargs))
 
     def append_script(self, body: str):
         self.log.append((f"script:{body}", {}))
@@ -126,7 +127,7 @@ class MockRunLog:
 
 
 @contextlib.contextmanager
-def workdir(filesystem_type: str | None = None) -> Generator[Path, None, None]:
+def workdir(filesystem_type: str | None = None) -> Generator[Path]:
     """
     Create a temporary working directory. If filesystem_type is set to one of
     the supported options, make sure it is backed by that given filessytem
@@ -168,7 +169,7 @@ class DistroTestMixin:
     """
 
     @contextlib.contextmanager
-    def config(self, filesystem_type: str | None = None) -> Generator[MoncicConfig, None, None]:
+    def config(self, filesystem_type: str | None = None) -> Generator[MoncicConfig]:
         if filesystem_type is None:
             filesystem_type = getattr(self, "DEFAULT_FILESYSTEM_TYPE", None)
 
@@ -180,7 +181,7 @@ class DistroTestMixin:
             yield res
 
     @contextlib.contextmanager
-    def _mock_system(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog, None, None]:
+    def _mock_system(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog]:
         """
         Mock System objects to log operations instead of running them
         """
@@ -212,7 +213,7 @@ class DistroTestMixin:
                         yield rlog
 
     @contextlib.contextmanager
-    def _mock_container(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog, None, None]:
+    def _mock_container(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog]:
         """
         Mock System objects to log operations instead of running them
         """
@@ -252,7 +253,7 @@ class DistroTestMixin:
                                 yield rlog
 
     @contextlib.contextmanager
-    def mock(self, system: bool = True, container: bool = True) -> Generator[MockRunLog, None, None]:
+    def mock(self, system: bool = True, container: bool = True) -> Generator[MockRunLog]:
         """
         Mock System or Container objects
         """
@@ -275,7 +276,7 @@ class DistroTestMixin:
                 yield run_log
 
     @contextlib.contextmanager
-    def make_images(self, distro: Distro) -> Generator[imagestorage.Images, None, None]:
+    def make_images(self, distro: Distro) -> Generator[imagestorage.Images]:
         with self.config() as mconfig, make_moncic(mconfig) as moncic:
 
             def _load(mconfig: MoncicConfig, images: NspawnImages, name: str):
@@ -291,7 +292,7 @@ class DistroTestMixin:
                     yield session.images
 
     @contextlib.contextmanager
-    def make_container(self, distro: Distro) -> Generator[Container, None, None]:
+    def make_container(self, distro: Distro) -> Generator[Container]:
         with self.make_images(distro) as images:
             image = images.image("test")
             with image.maintenance_container() as container:

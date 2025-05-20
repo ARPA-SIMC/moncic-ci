@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any
 
 from ..build import Build
+from ..distro import Distro
 from ..operations import build as ops_build
 from ..operations import query as ops_query
-from ..distro import Distro
 from ..source import Source
 from ..source.lint import host_lint
 from .moncic import SourceCommand, main_command

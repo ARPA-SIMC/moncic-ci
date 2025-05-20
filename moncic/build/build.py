@@ -103,7 +103,7 @@ class Build:
     )
 
     @classmethod
-    def get_build_class(cls, source: DistroSource) -> type["Build"]:
+    def get_build_class(cls, source: DistroSource) -> type[Build]:
         from ..source.debian import DebianSource
         from ..source.rpm import RPMSource, ARPASource
         from .debian import Debian
@@ -122,7 +122,7 @@ class Build:
         """
         Add a command to the trace log
         """
-        self.trace_log.append(" ".join(shlex.quote(c) for c in args))
+        self.trace_log.append(shlex.join(args))
 
     def load_yaml(self, pathname: str) -> None:
         """
@@ -222,7 +222,7 @@ class Build:
         ]
 
     @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str], None, None]:
+    def list_build_options(cls) -> Generator[tuple[str, str]]:
         """
         List available build option names and their documentation
         """

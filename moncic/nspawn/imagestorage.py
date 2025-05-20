@@ -4,13 +4,14 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from moncic.utils.btrfs import is_btrfs
 from moncic.imagestorage import ImageStorage
-from .images import PlainImages, BtrfsImages, NspawnImages
+from moncic.utils.btrfs import is_btrfs
+
+from .images import BtrfsImages, NspawnImages, PlainImages
 
 if TYPE_CHECKING:
-    from moncic.session import Session
     from moncic.images import Images
+    from moncic.session import Session
 
 log = logging.getLogger("images")
 

@@ -16,13 +16,13 @@ from typing import TYPE_CHECKING, Any
 import git
 
 from ..build.utils import link_or_copy
+from ..distro.debian import DebianDistro
 from ..exceptions import Fail
 from ..utils.guest import host_only
 from ..utils.run import log_run, run
-from .local import Dir, Git, File
-from .source import CommandLog
 from .distro import DistroSource
-from ..distro.debian import DebianDistro
+from .local import Dir, File, Git
+from .source import CommandLog
 
 if TYPE_CHECKING:
     from ..distro import Distro
@@ -48,7 +48,7 @@ class SourceInfo:
     tar_stem: str
 
     @classmethod
-    def create_from_dir(cls, path: Path) -> "SourceInfo":
+    def create_from_dir(cls, path: Path) -> SourceInfo:
         """
         Get source information from an unpacked Debian source
         """
@@ -89,7 +89,7 @@ class SourceInfo:
 
         return None
 
-    def parse_gbp(self, gbp_conf_path: Path) -> "GBPInfo":
+    def parse_gbp(self, gbp_conf_path: Path) -> GBPInfo:
         """
         Parse gbp.conf returning values for DebianGBP fields
         """
@@ -121,7 +121,7 @@ class DSCInfo(SourceInfo):
     file_list: list[str]
 
     @classmethod
-    def create_from_file(cls, path: Path) -> "DSCInfo":
+    def create_from_file(cls, path: Path) -> DSCInfo:
         name: str | None = None
         version: str | None = None
         file_list: list[str] = []
@@ -195,7 +195,7 @@ class DebianSource(DistroSource, abc.ABC):
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package not implemented")
 
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro) -> "DebianSource":
+    def create_from_file(cls, parent: File, *, distro: Distro) -> DebianSource:
         if not isinstance(distro, DebianDistro):
             raise RuntimeError("cannot create a DebianSource non a non-Debian distro")
         if parent.path.suffix == ".dsc":
@@ -204,7 +204,7 @@ class DebianSource(DistroSource, abc.ABC):
             raise Fail(f"{parent.path}: cannot detect source type")
 
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DebianSource":
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> DebianSource:
         if not (parent.path / "debian").is_dir():
             raise Fail(f"{parent.path}: cannot detect source type")
         if not isinstance(distro, DebianDistro):
@@ -213,7 +213,7 @@ class DebianSource(DistroSource, abc.ABC):
         return DebianDir.prepare_from_dir(parent, distro=distro)
 
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> "DebianSource":
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> DebianSource:
         """
         Detect the style of packaging repository.
 
@@ -322,7 +322,7 @@ class DebianDsc(DebianSource, File, style="debian-dsc"):
         super().__init__(source_info=source_info, **kwargs)
 
     @classmethod
-    def prepare_from_file(cls, parent: File, *, distro: Distro) -> "DebianDsc":
+    def prepare_from_file(cls, parent: File, *, distro: Distro) -> DebianDsc:
         assert parent.path.suffix == ".dsc"
         source_info = DSCInfo.create_from_file(parent.path)
         return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info)
@@ -356,7 +356,7 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
         parent: Dir,
         *,
         distro: Distro,
-    ) -> "DebianDir":  # TODO: Self from python 3.11+
+    ) -> DebianDir:  # TODO: Self from python 3.11+
         source_info = SourceInfo.create_from_dir(parent.path)
         return cls(**parent.derive_kwargs(distro=distro, source_info=source_info))
 
@@ -367,7 +367,7 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
         *,
         distro: Distro,
         source_info: SourceInfo | None = None,
-    ) -> "DebianDirGit":  # TODO: Self from python 3.11+
+    ) -> DebianDirGit:  # TODO: Self from python 3.11+
         if source_info is None:
             source_info = SourceInfo.create_from_dir(parent.path)
         parent = parent.get_clean()
@@ -562,7 +562,7 @@ class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
         *,
         distro: Distro,
         packaging_branch: git.refs.symbolic.SymbolicReference | None = None,
-    ) -> "DebianGBPTestUpstream":
+    ) -> DebianGBPTestUpstream:
         assert isinstance(distro, DebianDistro)
         if packaging_branch is None:
             packaging_branch = DebianGBP.find_packaging_branch(parent, distro)
@@ -640,7 +640,7 @@ class DebianGBPRelease(DebianGBP, style="debian-gbp-release"):
         distro: Distro,
         source_info: SourceInfo | None = None,
         gbp_info: GBPInfo | None = None,
-    ) -> "DebianGBPRelease":
+    ) -> DebianGBPRelease:
         assert isinstance(distro, DebianDistro)
         source_info, gbp_info = cls.find_gbp(parent, distro, source_info, gbp_info)
 
@@ -680,7 +680,7 @@ class DebianGBPTestDebian(DebianGBP, style="debian-gbp-test"):
         distro: Distro,
         source_info: SourceInfo | None = None,
         gbp_info: GBPInfo | None = None,
-    ) -> "DebianGBPTestDebian":
+    ) -> DebianGBPTestDebian:
         assert isinstance(distro, DebianDistro)
         source_info, gbp_info = cls.find_gbp(parent, distro, source_info, gbp_info)
 

@@ -1,22 +1,25 @@
 import abc
 import contextlib
-from functools import cached_property
 import logging
 import shutil
 import subprocess
+from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, override, NamedTuple, Any, Optional, ContextManager, Generator
+from typing import (TYPE_CHECKING, Any, ContextManager, NamedTuple,
+                    Optional, Self, override)
+from collections.abc import Generator
 
 import yaml
 
 from moncic.container import RunConfig
+from moncic.distro import Distro, DistroFamily
 from moncic.image import Image, ImageType
-from moncic.distro import DistroFamily, Distro
 from moncic.utils.btrfs import Subvolume
 
 if TYPE_CHECKING:
-    from moncic.moncic import MoncicConfig
     from moncic.container import Container, ContainerConfig
+    from moncic.moncic import MoncicConfig
+
     from .images import NspawnImages
 
 log = logging.getLogger("nspawn")

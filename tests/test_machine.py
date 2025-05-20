@@ -6,12 +6,13 @@ import sys
 import tempfile
 import time
 import unittest
-from typing import ClassVar
 from collections.abc import Generator
+from typing import ClassVar
 
-from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
-from moncic.session import Session
+from moncic.container import (BindConfig, Container, ContainerConfig,
+                              RunConfig, UserConfig)
 from moncic.nspawn.image import NspawnImage
+from moncic.session import Session
 from moncic.unittest import TEST_CHROOTS, make_moncic, privs
 
 

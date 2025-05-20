@@ -16,7 +16,7 @@ class BootstrapTestMixin(DistroTestMixin):
             with open(tar_path, "wb"):
                 pass
 
-            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "w") as fd:
                 print("distro: fedora34", file=fd)
 
             with self.mock() as run_log, make_moncic(mconfig) as moncic, moncic.session() as session:
@@ -34,7 +34,7 @@ class BootstrapTestMixin(DistroTestMixin):
         user = UserConfig.from_sudoer()
 
         with self.config() as mconfig:
-            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "w") as fd:
                 print("distro: fedora34", file=fd)
                 print(f"forward_user: {user.user_name}", file=fd)
 
@@ -58,7 +58,7 @@ class BootstrapTestMixin(DistroTestMixin):
             # Pretend that rocky8 has already been bootstrapped
             os.mkdir(parent_dir)
 
-            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "w") as fd:
                 print("extends: rocky8", file=fd)
 
             with self.mock() as run_log, make_moncic(mconfig) as moncic, moncic.session() as session:
@@ -77,13 +77,13 @@ class BootstrapTestMixin(DistroTestMixin):
         with self.config() as mconfig:
             base_dir = os.path.join(mconfig.imagedir, "base")
             # Pretend that rocky8 has already been bootstrapped
-            with open(os.path.join(mconfig.imagedir, "base.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "base.yaml"), "w") as fd:
                 print("extends: rocky8", file=fd)
                 print("maintscript: echo base", file=fd)
             os.mkdir(base_dir)
 
             test_dir = os.path.join(mconfig.imagedir, "test")
-            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "w") as fd:
                 print("extends: base", file=fd)
                 print("maintscript: echo test", file=fd)
             os.mkdir(test_dir)
@@ -112,7 +112,7 @@ class BootstrapTestMixin(DistroTestMixin):
         with self.config() as mconfig:
             base_dir = os.path.join(mconfig.imagedir, "test")
             # Pretend that the distro has already been bootstrapped
-            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "w") as fd:
                 print("distro: rocky8", file=fd)
                 print("packages: [vim, mc]", file=fd)
                 print("maintscript: echo base", file=fd)
@@ -141,7 +141,7 @@ class BootstrapTestMixin(DistroTestMixin):
         with self.config() as mconfig:
             base_dir = os.path.join(mconfig.imagedir, "test")
             # Pretend that the distro has already been bootstrapped
-            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "w") as fd:
                 print("distro: bookworm", file=fd)
                 print("packages: [vim, mc]", file=fd)
                 print("maintscript: echo base", file=fd)
@@ -168,7 +168,7 @@ class BootstrapTestMixin(DistroTestMixin):
 
     def test_compression(self):
         with self.config() as mconfig:
-            with open(os.path.join(mconfig.imagedir, "test.yaml"), "wt") as fd:
+            with open(os.path.join(mconfig.imagedir, "test.yaml"), "w") as fd:
                 print("distro: fedora34", file=fd)
                 print("compression: zstd:9", file=fd)
 

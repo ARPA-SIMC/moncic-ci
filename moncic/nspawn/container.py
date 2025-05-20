@@ -11,8 +11,9 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any, Callable, NoReturn, override
 
-from moncic.container import Container, BindConfig, Result, ContainerConfig
-from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
+from moncic.container import BindConfig, Container, ContainerConfig, Result
+from moncic.runner import (CompletedCallable, RunConfig, SetnsCallableRunner,
+                           UserConfig)
 
 from .image import NspawnImage
 
@@ -91,12 +92,12 @@ class NspawnContainer(Container):
 
         systemd_run_cmd.extend(cmd)
 
-        self.image.logger.info("Running %s", " ".join(shlex.quote(c) for c in systemd_run_cmd))
+        self.image.logger.info("Running %s", shlex.join(systemd_run_cmd))
         res = subprocess.run(systemd_run_cmd, capture_output=True)
         if res.returncode != 0:
             self.image.logger.error(
                 "Failed to run %s (exit code %d): %r",
-                " ".join(shlex.quote(c) for c in systemd_run_cmd),
+                shlex.join(systemd_run_cmd),
                 res.returncode,
                 res.stderr,
             )
@@ -250,7 +251,7 @@ class NspawnContainer(Container):
                 # Same return code as the shell for a command not found
                 return 127
 
-        command_runner.__doc__ = " ".join(shlex.quote(c) for c in command)
+        command_runner.__doc__ = shlex.join(command)
 
         return self.run_callable_raw(command_runner, run_config)
 
@@ -259,7 +260,7 @@ class NspawnContainer(Container):
         def script_runner():
             with tempfile.TemporaryDirectory() as workdir:
                 script_path = os.path.join(workdir, "script")
-                with open(script_path, "wt") as fd:
+                with open(script_path, "w") as fd:
                     fd.write(body)
                     fd.flush()
                     os.chmod(fd.fileno(), 0o700)

@@ -3,23 +3,21 @@ from __future__ import annotations
 import contextlib
 import tempfile
 from pathlib import Path
+from typing import cast
+from collections.abc import Generator
 from unittest import mock
-from typing import cast, Generator
 
 from moncic.distro import DistroFamily
 from moncic.distro.rpm import RpmDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
-from moncic.source.local import File, Dir, Git
-from moncic.source.rpm import RPMSource, ARPASource, ARPASourceDir, ARPASourceGit
+from moncic.source.local import Dir, File, Git
+from moncic.source.rpm import (ARPASource, ARPASourceDir, ARPASourceGit,
+                               RPMSource)
 
-from .source import (
-    WorkdirFixture,
-    GitFixture,
-    GitRepo,
-    create_lint_version_fixture_path,
-    create_lint_version_fixture_git,
-)
+from .source import (GitFixture, GitRepo, WorkdirFixture,
+                     create_lint_version_fixture_git,
+                     create_lint_version_fixture_path)
 
 ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))
 
@@ -168,7 +166,7 @@ class TestARPASourceDir(WorkdirFixture):
         return specfile
 
     @contextlib.contextmanager
-    def source(self, specfile: Path, root: Path | None = None) -> Generator[ARPASourceDir, None, None]:
+    def source(self, specfile: Path, root: Path | None = None) -> Generator[ARPASourceDir]:
         if root is None:
             root = self.path
         with Source.create_local(source=root) as parent:
@@ -252,7 +250,7 @@ class TestARPASourceGit(GitFixture):
         cls.git.git("checkout", "main")
 
     @contextlib.contextmanager
-    def source(self, branch: str, specfile: Path, root: Path | None = None) -> Generator[ARPASourceGit, None, None]:
+    def source(self, branch: str, specfile: Path, root: Path | None = None) -> Generator[ARPASourceGit]:
         if root is None:
             root = self.path
         with Source.create_local(source=root, branch=branch) as parent:

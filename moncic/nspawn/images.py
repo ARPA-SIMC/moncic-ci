@@ -9,14 +9,15 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from moncic.utils.btrfs import do_dedupe
-from moncic.images import Images
 from moncic.image import Image
-from .image import NspawnImage, NspawnImagePlain, NspawnImageBtrfs
+from moncic.images import Images
+from moncic.utils.btrfs import do_dedupe
+
+from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
 
 if TYPE_CHECKING:
-    from moncic.session import Session
     from moncic.distro import Distro
+    from moncic.session import Session
 
 log = logging.getLogger("images")
 
@@ -43,7 +44,7 @@ class NspawnImages(Images, abc.ABC):
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
         for path in self.session.moncic.config.imageconfdirs:
-            if any((x.exists() for x in (path / name, path / f"{name}.yaml"))):
+            if any(x.exists() for x in (path / name, path / f"{name}.yaml")):
                 return True
         return False
 
@@ -62,7 +63,7 @@ class NspawnImages(Images, abc.ABC):
                     res.add(entry.name[:-5])
         return [self.image(name) for name in sorted(res)]
 
-    def get_distro_tarball(self, distro: "Distro") -> Path | None:
+    def get_distro_tarball(self, distro: Distro) -> Path | None:
         """
         Return the path to a tarball that can be used to bootstrap a chroot for
         this system.

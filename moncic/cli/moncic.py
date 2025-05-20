@@ -15,15 +15,16 @@ from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
 from ..source import Source
-from ..source.local import LocalSource
 from ..source.distro import DistroSource
+from ..source.local import LocalSource
 from ..utils.privs import ProcessPrivs
 from .base import Command
 from .utils import SourceTypeAction
 
 if TYPE_CHECKING:
-    from ..distro import Distro
     from moncic.nspawn.image import NspawnImage
+
+    from ..distro import Distro
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ def main_command(cls):
 @contextlib.contextmanager
 def checkout(
     image: NspawnImage, repo: str | None = None, branch: str | None = None
-) -> Generator[Path | None, None, None]:
+) -> Generator[Path | None]:
     if repo is None:
         yield None
         return
@@ -272,7 +273,7 @@ class SourceCommand(MoncicCommand):
         return parser
 
     @contextlib.contextmanager
-    def local_source(self) -> Generator[LocalSource, None, None]:
+    def local_source(self) -> Generator[LocalSource]:
         """
         Instantiate a local Source object
         """
@@ -290,7 +291,7 @@ class SourceCommand(MoncicCommand):
             return DistroSource.create_from_local(source, distro=distro, style=self.args.source_type)
 
     @contextlib.contextmanager
-    def source(self, distro: Distro) -> Generator[DistroSource, None, None]:
+    def source(self, distro: Distro) -> Generator[DistroSource]:
         """
         Instantiate a DistroSource object in one go
         """
