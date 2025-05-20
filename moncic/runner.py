@@ -19,8 +19,7 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Generic,
-                    NamedTuple, TypeVar, cast)
+from typing import IO, TYPE_CHECKING, Any, BinaryIO, Generic, NamedTuple, TypeVar, cast
 from collections.abc import Callable
 
 import tblib
@@ -152,7 +151,7 @@ class RunConfig:
     cwd: str | None = None
 
     # Run as the given user. Defaults to the owner of ContainerConfig.workdir,
-    # if set
+    # if not set
     user: UserConfig | None = None
 
     # Set to true to connect to the running terminal instead of logging output

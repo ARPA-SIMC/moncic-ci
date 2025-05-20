@@ -25,7 +25,7 @@ class PodmanImage(Image):
     def __init__(self, *, images: "PodmanImages", name: str) -> None:
         podman = images.session.podman
         image = podman.images.get(name)
-        os_release = podman.containers.run(image.id, ["cat", "/etc/os-release"])
+        os_release = podman.containers.run(image, ["cat", "/etc/os-release"], remove=True)
         assert isinstance(os_release, bytes)
         with io.StringIO(os_release.decode()) as fd:
             osr = parse_osrelase_contents(fd, f"{name}:/etc/os-release")
@@ -34,6 +34,7 @@ class PodmanImage(Image):
         super().__init__(images=images, image_type=ImageType.PODMAN, name=name, distro=distro, bootstrapped=True)
         self.id: str = image.id
         self.short_id: str = image.short_id
+        self.podman_image = image
 
     @override
     def get_backend_id(self) -> str:
@@ -63,7 +64,9 @@ class PodmanImage(Image):
 
     @override
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
-        raise NotImplementedError()
+        from .container import PodmanContainer
+
+        return PodmanContainer(self, config=config)
 
     @override
     def maintenance_container(
