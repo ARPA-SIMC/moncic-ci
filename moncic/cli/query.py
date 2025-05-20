@@ -65,8 +65,6 @@ class Images(MoncicCommand):
     List OS images
     """
 
-    NEEDS_ROOT = False
-
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)

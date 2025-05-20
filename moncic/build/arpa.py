@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .. import context
+from moncic.context import privs
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
@@ -95,7 +95,7 @@ class ARPA(RPM):
                         shutil.copy(os.path.join(root, fn), rpmbuild_sources)
             source_tar = rpmbuild_sources / f"{self.name}.tar"
             with source_tar.open("wb") as fd:
-                with context.moncic.get().privs.user():
+                with privs.user():
                     self.trace_run(["git", "archive", f"--prefix={self.name}/", "--format=tar", "HEAD"], stdout=fd)
             self.trace_run(["gzip", source_tar.as_posix()])
             self.trace_run(["spectool", "-g", "-R", "--define", f"srcarchivename {self.name}", specfile.as_posix()])

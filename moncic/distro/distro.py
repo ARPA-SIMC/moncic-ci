@@ -52,7 +52,7 @@ class DistroFamily:
         from . import debian, rpm  # noqa
 
     @classmethod
-    def list(cls) -> Iterable["DistroFamily"]:
+    def list_families(cls) -> Iterable["DistroFamily"]:
         cls.populate()
         return cls.families.values()
 

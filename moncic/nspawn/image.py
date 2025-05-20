@@ -5,8 +5,7 @@ import shutil
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import (TYPE_CHECKING, Any, ContextManager, NamedTuple,
-                    Optional, Self, override)
+from typing import TYPE_CHECKING, Any, ContextManager, NamedTuple, Optional, Self, override
 from collections.abc import Generator
 
 import yaml
@@ -15,6 +14,7 @@ from moncic.container import RunConfig
 from moncic.distro import Distro, DistroFamily
 from moncic.image import Image, ImageType
 from moncic.utils.btrfs import Subvolume
+from moncic.context import privs
 
 if TYPE_CHECKING:
     from moncic.container import Container, ContainerConfig
@@ -135,7 +135,7 @@ class NspawnImage(Image, abc.ABC):
         try:
             bootstrapped = path.exists()
         except PermissionError:
-            with images.session.moncic.privs.root():
+            with privs.root():
                 bootstrapped = path.exists()
 
         super().__init__(
@@ -195,7 +195,6 @@ class NspawnImage(Image, abc.ABC):
                 else:
                     distro = DistroFamily.lookup_distro(name)
             except PermissionError:
-                privs = images.session.moncic.privs
                 with privs.root():
                     if image_path.exists():
                         distro = DistroFamily.from_path(image_path)

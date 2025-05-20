@@ -8,6 +8,8 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import NamedTuple
 
+from moncic.context import privs
+
 from ..runner import UserConfig
 from .fs import dirfd
 
@@ -59,7 +61,7 @@ class DebCache:
         """
         Create a directory that can be bind mounted as /apt/cache/apt/archives
         """
-        with tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir:
+        with privs.root(), tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir:
             with dirfd(aptdir) as dst_dir_fd:
                 # Handlink debs to temp dir
                 with os.scandir(self.src_dir_fd) as it:
@@ -71,7 +73,8 @@ class DebCache:
                             os.chown(de.name, 0, 0, dir_fd=dst_dir_fd)
 
                 try:
-                    yield aptdir
+                    with privs.user():
+                        yield aptdir
                 finally:
                     # Hardlink new debs to cache dir
                     os.lseek(dst_dir_fd, 0, os.SEEK_SET)

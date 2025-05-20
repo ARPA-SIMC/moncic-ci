@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .. import context
+from moncic.context import privs
 from ..runner import UserConfig
 from ..utils import setns
 from ..utils.deb import apt_get_cmd
@@ -129,7 +129,7 @@ class Debian(Build):
 
         assert isinstance(self.source, DebianSource)
         # Build source package
-        with context.moncic.get().privs.user():
+        with privs.user():
             dsc_path = self.source.build_source_package()
 
         self.name = self.source.source_info.name

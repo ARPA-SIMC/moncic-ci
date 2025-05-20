@@ -100,8 +100,7 @@ class CI(SourceCommand):
                         set_build_option_action(build, k, v)
 
                     if build.artifacts_dir:
-                        with self.moncic.privs.user():
-                            build.artifacts_dir.mkdir(parents=True, exist_ok=True)
+                        build.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
                     builder = ops_build.Builder(system, build)
 

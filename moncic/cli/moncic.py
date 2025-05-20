@@ -17,9 +17,9 @@ from ..moncic import Moncic, MoncicConfig, expand_path
 from ..source import Source
 from ..source.distro import DistroSource
 from ..source.local import LocalSource
-from ..utils.privs import ProcessPrivs
 from .base import Command
 from .utils import SourceTypeAction
+from moncic.context import privs
 
 if TYPE_CHECKING:
     from moncic.nspawn.image import NspawnImage
@@ -41,50 +41,41 @@ def main_command(cls):
 
 
 @contextlib.contextmanager
-def checkout(
-    image: NspawnImage, repo: str | None = None, branch: str | None = None
-) -> Generator[Path | None]:
+def checkout(image: NspawnImage, repo: str | None = None, branch: str | None = None) -> Generator[Path | None]:
     if repo is None:
         yield None
         return
 
-    with image.images.session.moncic.privs.user():
-        # If repo points to a local path, use its absolute path
-        parsed = urllib.parse.urlparse(repo)
-        if parsed.scheme not in ("", "file"):
-            repo_abspath = repo
-        else:
-            repo_abspath = os.path.abspath(parsed.path)
-            gitrepo = git.Repo(parsed.path)
-            if gitrepo.active_branch == branch:
-                image.images.session.moncic.privs.regain()
-                yield Path(repo_abspath)
-                return
+    # If repo points to a local path, use its absolute path
+    parsed = urllib.parse.urlparse(repo)
+    if parsed.scheme not in ("", "file"):
+        repo_abspath = repo
+    else:
+        repo_abspath = os.path.abspath(parsed.path)
+        gitrepo = git.Repo(parsed.path)
+        if gitrepo.active_branch == branch:
+            yield Path(repo_abspath)
+            return
 
-        with tempfile.TemporaryDirectory() as workdir:
-            # Git checkout in a temporary directory
-            cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]
-            if branch is not None:
-                cmd += ["--branch", branch]
-            image.local_run(cmd, config=RunConfig(cwd=workdir))
-            # Look for the directory that git created
-            names = os.listdir(workdir)
-            if len(names) != 1:
-                raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+    with tempfile.TemporaryDirectory() as workdir:
+        # Git checkout in a temporary directory
+        cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]
+        if branch is not None:
+            cmd += ["--branch", branch]
+        image.local_run(cmd, config=RunConfig(cwd=workdir))
+        # Look for the directory that git created
+        names = os.listdir(workdir)
+        if len(names) != 1:
+            raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
 
-            repo_path = os.path.join(workdir, names[0])
-
-            image.images.session.moncic.privs.regain()
-            yield Path(repo_path)
+        repo_path = os.path.join(workdir, names[0])
+        yield Path(repo_path)
 
 
 class MoncicCommand(Command):
     """
     Base class for commands that need a Moncic state
     """
-
-    # Set to False if the command does not need root
-    NEEDS_ROOT: bool = True
 
     @classmethod
     def make_subparser(cls, subparsers):
@@ -121,23 +112,19 @@ class MoncicCommand(Command):
     def __init__(self, args):
         super().__init__(args)
 
-        privs = ProcessPrivs()
+        # Drop privileges by default, regain them only when needed
+        privs.drop()
 
         # Load config
-        with privs.user():
-            if self.args.config:
-                config = MoncicConfig.load(self.args.config)
-            else:
-                config = MoncicConfig.load()
+        if self.args.config:
+            config = MoncicConfig.load(self.args.config)
+        else:
+            config = MoncicConfig.load()
 
-            self.setup_moncic_config(config)
+        self.setup_moncic_config(config)
 
-            # Instantiate Moncic
-            self.moncic = Moncic(config=config, privs=privs)
-
-        if self.NEEDS_ROOT:
-            # Do the rest as root
-            self.moncic.privs.regain()
+        # Instantiate Moncic
+        self.moncic = Moncic(config=config)
 
     def setup_moncic_config(self, config: MoncicConfig):
         """
@@ -277,18 +264,15 @@ class SourceCommand(MoncicCommand):
         """
         Instantiate a local Source object
         """
-        with self.moncic.privs.user():
-            with Source.create_local(source=self.args.source, branch=self.args.branch) as source:
-                self.moncic.privs.regain()
-                # FIXME: remove cast from python 3.11+
-                yield cast(LocalSource, source)
+        with Source.create_local(source=self.args.source, branch=self.args.branch) as source:
+            # FIXME: remove cast from python 3.11+
+            yield cast(LocalSource, source)
 
     def distro_source(self, source: LocalSource, distro: Distro) -> DistroSource:
         """
         Instantiate a DistroSource object from a local source
         """
-        with self.moncic.privs.user():
-            return DistroSource.create_from_local(source, distro=distro, style=self.args.source_type)
+        return DistroSource.create_from_local(source, distro=distro, style=self.args.source_type)
 
     @contextlib.contextmanager
     def source(self, distro: Distro) -> Generator[DistroSource]:

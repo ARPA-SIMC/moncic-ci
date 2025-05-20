@@ -29,18 +29,16 @@ class PodmanImages(Images):
 
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
-        with self.session.moncic.privs.user():
-            return self.session.podman.images.exists(name)
+        return self.session.podman.images.exists(name)
 
     def list_images(self) -> list[Image]:
         """
         List the names of images found in image directories
         """
         images: list[Image] = []
-        with self.session.moncic.privs.user():
-            for image in self.session.podman.images.list():
-                for tag in image.tags:
-                    images.append(self.image(tag))
+        for image in self.session.podman.images.list():
+            for tag in image.tags:
+                images.append(self.image(tag))
         return images
 
     def deduplicate(self):

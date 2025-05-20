@@ -70,6 +70,5 @@ class Lint(ContainerSourceOperation):
         Run the linter
         """
         source = self.get_guest_source()
-        with context.moncic.get().privs.user():
-            guest_lint(source, self.reporter)
+        guest_lint(source, self.reporter)
         return self.reporter

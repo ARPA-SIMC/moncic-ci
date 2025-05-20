@@ -83,15 +83,11 @@ class ContainerSourceOperation(abc.ABC):
         self.log_capture_start(log_file)
 
         # Collect artifacts in a temporary directory, to be able to do it as non-root
-        privs = self.system.images.session.moncic.privs
-        with privs.user():
-            with tempfile.TemporaryDirectory() as tmpdir_str:
-                tmpdir = Path(tmpdir_str)
-                self.source.collect_build_artifacts(tmpdir, self.artifacts_dir)
-                # Regain privileges and move results to the container
-                privs.regain()
-                for path in tmpdir.iterdir():
-                    shutil.move(path, srcdir)
+        with tempfile.TemporaryDirectory() as tmpdir_str:
+            tmpdir = Path(tmpdir_str)
+            self.source.collect_build_artifacts(tmpdir, self.artifacts_dir)
+            for path in tmpdir.iterdir():
+                shutil.move(path, srcdir)
 
         log.debug("Sources in: %s:", srcdir)
         for path in srcdir.iterdir():

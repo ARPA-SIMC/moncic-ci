@@ -26,7 +26,7 @@ unittest:
 	$(PYTHON_ENVIRONMENT) nose2-3
 
 coverage:
-	$(PYTHON_ENVIRONMENT) sudo nose2-3 -C --coverage-report html
+	$(PYTHON_ENVIRONMENT) nose2-3 -C --coverage-report html
 
 clean:
 

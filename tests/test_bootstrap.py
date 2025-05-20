@@ -90,7 +90,7 @@ class BootstrapTestMixin(DistroTestMixin):
 
             with self.mock() as run_log, make_moncic(mconfig) as moncic, moncic.session() as session:
                 images = session.images
-                image = session.image("test")
+                image = images.image("test")
                 with image.maintenance_system() as system:
                     system.update()
                     path = system.path[:-4]

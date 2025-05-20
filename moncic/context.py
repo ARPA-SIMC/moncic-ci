@@ -3,6 +3,8 @@ from __future__ import annotations
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
+from .utils.privs import ProcessPrivs
+
 if TYPE_CHECKING:
     from .container import Container
     from .image import Image
@@ -20,3 +22,5 @@ image: ContextVar[Image] = ContextVar("image")
 
 # Current Moncic container (set only when executing in a container)
 container: ContextVar[Container] = ContextVar("container")
+
+privs: ProcessPrivs = ProcessPrivs()

@@ -35,21 +35,20 @@ class CreateCommand(MoncicCommand):
         Create a configuration with the given contents
         """
         with self.moncic.session() as session:
-            with self.moncic.privs.user():
-                image = session.images.image(self.args.name)
-                if path := image.config_path:
-                    raise Fail(f"{self.args.name}: configuration already exists in {path}")
-                path = os.path.join(self.moncic.config.imageconfdirs[0], f"{self.args.name}.yaml")
-                with atomic_writer(path, "wt", use_umask=True) as fd:
-                    yaml.dump(
-                        contents,
-                        stream=fd,
-                        default_flow_style=False,
-                        allow_unicode=True,
-                        explicit_start=True,
-                        sort_keys=False,
-                        Dumper=yaml.CDumper,
-                    )
+            image = session.images.image(self.args.name)
+            if path := image.config_path:
+                raise Fail(f"{self.args.name}: configuration already exists in {path}")
+            path = os.path.join(self.moncic.config.imageconfdirs[0], f"{self.args.name}.yaml")
+            with atomic_writer(path, "wt", use_umask=True) as fd:
+                yaml.dump(
+                    contents,
+                    stream=fd,
+                    default_flow_style=False,
+                    allow_unicode=True,
+                    explicit_start=True,
+                    sort_keys=False,
+                    Dumper=yaml.CDumper,
+                )
 
             log.info("%s: bootstrapping image", self.args.name)
             try:
@@ -115,26 +114,25 @@ class MaintCommand(MoncicCommand):
         """
         changed = False
         with self.moncic.session() as session:
-            with self.moncic.privs.user():
-                image = session.images.image(self.args.name)
-                if path := image.config_path:
-                    # Use ruamel.yaml to preserve comments
-                    ryaml = ruamel.yaml.YAML(typ="rt")
-                    with open(path) as fd:
-                        data = ryaml.load(fd)
-                        st = os.fstat(fd.fileno())
-                        mode = stat.S_IMODE(st.st_mode)
+            image = session.images.image(self.args.name)
+            if path := image.config_path:
+                # Use ruamel.yaml to preserve comments
+                ryaml = ruamel.yaml.YAML(typ="rt")
+                with open(path) as fd:
+                    data = ryaml.load(fd)
+                    st = os.fstat(fd.fileno())
+                    mode = stat.S_IMODE(st.st_mode)
 
-                    orig_data = copy.deepcopy(data)
-                    yield data
+                orig_data = copy.deepcopy(data)
+                yield data
 
-                    if data != orig_data:
-                        log.info("%s: updating configuration file", self.args.name)
-                        changed = True
-                        with atomic_writer(path, "wt", chmod=mode) as out:
-                            ryaml.dump(data, out)
-                else:
-                    raise Fail(f"{self.args.name}: configuration does not exist")
+                if data != orig_data:
+                    log.info("%s: updating configuration file", self.args.name)
+                    changed = True
+                    with atomic_writer(path, "wt", chmod=mode) as out:
+                        ryaml.dump(data, out)
+            else:
+                raise Fail(f"{self.args.name}: configuration does not exist")
 
         if changed:
             self.run_maintenance(session)
@@ -237,16 +235,15 @@ class Edit(MaintCommand):
         with self.moncic.session() as session:
             image = session.images.image(self.args.name)
             if path := image.config_path:
-                with self.moncic.privs.user():
-                    with open(path) as fd:
-                        buf = fd.read()
-                        st = os.fstat(fd.fileno())
-                        mode = stat.S_IMODE(st.st_mode)
-                    edited = edit_yaml(buf, path)
-                    if edited is not None:
-                        changed = True
-                        with atomic_writer(path, "wt", chmod=mode) as out:
-                            out.write(edited)
+                with open(path) as fd:
+                    buf = fd.read()
+                    st = os.fstat(fd.fileno())
+                    mode = stat.S_IMODE(st.st_mode)
+                edited = edit_yaml(buf, path)
+                if edited is not None:
+                    changed = True
+                    with atomic_writer(path, "wt", chmod=mode) as out:
+                        out.write(edited)
             else:
                 raise Fail(f"Configuration for {self.args.name} not found")
 
@@ -263,10 +260,9 @@ class Cat(MoncicCommand):
         with self.moncic.session() as session:
             image = session.images.image(self.args.name)
             if path := image.config_path:
-                with self.moncic.privs.user():
-                    print(f"# {path}")
-                    with open(path) as fd:
-                        shutil.copyfileobj(fd, sys.stdout)
+                print(f"# {path}")
+                with open(path) as fd:
+                    shutil.copyfileobj(fd, sys.stdout)
 
 
 class Describe(MoncicCommand):

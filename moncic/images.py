@@ -56,12 +56,10 @@ class MultiImages(Images):
 
     def list_images(self) -> list[Image]:
         """List the names of images found in image directories."""
-        privs = self.session.moncic.privs
-        with privs.user():
-            res: list[Image] = []
-            for images in self.images:
-                res += images.list_images()
-            return res
+        res: list[Image] = []
+        for images in self.images:
+            res += images.list_images()
+        return res
 
     def image(self, name: str) -> Image:
         """

@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 import os
+import warnings
 import subprocess
 from pathlib import Path
 from typing import Self, overload
 
 import yaml
 
+from .context import privs
 from .session import MockSession, Session
 from .utils.privs import ProcessPrivs
 
@@ -152,15 +154,9 @@ class Moncic:
     General state of the Moncic-CI setup
     """
 
-    def __init__(self, config: MoncicConfig, privs: ProcessPrivs | None = None):
-        self.privs: ProcessPrivs
-        if privs is None:
-            self.privs = ProcessPrivs()
-        else:
-            self.privs = privs
-
+    def __init__(self, config: MoncicConfig):
         self.config = config
-        self.privs.auto_sudo = self.config.auto_sudo
+        privs.auto_sudo = self.config.auto_sudo
 
         # Detect systemd's version
         res = subprocess.run(["systemctl", "--version"], check=True, capture_output=True, text=True)
@@ -181,3 +177,9 @@ class Moncic:
         Session is a context manager, so you can use this as `with moncic.mock_session() as session:`
         """
         return MockSession(self)
+
+    @property
+    def privs(self) -> ProcessPrivs:
+        warnings.warn("use moncic.context.privs instead", DeprecationWarning)
+        global privs
+        return privs

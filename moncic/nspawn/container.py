@@ -13,8 +13,8 @@ from typing import Any, NoReturn, override
 from collections.abc import Callable
 
 from moncic.container import BindConfig, Container, ContainerConfig, Result
-from moncic.runner import (CompletedCallable, RunConfig, SetnsCallableRunner,
-                           UserConfig)
+from moncic.context import privs
+from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
 
 from .image import NspawnImage
 
@@ -94,7 +94,8 @@ class NspawnContainer(Container):
         systemd_run_cmd.extend(cmd)
 
         self.image.logger.info("Running %s", shlex.join(systemd_run_cmd))
-        res = subprocess.run(systemd_run_cmd, capture_output=True)
+        with privs.root():
+            res = subprocess.run(systemd_run_cmd, capture_output=True)
         if res.returncode != 0:
             self.image.logger.error(
                 "Failed to run %s (exit code %d): %r",
@@ -217,21 +218,22 @@ class NspawnContainer(Container):
 
     @override
     def _stop(self, exc: Exception | None = None):
-        # Run teardown script frombinds
-        if any(bind.teardown for bind in self.active_binds):
-            self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
+        with privs.root():
+            # Run teardown script frombinds
+            if any(bind.teardown for bind in self.active_binds):
+                self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
 
-        # See https://github.com/systemd/systemd/issues/6458
-        leader_pid = int(self.properties["Leader"])
-        os.kill(leader_pid, signal.SIGRTMIN + 4)
-        while True:
-            try:
-                os.kill(leader_pid, 0)
-            except OSError as e:
-                if e.errno == errno.ESRCH:
-                    break
-                raise
-            time.sleep(0.1)
+            # See https://github.com/systemd/systemd/issues/6458
+            leader_pid = int(self.properties["Leader"])
+            os.kill(leader_pid, signal.SIGRTMIN + 4)
+            while True:
+                try:
+                    os.kill(leader_pid, 0)
+                except OSError as e:
+                    if e.errno == errno.ESRCH:
+                        break
+                    raise
+                time.sleep(0.1)
         self.started = False
 
     @override
@@ -287,7 +289,8 @@ class NspawnContainer(Container):
     ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
-        completed = runner.execute()
+        with privs.root():
+            completed = runner.execute()
         return completed
 
 
