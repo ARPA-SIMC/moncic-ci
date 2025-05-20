@@ -19,8 +19,9 @@ import subprocess
 import sys
 import types
 from functools import cached_property
-from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Callable, Generic,
+from typing import (IO, TYPE_CHECKING, Any, BinaryIO, Generic,
                     NamedTuple, TypeVar, cast)
+from collections.abc import Callable
 
 import tblib
 

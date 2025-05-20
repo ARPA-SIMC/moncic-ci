@@ -9,7 +9,8 @@ import tempfile
 import time
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Callable, NoReturn, override
+from typing import Any, NoReturn, override
+from collections.abc import Callable
 
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.runner import (CompletedCallable, RunConfig, SetnsCallableRunner,

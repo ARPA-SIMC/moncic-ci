@@ -9,7 +9,8 @@ import subprocess
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, ContextManager
+from typing import TYPE_CHECKING, Any, ContextManager
+from collections.abc import Callable
 from unittest import SkipTest, mock
 
 from moncic.nspawn.image import NspawnImage, NspawnImagePlain

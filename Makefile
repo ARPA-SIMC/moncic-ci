@@ -5,7 +5,7 @@ check: flake8 mypy
 format: pyupgrade autoflake isort black
 
 pyupgrade:
-	pyupgrade --exit-zero-even-if-changed --py39-plus monci $(shell find moncic tests -name "*.py")
+	pyupgrade --exit-zero-even-if-changed --py312-plus monci $(shell find moncic tests -name "*.py")
 
 black:
 	black monci moncic tests

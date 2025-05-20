@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Any, Callable, override
+from typing import Any, override
+from collections.abc import Callable
 
 from moncic.container import Container, Result
 from moncic.runner import CompletedCallable, RunConfig

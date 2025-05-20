@@ -11,7 +11,8 @@ import shutil
 import subprocess
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Callable, ContextManager, TypeVar
+from typing import Any, ContextManager, TypeVar
+from collections.abc import Callable
 
 from .image import Image
 from .runner import CompletedCallable, RunConfig, UserConfig
