@@ -15,7 +15,7 @@ from collections.abc import Callable
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.context import privs
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
-from .utils.nspawn import escape_bind_ro
+from moncic.utils.nspawn import escape_bind_ro
 
 from .image import NspawnImage
 
@@ -118,7 +118,7 @@ class NspawnContainer(Container):
             "--notify-ready=yes",
             "--resolv-conf=replace-host",
         ]
-        cmd.append(f"--bind-ro={escape_bind_ro(self.script)}:{escape_bind_ro(self.mounted_scriptdir)}")
+        cmd.append(f"--bind-ro={escape_bind_ro(self.scriptdir)}:{escape_bind_ro(self.mounted_scriptdir)}")
         for bind_config in self.config.binds:
             cmd.append(bind_config.to_nspawn())
         if self.config.ephemeral:

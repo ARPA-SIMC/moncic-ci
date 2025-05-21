@@ -2,6 +2,8 @@ import abc
 import enum
 from pathlib import Path
 import hashlib
+import subprocess
+import os
 import re
 import shlex
 import tempfile
@@ -9,6 +11,7 @@ from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any, assert_never, TypedDict, override, TYPE_CHECKING
 
+from moncic.image import ImageType
 from moncic.runner import RunConfig, UserConfig
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.script import Script
@@ -123,7 +126,12 @@ class BindConfig(abc.ABC):
         """Return the podman mount object for this bind."""
 
     @contextmanager
-    def setup(self, container: "Container") -> Generator[None, None, None]:
+    def host_setup(self, container: "Container") -> Generator[None, None, None]:
+        """Set up this bind before the container has started."""
+        yield None
+
+    @contextmanager
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
         """Set up this bind after the container has started."""
         yield None
 
@@ -187,24 +195,66 @@ class BindConfigVolatile(BindConfig):
 
     def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
         super().__init__(bind_type=BindType.VOLATILE, source=source, destination=destination, cwd=cwd)
+        self.overlay: Path | None = None
 
     @override
     def to_nspawn(self) -> str:
-        option = "--bind-ro="
-        return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(Path(f"{self.destination}-readonly")))
+        return f"--bind={escape_bind_ro(self.source)}:{escape_bind_ro(self.destination)}-readonly"
 
     @override
     def to_podman(self) -> dict[str, Any]:
+        assert self.overlay is not None
         return {
             "Type": "bind",
-            "Source": self.source.as_posix(),
-            "Target": f"{self.destination}-readonly",
-            "Readonly": "true",
+            "Source": self.overlay.as_posix(),
+            "Target": self.destination.as_posix(),
+            "Readonly": "false",
         }
 
     @override
     @contextmanager
-    def setup(self, container: "Container") -> Generator[None, None, None]:
+    def host_setup(self, container: "Container") -> Generator[None, None, None]:
+        if container.image.image_type != ImageType.PODMAN:
+            yield None
+            return
+        rundir = Path(f"/var/run/user/{os.getuid()}/moncic-ci")
+        rundir.mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=rundir) as workdir_str:
+            workdir = Path(workdir_str)
+            upper = workdir / "upper"
+            upper.mkdir()
+            work = workdir / "work"
+            work.mkdir()
+            overlay = workdir / "overlay"
+            overlay.mkdir()
+            cmd = [
+                "fuse-overlayfs",
+                "-o",
+                (
+                    f"lowerdir={shlex.quote(self.source.as_posix())},"
+                    f"upperdir={shlex.quote(upper.as_posix())},"
+                    f"workdir={shlex.quote(work.as_posix())}"
+                ),
+                overlay.as_posix(),
+            ]
+            print(shlex.join(cmd))
+            subprocess.run(cmd, check=True)
+            self.overlay = overlay
+            try:
+                yield
+            finally:
+                subprocess.run(
+                    ["umount", overlay.as_posix()],
+                    check=True,
+                )
+                self.overlay = None
+
+    @override
+    @contextmanager
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
+        if container.image.image_type != ImageType.NSPAWN:
+            yield None
+            return
         volatile_root = Path("/run/volatile")
         volatile_readonly_base = Path(f"{self.destination}-readonly")
 
@@ -235,7 +285,6 @@ class BindConfigVolatile(BindConfig):
                 self.destination.as_posix(),
             ]
         )
-
         self._run_script(script, container)
         yield None
 
@@ -265,7 +314,7 @@ class BindConfigAptCache(BindConfig):
 
     @override
     @contextmanager
-    def setup(self, container: "Container") -> Generator[None, None, None]:
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
         setup_script = Script(f"apt cache mount setup for {self.destination}")
         setup_script.write(
             Path("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"),
@@ -315,7 +364,7 @@ class BindConfigAptPackages(BindConfig):
 
     @override
     @contextmanager
-    def setup(self, container: "Container") -> Generator[None, None, None]:
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
         mirror_dir = self.destination.parent
         packages_file = mirror_dir / "Packages"
 

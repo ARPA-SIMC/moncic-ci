@@ -84,9 +84,11 @@ class Container(abc.ABC):
 
     def __enter__(self):
         self.stack.__enter__()
+        for bind in self.config.binds:
+            self.stack.enter_context(bind.host_setup(self))
         self.stack.enter_context(self._container())
         for bind in self.config.binds:
-            self.stack.enter_context(bind.setup(self))
+            self.stack.enter_context(bind.guest_setup(self))
         self.started = True
         return self
 
