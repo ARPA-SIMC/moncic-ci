@@ -9,10 +9,11 @@ import io
 import os
 import re
 import shlex
-from collections.abc import Iterator
+from collections.abc import Iterator, Generator
+from contextlib import ExitStack, contextmanager
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ContextManager, TypeVar, assert_never, TypedDict, override
+from typing import Any, TypeVar, assert_never, TypedDict, override
 from collections.abc import Callable
 
 from .image import Image
@@ -143,11 +144,10 @@ class BindConfig(abc.ABC):
     def to_podman(self) -> dict[str, Any]:
         """Return the podman mount object for this bind."""
 
-    def setup(self, container: "Container") -> None:
+    @contextmanager
+    def setup(self, container: "Container") -> Generator[None, None, None]:
         """Set up this bind after the container has started."""
-
-    def teardown(self, container: "Container") -> None:
-        """Tear down this bind before stopping the container."""
+        yield None
 
     def _run_script(self, script: Script, container: "Container") -> None:
         """Run the setup/teardown script in the container."""
@@ -227,7 +227,8 @@ class BindConfigVolatile(BindConfig):
         }
 
     @override
-    def setup(self, container: "Container") -> None:
+    @contextmanager
+    def setup(self, container: "Container") -> Generator[None, None, None]:
         volatile_root = Path("/run/volatile")
         volatile_readonly_base = Path(f"{self.destination}-readonly")
 
@@ -260,6 +261,7 @@ class BindConfigVolatile(BindConfig):
         )
 
         self._run_script(script, container)
+        yield None
 
 
 class BindConfigAptCache(BindConfig):
@@ -286,9 +288,10 @@ class BindConfigAptCache(BindConfig):
         }
 
     @override
-    def setup(self, container: "Container") -> None:
-        script = Script(f"apt cache mount setup for {self.destination}")
-        script.write(
+    @contextmanager
+    def setup(self, container: "Container") -> Generator[None, None, None]:
+        setup_script = Script(f"apt cache mount setup for {self.destination}")
+        setup_script.write(
             Path("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"),
             'Binary::apt::APT::Keep-Downloaded-Packages "1";',
             description="Do not clear apt cache",
@@ -300,13 +303,15 @@ class BindConfigAptCache(BindConfig):
         #     apt_user = None
         # if apt_user:
         #     os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
-        self._run_script(script, container)
 
-    @override
-    def teardown(self, container: "Container") -> None:
-        script = Script(f"apt cache mount teardown for {self.destination}")
-        script.run(["rm", "-f", "/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"])
-        self._run_script(script, container)
+        teardown_script = Script(f"apt cache mount teardown for {self.destination}")
+        teardown_script.run(["rm", "-f", "/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"])
+
+        self._run_script(setup_script, container)
+        try:
+            yield None
+        finally:
+            self._run_script(teardown_script, container)
 
 
 class BindConfigAptPackages(BindConfig):
@@ -333,28 +338,31 @@ class BindConfigAptPackages(BindConfig):
         }
 
     @override
-    def setup(self, container: "Container") -> None:
+    @contextmanager
+    def setup(self, container: "Container") -> Generator[None, None, None]:
         mirror_dir = self.destination.parent
         packages_file = mirror_dir / "Packages"
 
-        script = Script(f"apt packages mount setup for {self.destination}")
-        script.run(["apt-ftparchive", "packages", mirror_dir.name], output=packages_file, cwd=mirror_dir)
-        script.write(Path("/etc/apt/sources.list.d/tmp-moncic-ci.list"), f"deb [trusted=yes] file://{mirror_dir} ./")
+        setup_script = Script(f"apt packages mount setup for {self.destination}")
+        setup_script.run(["apt-ftparchive", "packages", mirror_dir.name], output=packages_file, cwd=mirror_dir)
+        setup_script.write(
+            Path("/etc/apt/sources.list.d/tmp-moncic-ci.list"), f"deb [trusted=yes] file://{mirror_dir} ./"
+        )
 
         # env = dict(os.environ)
         # env.update(DEBIAN_FRONTEND="noninteractive")
-        script.run(apt_get_cmd("update"))
+        setup_script.run(apt_get_cmd("update"))
         # subprocess.run(apt_get_cmd("full-upgrade"), env=env)
-        self._run_script(script, container)
 
-    @override
-    def teardown(self, container: "Container") -> None:
-        mirror_dir = self.destination.parent
-        packages_file = mirror_dir / "Packages"
-        script = Script(f"apt packages mount teardown for {self.destination}")
-        script.run(["rm", "-f", "/etc/apt/sources.list.d/tmp-moncic-ci.list"])
-        script.run(["rm", "-f", packages_file.as_posix()])
-        self._run_script(script, container)
+        teardown_script = Script(f"apt packages mount teardown for {self.destination}")
+        teardown_script.run(["rm", "-f", "/etc/apt/sources.list.d/tmp-moncic-ci.list"])
+        teardown_script.run(["rm", "-f", packages_file.as_posix()])
+
+        self._run_script(setup_script, container)
+        try:
+            yield None
+        finally:
+            self._run_script(teardown_script, container)
 
 
 @dataclasses.dataclass
@@ -430,14 +438,14 @@ class ContainerConfig:
         return res
 
 
-class Container(ContextManager, abc.ABC):
+class Container(abc.ABC):
     """
     An instance of an Image in execution as a container
     """
 
     def __init__(self, image: Image, *, config: ContainerConfig, instance_name: str | None = None):
-        super().__init__()
         config.check()
+        self.stack = ExitStack()
         self.image = image
         self.config = config
         self.started = False
@@ -445,8 +453,6 @@ class Container(ContextManager, abc.ABC):
         self.linger: bool = False
         #: User-provided instance name
         self._instance_name = instance_name
-        self.startup_script = Script("Container startup script")
-        self.teardown_script = Script("Container teardown script")
 
     @cached_property
     def instance_name(self) -> str:
@@ -474,20 +480,28 @@ class Container(ContextManager, abc.ABC):
         return instance_name
 
     def __enter__(self):
-        if not self.started:
-            try:
-                self._start()
-            except Exception:
-                if self.started:
-                    self._stop()
-                raise
-            self._post_start()
+        self.stack.__enter__()
+        self.stack.enter_context(self._running())
+        for bind in self.config.binds:
+            self.stack.enter_context(bind.setup(self))
+        self.started = True
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.started and not self.linger:
-            self._pre_stop()
-            self._stop(exc_val)
+        self.started = False
+        if self.linger:
+            return
+        self.stack.__exit__(exc_type, exc_val, exc_tb)
+
+    @contextmanager
+    def _running(self) -> Generator[None, None, None]:
+        self._start()
+        try:
+            yield None
+        except Exception as exc:
+            self._stop(exc)
+        else:
+            self._stop(None)
 
     @abc.abstractmethod
     def _start(self) -> None:
@@ -496,24 +510,6 @@ class Container(ContextManager, abc.ABC):
     @abc.abstractmethod
     def _stop(self, exc: Exception | None = None) -> None:
         """Stop the container."""
-
-    def _post_start(self) -> None:
-        """Run post-start container configuration."""
-        for bind in self.config.binds:
-            bind.setup(self)
-        if self.startup_script:
-            with io.StringIO() as buf:
-                self.startup_script.print(file=buf)
-                self.run_script(buf.getvalue(), RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
-
-    def _pre_stop(self) -> None:
-        """Run pre-stop container teardown."""
-        for bind in self.config.binds:
-            bind.teardown(self)
-        if self.teardown_script:
-            with io.StringIO() as buf:
-                self.teardown_script.print(file=buf)
-                self.run_script(buf.getvalue(), RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
 
     @abc.abstractmethod
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
@@ -551,9 +547,9 @@ class Container(ContextManager, abc.ABC):
         """
 
     @abc.abstractmethod
-    def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
+    def run_script(self, body: str | Script, config: RunConfig | None = None) -> CompletedCallable:
         """
-        Run the given string as a script in the machine.
+        Run the given Script or string as a script in the machine.
 
         A shebang at the beginning of the script will be honored.
 

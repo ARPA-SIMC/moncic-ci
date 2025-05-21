@@ -13,6 +13,7 @@ import podman
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
 from moncic.context import privs
+from moncic.utils.script import Script
 
 from .image import PodmanImage
 
@@ -103,7 +104,6 @@ class PodmanContainer(Container):
         )
         self.container.start()
         self.container.wait(condition="running")
-        self.started = True
 
         # def _create(self, command: list[str], config: RunConfig) -> podman.domain.containers.Container:
         #     podman_container = self.image.images.session.podman.containers.create(
@@ -160,7 +160,6 @@ class PodmanContainer(Container):
         self.container.kill(signal.SIGKILL)
         self.container.wait(condition="stopped")
         self.container = None
-        self.started = False
 
     def _run(self, command: list[str], config: RunConfig) -> subprocess.CompletedProcess:
         assert self.container is not None
@@ -193,18 +192,27 @@ class PodmanContainer(Container):
         return CompletedCallable(command, res.returncode, res.stdout, res.stderr)
 
     @override
-    def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
+    def run_script(self, script: str | Script, config: RunConfig | None = None) -> CompletedCallable:
         assert self.container is not None
-        if len(body) > 200:
-            name = f"script: {body[:200]!r}…"
-        else:
-            name = f"script: {body!r}"
 
-        with tempfile.NamedTemporaryFile("w+t") as tf:
-            tf.write(body)
-            tf.flush()
-            os.fchmod(tf.fileno(), 0o700)
-            subprocess.run(["podman", "cp", tf.name, f"{self.container.id}:/root/script"], check=True)
+        if isinstance(script, Script):
+            name = script.title
+            with tempfile.NamedTemporaryFile("w+t") as tf:
+                script.print(file=tf)
+                tf.flush()
+                os.fchmod(tf.fileno(), 0o700)
+                subprocess.run(["podman", "cp", tf.name, f"{self.container.id}:/root/script"], check=True)
+        else:
+            if len(script) > 200:
+                name = f"script: {script[:200]!r}…"
+            else:
+                name = f"script: {script!r}"
+
+            with tempfile.NamedTemporaryFile("w+t") as tf:
+                tf.write(script)
+                tf.flush()
+                os.fchmod(tf.fileno(), 0o700)
+                subprocess.run(["podman", "cp", tf.name, f"{self.container.id}:/root/script"], check=True)
 
         run_config = self.config.run_config(config)
         res = self._run(["/root/script"], run_config)

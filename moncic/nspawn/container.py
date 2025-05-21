@@ -15,6 +15,7 @@ from collections.abc import Callable
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.context import privs
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
+from moncic.utils.script import Script
 
 from .image import NspawnImage
 
@@ -181,7 +182,6 @@ class NspawnContainer(Container):
         cmd = self.get_start_command()
 
         self._run_nspawn(cmd)
-        self.started = True
 
         # Read machine properties
         res = subprocess.run(["machinectl", "show", self.instance_name], capture_output=True, text=True, check=True)
@@ -211,7 +211,6 @@ class NspawnContainer(Container):
                         break
                     raise
                 time.sleep(0.1)
-        self.started = False
 
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
@@ -236,12 +235,15 @@ class NspawnContainer(Container):
         return self.run_callable_raw(command_runner, run_config)
 
     @override
-    def run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
+    def run_script(self, script: str | Script, config: RunConfig | None = None) -> CompletedCallable:
         def script_runner():
             with tempfile.TemporaryDirectory() as workdir:
                 script_path = os.path.join(workdir, "script")
                 with open(script_path, "w") as fd:
-                    fd.write(body)
+                    if isinstance(script, Script):
+                        script.print(file=fd)
+                    else:
+                        fd.write(script)
                     fd.flush()
                     os.chmod(fd.fileno(), 0o700)
                 # FIXME: if cwd is set in config, don't chdir here
@@ -249,10 +251,12 @@ class NspawnContainer(Container):
                 os.chdir(workdir)
                 os.execv(script_path, [script_path])
 
-        if len(body) > 200:
-            script_runner.__doc__ = f"script: {body[:200]!r}…"
+        if isinstance(script, Script):
+            script_runner.__doc__ = script.title
+        elif len(script) > 200:
+            script_runner.__doc__ = f"script: {script[:200]!r}…"
         else:
-            script_runner.__doc__ = f"script: {body!r}"
+            script_runner.__doc__ = f"script: {script!r}"
 
         return self.run_callable_raw(script_runner, config)
 
