@@ -53,7 +53,7 @@ class CI(SourceCommand):
             help="key=value option for the build. See `-O list` for a list of" " available option for each build style",
         )
         parser.add_argument("--quick", action="store_true", help="quild quickly, assuming the container is up to date")
-        parser.add_argument("system", action="store", help="name or path of the system used to build")
+        parser.add_argument("image", action="store", help="name of the image used to build")
         parser.add_argument(
             "source",
             nargs="?",
@@ -82,54 +82,53 @@ class CI(SourceCommand):
 
         with self.moncic.session() as session:
             images = session.images
-            image = images.image(self.args.system)
-            with image.system() as system:
-                with self.source(system.distro) as source:
-                    log.info("Source type: %s", source.__class__)
+            image = images.image(self.args.image)
+            with self.source(image.distro) as source:
+                log.info("Source type: %s", source.__class__)
 
-                    # Create a Build object with system-configured defaults
-                    build_class = Build.get_build_class(source)
-                    build = build_class(source=source, distro=system.distro, **build_kwargs_system)
+                # Create a Build object with system-configured defaults
+                build_class = Build.get_build_class(source)
+                build = build_class(source=source, distro=image.distro, **build_kwargs_system)
 
-                    # Load YAML configuration for the build
-                    if self.args.build_config:
-                        build.load_yaml(self.args.build_config)
+                # Load YAML configuration for the build
+                if self.args.build_config:
+                    build.load_yaml(self.args.build_config)
 
-                    # Update values with command line arguments
-                    for k, v in build_kwargs_cmd.items():
-                        set_build_option_action(build, k, v)
+                # Update values with command line arguments
+                for k, v in build_kwargs_cmd.items():
+                    set_build_option_action(build, k, v)
 
-                    if build.artifacts_dir:
-                        build.artifacts_dir.mkdir(parents=True, exist_ok=True)
+                if build.artifacts_dir:
+                    build.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-                    builder = ops_build.Builder(system, build)
+                builder = ops_build.Builder(image, build)
 
-                    if self.args.linger:
-                        build.on_end.append("@linger")
-                    if self.args.shell:
-                        build.on_end.append("@shell")
+                if self.args.linger:
+                    build.on_end.append("@linger")
+                if self.args.shell:
+                    build.on_end.append("@shell")
 
-                    try:
-                        builder.host_main()
-                    finally:
+                try:
+                    builder.host_main()
+                finally:
 
-                        class ResultEncoder(json.JSONEncoder):
-                            def default(self, obj):
-                                if dataclasses.is_dataclass(obj):
-                                    return dataclasses.asdict(obj)
-                                elif isinstance(obj, Source):
-                                    return obj.name
-                                elif isinstance(obj, Distro):
-                                    return obj.name
-                                elif isinstance(obj, Path):
-                                    return str(obj)
-                                else:
-                                    return super().default(obj)
+                    class ResultEncoder(json.JSONEncoder):
+                        def default(self, obj):
+                            if dataclasses.is_dataclass(obj):
+                                return dataclasses.asdict(obj)
+                            elif isinstance(obj, Source):
+                                return obj.name
+                            elif isinstance(obj, Distro):
+                                return obj.name
+                            elif isinstance(obj, Path):
+                                return str(obj)
+                            else:
+                                return super().default(obj)
 
-                        info = dataclasses.asdict(builder.build)
-                        info["source_history"] = builder.build.source.info_history()
-                        json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
-                        sys.stdout.write("\n")
+                    info = dataclasses.asdict(builder.build)
+                    info["source_history"] = builder.build.source.info_history()
+                    json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
+                    sys.stdout.write("\n")
 
 
 @main_command
@@ -142,7 +141,7 @@ class Lint(SourceCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("system", action="store", help="name or path of the system used for checking")
+        parser.add_argument("image", action="store", help="name of the image used for checking")
         parser.add_argument(
             "source",
             nargs="?",
@@ -160,11 +159,10 @@ class Lint(SourceCommand):
 
             with self.moncic.session() as session:
                 images = session.images
-                image = images.image(self.args.system)
-                with image.system() as system:
-                    source = self.distro_source(local_source, system.distro)
-                    operation = ops_query.Lint(system, source, reporter=reporter)
-                    reporter = operation.host_main()
+                image = images.image(self.args.image)
+                source = self.distro_source(local_source, image.distro)
+                operation = ops_query.Lint(image, source, reporter=reporter)
+                reporter = operation.host_main()
         if reporter.error_count:
             print(f"{reporter.error_count} error(s), {reporter.warning_count} warning(s)")
             return 2
@@ -184,7 +182,7 @@ class QuerySource(SourceCommand):
     @classmethod
     def make_subparser(cls, subparsers):
         parser = super().make_subparser(subparsers)
-        parser.add_argument("system", action="store", help="name or path of the system used to query the package")
+        parser.add_argument("image", action="store", help="name of the image used to query the package")
         parser.add_argument(
             "source",
             nargs="?",
@@ -196,13 +194,12 @@ class QuerySource(SourceCommand):
     def run(self):
         with self.moncic.session() as session:
             images = session.images
-            image = images.image(self.args.system)
-            with image.system() as system:
-                with self.source(system.distro) as source:
-                    operation = ops_query.Query(system, source)
-                    result = operation.host_main()
-                    # result["distribution"] = system.distro.name
-                    # result["build-deps"] = builder.get_build_deps(source)
+            image = images.image(self.args.image)
+            with self.source(image.distro) as source:
+                operation = ops_query.Query(image, source)
+                result = operation.host_main()
+                # result["distribution"] = image.distro.name
+                # result["build-deps"] = builder.get_build_deps(source)
 
         json.dump(result, sys.stdout, indent=1)
         sys.stdout.write("\n")

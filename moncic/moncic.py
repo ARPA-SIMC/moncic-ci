@@ -60,6 +60,18 @@ class MoncicConfig:
         # Directory where build artifacts will be stored
         self.build_artifacts_dir: Path | None = None
 
+    def dict(self) -> dict[str, Any]:
+        return {
+            "imagedir": self.imagedir,
+            "imageconfdirs": self.imageconfdirs,
+            "compression": self.compression,
+            "auto_sudo": self.auto_sudo,
+            "tmpfs": self.tmpfs,
+            "deb_cache_dir": self.deb_cache_dir,
+            "extra_packages_dir": self.extra_packages_dir,
+            "build_artifacts_dir": self.build_artifacts_dir,
+        }
+
     @classmethod
     def find_git_dir(cls) -> Path | None:
         try:

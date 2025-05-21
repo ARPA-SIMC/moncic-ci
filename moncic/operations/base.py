@@ -10,14 +10,14 @@ import tempfile
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, cast
 
+from moncic.context import privs
 from ..container import ContainerConfig
 from ..runner import UserConfig
 from ..source.distro import DistroSource
 from ..utils.guest import guest_only, host_only
-from . import build
 
 if TYPE_CHECKING:
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.image import Image
 
     from ..container import Container
 
@@ -29,9 +29,9 @@ class ContainerSourceOperation(abc.ABC):
     Base class for operations on sources performed inside a container
     """
 
-    def __init__(self, system: NspawnSystem, source: DistroSource, *, artifacts_dir: Path | None = None):
-        #: System used for container operations
-        self.system = system
+    def __init__(self, image: Image, source: DistroSource, *, artifacts_dir: Path | None = None):
+        #: Image used for container operations
+        self.image = image
         #: Source to work on
         self.source = source
         #: Directory where extra artifacts can be found or stored
@@ -70,28 +70,28 @@ class ContainerSourceOperation(abc.ABC):
         This is run on the host system before starting the build
         """
         container_root = container.get_root()
+        with privs.root():
+            # Set user permissions on source and build directories
+            srcdir = container_root / "srv" / "moncic-ci" / "source"
+            os.chown(srcdir, self.user.user_id, self.user.group_id)
+            builddir = container_root / "srv" / "moncic-ci" / "build"
+            builddir.mkdir(parents=True, exist_ok=True)
+            os.chown(builddir, self.user.user_id, self.user.group_id)
 
-        # Set user permissions on source and build directories
-        srcdir = container_root / "srv" / "moncic-ci" / "source"
-        os.chown(srcdir, self.user.user_id, self.user.group_id)
-        builddir = container_root / "srv" / "moncic-ci" / "build"
-        builddir.mkdir(parents=True, exist_ok=True)
-        os.chown(builddir, self.user.user_id, self.user.group_id)
+            # Capture build log
+            log_file = container_root / "srv" / "moncic-ci" / "buildlog"
+            self.log_capture_start(log_file)
 
-        # Capture build log
-        log_file = container_root / "srv" / "moncic-ci" / "buildlog"
-        self.log_capture_start(log_file)
+            # Collect artifacts in a temporary directory, to be able to do it as non-root
+            with tempfile.TemporaryDirectory() as tmpdir_str:
+                tmpdir = Path(tmpdir_str)
+                self.source.collect_build_artifacts(tmpdir, self.artifacts_dir)
+                for path in tmpdir.iterdir():
+                    shutil.move(path, srcdir)
 
-        # Collect artifacts in a temporary directory, to be able to do it as non-root
-        with tempfile.TemporaryDirectory() as tmpdir_str:
-            tmpdir = Path(tmpdir_str)
-            self.source.collect_build_artifacts(tmpdir, self.artifacts_dir)
-            for path in tmpdir.iterdir():
-                shutil.move(path, srcdir)
-
-        log.debug("Sources in: %s:", srcdir)
-        for path in srcdir.iterdir():
-            log.debug("* %s", path.name)
+            log.debug("Sources in: %s:", srcdir)
+            for path in srcdir.iterdir():
+                log.debug("* %s", path.name)
 
     @host_only
     def log_execution_info(self, container: Container) -> None:
@@ -99,9 +99,9 @@ class ContainerSourceOperation(abc.ABC):
         Log all available information about how the task is executed in the container
         """
         # Log moncic config
-        moncic_config = self.system.images.session.moncic.config
-        for fld in dataclasses.fields(moncic_config):
-            log.debug("moncic:%s = %r", fld.name, getattr(moncic_config, fld.name))
+        moncic_config = self.image.images.session.moncic.config
+        for key, value in moncic_config.dict().items():
+            log.debug("moncic:%s = %r", key, value)
         # Log container config
         for fld in dataclasses.fields(container.config):
             log.debug("container:%s = %r", fld.name, getattr(container.config, fld.name))
@@ -118,9 +118,8 @@ class ContainerSourceOperation(abc.ABC):
         # Mounted volatile to prevent changes to it
         mountpoint = Path("/srv/moncic-ci/source")
         self.guest_source_path = mountpoint / self.source.path.name
-        container_config.configure_workdir(self.source.path.as_posix(), bind_type="volatile", mountpoint=mountpoint)
-        container = self.system.create_container(config=container_config)
-        with container:
+        container_config.configure_workdir(self.source.path, bind_type="volatile", mountpoint=mountpoint)
+        with self.image.container(config=container_config) as container:
             self.setup_container_host(container)
             try:
                 yield container

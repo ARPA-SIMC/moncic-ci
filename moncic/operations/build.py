@@ -14,7 +14,7 @@ from . import build
 from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.image import Image
 
     from ..container import Container
 
@@ -26,8 +26,8 @@ class Builder(ContainerSourceOperation):
     Build a Source using a container
     """
 
-    def __init__(self, system: NspawnSystem, build: Build):
-        super().__init__(system=system, source=build.source, artifacts_dir=build.artifacts_dir)
+    def __init__(self, image: Image, build: Build):
+        super().__init__(image=image, source=build.source, artifacts_dir=build.artifacts_dir)
         # Build object that is being built
         self.build: Build = build
 
@@ -83,7 +83,7 @@ class Builder(ContainerSourceOperation):
             env = dict(os.environ)
             env["MONCIC_ARTIFACTS_DIR"] = self.build.artifacts_dir.as_posix() if self.build.artifacts_dir else ""
             env["MONCIC_CONTAINER_NAME"] = container.instance_name
-            env["MONCIC_IMAGE"] = self.system.config.name
+            env["MONCIC_IMAGE"] = self.image.name
             env["MONCIC_CONTAINER_ROOT"] = container.get_root().as_posix()
             env["MONCIC_PACKAGE_NAME"] = self.build.name or ""
             env["MONCIC_RESULT"] = "success" if self.build.success else "fail"
@@ -96,7 +96,7 @@ class Builder(ContainerSourceOperation):
         Run the build
         """
         self.build.source = self.get_guest_source()
-        self.build.setup_container_guest(self.system)
+        self.build.setup_container_guest(self.image)
         self.build.build()
         return self.build
 
