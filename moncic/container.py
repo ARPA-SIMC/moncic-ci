@@ -154,9 +154,7 @@ class BindConfig(abc.ABC):
         """Run the setup/teardown script in the container."""
         if not script:
             return
-        with io.StringIO() as buf:
-            script.print(file=buf)
-            container.run_script(buf.getvalue(), RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
+        container.run_script(script, RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
 
 
 class BindConfigReadonly(BindConfig):
@@ -459,6 +457,7 @@ class Container(abc.ABC):
         #: Exchange directory for scripts
         self.scriptdir = self.workdir / "scripts"
         self.scriptdir.mkdir(parents=True, exist_ok=True)
+        self.mounted_scriptdir = Path("/srv/moncic-ci/scripts")
 
     @cached_property
     def instance_name(self) -> str:
@@ -538,8 +537,7 @@ class Container(abc.ABC):
         stdout and stderr are logged in real time as the process is running.
         """
 
-    @abc.abstractmethod
-    def run_script(self, body: str | Script, config: RunConfig | None = None) -> CompletedCallable:
+    def run_script(self, script: str | Script, config: RunConfig | None = None) -> CompletedCallable:
         """
         Run the given Script or string as a script in the machine.
 
@@ -547,6 +545,21 @@ class Container(abc.ABC):
 
         Returns the process exit status.
         """
+        run_config = self.config.run_config(config)
+
+        with tempfile.NamedTemporaryFile("w+t", dir=self.scriptdir, delete_on_close=False) as tf:
+            if isinstance(script, Script):
+                self.image.logger.info("Running script %s", script.title)
+                script.print(file=tf)
+            else:
+                if len(script) > 200:
+                    self.image.logger.info("Running script %r…", script[:200])
+                else:
+                    self.image.logger.info("Running script %r", script)
+                tf.write(script)
+            os.fchmod(tf.fileno(), 0o700)
+            tf.close()
+            return self.run([(self.mounted_scriptdir / os.path.basename(tf.name)).as_posix()], run_config)
 
     @abc.abstractmethod
     def run_callable_raw(

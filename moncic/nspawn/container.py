@@ -5,7 +5,6 @@ import os
 import shlex
 import signal
 import subprocess
-import tempfile
 import time
 from collections.abc import Iterator, Generator
 from contextlib import contextmanager
@@ -16,7 +15,7 @@ from collections.abc import Callable
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.context import privs
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
-from moncic.utils.script import Script
+from .utils.nspawn import escape_bind_ro
 
 from .image import NspawnImage
 
@@ -119,6 +118,7 @@ class NspawnContainer(Container):
             "--notify-ready=yes",
             "--resolv-conf=replace-host",
         ]
+        cmd.append(f"--bind-ro={escape_bind_ro(self.script)}:{escape_bind_ro(self.mounted_scriptdir)}")
         for bind_config in self.config.binds:
             cmd.append(bind_config.to_nspawn())
         if self.config.ephemeral:
@@ -236,32 +236,6 @@ class NspawnContainer(Container):
         command_runner.__doc__ = shlex.join(command)
 
         return self.run_callable_raw(command_runner, run_config)
-
-    @override
-    def run_script(self, script: str | Script, config: RunConfig | None = None) -> CompletedCallable:
-        def script_runner():
-            with tempfile.TemporaryDirectory() as workdir:
-                script_path = os.path.join(workdir, "script")
-                with open(script_path, "w") as fd:
-                    if isinstance(script, Script):
-                        script.print(file=fd)
-                    else:
-                        fd.write(script)
-                    fd.flush()
-                    os.chmod(fd.fileno(), 0o700)
-                # FIXME: if cwd is set in config, don't chdir here
-                #        and don't use a working directory
-                os.chdir(workdir)
-                os.execv(script_path, [script_path])
-
-        if isinstance(script, Script):
-            script_runner.__doc__ = script.title
-        elif len(script) > 200:
-            script_runner.__doc__ = f"script: {script[:200]!r}…"
-        else:
-            script_runner.__doc__ = f"script: {script!r}"
-
-        return self.run_callable_raw(script_runner, config)
 
     @override
     def run_callable_raw(

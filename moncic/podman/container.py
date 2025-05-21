@@ -76,7 +76,14 @@ class PodmanContainer(Container):
         # TODO: self.config.ephemeral
         # TODO: self.config.tmpfs
         # TODO: self.config.forward_user: UserConfig | None = None
-        mounts: list[dict[str, Any]] = []
+        mounts: list[dict[str, Any]] = [
+            {
+                "Type": "bind",
+                "Readonly": "true",
+                "Source": self.scriptdir.as_posix(),
+                "Target": self.mounted_scriptdir.as_posix(),
+            }
+        ]
         for bind in self.config.binds:
             mounts.append(bind.to_podman())
 
@@ -179,33 +186,6 @@ class PodmanContainer(Container):
         run_config = self.config.run_config(config)
         res = self._run(command, run_config)
         return CompletedCallable(command, res.returncode, res.stdout, res.stderr)
-
-    @override
-    def run_script(self, script: str | Script, config: RunConfig | None = None) -> CompletedCallable:
-        assert self.container is not None
-
-        if isinstance(script, Script):
-            name = script.title
-            with tempfile.NamedTemporaryFile("w+t") as tf:
-                script.print(file=tf)
-                tf.flush()
-                os.fchmod(tf.fileno(), 0o700)
-                subprocess.run(["podman", "cp", tf.name, f"{self.container.id}:/root/script"], check=True)
-        else:
-            if len(script) > 200:
-                name = f"script: {script[:200]!r}…"
-            else:
-                name = f"script: {script!r}"
-
-            with tempfile.NamedTemporaryFile("w+t") as tf:
-                tf.write(script)
-                tf.flush()
-                os.fchmod(tf.fileno(), 0o700)
-                subprocess.run(["podman", "cp", tf.name, f"{self.container.id}:/root/script"], check=True)
-
-        run_config = self.config.run_config(config)
-        res = self._run(["/root/script"], run_config)
-        return CompletedCallable(name, res.returncode, res.stdout, res.stderr)
 
     @override
     def run_callable_raw(
