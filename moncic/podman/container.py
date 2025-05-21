@@ -67,28 +67,40 @@ class PodmanContainer(Container):
         raise NotImplementedError()
 
     @override
-    def _start(self):
+    def _start(self) -> None:
         if self.container is not None:
             raise RuntimeError("Container already started")
-        self.container = self.image.images.session.podman.containers.create(
-            self.image.podman_image,
-            ["sleep", "inf"],
-            auto_remove=True,
-            detach=True,
+        # TODO: self.config.ephemeral
+        # TODO: self.config.tmpfs
+        # TODO: self.config.binds: list[BindConfig]
+        # TODO: self.config.forward_user: UserConfig | None = None
+        mounts: list[dict[str, Any]] = []
+        for bind in self.config.binds:
+            mounts.append(bind.to_podman())
+
+        container_kwargs: dict[str, Any] = {
+            "auto_remove": True,
+            "detach": True,
             # TODO: environment
             # TODO: group_add
             # TODO: what is isolation?
-            # TODO: mounts
+            "mounts": mounts,
             # TODO: name
             # TODO: privileged
             # TODO: read_only
             # TODO: read_write_tmpfs
-            remove=True,
-            stdout=False,
-            stderr=False,
+            "remove": True,
+            "stdout": False,
+            "stderr": False,
             # TODO: stream
             # TODO: ulimits
             # TODO: user
+        }
+
+        self.image.logger.debug("Starting container %r", container_kwargs)
+
+        self.container = self.image.images.session.podman.containers.create(
+            self.image.podman_image, ["sleep", "inf"], **container_kwargs
         )
         self.container.start()
         self.container.wait(condition="running")
@@ -142,7 +154,7 @@ class PodmanContainer(Container):
         #     self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root()))
 
     @override
-    def _stop(self, exc: Exception | None = None):
+    def _stop(self, exc: Exception | None = None) -> None:
         if self.container is None:
             return
         self.container.reload()
@@ -161,6 +173,8 @@ class PodmanContainer(Container):
             kwargs["capture_output"] = True
         if config.check:
             kwargs["check"] = True
+        if config.cwd:
+            podman_command += ["--workdir", config.cwd]
 
         podman_command.append(self.container.id)
         podman_command += command

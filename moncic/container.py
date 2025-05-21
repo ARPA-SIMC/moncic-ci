@@ -4,10 +4,10 @@ import abc
 import dataclasses
 import hashlib
 import logging
+import io
 import os
 import pwd
 import re
-import shutil
 import subprocess
 import shlex
 from collections.abc import Iterator
@@ -19,6 +19,7 @@ from .image import Image
 from .runner import CompletedCallable, RunConfig, UserConfig
 from .utils import libbanana
 from .utils.deb import apt_get_cmd
+from .utils.script import Script
 from .utils.nspawn import escape_bind_ro
 
 Result = TypeVar("Result")
@@ -60,21 +61,8 @@ class BindConfig:
     # Directory inside the container where the directory gets bind mounted
     destination: str
 
-    # Type of bind mount:
-    #
-    # * ``ro``
-    # * ``rw``
+    # Type of bind mount (see create())
     bind_type: str = "rw"
-
-    # Mount options for nspawn
-    #
-    # Mount options are comma-separated.  rbind and norbind control whether
-    # to create a recursive or a regular bind mount. Defaults to "rbind".
-    #
-    # idmap and noidmap control if the bind mount should use filesystem id
-    # mappings. Using this option requires support by the source filesystem
-    # for id mappings. Defaults to "noidmap".
-    mount_options: list[str] = dataclasses.field(default_factory=list)
 
     # If true, use this as the default working directory when running code or
     # programs in the container
@@ -90,22 +78,33 @@ class BindConfig:
         """
         Return the nspawn --bind* option for this bind
         """
-        if self.bind_type in ("ro",):
-            option = "--bind-ro="
-        elif self.bind_type in ("rw",):
-            option = "--bind="
-        else:
-            raise ValueError(f"{self.bind_type!r}: invalid bind type")
+        match self.bind_type:
+            case "ro":
+                option = "--bind-ro="
+            case "rw":
+                option = "--bind="
+            case _:
+                raise ValueError(f"{self.bind_type!r}: invalid bind type")
 
-        if self.mount_options:
-            return option + ":".join(
-                (escape_bind_ro(self.source), escape_bind_ro(self.destination), ",".join(self.mount_options))
-            )
+        if self.source == self.destination:
+            return option + escape_bind_ro(self.source)
         else:
-            if self.source == self.destination:
-                return option + escape_bind_ro(self.source)
-            else:
-                return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+
+    def to_podman(self) -> dict[str, Any]:
+        res: dict[str, Any] = {
+            "Type": "bind",
+            "Source": self.source,
+            "Target": self.destination,
+        }
+        match self.bind_type:
+            case "ro":
+                res["Readonly"] = "true"
+            case "rw":
+                res["Readonly"] = "false"
+            case _:
+                raise ValueError(f"{self.bind_type!r}: invalid bind type")
+        return res
 
     @classmethod
     def create(cls, source: str, destination: str, bind_type: str, **kw) -> BindConfig:
@@ -159,9 +158,7 @@ class BindConfig:
             return cls.create(parts[0].replace(r"\:", ":"), parts[1].replace(r"\:", ":"), bind_type)
         elif len(parts) == 3:
             # a colon-separated triple of source path, destination path and mount options
-            return cls.create(
-                parts[0].replace(r"\:", ":"), parts[1].replace(r"\:", ":"), bind_type, mount_options=parts[2].split(",")
-            )
+            return cls.create(parts[0].replace(r"\:", ":"), parts[1].replace(r"\:", ":"), bind_type)
         else:
             raise ValueError(f"{entry!r}: unparsable bind option")
 
@@ -325,34 +322,43 @@ class Container(ContextManager, abc.ABC):
     An instance of an Image in execution as a container
     """
 
-    # Name of the running container instance, which can be used to access it
-    # with normal user commands
-    instance_name: str
-
     def __init__(self, image: Image, *, config: ContainerConfig, instance_name: str | None = None):
-        global machine_name_sequence_pid, machine_name_sequence
         super().__init__()
+        config.check()
         self.image = image
         self.config = config
+        self.started = False
         #: Default to False, set to True to leave the container running on exit
         self.linger: bool = False
-        if instance_name is None:
-            current_pid = os.getpid()
-            if machine_name_sequence_pid is None or machine_name_sequence_pid != current_pid:
-                machine_name_sequence_pid = current_pid
-                machine_name_sequence = 0
+        #: User-provided instance name
+        self._instance_name = instance_name
+        self.startup_script = Script("Container startup script")
+        self.teardown_script = Script("Container teardown script")
 
-            seq = machine_name_sequence
-            machine_name_sequence += 1
-            self.instance_name = "mc-" + machine_name_generator(current_pid)
-            if seq > 0:
-                self.instance_name += str(seq)
-        else:
-            self.instance_name = instance_name
+    @property
+    def instance_name(self) -> str:
+        """
+        Name of the running container instance, which can be used to access it
+        with normal user commands
+        """
+        if self._instance_name:
+            return self._instance_name
+        return self.get_instance_name()
 
-        config.check()
-        self.config = config
-        self.started = False
+    def get_instance_name(self) -> str:
+        """Compute an instance name when none was provided in constructor."""
+        global machine_name_sequence_pid, machine_name_sequence
+        current_pid = os.getpid()
+        if machine_name_sequence_pid is None or machine_name_sequence_pid != current_pid:
+            machine_name_sequence_pid = current_pid
+            machine_name_sequence = 0
+
+        seq = machine_name_sequence
+        machine_name_sequence += 1
+        instance_name = "mc-" + machine_name_generator(current_pid)
+        if seq > 0:
+            instance_name += str(seq)
+        return instance_name
 
     def __enter__(self):
         if not self.started:
@@ -362,17 +368,35 @@ class Container(ContextManager, abc.ABC):
                 if self.started:
                     self._stop()
                 raise
+            self._post_start()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.started and not self.linger:
+            self._pre_stop()
             self._stop(exc_val)
 
     @abc.abstractmethod
-    def _start(self): ...
+    def _start(self) -> None:
+        """Start the container."""
 
     @abc.abstractmethod
-    def _stop(self, exc: Exception | None = None): ...
+    def _stop(self, exc: Exception | None = None) -> None:
+        """Stop the container."""
+
+    def _post_start(self) -> None:
+        """Run post-start container configuration."""
+        if self.startup_script:
+            with io.StringIO() as buf:
+                self.startup_script.print(file=buf)
+                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/"))
+
+    def _pre_stop(self) -> None:
+        """Run pre-stop container teardown."""
+        if self.teardown_script:
+            with io.StringIO() as buf:
+                self.teardown_script.print(file=buf)
+                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/"))
 
     @abc.abstractmethod
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
