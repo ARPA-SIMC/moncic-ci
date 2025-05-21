@@ -10,7 +10,7 @@ from collections.abc import Generator
 
 import yaml
 
-from moncic.container import RunConfig
+from moncic.runner import RunConfig
 from moncic.distro import Distro, DistroFamily
 from moncic.image import Image, ImageType
 from moncic.utils.btrfs import Subvolume

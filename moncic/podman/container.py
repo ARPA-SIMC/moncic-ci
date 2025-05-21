@@ -1,8 +1,6 @@
 import subprocess
 import signal
-import os
 import warnings
-import tempfile
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Any, override, Generator
@@ -14,7 +12,6 @@ import podman
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
 from moncic.context import privs
-from moncic.utils.script import Script
 
 from .image import PodmanImage
 

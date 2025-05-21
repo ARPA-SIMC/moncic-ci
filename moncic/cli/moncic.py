@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, cast
 
 import git
 
-from ..container import BindConfig, ContainerConfig, RunConfig, UserConfig
+from ..container import BindConfig, ContainerConfig
+from moncic.runner import RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
 from ..source import Source
