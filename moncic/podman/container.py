@@ -4,7 +4,8 @@ import os
 import warnings
 import tempfile
 from pathlib import Path
-from typing import Any, override
+from contextlib import contextmanager
+from typing import Any, override, Generator
 from collections.abc import Callable
 from collections.abc import Iterator
 
@@ -68,7 +69,8 @@ class PodmanContainer(Container):
         raise NotImplementedError()
 
     @override
-    def _start(self) -> None:
+    @contextmanager
+    def _container(self) -> Generator[None, None, None]:
         if self.container is not None:
             raise RuntimeError("Container already started")
         # TODO: self.config.ephemeral
@@ -133,13 +135,6 @@ class PodmanContainer(Container):
         #     # TODO: handle run_config: use_path (not supported)
         #     return podman_container
 
-        # # Read machine properties
-        # res = subprocess.run(["machinectl", "show", self.instance_name], capture_output=True, text=True, check=True)
-        # self.properties = {}
-        # for line in res.stdout.splitlines():
-        #     key, value = line.split("=", 1)
-        #     self.properties[key] = value
-
         # # Do user forwarding if requested
         # if self.config.forward_user:
         #     self.forward_user(self.config.forward_user)
@@ -147,19 +142,13 @@ class PodmanContainer(Container):
         # # We do not need to delete the user if it was created, because we
         # # enforce that forward_user is only used on ephemeral containers
 
-        # # Set up volatile mounts
-        # if any(bind.setup for bind in self.active_binds):
-        #     raise NotImplementedError()
-        #     self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root()))
-
-    @override
-    def _stop(self, exc: Exception | None = None) -> None:
-        if self.container is None:
-            return
-        self.container.reload()
-        self.container.kill(signal.SIGKILL)
-        self.container.wait(condition="stopped")
-        self.container = None
+        try:
+            yield None
+        finally:
+            self.container.reload()
+            self.container.kill(signal.SIGKILL)
+            self.container.wait(condition="stopped")
+            self.container = None
 
     def _run(self, command: list[str], config: RunConfig) -> subprocess.CompletedProcess:
         assert self.container is not None
@@ -170,7 +159,7 @@ class PodmanContainer(Container):
         else:
             kwargs["capture_output"] = True
         if config.cwd:
-            podman_command += ["--workdir", config.cwd]
+            podman_command += ["--workdir", config.cwd.as_posix()]
 
         podman_command.append(self.container.id)
         podman_command += command

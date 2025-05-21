@@ -7,7 +7,8 @@ import signal
 import subprocess
 import tempfile
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Generator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, NoReturn, override
 from collections.abc import Callable
@@ -174,7 +175,8 @@ class NspawnContainer(Container):
         self.run_callable(forward, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
 
     @override
-    def _start(self):
+    @contextmanager
+    def _container(self) -> Generator[None, None, None]:
         self.image.logger.info(
             "Starting system %s as %s using image %s", self.image.name, self.instance_name, self.image.path
         )
@@ -197,20 +199,21 @@ class NspawnContainer(Container):
         # We do not need to delete the user if it was created, because we
         # enforce that forward_user is only used on ephemeral containers
 
-    @override
-    def _stop(self, exc: Exception | None = None):
-        with privs.root():
-            # See https://github.com/systemd/systemd/issues/6458
-            leader_pid = int(self.properties["Leader"])
-            os.kill(leader_pid, signal.SIGRTMIN + 4)
-            while True:
-                try:
-                    os.kill(leader_pid, 0)
-                except OSError as e:
-                    if e.errno == errno.ESRCH:
-                        break
-                    raise
-                time.sleep(0.1)
+        try:
+            yield None
+        finally:
+            with privs.root():
+                # See https://github.com/systemd/systemd/issues/6458
+                leader_pid = self.get_pid()
+                os.kill(leader_pid, signal.SIGRTMIN + 4)
+                while True:
+                    try:
+                        os.kill(leader_pid, 0)
+                    except OSError as e:
+                        if e.errno == errno.ESRCH:
+                            break
+                        raise
+                    time.sleep(0.1)
 
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:

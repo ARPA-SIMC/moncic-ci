@@ -9,11 +9,12 @@ import io
 import os
 import re
 import shlex
+import tempfile
 from collections.abc import Iterator, Generator
 from contextlib import ExitStack, contextmanager
 from functools import cached_property
 from pathlib import Path
-from typing import Any, TypeVar, assert_never, TypedDict, override
+from typing import Any, TypeVar, assert_never, TypedDict, override, ContextManager
 from collections.abc import Callable
 
 from .image import Image
@@ -453,6 +454,11 @@ class Container(abc.ABC):
         self.linger: bool = False
         #: User-provided instance name
         self._instance_name = instance_name
+        #: Host directory used for supporting container interactions
+        self.workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        #: Exchange directory for scripts
+        self.scriptdir = self.workdir / "scripts"
+        self.scriptdir.mkdir(parents=True, exist_ok=True)
 
     @cached_property
     def instance_name(self) -> str:
@@ -481,7 +487,7 @@ class Container(abc.ABC):
 
     def __enter__(self):
         self.stack.__enter__()
-        self.stack.enter_context(self._running())
+        self.stack.enter_context(self._container())
         for bind in self.config.binds:
             self.stack.enter_context(bind.setup(self))
         self.started = True
@@ -493,23 +499,9 @@ class Container(abc.ABC):
             return
         self.stack.__exit__(exc_type, exc_val, exc_tb)
 
-    @contextmanager
-    def _running(self) -> Generator[None, None, None]:
-        self._start()
-        try:
-            yield None
-        except Exception as exc:
-            self._stop(exc)
-        else:
-            self._stop(None)
-
     @abc.abstractmethod
-    def _start(self) -> None:
-        """Start the container."""
-
-    @abc.abstractmethod
-    def _stop(self, exc: Exception | None = None) -> None:
-        """Stop the container."""
+    def _container(self) -> ContextManager[None]:
+        """Start the container for the duration of the context manager."""
 
     @abc.abstractmethod
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
