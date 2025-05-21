@@ -87,6 +87,13 @@ class Container(abc.ABC):
         for bind in self.config.binds:
             self.stack.enter_context(bind.host_setup(self))
         self.stack.enter_context(self._container())
+
+        # Do user forwarding if requested
+        if self.config.forward_user:
+            self.forward_user(self.config.forward_user)
+        # We do not need to delete the user if it was created, because we
+        # enforce that forward_user is only used on ephemeral containers
+
         for bind in self.config.binds:
             self.stack.enter_context(bind.guest_setup(self))
         self.started = True
@@ -102,11 +109,100 @@ class Container(abc.ABC):
     def _container(self) -> ContextManager[None]:
         """Start the container for the duration of the context manager."""
 
-    @abc.abstractmethod
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
         """
         Ensure the system has a matching user and group
         """
+        check_script = f"""#!/bin/sh
+set -uxe
+
+UID=$(id -u {user.user_id} || true)
+GID=$(id -g {user.user_id} || true)
+echo "$UID:$GID"
+"""
+        res = self.run_script(check_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
+        uid, gid = res.stdout.strip().decode().split(":")
+
+        has_user = uid and int(uid) == user.user_id
+        if not has_user and not allow_maint and not self.config.ephemeral:
+            raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
+
+        has_group = gid and int(gid) == user.group_id
+        if not has_group and not allow_maint and not self.config.ephemeral:
+            raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
+
+        if not has_user and not has_group:
+            setup_script = Script("Set up local user")
+            setup_script.run(["groupadd", "--gid", str(user.group_id), user.group_name])
+            setup_script.run(
+                [
+                    "useradd",
+                    "--create-home",
+                    "--uid",
+                    str(user.user_id),
+                    "--gid",
+                    str(user.group_id),
+                    user.user_name,
+                ],
+            )
+            self.run_script(setup_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
+        else:
+            validate_script = f"""#!/bin/sh
+
+set -uxe
+
+if [ $(id -u) == 0 ] && [ $(id -g) == 0 ]
+then
+    exit 0
+fi
+
+UNAME="$(id -un {user.user_id})"
+if [ "$UNAME"  != {shlex.quote(user.user_name)} ]
+then
+    echo "user {user.user_id} in container is named $UNAME but outside it is named" {shlex.quote(user.user_name)} >&2
+    exit 1
+fi
+
+GNAME="$(getent group {user.group_id} | sed -r 's/:.+//')"
+if [ "$GNAME"  != {shlex.quote(user.group_name)} ]
+then
+    echo "group {user.group_id} in container is named $GNAME but outside it is named" {shlex.quote(user.group_name)} >&2
+    exit 1
+fi
+"""
+            self.run_script(validate_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
+
+    def check_system(self):
+        """
+        Check that this user/group information is consistent in the current
+        system
+        """
+        # Run consistency checks
+        if self.user_id == 0 and self.group_id == 0:
+            return
+
+        # TODO: do not use pwd and grp, as they may be cached from the host system
+        try:
+            pw = pwd.getpwuid(self.user_id)
+        except KeyError:
+            raise RuntimeError(f"container has no user {self.user_id} {self.user_name!r}") from None
+
+        try:
+            gr = grp.getgrgid(self.group_id)
+        except KeyError:
+            raise RuntimeError(f"container has no group {self.group_id} {self.group_name!r}") from None
+
+        if pw.pw_name != self.user_name:
+            raise RuntimeError(
+                f"user {self.user_id} in container is named {pw.pw_name!r}"
+                f" but outside it is named {self.user_name!r}"
+            )
+
+        if gr.gr_name != self.group_name:
+            raise RuntimeError(
+                f"group {self.group_id} in container is named {gr.gr_name!r}"
+                f" but outside it is named {self.group_name!r}"
+            )
 
     @abc.abstractmethod
     def get_root(self) -> Path:
@@ -157,7 +253,7 @@ class Container(abc.ABC):
                 else:
                     self.image.logger.info("Running script %r", script)
                 tf.write(script)
-            os.fchmod(tf.fileno(), 0o700)
+            os.fchmod(tf.fileno(), 0o755)
             tf.close()
             return self.run([(self.mounted_scriptdir / os.path.basename(tf.name)).as_posix()], run_config)
 

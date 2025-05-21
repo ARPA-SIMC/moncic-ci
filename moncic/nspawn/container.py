@@ -137,44 +137,6 @@ class NspawnContainer(Container):
         return cmd
 
     @override
-    def forward_user(self, user: UserConfig, allow_maint=False) -> None:
-        """
-        Ensure the system has a matching user and group
-        """
-
-        def forward():
-            res = subprocess.run(["id", "-u", str(user.user_id)], capture_output=True, check=False)
-            has_user = res.returncode == 0 and int(res.stdout.strip()) == user.user_id
-            if not has_user and not allow_maint and not self.config.ephemeral:
-                raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
-
-            res = subprocess.run(["id", "-g", str(user.user_id)], capture_output=True, check=False)
-            has_group = res.returncode == 0 and int(res.stdout.strip()) == user.group_id
-            if not has_group and not allow_maint and not self.config.ephemeral:
-                raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
-
-            if not has_user and not has_group:
-                subprocess.run(["groupadd", "--gid", str(user.group_id), user.group_name], check=True)
-                subprocess.run(
-                    [
-                        "useradd",
-                        "--create-home",
-                        "--uid",
-                        str(user.user_id),
-                        "--gid",
-                        str(user.group_id),
-                        user.user_name,
-                    ],
-                    check=True,
-                )
-            else:
-                user.check_system()
-
-        forward.__doc__ = f"check or create user {user.user_name!r} and group {user.group_name!r}"
-
-        self.run_callable(forward, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
-
-    @override
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
         self.image.logger.info(
@@ -191,13 +153,6 @@ class NspawnContainer(Container):
         for line in res.stdout.splitlines():
             key, value = line.split("=", 1)
             self.properties[key] = value
-
-        # Do user forwarding if requested
-        if self.config.forward_user:
-            self.forward_user(self.config.forward_user)
-
-        # We do not need to delete the user if it was created, because we
-        # enforce that forward_user is only used on ephemeral containers
 
         try:
             yield None

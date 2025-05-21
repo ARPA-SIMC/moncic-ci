@@ -62,10 +62,6 @@ class PodmanContainer(Container):
         raise NotImplementedError()
 
     @override
-    def forward_user(self, user: UserConfig, allow_maint=False) -> None:
-        raise NotImplementedError()
-
-    @override
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
         if self.container is not None:
@@ -139,13 +135,6 @@ class PodmanContainer(Container):
         #     # TODO: handle run_config: use_path (not supported)
         #     return podman_container
 
-        # # Do user forwarding if requested
-        # if self.config.forward_user:
-        #     self.forward_user(self.config.forward_user)
-
-        # # We do not need to delete the user if it was created, because we
-        # # enforce that forward_user is only used on ephemeral containers
-
         try:
             yield None
         finally:
@@ -164,6 +153,8 @@ class PodmanContainer(Container):
             kwargs["capture_output"] = True
         if config.cwd:
             podman_command += ["--workdir", config.cwd.as_posix()]
+        if config.user:
+            podman_command += ["--user", config.user.user_name]
 
         podman_command.append(self.container.id)
         podman_command += command
