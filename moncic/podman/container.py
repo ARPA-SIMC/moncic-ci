@@ -72,7 +72,6 @@ class PodmanContainer(Container):
             raise RuntimeError("Container already started")
         # TODO: self.config.ephemeral
         # TODO: self.config.tmpfs
-        # TODO: self.config.binds: list[BindConfig]
         # TODO: self.config.forward_user: UserConfig | None = None
         mounts: list[dict[str, Any]] = []
         for bind in self.config.binds:
@@ -171,14 +170,20 @@ class PodmanContainer(Container):
             podman_command += ["--interactive", "--tty"]
         else:
             kwargs["capture_output"] = True
-        if config.check:
-            kwargs["check"] = True
         if config.cwd:
             podman_command += ["--workdir", config.cwd]
 
         podman_command.append(self.container.id)
         podman_command += command
-        return subprocess.run(podman_command, **kwargs)
+        res = subprocess.run(podman_command, check=False, **kwargs)
+        if config.check and res.returncode != 0:
+            self.image.logger.error("Script failed with return code %d", res.returncode)
+            for line in res.stdout.decode().splitlines():
+                self.image.logger.error("Script stdout: %s", line)
+            for line in res.stderr.decode().splitlines():
+                self.image.logger.error("Script stderr: %s", line)
+            res.check_returncode()
+        return res
 
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:

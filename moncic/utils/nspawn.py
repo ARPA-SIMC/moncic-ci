@@ -1,7 +1,7 @@
-from __future__ import annotations
+from pathlib import Path
 
 
-def escape_bind_ro(s: str):
+def escape_bind_ro(s: str | Path) -> str:
     r"""
     Escape a path for use in systemd-nspawn --bind-ro.
 
@@ -10,4 +10,4 @@ def escape_bind_ro(s: str):
       Backslash escapes are interpreted, so "\:" may be used to embed
       colons in either path.
     """
-    return s.replace(":", r"\:")
+    return str(s).replace(":", r"\:")

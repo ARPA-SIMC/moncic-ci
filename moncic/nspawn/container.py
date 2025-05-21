@@ -34,8 +34,6 @@ class NspawnContainer(Container):
         self.path = path
         # machinectl properties of the running machine
         self.properties: dict[str, str] = {}
-        # Bind mounts used by this container
-        self.active_binds: list[BindConfig] = []
 
     @classmethod
     def _container_config(cls, image: NspawnImage, config: ContainerConfig | None = None) -> ContainerConfig:
@@ -73,7 +71,7 @@ class NspawnContainer(Container):
         return int(self.properties["Leader"])
 
     def binds(self) -> Iterator[BindConfig]:
-        yield from self.active_binds
+        yield from self.config.binds
 
     def _run_nspawn(self, cmd: list[str]):
         """
@@ -120,7 +118,6 @@ class NspawnContainer(Container):
             "--resolv-conf=replace-host",
         ]
         for bind_config in self.config.binds:
-            self.active_binds.append(bind_config)
             cmd.append(bind_config.to_nspawn())
         if self.config.ephemeral:
             if self.config.tmpfs:
@@ -173,7 +170,7 @@ class NspawnContainer(Container):
 
         forward.__doc__ = f"check or create user {user.user_name!r} and group {user.group_name!r}"
 
-        self.run_callable(forward, config=RunConfig(user=UserConfig.root()))
+        self.run_callable(forward, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
 
     @override
     def _start(self):
@@ -200,33 +197,9 @@ class NspawnContainer(Container):
         # We do not need to delete the user if it was created, because we
         # enforce that forward_user is only used on ephemeral containers
 
-        # Set up volatile mounts
-        if any(bind.setup for bind in self.active_binds):
-            self.run_callable(self._bind_setup, config=RunConfig(user=UserConfig.root()))
-
-    def _bind_setup(self):
-        """
-        Run setup scripts from binds
-        """
-        for bind in self.active_binds:
-            if bind.setup:
-                bind.setup(bind)
-
-    def _bind_teardown(self):
-        """
-        Run teardown scripts from binds
-        """
-        for bind in self.active_binds:
-            if bind.teardown:
-                bind.teardown(bind)
-
     @override
     def _stop(self, exc: Exception | None = None):
         with privs.root():
-            # Run teardown script frombinds
-            if any(bind.teardown for bind in self.active_binds):
-                self.run_callable(self._bind_teardown, config=RunConfig(user=UserConfig.root()))
-
             # See https://github.com/systemd/systemd/issues/6458
             leader_pid = int(self.properties["Leader"])
             os.kill(leader_pid, signal.SIGRTMIN + 4)

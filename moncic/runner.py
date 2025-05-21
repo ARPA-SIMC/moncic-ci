@@ -19,6 +19,7 @@ import subprocess
 import sys
 import types
 from functools import cached_property
+from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, BinaryIO, Generic, NamedTuple, TypeVar, cast
 from collections.abc import Callable
 
@@ -50,11 +51,11 @@ class UserConfig(NamedTuple):
     group_id: int
 
     @classmethod
-    def from_file(cls, pathname: str) -> UserConfig:
+    def from_file(cls, pathname: Path) -> UserConfig:
         """
         Instantiate a UserConfig from ownership of a file
         """
-        st = os.stat(pathname)
+        st = pathname.stat()
         pw = pwd.getpwuid(st.st_uid)
         gr = grp.getgrgid(st.st_gid)
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
@@ -148,7 +149,7 @@ class RunConfig:
 
     # Run in this working directory. Defaults to ContainerConfig.workdir, if
     # set. Else, to the user's home directory
-    cwd: str | None = None
+    cwd: Path | None = None
 
     # Run as the given user. Defaults to the owner of ContainerConfig.workdir,
     # if not set
@@ -497,7 +498,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 # Replace environment
                 os.environ.clear()
                 for k, v in env.items():
-                    os.environ[k] = v
+                    os.environ[k] = str(v)
 
                 # Refork to actually enter the PID namespace
                 pid = os.fork()

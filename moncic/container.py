@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import enum
 import hashlib
 import logging
 import io
@@ -11,8 +12,9 @@ import re
 import subprocess
 import shlex
 from collections.abc import Iterator
+from functools import cached_property
 from pathlib import Path
-from typing import Any, ContextManager, TypeVar
+from typing import Any, ContextManager, TypeVar, assert_never
 from collections.abc import Callable
 
 from .image import Image
@@ -41,6 +43,16 @@ machine_name_generator = libbanana.Codec(
 ).encode
 
 
+class BindType(enum.StrEnum):
+    """Available bind types."""
+
+    READONLY = "ro"
+    READWRITE = "rw"
+    VOLATILE = "volatile"
+    APTCACHE = "aptcache"
+    APTPACKAGES = "aptpackages"
+
+
 @dataclasses.dataclass
 class BindConfig:
     """
@@ -56,58 +68,81 @@ class BindConfig:
     # The source path may be specified as empty string, in which case a
     # temporary directory below the host's /var/tmp/ directory is used.
     # It is automatically removed when the container is shut down.
-    source: str
+    source: Path
 
     # Directory inside the container where the directory gets bind mounted
-    destination: str
+    destination: Path
 
-    # Type of bind mount (see create())
-    bind_type: str = "rw"
+    # Type of bind mount
+    bind_type: BindType = BindType.READWRITE
 
     # If true, use this as the default working directory when running code or
     # programs in the container
     cwd: bool = False
 
-    # Setup hook to be run at container startup inside the container
-    setup: Callable[[BindConfig], None] | None = None
+    # # Setup hook to be run at container startup inside the container
+    # setup: Callable[[BindConfig], None] | None = None
 
-    # Setup hook to be run before container shutdown inside the container
-    teardown: Callable[[BindConfig], None] | None = None
+    # # Setup hook to be run before container shutdown inside the container
+    # teardown: Callable[[BindConfig], None] | None = None
 
     def to_nspawn(self) -> str:
         """
         Return the nspawn --bind* option for this bind
         """
+        destination = self.destination
         match self.bind_type:
-            case "ro":
+            case BindType.READONLY | BindType.APTPACKAGES:
                 option = "--bind-ro="
-            case "rw":
+            case BindType.VOLATILE:
+                option = "--bind-ro="
+                destination = Path(f"{self.destination}-readonly")
+            case BindType.READWRITE | BindType.APTCACHE:
                 option = "--bind="
-            case _:
-                raise ValueError(f"{self.bind_type!r}: invalid bind type")
+            case _ as unreachable:
+                assert_never(unreachable)
 
-        if self.source == self.destination:
+        if self.source == destination:
             return option + escape_bind_ro(self.source)
         else:
-            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(destination))
 
     def to_podman(self) -> dict[str, Any]:
         res: dict[str, Any] = {
             "Type": "bind",
-            "Source": self.source,
-            "Target": self.destination,
+            "Source": self.source.as_posix(),
+            "Target": self.destination.as_posix(),
         }
         match self.bind_type:
-            case "ro":
+            case BindType.READONLY | BindType.APTPACKAGES:
                 res["Readonly"] = "true"
-            case "rw":
+            case BindType.VOLATILE:
+                res["Readonly"] = "true"
+                res["Target"] = res["Target"] + "-readonly"
+            case BindType.READWRITE | BindType.APTCACHE:
                 res["Readonly"] = "false"
-            case _:
-                raise ValueError(f"{self.bind_type!r}: invalid bind type")
+            case _ as unreachable:
+                assert_never(unreachable)
         return res
 
+    def add_setup(self, script: Script) -> None:
+        match self.bind_type:
+            case BindType.VOLATILE:
+                self._add_volatile_setup(script)
+            case BindType.APTCACHE:
+                self._add_aptcache_setup(script)
+            case BindType.APTPACKAGES:
+                self._add_aptpackages_setup(script)
+
+    def add_teardown(self, script: Script) -> None:
+        match self.bind_type:
+            case BindType.APTCACHE:
+                self._add_aptcache_teardown(script)
+            case BindType.APTPACKAGES:
+                self._add_aptpackages_teardown(script)
+
     @classmethod
-    def create(cls, source: str, destination: str, bind_type: str, **kw) -> BindConfig:
+    def create(cls, source: str | Path, destination: str | Path, bind_type: str | BindType, **kw) -> BindConfig:
         """
         Create a BindConfig.
 
@@ -120,21 +155,7 @@ class BindConfig:
         * ``aptpackages``: create a local mirror with the packages in the
                            source directory, and add it to apt's sources
         """
-        if bind_type == "volatile":
-            kw["bind_type"] = "ro"
-            kw.setdefault("setup", BindConfig.bind_hook_setup_volatile)
-        elif bind_type == "aptcache":
-            kw["bind_type"] = "rw"
-            kw.setdefault("setup", BindConfig.bind_hook_setup_aptcache)
-            kw.setdefault("teardown", BindConfig.bind_hook_teardown_aptcache)
-        elif bind_type == "aptpackages":
-            kw["bind_type"] = "ro"
-            kw.setdefault("setup", BindConfig.bind_hook_setup_aptpackages)
-            kw.setdefault("teardown", BindConfig.bind_hook_teardown_aptpackages)
-        else:
-            kw["bind_type"] = bind_type
-
-        return cls(source=source, destination=destination, **kw)
+        return cls(source=Path(source), destination=Path(destination), bind_type=BindType(bind_type), **kw)
 
     @classmethod
     def from_nspawn(cls, entry: str, bind_type: str) -> BindConfig:
@@ -162,86 +183,70 @@ class BindConfig:
         else:
             raise ValueError(f"{entry!r}: unparsable bind option")
 
-    @classmethod
-    def bind_hook_setup_volatile(cls, bind_config: BindConfig):
-        """
-        Finish setting up volatile binds in the container
-        """
-        volatile_root = "/run/volatile"
-        os.makedirs(volatile_root, exist_ok=True)
-
-        st = os.stat(bind_config.destination)
-
-        m = hashlib.sha1()
-        m.update(bind_config.destination.encode())
-        basename = m.hexdigest()
+    def _add_volatile_setup(self, script: Script) -> None:
+        """Set up volatile binds in the container."""
+        volatile_root = Path("/run/volatile")
+        volatile_readonly_base = Path(f"{self.destination}-readonly")
 
         # Create the overlay workspace on tmpfs in /run
-        workdir = os.path.join(volatile_root, basename)
-        os.makedirs(workdir, exist_ok=True)
+        m = hashlib.sha1()
+        m.update(self.destination.as_posix().encode())
+        workdir = volatile_root / m.hexdigest()
 
-        overlay_upper = os.path.join(workdir, "upper")
-        os.makedirs(overlay_upper, exist_ok=True)
-        os.chown(overlay_upper, st.st_uid, st.st_gid)
+        script.run(["mkdir", "-p", self.destination.as_posix()])
 
-        overlay_work = os.path.join(workdir, "work")
-        os.makedirs(overlay_work, exist_ok=True)
-        os.chown(overlay_work, st.st_uid, st.st_gid)
+        overlay_upper = workdir / "upper"
+        script.run(["mkdir", "-p", overlay_upper.as_posix()])
+        script.run(["chown", "--reference=" + volatile_readonly_base.as_posix(), overlay_upper.as_posix()])
 
-        cmd = [
-            "mount",
-            "-t",
-            "overlay",
-            "overlay",
-            f"-olowerdir={bind_config.destination},upperdir={overlay_upper},workdir={overlay_work}",
-            bind_config.destination,
-        ]
-        # logging.debug("Volatile setup command: %r", cmd)
-        subprocess.run(cmd, check=True)
+        overlay_work = workdir / "work"
+        script.run(["mkdir", "-p", overlay_work.as_posix()])
+        script.run(["chown", "--reference=" + volatile_readonly_base.as_posix(), overlay_work.as_posix()])
 
-    @classmethod
-    def bind_hook_setup_aptcache(cls, bind_config: BindConfig):
-        with open("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads", "w") as fd:
-            print('Binary::apt::APT::Keep-Downloaded-Packages "1";', file=fd)
-        try:
-            apt_user = pwd.getpwnam("_apt")
-        except KeyError:
-            apt_user = None
-        if apt_user:
-            os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
+        script.run(
+            [
+                "mount",
+                "-t",
+                "overlay",
+                "overlay",
+                f"-olowerdir={volatile_readonly_base},upperdir={overlay_upper},workdir={overlay_work}",
+                self.destination.as_posix(),
+            ]
+        )
 
-    @classmethod
-    def bind_hook_teardown_aptcache(cls, bind_config: BindConfig):
-        try:
-            os.unlink("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads")
-        except FileNotFoundError:
-            pass
+    def _add_aptcache_setup(self, script: Script) -> None:
+        script.write(
+            Path("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"),
+            'Binary::apt::APT::Keep-Downloaded-Packages "1";',
+            description="Do not clear apt cache",
+        )
+        # TODO:
+        # try:
+        #     apt_user = pwd.getpwnam("_apt")
+        # except KeyError:
+        #     apt_user = None
+        # if apt_user:
+        #     os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
 
-    @classmethod
-    def bind_hook_setup_aptpackages(cls, bind_config: BindConfig):
-        mirror_dir = os.path.dirname(bind_config.destination)
-        with open(os.path.join(mirror_dir, "Packages"), "wb") as fd:
-            subprocess.run(
-                ["apt-ftparchive", "packages", os.path.basename(bind_config.destination)],
-                cwd=mirror_dir,
-                stdout=fd,
-                check=True,
-            )
+    def _add_aptcache_teardown(self, script: Script) -> None:
+        script.run(["rm", "-f", "/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"])
 
-        with open("/etc/apt/sources.list.d/tmp-moncic-ci.list", "w") as fd:
-            print(f"deb [trusted=yes] file://{mirror_dir} ./", file=fd)
+    def _add_aptpackages_setup(self, script: Script) -> None:
+        mirror_dir = self.destination.parent
+        packages_file = mirror_dir / "Packages"
+        script.run(["apt-ftparchive", "packages", mirror_dir.name], output=packages_file, cwd=mirror_dir)
+        script.write(Path("/etc/apt/sources.list.d/tmp-moncic-ci.list"), f"deb [trusted=yes] file://{mirror_dir} ./")
 
         # env = dict(os.environ)
         # env.update(DEBIAN_FRONTEND="noninteractive")
-        subprocess.run(apt_get_cmd("update"))
+        script.run(apt_get_cmd("update"))
         # subprocess.run(apt_get_cmd("full-upgrade"), env=env)
 
-    @classmethod
-    def bind_hook_teardown_aptpackages(cls, bind_config: BindConfig):
-        try:
-            os.unlink("/etc/apt/sources.list.d/tmp-moncic-ci.list")
-        except FileNotFoundError:
-            pass
+    def _add_aptpackages_teardown(self, script: Script) -> None:
+        mirror_dir = self.destination.parent
+        packages_file = mirror_dir / "Packages"
+        script.run(["rm", "-f", "/etc/apt/sources.list.d/tmp-moncic-ci.list"])
+        script.run(["rm", "-f", packages_file.as_posix()])
 
 
 @dataclasses.dataclass
@@ -270,15 +275,15 @@ class ContainerConfig:
         Raise exceptions if options are used inconsistently
         """
 
-    def configure_workdir(self, workdir: str, bind_type="rw", mountpoint="/media"):
+    def configure_workdir(self, workdir: Path, bind_type: str = "rw", mountpoint: Path = Path("/media")):
         """
         Configure a working directory, bind mounted into the container, set as
         the container working directory, with its user forwarded in the container.
 
         ``bind_type`` is passed verbatim to BindConfig.create
         """
-        workdir = os.path.abspath(workdir)
-        mountpoint = os.path.join(mountpoint, os.path.basename(workdir))
+        workdir = workdir.absolute()
+        mountpoint = mountpoint / workdir.name
         self.binds.append(
             BindConfig.create(
                 source=workdir,
@@ -307,9 +312,9 @@ class ContainerConfig:
             if home_bind:
                 res.cwd = home_bind.destination
             elif res.user is not None and res.user.user_id != 0:
-                res.cwd = f"/home/{res.user.user_name}"
+                res.cwd = Path(f"/home/{res.user.user_name}")
             else:
-                res.cwd = "/root"
+                res.cwd = Path("/root")
 
         if res.user is None and home_bind:
             res.user = UserConfig.from_file(home_bind.source)
@@ -334,8 +339,11 @@ class Container(ContextManager, abc.ABC):
         self._instance_name = instance_name
         self.startup_script = Script("Container startup script")
         self.teardown_script = Script("Container teardown script")
+        for bind in self.config.binds:
+            bind.add_setup(self.startup_script)
+            bind.add_teardown(self.teardown_script)
 
-    @property
+    @cached_property
     def instance_name(self) -> str:
         """
         Name of the running container instance, which can be used to access it
@@ -389,14 +397,14 @@ class Container(ContextManager, abc.ABC):
         if self.startup_script:
             with io.StringIO() as buf:
                 self.startup_script.print(file=buf)
-                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/"))
+                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/", user=UserConfig.root()))
 
     def _pre_stop(self) -> None:
         """Run pre-stop container teardown."""
         if self.teardown_script:
             with io.StringIO() as buf:
                 self.teardown_script.print(file=buf)
-                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/"))
+                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/", user=UserConfig.root()))
 
     @abc.abstractmethod
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
