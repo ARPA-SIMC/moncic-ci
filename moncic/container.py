@@ -7,14 +7,12 @@ import hashlib
 import logging
 import io
 import os
-import pwd
 import re
-import subprocess
 import shlex
 from collections.abc import Iterator
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ContextManager, TypeVar, assert_never
+from typing import Any, ContextManager, TypeVar, assert_never, TypedDict, override
 from collections.abc import Callable
 
 from .image import Image
@@ -53,96 +51,34 @@ class BindType(enum.StrEnum):
     APTPACKAGES = "aptpackages"
 
 
-@dataclasses.dataclass
-class BindConfig:
+class BindConfig(abc.ABC):
     """
     Configuration of one bind mount requested on the container
     """
 
-    # Directory in the host system to be bind mounted in the container
-    #
-    # The source path may optionally be prefixed with a "+" character. If
-    # so, the source path is taken relative to the image's root directory.
-    # This permits setting up bind mounts within the container image.
-    #
-    # The source path may be specified as empty string, in which case a
-    # temporary directory below the host's /var/tmp/ directory is used.
-    # It is automatically removed when the container is shut down.
-    source: Path
-
-    # Directory inside the container where the directory gets bind mounted
-    destination: Path
-
-    # Type of bind mount
-    bind_type: BindType = BindType.READWRITE
-
-    # If true, use this as the default working directory when running code or
-    # programs in the container
-    cwd: bool = False
-
-    # # Setup hook to be run at container startup inside the container
-    # setup: Callable[[BindConfig], None] | None = None
-
-    # # Setup hook to be run before container shutdown inside the container
-    # teardown: Callable[[BindConfig], None] | None = None
-
-    def to_nspawn(self) -> str:
-        """
-        Return the nspawn --bind* option for this bind
-        """
-        destination = self.destination
-        match self.bind_type:
-            case BindType.READONLY | BindType.APTPACKAGES:
-                option = "--bind-ro="
-            case BindType.VOLATILE:
-                option = "--bind-ro="
-                destination = Path(f"{self.destination}-readonly")
-            case BindType.READWRITE | BindType.APTCACHE:
-                option = "--bind="
-            case _ as unreachable:
-                assert_never(unreachable)
-
-        if self.source == destination:
-            return option + escape_bind_ro(self.source)
-        else:
-            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(destination))
-
-    def to_podman(self) -> dict[str, Any]:
-        res: dict[str, Any] = {
-            "Type": "bind",
-            "Source": self.source.as_posix(),
-            "Target": self.destination.as_posix(),
-        }
-        match self.bind_type:
-            case BindType.READONLY | BindType.APTPACKAGES:
-                res["Readonly"] = "true"
-            case BindType.VOLATILE:
-                res["Readonly"] = "true"
-                res["Target"] = res["Target"] + "-readonly"
-            case BindType.READWRITE | BindType.APTCACHE:
-                res["Readonly"] = "false"
-            case _ as unreachable:
-                assert_never(unreachable)
-        return res
-
-    def add_setup(self, script: Script) -> None:
-        match self.bind_type:
-            case BindType.VOLATILE:
-                self._add_volatile_setup(script)
-            case BindType.APTCACHE:
-                self._add_aptcache_setup(script)
-            case BindType.APTPACKAGES:
-                self._add_aptpackages_setup(script)
-
-    def add_teardown(self, script: Script) -> None:
-        match self.bind_type:
-            case BindType.APTCACHE:
-                self._add_aptcache_teardown(script)
-            case BindType.APTPACKAGES:
-                self._add_aptpackages_teardown(script)
+    def __init__(self, bind_type: BindType, source: Path, destination: Path, cwd: bool = False) -> None:
+        # Type of bind mount
+        self.bind_type = bind_type
+        # Directory in the host system to be bind mounted in the container
+        #
+        # The source path may optionally be prefixed with a "+" character. If
+        # so, the source path is taken relative to the image's root directory.
+        # This permits setting up bind mounts within the container image.
+        #
+        # The source path may be specified as empty string, in which case a
+        # temporary directory below the host's /var/tmp/ directory is used.
+        # It is automatically removed when the container is shut down.
+        self.source = source
+        # Directory inside the container where the directory gets bind mounted
+        self.destination = destination
+        # If true, use this as the default working directory when running code or
+        # programs in the container
+        self.cwd = cwd
 
     @classmethod
-    def create(cls, source: str | Path, destination: str | Path, bind_type: str | BindType, **kw) -> BindConfig:
+    def create(
+        cls, source: str | Path, destination: str | Path, bind_type: str | BindType, cwd: bool = False
+    ) -> "BindConfig":
         """
         Create a BindConfig.
 
@@ -155,18 +91,34 @@ class BindConfig:
         * ``aptpackages``: create a local mirror with the packages in the
                            source directory, and add it to apt's sources
         """
-        return cls(source=Path(source), destination=Path(destination), bind_type=BindType(bind_type), **kw)
+
+        Args = TypedDict("Args", {"source": Path, "destination": Path, "cwd": bool})
+        args: Args = {"source": Path(source), "destination": Path(destination), "cwd": cwd}
+
+        match BindType(bind_type):
+            case BindType.READONLY:
+                return BindConfigReadonly(**args)
+            case BindType.READWRITE:
+                return BindConfigReadwrite(**args)
+            case BindType.VOLATILE:
+                return BindConfigVolatile(**args)
+            case BindType.APTCACHE:
+                return BindConfigAptCache(**args)
+            case BindType.APTPACKAGES:
+                return BindConfigAptPackages(**args)
+            case _ as unreachable:
+                assert_never(unreachable)
 
     @classmethod
-    def from_nspawn(cls, entry: str, bind_type: str) -> BindConfig:
+    def from_nspawn(cls, entry: str, bind_type: str | BindType) -> "BindConfig":
         """
         Create a BindConfig from an nspawn --bind/--bind-ro option.
 
         ``bind_type`` is passed verbatim to BindConfig.create
         """
         # Backslash escapes are interpreted, so "\:" may be used to embed colons in either path.
-        #
         parts = re_split_bind.split(entry)
+
         if len(parts) == 1:
             # a path argument — in which case the specified path will be
             # mounted from the host to the same path in the container
@@ -183,8 +135,99 @@ class BindConfig:
         else:
             raise ValueError(f"{entry!r}: unparsable bind option")
 
-    def _add_volatile_setup(self, script: Script) -> None:
-        """Set up volatile binds in the container."""
+    @abc.abstractmethod
+    def to_nspawn(self) -> str:
+        """Return the nspawn --bind* option for this bind."""
+
+    @abc.abstractmethod
+    def to_podman(self) -> dict[str, Any]:
+        """Return the podman mount object for this bind."""
+
+    def setup(self, container: "Container") -> None:
+        """Set up this bind after the container has started."""
+
+    def teardown(self, container: "Container") -> None:
+        """Tear down this bind before stopping the container."""
+
+    def _run_script(self, script: Script, container: "Container") -> None:
+        """Run the setup/teardown script in the container."""
+        if not script:
+            return
+        with io.StringIO() as buf:
+            script.print(file=buf)
+            container.run_script(buf.getvalue(), RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
+
+
+class BindConfigReadonly(BindConfig):
+    """Readonly bind mount."""
+
+    def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
+        super().__init__(bind_type=BindType.READONLY, source=source, destination=destination, cwd=cwd)
+
+    @override
+    def to_nspawn(self) -> str:
+        option = "--bind-ro="
+        if self.source == self.destination:
+            return option + escape_bind_ro(self.source)
+        else:
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+
+    @override
+    def to_podman(self) -> dict[str, Any]:
+        return {
+            "Type": "bind",
+            "Readonly": "true",
+            "Source": self.source.as_posix(),
+            "Target": self.destination.as_posix(),
+        }
+
+
+class BindConfigReadwrite(BindConfig):
+    """Read-write bind mount."""
+
+    def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
+        super().__init__(bind_type=BindType.READWRITE, source=source, destination=destination, cwd=cwd)
+
+    @override
+    def to_nspawn(self) -> str:
+        option = "--bind="
+        if self.source == self.destination:
+            return option + escape_bind_ro(self.source)
+        else:
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+
+    @override
+    def to_podman(self) -> dict[str, Any]:
+        return {
+            "Type": "bind",
+            "Readonly": "false",
+            "Source": self.source.as_posix(),
+            "Target": self.destination.as_posix(),
+        }
+
+
+class BindConfigVolatile(BindConfig):
+    """Readonly bind mount with a volatile overlay."""
+
+    def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
+        super().__init__(bind_type=BindType.VOLATILE, source=source, destination=destination, cwd=cwd)
+
+    @override
+    def to_nspawn(self) -> str:
+        option = "--bind-ro="
+        return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(Path(f"{self.destination}-readonly")))
+
+    @override
+    def to_podman(self) -> dict[str, Any]:
+        return {
+            "Type": "bind",
+            "Source": self.source.as_posix(),
+            "Target": f"{self.destination}-readonly",
+            "Readonly": "true",
+        }
+
+    @override
+    def setup(self, container: "Container") -> None:
         volatile_root = Path("/run/volatile")
         volatile_readonly_base = Path(f"{self.destination}-readonly")
 
@@ -192,6 +235,8 @@ class BindConfig:
         m = hashlib.sha1()
         m.update(self.destination.as_posix().encode())
         workdir = volatile_root / m.hexdigest()
+
+        script = Script(f"Volatile mount setup for {self.destination}")
 
         script.run(["mkdir", "-p", self.destination.as_posix()])
 
@@ -214,7 +259,35 @@ class BindConfig:
             ]
         )
 
-    def _add_aptcache_setup(self, script: Script) -> None:
+        self._run_script(script, container)
+
+
+class BindConfigAptCache(BindConfig):
+    """APT cache directory with packages preserved across runs."""
+
+    def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
+        super().__init__(bind_type=BindType.APTCACHE, source=source, destination=destination, cwd=cwd)
+
+    @override
+    def to_nspawn(self) -> str:
+        option = "--bind="
+        if self.source == self.destination:
+            return option + escape_bind_ro(self.source)
+        else:
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+
+    @override
+    def to_podman(self) -> dict[str, Any]:
+        return {
+            "Type": "bind",
+            "Readonly": "false",
+            "Source": self.source.as_posix(),
+            "Target": self.destination.as_posix(),
+        }
+
+    @override
+    def setup(self, container: "Container") -> None:
+        script = Script(f"apt cache mount setup for {self.destination}")
         script.write(
             Path("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"),
             'Binary::apt::APT::Keep-Downloaded-Packages "1";',
@@ -227,13 +300,44 @@ class BindConfig:
         #     apt_user = None
         # if apt_user:
         #     os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
+        self._run_script(script, container)
 
-    def _add_aptcache_teardown(self, script: Script) -> None:
+    @override
+    def teardown(self, container: "Container") -> None:
+        script = Script(f"apt cache mount teardown for {self.destination}")
         script.run(["rm", "-f", "/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"])
+        self._run_script(script, container)
 
-    def _add_aptpackages_setup(self, script: Script) -> None:
+
+class BindConfigAptPackages(BindConfig):
+    """APT package source."""
+
+    def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
+        super().__init__(bind_type=BindType.APTPACKAGES, source=source, destination=destination, cwd=cwd)
+
+    @override
+    def to_nspawn(self) -> str:
+        option = "--bind-ro="
+        if self.source == self.destination:
+            return option + escape_bind_ro(self.source)
+        else:
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+
+    @override
+    def to_podman(self) -> dict[str, Any]:
+        return {
+            "Type": "bind",
+            "Readonly": "true",
+            "Source": self.source.as_posix(),
+            "Target": self.destination.as_posix(),
+        }
+
+    @override
+    def setup(self, container: "Container") -> None:
         mirror_dir = self.destination.parent
         packages_file = mirror_dir / "Packages"
+
+        script = Script(f"apt packages mount setup for {self.destination}")
         script.run(["apt-ftparchive", "packages", mirror_dir.name], output=packages_file, cwd=mirror_dir)
         script.write(Path("/etc/apt/sources.list.d/tmp-moncic-ci.list"), f"deb [trusted=yes] file://{mirror_dir} ./")
 
@@ -241,12 +345,16 @@ class BindConfig:
         # env.update(DEBIAN_FRONTEND="noninteractive")
         script.run(apt_get_cmd("update"))
         # subprocess.run(apt_get_cmd("full-upgrade"), env=env)
+        self._run_script(script, container)
 
-    def _add_aptpackages_teardown(self, script: Script) -> None:
+    @override
+    def teardown(self, container: "Container") -> None:
         mirror_dir = self.destination.parent
         packages_file = mirror_dir / "Packages"
+        script = Script(f"apt packages mount teardown for {self.destination}")
         script.run(["rm", "-f", "/etc/apt/sources.list.d/tmp-moncic-ci.list"])
         script.run(["rm", "-f", packages_file.as_posix()])
+        self._run_script(script, container)
 
 
 @dataclasses.dataclass
@@ -339,9 +447,6 @@ class Container(ContextManager, abc.ABC):
         self._instance_name = instance_name
         self.startup_script = Script("Container startup script")
         self.teardown_script = Script("Container teardown script")
-        for bind in self.config.binds:
-            bind.add_setup(self.startup_script)
-            bind.add_teardown(self.teardown_script)
 
     @cached_property
     def instance_name(self) -> str:
@@ -394,17 +499,21 @@ class Container(ContextManager, abc.ABC):
 
     def _post_start(self) -> None:
         """Run post-start container configuration."""
+        for bind in self.config.binds:
+            bind.setup(self)
         if self.startup_script:
             with io.StringIO() as buf:
                 self.startup_script.print(file=buf)
-                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/", user=UserConfig.root()))
+                self.run_script(buf.getvalue(), RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
 
     def _pre_stop(self) -> None:
         """Run pre-stop container teardown."""
+        for bind in self.config.binds:
+            bind.teardown(self)
         if self.teardown_script:
             with io.StringIO() as buf:
                 self.teardown_script.print(file=buf)
-                self.run_script(buf.getvalue(), RunConfig(check=True, cwd="/", user=UserConfig.root()))
+                self.run_script(buf.getvalue(), RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
 
     @abc.abstractmethod
     def forward_user(self, user: UserConfig, allow_maint: bool = False):
