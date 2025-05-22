@@ -274,7 +274,7 @@ class Describe(MoncicCommand):
         ryaml = ruamel.yaml.YAML(typ="rt")
         with self.moncic.session() as session:
             image = session.images.image(self.args.name)
-            info = image.describe_container()
+            info = image.describe()
             if maintscripts := info.get("maintscripts"):
                 info["maintscripts"] = [
                     ruamel.yaml.scalarstring.LiteralScalarString(maintscript) for maintscript in maintscripts

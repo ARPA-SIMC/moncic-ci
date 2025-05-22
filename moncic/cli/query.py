@@ -95,16 +95,12 @@ class Images(MoncicCommand):
         # List configured images
         with self.moncic.session() as session:
             images = session.images
-            for image in images.list_images():
-                output.add_row(
-                    (
-                        image.name,
-                        image.distro,
-                        "yes" if image.bootstrapped else "no",
-                        image.image_type,
-                        image.get_backend_id() if image.bootstrapped else "-",
-                    )
-                )
+            for name in images.list_images():
+                image = images.image(name)
+                if image.bootstrapped:
+                    output.add_row((image.name, image.distro, "yes", image.image_type, image.get_backend_id()))
+                else:
+                    output.add_row((image.name, image.distro, "no", "-", "-"))
         output.flush()
 
 

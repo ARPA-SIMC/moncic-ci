@@ -98,7 +98,7 @@ class PodmanContainer(Container):
 
         self.image.logger.debug("Starting container %r", container_kwargs)
 
-        self.container = self.image.images.session.podman.containers.create(
+        self.container = self.image.session.podman.containers.create(
             self.image.podman_image, ["sleep", "inf"], **container_kwargs
         )
         self.container.start()

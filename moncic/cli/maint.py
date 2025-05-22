@@ -19,8 +19,8 @@ class Bootstrap(MoncicCommand):
         parser = super().make_subparser(subparsers)
         parser.add_argument("--recreate", action="store_true", help="delete the images and recreate them from scratch")
         parser.add_argument(
-            "systems",
-            nargs="*",
+            "images",
+            nargs="+",
             help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
         )
         return parser
@@ -28,19 +28,16 @@ class Bootstrap(MoncicCommand):
     def run(self):
         with self.moncic.session() as session:
             images = session.images
-
-            if not self.args.systems:
-                systems = images.list_images()
-            else:
-                systems = self.args.systems
-
-            systems = images.add_dependencies(systems)
-
-            for name in systems:
+            names = self.args.images
+            for name in names:
                 image = images.image(name)
 
-                if self.args.recreate:
-                    image.remove()
+                if image.bootstrapped:
+                    if self.args.recreate:
+                        image = image.remove()
+                    else:
+                        return
+
                 try:
                     image.bootstrap()
                 except Exception:

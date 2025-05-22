@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import contextlib
 import re
+import logging
 import shutil
 import subprocess
 import tempfile
 from collections import defaultdict
+from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 import requests
 
 from ..container import BindConfig, Container, ContainerConfig
+from moncic.runner import LocalRunner
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
@@ -68,7 +71,7 @@ class Ubuntu(DistroFamily):
         "23.10": "mantic",
         "24.04": "noble",
     }
-    SHORTCUTS = {suite: f"ubuntu:{suite}" for suite in ("xenial", "bionic", "focal", "hirsute", "impish", "jammy")}
+    SHORTCUTS = {suite: f"ubuntu:{suite}" for suite in VERSION_IDS.values()}
     LEGACY = ("xenial",)
 
     def create_distro(self, version: str) -> Distro:
@@ -115,10 +118,10 @@ class DebianDistro(Distro):
 
     def container_config_hook(self, image: Image, config: ContainerConfig):
         super().container_config_hook(image, config)
-        if apt_archive_path := image.images.session.apt_archives:
+        if apt_archive_path := image.session.apt_archives:
             config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", "aptcache"))
 
-        if extra_packages_dir := image.images.session.extra_packages_dir:
+        if extra_packages_dir := image.session.extra_packages_dir:
             config.binds.append(BindConfig.create(extra_packages_dir, "/srv/moncic-ci/mirror/packages", "aptpackages"))
 
     def get_base_packages(self) -> list[str]:
@@ -137,13 +140,9 @@ class DebianDistro(Distro):
             return ["debian/" + self.suite, "debian/latest"]
 
     @override
-    def bootstrap(self, container: Container):
-        from moncic.nspawn.container import NspawnContainer
-
-        if not isinstance(container, NspawnContainer):
-            raise NotImplementedError
+    def bootstrap(self, path: Path):
         with contextlib.ExitStack() as stack:
-            installroot = container.path.absolute()
+            installroot = path.absolute()
             cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
 
             # TODO: use version to fetch the key, to make this generic
@@ -164,7 +163,7 @@ class DebianDistro(Distro):
             eatmydata = shutil.which("eatmydata")
             if eatmydata is not None:
                 cmd.insert(0, eatmydata)
-            container.image.local_run(cmd)
+            LocalRunner.run(logger=logging.getLogger(f"distro.{self.name}"), cmd=cmd)
 
     def get_update_pkgdb_script(self, image: Image):
         res = super().get_update_pkgdb_script(image)

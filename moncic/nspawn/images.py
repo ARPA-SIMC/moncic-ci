@@ -1,24 +1,28 @@
 from __future__ import annotations
 
 import abc
+import contextlib
 import graphlib
+import shutil
 import logging
 import os
 import subprocess
 import stat
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, ContextManager, override, Generator
 
-from moncic.image import Image
-from moncic.images import Images
+from moncic.runner import LocalRunner
+from moncic.image import BootstrappableImage, RunnableImage, Image
+from moncic.images import BootstrappingImages
 from moncic.utils.btrfs import do_dedupe
+from moncic.utils.btrfs import Subvolume
 from moncic.context import privs
+from moncic.distro import Distro, DistroFamily
 
 from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
 
 if TYPE_CHECKING:
-    from moncic.distro import Distro
     from moncic.session import Session
 
 log = logging.getLogger("images")
@@ -26,7 +30,7 @@ log = logging.getLogger("images")
 MACHINECTL_PATH = "/var/lib/machines"
 
 
-class NspawnImages(Images, abc.ABC):
+class NspawnImages(BootstrappingImages, abc.ABC):
     """
     Image storage made available as a directory in the file system
     """
@@ -34,6 +38,7 @@ class NspawnImages(Images, abc.ABC):
     def __init__(self, session: Session, imagedir: Path):
         self.session = session
         self.imagedir = imagedir
+        self.logger = logging.getLogger("images.nspawn")
 
     @abc.abstractmethod
     @override
@@ -51,20 +56,14 @@ class NspawnImages(Images, abc.ABC):
         return False
 
     @override
-    def list_images(self) -> list[Image]:
-        """
-        List the names of images found in image directories
-        """
-        res = set()
-        for path in self.session.moncic.config.imageconfdirs:
-            with os.scandir(path) as it:
-                for entry in it:
-                    if entry.name.startswith(".") or entry.is_dir():
-                        continue
-                    if not entry.name.endswith(".yaml") or entry.name == "moncic-ci.yaml":
-                        continue
-                    res.add(entry.name[:-5])
-        return [self.image(name) for name in sorted(res)]
+    def list_images(self) -> list[str]:
+        images: list[str]
+        for path in self.imagedir.iterdir():
+            if path.name.startswith(".") or not path.is_dir():
+                continue
+            images.append(path.name)
+        images.sort()
+        return images
 
     def get_distro_tarball(self, distro: Distro) -> Path | None:
         """
@@ -96,8 +95,51 @@ class NspawnImages(Images, abc.ABC):
                 res.add(image.name)
         return list(res.static_order())
 
-    def deduplicate(self):
-        pass
+    def _find_distro(self, path: Path) -> Distro:
+        try:
+            return DistroFamily.from_path(path)
+        except PermissionError:
+            if not privs.can_regain():
+                raise
+            with privs.root():
+                return DistroFamily.from_path(path)
+
+    @abc.abstractmethod
+    def transactional_workdir(self, path: Path, compression: str | None) -> ContextManager[Path]:
+        """Create a working directory for transactional maintenance of the image at path."""
+
+    @abc.abstractmethod
+    def _extend_parent(self, image: Image, path: Path, compression: str | None) -> None:
+        """Initialize self.path with a clone of the parent image."""
+
+    @abc.abstractmethod
+    def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
+        """Bootstrap a new OS image from scratch."""
+
+    @override
+    def bootstrap(self, image: BootstrappableImage) -> RunnableImage:
+        with privs.root():
+            from moncic.provision.image import ConfiguredImage, DistroImage
+
+            path = self.imagedir / image.name
+            if path.exists():
+                return self.image(image.name)
+
+            image.logger.info("bootstrapping into %s", path)
+
+            match image:
+                case ConfiguredImage():
+                    compression = image.config.bootstrap_info.compression
+                    with self.transactional_workdir(path, compression=compression) as work_path:
+                        self._extend_parent(image.config.parent, work_path, compression=compression)
+                case DistroImage():
+                    compression = self.session.moncic.config.compression
+                    with self.transactional_workdir(path, compression=compression) as work_path:
+                        self._bootstrap_new(image.distro, work_path, compression=compression)
+                case _:
+                    raise NotImplementedError
+
+            return self.image(image.name)
 
 
 class PlainImages(NspawnImages):
@@ -107,11 +149,53 @@ class PlainImages(NspawnImages):
 
     @override
     def image(self, name: str) -> NspawnImage:
-        image = NspawnImagePlain.load(self.session.moncic.config, self, name)
-        # Force using tmpfs backing for ephemeral containers, since we cannot
-        # use snapshots
-        image.container_info = image.container_info._replace(tmpfs=True)
-        return image
+        path = (self.imagedir / name).absolute()
+        distro = self._find_distro(path)
+        return NspawnImagePlain(images=self, name=name, distro=distro, path=path)
+
+    @override
+    @contextlib.contextmanager
+    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path, None, None]:
+        if path.exists():
+            logging.info("%s: transactional updates on non-btrfs nspawn images are not supported", path)
+            yield path
+        else:
+            work_path = path.parent / f"{path.name}.new"
+            try:
+                yield work_path
+            except BaseException:
+                if work_path.exists():
+                    shutil.rmtree(work_path)
+                raise
+            else:
+                if work_path.exists():
+                    work_path.rename(path)
+
+    @override
+    def _extend_parent(self, image: Image, path: Path, compression: str | None) -> None:
+        from moncic.provision.image import ConfiguredImage, DistroImage
+
+        match image:
+            case DistroImage():
+                return self._bootstrap_new(image.distro, path, compression)
+            case ConfiguredImage():
+                image = image.bootstrap()
+            case NspawnImage():
+                pass
+            case _:
+                raise NotImplementedError(f"Cannot extend image of type {image.__class__}")
+        assert isinstance(image, NspawnImage)
+        LocalRunner.run(logger=self.logger, cmd=["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
+
+    @override
+    def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
+        tarball_path = self.get_distro_tarball(distro)
+        if tarball_path is not None:
+            # Shortcut in case we have a chroot in a tarball
+            path.mkdir()
+            LocalRunner.run(logger=self.logger, cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
+        else:
+            distro.bootstrap(path)
 
 
 class BtrfsImages(NspawnImages):
@@ -121,8 +205,11 @@ class BtrfsImages(NspawnImages):
 
     @override
     def image(self, name: str) -> NspawnImage:
-        return NspawnImageBtrfs.load(self.session.moncic.config, self, name)
+        path = (self.imagedir / name).absolute()
+        distro = self._find_distro(path)
+        return NspawnImageBtrfs(images=self, name=name, distro=distro, path=path)
 
+    @override
     def deduplicate(self):
         """
         Attempt deduplicating files that have the same name and size across OS
@@ -164,6 +251,58 @@ class BtrfsImages(NspawnImages):
 
         log.info("%d total bytes are currently deduplicated", total_saved)
 
+    @override
+    @contextlib.contextmanager
+    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path, None, None]:
+        work_path = path.parent / f"{path.name}.new"
+        subvolume = Subvolume(self.session.moncic.config, work_path, compression)
+        if not path.exists():
+            with subvolume.create():
+                try:
+                    yield work_path
+                except BaseException:
+                    subvolume.remove()
+                    raise
+                else:
+                    work_path.rename(path)
+        else:
+            subvolume = Subvolume(self.session.moncic.config, work_path, compression)
+            # Create work_path as a snapshot of path
+            subvolume.snapshot(path)
+            try:
+                yield work_path
+            except BaseException:
+                subvolume.remove()
+                raise
+            else:
+                subvolume.replace_subvolume(path)
+
+    @override
+    def _extend_parent(self, image: Image, path: Path, compression: str | None) -> None:
+        from moncic.provision.image import ConfiguredImage, DistroImage
+
+        match image:
+            case DistroImage():
+                return self._bootstrap_new(image.distro, path, compression)
+            case ConfiguredImage():
+                image = image.bootstrap()
+            case NspawnImage():
+                pass
+            case _:
+                raise NotImplementedError(f"Cannot extend image of type {image.__class__}")
+        assert isinstance(image, NspawnImage)
+        subvolume = Subvolume(self.session.moncic.config, path, compression)
+        subvolume.snapshot(image.path)
+
+    @override
+    def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
+        tarball_path = self.get_distro_tarball(distro)
+        if tarball_path is not None:
+            # Shortcut in case we have a chroot in a tarball
+            LocalRunner.run(logger=self.logger, cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
+        else:
+            distro.bootstrap(path)
+
 
 class MachinectlImages(NspawnImages):
     def _list_machines(self) -> set[str]:
@@ -181,13 +320,8 @@ class MachinectlImages(NspawnImages):
         return name in self._list_machines()
 
     @override
-    def list_images(self) -> list[Image]:
-        """
-        List the names of images found in image directories
-        """
-        res = self._list_machines()
-        with privs.root():
-            return [self.image(name) for name in sorted(res)]
+    def list_images(self) -> list[str]:
+        return sorted(self._list_machines())
 
 
 class PlainMachinectlImages(MachinectlImages, PlainImages):

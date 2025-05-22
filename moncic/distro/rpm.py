@@ -9,9 +9,11 @@ import shutil
 import stat
 import subprocess
 import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from ..container import Container, ContainerConfig
+from moncic.runner import LocalRunner
 from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
 
@@ -89,19 +91,15 @@ class RpmDistro(Distro):
             yield fd.name
 
     @override
-    def bootstrap(self, container: Container):
-        from moncic.nspawn.container import NspawnContainer
-
+    def bootstrap(self, path: Path):
         installer = shutil.which("dnf")
         if installer is None:
             installer = shutil.which("yum")
         if installer is None:
             raise RuntimeError("yum or dnf not found")
-        if not isinstance(container, NspawnContainer):
-            raise NotImplementedError()
 
         with self.chroot_config() as dnf_config:
-            installroot = container.path.absolute()
+            installroot = path.absolute()
             cmd = [
                 installer,
                 "-c",
@@ -125,7 +123,8 @@ class RpmDistro(Distro):
             # if eatmydata is not None:
             #     cmd.insert(0, eatmydata)
 
-            container.image.local_run(cmd)
+            logger = logging.getLogger(f"distro.{self.name}")
+            LocalRunner.run(logger=logger, cmd=cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
             # created system. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
@@ -134,14 +133,14 @@ class RpmDistro(Distro):
             if os.path.isdir(private_rpmdb):
                 log.info("Moving %r to %r", private_rpmdb, system_rpmdb)
                 if os.path.islink(system_rpmdb):
-                    system_rpmdb = os.path.realpath(system_rpmdb)
-                    if installroot not in os.path.commonprefix((system_rpmdb, installroot)):
+                    system_rpmdb = system_rpmdb.resolve()
+                    if installroot.as_posix() not in os.path.commonprefix((system_rpmdb, installroot)):
                         raise RuntimeError(
-                            f"/var/lib/rpm in installed system points to {system_rpmdb}" " which is outside installroot"
+                            f"/var/lib/rpm in installed system points to {system_rpmdb} which is outside installroot"
                         )
                 shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-            container.run(["/usr/bin/rpmdb", "--rebuilddb"])
+            LocalRunner.run(logger=logger, cmd=["chroot", installroot.as_posix(), "/usr/bin/rpmdb", "--rebuilddb"])
 
 
 class YumDistro(RpmDistro):
@@ -225,13 +224,9 @@ class Centos7(YumDistro):
     version = 7
 
     @override
-    def bootstrap(self, container: Container):
-        super().bootstrap(container)
-        from moncic.nspawn.container import NspawnContainer
-
-        if not isinstance(container, NspawnContainer):
-            raise NotImplementedError()
-        installroot = container.path.absolute()
+    def bootstrap(self, path: Path) -> None:
+        super().bootstrap(path)
+        installroot = path.absolute()
         varsdir = installroot / "etc" / "yum" / "vars"
         os.makedirs(varsdir, exist_ok=True)
         with open(varsdir / "releasever", "w") as fd:
@@ -244,19 +239,15 @@ class Centos8(DnfDistro):
     version = 8
 
     @override
-    def bootstrap(self, container: Container):
-        from moncic.nspawn.container import NspawnContainer
-
-        if not isinstance(container, NspawnContainer):
-            raise NotImplementedError()
-        super().bootstrap(container)
+    def bootstrap(self, path: Path):
+        super().bootstrap(path)
         # self.system.local_run(["tar", "-C", self.system.path, "-zxf", "images/centos8.tar.gz"])
         # Fixup repository information to point at the vault
-        for path in (container.path / "etc/yum.repos.d/").glob("CentOS-*"):
-            log.info("Updating %s to point mirrors to the Vault", path)
-            with path.open() as fd:
+        for p in (path / "etc/yum.repos.d/").glob("CentOS-*"):
+            log.info("Updating %s to point mirrors to the Vault", p)
+            with p.open() as fd:
                 st = os.stat(fd.fileno())
-                with atomic_writer(path, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
+                with atomic_writer(p, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
                     for line in fd:
                         if line.startswith("mirrorlist="):
                             print(f"#{line}", file=tf)

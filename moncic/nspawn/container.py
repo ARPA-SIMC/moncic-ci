@@ -14,7 +14,7 @@ from collections.abc import Callable
 
 from moncic.container import BindConfig, Container, ContainerConfig, Result
 from moncic.context import privs
-from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
+from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
 from moncic.utils.nspawn import escape_bind_ro
 
 from .image import NspawnImage
@@ -41,17 +41,18 @@ class NspawnContainer(Container):
         """
         Create or complete a ContainerConfig
         """
+        container_info = image.get_container_info()
         if config is None:
             config = ContainerConfig()
-            if image.container_info.tmpfs is not None:
-                config.tmpfs = image.container_info.tmpfs
+            if container_info.tmpfs is not None:
+                config.tmpfs = container_info.tmpfs
             else:
                 config.tmpfs = image.images.session.moncic.config.tmpfs
         elif config.ephemeral and config.tmpfs is None:
             # Make a copy to prevent changing the caller's config
             config = dataclasses.replace(config)
-            if image.container_info.tmpfs is not None:
-                config.tmpfs = image.container_info.tmpfs
+            if container_info.tmpfs is not None:
+                config.tmpfs = container_info.tmpfs
             else:
                 config.tmpfs = image.images.session.moncic.config.tmpfs
 

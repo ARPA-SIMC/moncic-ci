@@ -4,6 +4,7 @@ import contextlib
 import logging
 import os
 import tempfile
+from pathlib import Path
 from collections.abc import Generator
 
 log = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ def cd(path: str):
 
 
 @contextlib.contextmanager
-def dirfd(path: str) -> Generator[int]:
+def dirfd(path: Path) -> Generator[int]:
     """
     Open a directory as a file descriptor
     """
@@ -102,12 +103,13 @@ def dirfd(path: str) -> Generator[int]:
 
 
 @contextlib.contextmanager
-def extra_packages_dir(path: str) -> Generator[str]:
+def extra_packages_dir(path: Path) -> Generator[Path]:
     """
     Create a temporary directory where all packages found in path are
     hardlinked
     """
-    with tempfile.TemporaryDirectory(dir=path) as mirrordir:
+    with tempfile.TemporaryDirectory(dir=path) as mirrordir_str:
+        mirrordir = Path(mirrordir_str)
         # Hard link all .deb files into the temporary mirror directory
         with dirfd(path) as src_dir_fd:
             with dirfd(mirrordir) as dst_dir_fd:

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import contextvars
 import os
@@ -8,9 +6,11 @@ import shlex
 import subprocess
 import sys
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import context, imagestorage
+from .context import privs
+from . import context
 from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
 
@@ -19,26 +19,55 @@ if TYPE_CHECKING:
 
     from .moncic import Moncic
 
+MACHINECTL_PATH = Path("/var/lib/machines")
+
 
 class Session(contextlib.ExitStack):
     """
     Hold shared resourcse during a single-threaded Moncic-CI work session
     """
 
-    def __init__(self, moncic: Moncic):
+    def __init__(self, moncic: "Moncic"):
+        from .images import Images, ImageRepository, BootstrappingImages
+
         super().__init__()
         self.moncic = moncic
         self.orig_moncic: contextvars.Token | None = None
         self.orig_session: contextvars.Token | None = None
+        #: Prefix used to filter podman repositories that Moncic-CI will use
+        self.podman_repository_prefix = "localhost/moncic-ci/"
 
-        # Storage for OS images
-        self.image_storage = self._instantiate_imagestorage()
+        #: Images used to bootstrap OS images
+        self.bootstrapper: BootstrappingImages
 
-    def _instantiate_imagestorage(self) -> imagestorage.ImageStorage:
+        # Container images
+        self.images = ImageRepository(self)
         if self.moncic.config.imagedir is None:
-            return imagestorage.ImageStorage.create_default(self)
+            self._instantiate_images_default()
         else:
-            return imagestorage.ImageStorage.create_from_path(self, self.moncic.config.imagedir)
+            self._instantiate_images_imagedir(self.moncic.config.imagedir)
+
+    def _instantiate_images_imagedir(self, path: Path) -> None:
+        from .nspawn.imagestorage import NspawnImageStorage
+
+        imagestorage = NspawnImageStorage.create(self, path)
+        images = self.enter_context(imagestorage.images())
+        self.images.add(images)
+        self.bootstrapper = images
+
+    def _instantiate_images_default(self) -> None:
+        from .nspawn.imagestorage import NspawnImageStorage
+        from .podman.images import PodmanImages
+
+        podman_images = PodmanImages(self)
+        self.images.add(podman_images)
+
+        if privs.can_regain():
+            images = self.enter_context(NspawnImageStorage.create(self, MACHINECTL_PATH).images())
+            self.images.add(images)
+            self.bootstrapper = images
+        else:
+            self.bootstrapper = podman_images
 
     def __enter__(self):
         self.orig_moncic = context.moncic.set(self.moncic)
@@ -54,18 +83,11 @@ class Session(contextlib.ExitStack):
         return res
 
     @cached_property
-    def podman(self) -> _podman.PodmanClient:
+    def podman(self) -> "_podman.PodmanClient":
         import podman
 
         uri = f"unix:///run/user/{os.getuid()}/podman/podman.sock"
         return self.enter_context(podman.PodmanClient(base_url=uri))
-
-    @cached_property
-    def images(self) -> imagestorage.Images:
-        """
-        Return the Images storage
-        """
-        return self.enter_context(self.image_storage.images())
 
     @cached_property
     def debcache(self) -> DebCache | None:
@@ -89,7 +111,7 @@ class Session(contextlib.ExitStack):
             return None
 
     @cached_property
-    def extra_packages_dir(self) -> str | None:
+    def extra_packages_dir(self) -> Path | None:
         """
         Return the path of a directory with extra packages to add as a source
         to containers
@@ -105,7 +127,7 @@ class MockSession(Session):
     Mock session used for tests
     """
 
-    def __init__(self, moncic: Moncic):
+    def __init__(self, moncic: "Moncic"):
         super().__init__(moncic)
         self.log: list[dict[str, Any]] = []
         self.process_result_queue: dict[str, subprocess.CompletedProcess] = {}
@@ -136,9 +158,6 @@ class MockSession(Session):
             args=[], returncode=returncode, stdout=stdout, stderr=stderr
         )
 
-    def _instantiate_imagestorage(self) -> imagestorage.ImageStorage:
-        return imagestorage.ImageStorage.create_mock(self)
-
     @cached_property
     def debcache(self) -> DebCache | None:
         """
@@ -155,7 +174,7 @@ class MockSession(Session):
         return None
 
     @cached_property
-    def extra_packages_dir(self) -> str | None:
+    def extra_packages_dir(self) -> Path | None:
         """
         Return the path of a directory with extra packages to add as a source
         to containers

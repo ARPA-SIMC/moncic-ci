@@ -314,20 +314,14 @@ class LocalRunner(AsyncioRunner):
         )
 
     @classmethod
-    def run(
-        cls,
-        logger: logging.Logger,
-        cmd: list[str],
-        config: RunConfig | None = None,
-        image: NspawnImage | None = None,
-    ):
+    def run(cls, *, logger: logging.Logger, cmd: list[str], config: RunConfig | None = None, path: Path | None = None):
         """
         Run a one-off command
         """
         if config is None:
             config = RunConfig()
-        if image and image.path.exists() and config.cwd is None:
-            config.cwd = image.path.as_posix()
+        if path and path.exists() and config.cwd is None:
+            config.cwd = path
 
         runner = LocalRunner(logger, config, cmd)
         return runner.execute()

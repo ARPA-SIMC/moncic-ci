@@ -3,7 +3,7 @@ import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, List, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from ..utils.osrelease import parse_osrelase
 
@@ -176,18 +176,14 @@ class Distro:
         """
         # Do nothing by default
 
-    def bootstrap(self, container: "Container") -> None:
+    def bootstrap(self, path: Path) -> None:
         """
         Boostrap a fresh system inside the given directory
         """
-        from moncic.nspawn.container import NspawnContainer
-
-        if not isinstance(container, NspawnContainer):
-            raise NotImplementedError()
         # At least on Debian, mkosi does not seem able to install working
         # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
         distro, release = self.name.split(":", 1)
-        installroot = container.path.absolute()
+        installroot = path.absolute()
         base_packages = ",".join(self.get_base_packages())
         with tempfile.TemporaryDirectory() as workdir:
             cmd = [
