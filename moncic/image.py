@@ -9,7 +9,7 @@ from moncic.distro import Distro
 if TYPE_CHECKING:
     from moncic.provision.config import ContainerInfo
     from moncic.provision.image import ConfiguredImage
-    from .container import Container, ContainerConfig
+    from .container import Container, ContainerConfig, MaintenanceContainer
     from .session import Session
 
 log = logging.getLogger("image")
@@ -121,9 +121,52 @@ class RunnableImage(Image, abc.ABC):
     def get_backend_id(self) -> str:
         """Return how the image is called in the backend."""
 
-    @abc.abstractmethod
+    def update_container(self, container: "MaintenanceContainer"):
+        """
+        Run update machinery on a container.
+        """
+        from moncic.runner import UserConfig
+
+        if self.bootstrap_from is None:
+            return
+
+        # Forward users if needed
+        for u in self.bootstrap_from.forwards_users:
+            container.forward_user(UserConfig.from_user(u), allow_maint=True)
+
+        # Setup network
+        for cmd in self.distro.get_setup_network_script(self):
+            container.run(cmd)
+
+        # Update package databases
+        for cmd in self.distro.get_update_pkgdb_script(self):
+            container.run(cmd)
+
+        # Upgrade system packages
+        for cmd in self.distro.get_upgrade_system_script(self):
+            container.run(cmd)
+
+        # Build list of packages to install, removing duplicates
+        packages: list[str] = []
+        seen: set[str] = set()
+        for pkg in self.bootstrap_from.package_list:
+            if pkg in seen:
+                continue
+            packages.append(pkg)
+            seen.add(pkg)
+
+        # Install packages
+        for cmd in self.distro.get_install_packages_script(self, packages):
+            container.run(cmd)
+
+        # Run maintscripts
+        for script in self.bootstrap_from.maintscripts:
+            container.run_script(script)
+
     def update(self):
         """Run periodic maintenance on the system."""
+        with self.maintenance_container() as container:
+            self.update_container(container)
 
     @abc.abstractmethod
     def remove(self) -> BootstrappableImage | None:

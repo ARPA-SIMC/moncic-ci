@@ -47,7 +47,10 @@ class PodmanImage(RunnableImage):
         self.podman_image = podman_image
         self.id = podman_image.id
         self.short_id = podman_image.short_id
-        repository, tag = self.name.split(":")
+        if ":" in self.name:
+            repository, tag = self.name.split(":")
+        else:
+            repository, tag = self.name, "latest"
         self.podman_image.tag(self.session.podman_repository_prefix + repository, tag)
 
     @override
@@ -55,12 +58,10 @@ class PodmanImage(RunnableImage):
         return self.id
 
     @override
-    def update(self) -> None:
-        raise NotImplementedError()
-
-    @override
     def remove(self) -> BootstrappableImage | None:
-        raise NotImplementedError()
+        podman = self.session.podman
+        podman.images.remove(self.session.podman_repository_prefix + self.name)
+        return self.bootstrap_from
 
     @override
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":

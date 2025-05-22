@@ -1,3 +1,4 @@
+import abc
 import logging
 import os
 import tempfile
@@ -8,7 +9,7 @@ from typing import TYPE_CHECKING, NamedTuple
 from ..utils.osrelease import parse_osrelase
 
 if TYPE_CHECKING:
-    from moncic.container import Container, ContainerConfig
+    from moncic.container import ContainerConfig
     from moncic.image import Image
 
 log = logging.getLogger(__name__)
@@ -152,7 +153,7 @@ class DistroFamily:
         return [DistroInfo(name, [shortcut]) for shortcut, name in self.SHORTCUTS.items()]
 
 
-class Distro:
+class Distro(abc.ABC):
     """
     Common base class for bootstrapping distributions
     """
@@ -237,3 +238,7 @@ class Distro:
         raise NotImplementedError(
             f"getting installed versions for package requirements is not implemented for {self.name}"
         )
+
+    @abc.abstractmethod
+    def get_podman_name(self) -> tuple[str, str]:
+        """Get the podman repository and tag for loading this distro from known repositories."""

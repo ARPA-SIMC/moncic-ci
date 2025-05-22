@@ -39,18 +39,17 @@ class Bootstrap(MoncicCommand):
                         return
 
                 try:
-                    image.bootstrap()
+                    image = image.bootstrap()
                 except Exception:
                     log.critical("%s: cannot create image", name, exc_info=True)
                     return 5
 
-                with image.maintenance_system() as system:
-                    log.info("%s: updating image", name)
-                    try:
-                        system.update()
-                    except Exception:
-                        log.critical("%s: cannot update image", name, exc_info=True)
-                        return 6
+                log.info("%s: updating image", name)
+                try:
+                    image.update()
+                except Exception:
+                    log.critical("%s: cannot update image", name, exc_info=True)
+                    return 6
 
 
 @main_command
@@ -82,16 +81,15 @@ class Update(MoncicCommand):
 
             for name in systems:
                 image = images.image(name)
-                with image.maintenance_system() as system:
-                    if not system.path.exists():
-                        continue
-                    log.info("%s: updating image", name)
-                    try:
-                        system.update()
-                        count_ok += 1
-                    except Exception:
-                        log.critical("%s: cannot update image", name, exc_info=True)
-                        count_failed += 1
+                if not image.bootstrapped:
+                    continue
+                log.info("%s: updating image", name)
+                try:
+                    image.update()
+                    count_ok += 1
+                except Exception:
+                    log.critical("%s: cannot update image", name, exc_info=True)
+                    count_failed += 1
 
             log.info("%d images successfully updated", count_ok)
 
@@ -122,9 +120,9 @@ class Remove(MoncicCommand):
             images = session.images
             for name in self.args.systems:
                 image = images.image(name)
-                image.remove()
+                image = image.remove()
                 if self.args.purge:
-                    images.remove_config(name)
+                    image.remove_config()
 
 
 @main_command

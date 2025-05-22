@@ -3,11 +3,12 @@ from functools import cached_property
 from typing import TYPE_CHECKING, override
 from pathlib import Path
 
-from moncic.image import Image, BootstrappableImage, RunnableImage
+from moncic.image import BootstrappableImage, RunnableImage
 from moncic.images import BootstrappingImages
 
 if TYPE_CHECKING:
     from moncic.session import Session
+    from .image import PodmanImage
 
 log = logging.getLogger("images")
 
@@ -19,7 +20,7 @@ class PodmanImages(BootstrappingImages):
         self.session = session
 
     @override
-    def image(self, name: str) -> Image:
+    def image(self, name: str) -> "PodmanImage":
         """
         Return the configuration for the named system
         """
@@ -65,4 +66,18 @@ class PodmanImages(BootstrappingImages):
 
     @override
     def bootstrap(self, image: BootstrappableImage) -> RunnableImage:
-        raise NotImplementedError()
+        if self.has_image(image.name):
+            return self.image(image.name)
+
+        image.logger.info("bootstrapping in podman")
+
+        podman = self.session.podman
+        repository, tag = image.distro.get_podman_name()
+        image.logger.info("pulling from %s:%s", repository, tag)
+        podman_image = podman.images.pull(repository, tag)
+
+        podman_image.tag(self.session.podman_repository_prefix + image.name, "latest")
+
+        res = self.image(image.name)
+        res.update()
+        return res

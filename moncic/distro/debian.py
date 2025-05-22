@@ -116,6 +116,11 @@ class DebianDistro(Distro):
         self.mirror = mirror
         self.suite = suite
 
+    @override
+    def get_podman_name(self) -> tuple[str, str]:
+        distro, suite = self.name.split(":")
+        return ("docker.io/library/debian", suite)
+
     def container_config_hook(self, image: Image, config: ContainerConfig):
         super().container_config_hook(image, config)
         if apt_archive_path := image.session.apt_archives:
@@ -229,6 +234,11 @@ class UbuntuDistro(DebianDistro):
 
     def __init__(self, name: str, suite: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"):
         super().__init__(name, suite, mirror=mirror)
+
+    @override
+    def get_podman_name(self) -> tuple[str, str]:
+        distro, suite = self.name.split(":")
+        return ("docker.io/library/ubuntu/", suite)
 
     def get_gbp_branches(self) -> list[str]:
         """

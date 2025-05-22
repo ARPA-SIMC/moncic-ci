@@ -11,6 +11,12 @@ available by tagging it:
 
 ## Bootstrapping podman images
 
-**TODO: build commands are not yet supported**
+All the various `bootstrap`, `update`, `remove` commands work with images
+configured by [Moncic-CI YAML files](image-config.md).
 
+If an image file name contains a colon, then it is used as the tag in podman.
+Otherwise, the file name is used as the repository, and `latest` is used as
+tag.
 
+Running `monci` without sudo will disable nspawn as a container technology, and
+images will be bootstrapped using podman.

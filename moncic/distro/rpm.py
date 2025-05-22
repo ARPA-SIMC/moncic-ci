@@ -224,6 +224,10 @@ class Centos7(YumDistro):
     version = 7
 
     @override
+    def get_podman_name(self) -> tuple[str, str]:
+        return ("quay.io/centos/centos/centos7", "latest")
+
+    @override
     def bootstrap(self, path: Path) -> None:
         super().bootstrap(path)
         installroot = path.absolute()
@@ -237,6 +241,10 @@ class Centos8(DnfDistro):
     mirror = "https://vault.centos.org"
     baseurl = "{mirror}/centos/8/BaseOS//$basearch/os/"
     version = 8
+
+    @override
+    def get_podman_name(self) -> tuple[str, str]:
+        return ("quay.io/centos/centos/centos8", "latest")
 
     @override
     def bootstrap(self, path: Path):
@@ -266,6 +274,11 @@ class FedoraDistro(DnfDistro):
         self.version = version
         self.baseurl = f"{self.mirror}/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
 
+    @override
+    def get_podman_name(self) -> tuple[str, str]:
+        distro, suite = self.name.split(":")
+        return (f"registry.fedoraproject.org/fedora", suite)
+
 
 class RockyDistro(DnfDistro):
     mirror = "http://dl.rockylinux.org"
@@ -274,3 +287,8 @@ class RockyDistro(DnfDistro):
         super().__init__(name)
         self.version = version
         self.baseurl = f"{self.mirror}/pub/rocky/{version}/BaseOS/$basearch/os/"
+
+    @override
+    def get_podman_name(self) -> tuple[str, str]:
+        distro, suite = self.name.split(":")
+        return (f"quay.io/rockylinux/rockylinux/", suite)
