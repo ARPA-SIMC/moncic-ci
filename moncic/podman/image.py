@@ -12,6 +12,7 @@ from moncic.utils.osrelease import parse_osrelase_contents
 if TYPE_CHECKING:
     from moncic.container import Container, ContainerConfig
 
+    from .container import PodmanContainer
     from .images import PodmanImages
 
 log = logging.getLogger("nspawn")
@@ -24,7 +25,7 @@ class PodmanImage(Image):
 
     def __init__(self, *, images: "PodmanImages", name: str) -> None:
         podman = images.session.podman
-        image = podman.images.get(name)
+        image = podman.images.get(images.repository_prefix + name)
         os_release = podman.containers.run(image, ["cat", "/etc/os-release"], remove=True)
         assert isinstance(os_release, bytes)
         with io.StringIO(os_release.decode()) as fd:
@@ -35,6 +36,16 @@ class PodmanImage(Image):
         self.id: str = image.id
         self.short_id: str = image.short_id
         self.podman_image = image
+
+    def commit(self, container: "PodmanContainer") -> None:
+        """Commit the container and update the image."""
+        assert container.container is not None
+        podman_image = container.container.commit()
+        self.podman_image = podman_image
+        self.id = podman_image.id
+        self.short_id = podman_image.short_id
+        repository, tag = self.name.split(":")
+        self.podman_image.tag(self.images.repository_prefix + repository, tag)
 
     @override
     def get_backend_id(self) -> str:
@@ -72,4 +83,6 @@ class PodmanImage(Image):
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
     ) -> "Container":
-        raise NotImplementedError()
+        from .container import PodmanMaintenanceContainer
+
+        return PodmanMaintenanceContainer(self, config=config)

@@ -68,7 +68,6 @@ class PodmanContainer(Container):
             raise RuntimeError("Container already started")
         # TODO: self.config.ephemeral
         # TODO: self.config.tmpfs
-        # TODO: self.config.forward_user: UserConfig | None = None
         mounts: list[dict[str, Any]] = [
             {
                 "Type": "bind",
@@ -84,7 +83,6 @@ class PodmanContainer(Container):
             "auto_remove": True,
             "detach": True,
             # TODO: environment
-            # TODO: group_add
             # TODO: what is isolation?
             "mounts": mounts,
             # TODO: name
@@ -96,7 +94,6 @@ class PodmanContainer(Container):
             "stderr": False,
             # TODO: stream
             # TODO: ulimits
-            # TODO: user
         }
 
         self.image.logger.debug("Starting container %r", container_kwargs)
@@ -107,38 +104,12 @@ class PodmanContainer(Container):
         self.container.start()
         self.container.wait(condition="running")
 
-        # def _create(self, command: list[str], config: RunConfig) -> podman.domain.containers.Container:
-        #     podman_container = self.image.images.session.podman.containers.create(
-        #         self.image.podman_image,
-        #         command,
-        #         auto_remove=True,
-        #         detach=False,
-        #         # TODO: environment
-        #         # TODO: group_add
-        #         # TODO: what is isolation?
-        #         # TODO: mounts
-        #         # TODO: name
-        #         # TODO: privileged
-        #         # TODO: read_only
-        #         # TODO: read_write_tmpfs
-        #         remove=True,
-        #         stdout=False,
-        #         stderr=False,
-        #         # TODO: stream
-        #         # TODO: ulimits
-        #         # TODO: user
-        #         working_dir=config.cwd,
-        #     )
-        #     # TODO: handle run_config: user
-        #     # if run_config.user:
-        #     #     podman_command += ["--user", run_config.user.user_name]
-        #     # TODO: handle run_config: use_path (not supported)
-        #     return podman_container
-
         try:
             yield None
         finally:
             self.container.reload()
+            if not self.config.ephemeral:
+                self.image.commit(self)
             self.container.kill(signal.SIGKILL)
             self.container.wait(condition="stopped")
             self.container = None

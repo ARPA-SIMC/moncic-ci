@@ -17,6 +17,7 @@ class PodmanImages(Images):
 
     def __init__(self, session: "Session") -> None:
         self.session = session
+        self.repository_prefix = "localhost/moncic-ci/"
 
     @override
     def image(self, name: str) -> "PodmanImage":
@@ -36,9 +37,11 @@ class PodmanImages(Images):
         List the names of images found in image directories
         """
         images: list[Image] = []
-        for image in self.session.podman.images.list():
+        for image in self.session.podman.images.list(name=self.repository_prefix + "*"):
             for tag in image.tags:
-                images.append(self.image(tag))
+                if not tag.startswith(self.repository_prefix):
+                    continue
+                images.append(self.image(tag.removeprefix(self.repository_prefix)))
         return images
 
     def deduplicate(self):
