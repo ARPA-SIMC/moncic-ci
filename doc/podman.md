@@ -8,6 +8,9 @@ available by tagging it:
 
     podman image tag {image} localhost/moncic-ci/{distro}:{variant}
 
+
+## Bootstrapping podman images
+
 **TODO: build commands are not yet supported**
 
 

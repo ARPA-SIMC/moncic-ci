@@ -102,7 +102,7 @@ class Images(MoncicCommand):
                         image.distro,
                         "yes" if image.bootstrapped else "no",
                         image.image_type,
-                        image.get_backend_id(),
+                        image.get_backend_id() if image.bootstrapped else "-",
                     )
                 )
         output.flush()
