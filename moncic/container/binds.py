@@ -319,6 +319,8 @@ class BindConfigAptCache(BindConfig):
     @override
     @contextmanager
     def guest_setup(self, container: "Container") -> Generator[None, None, None]:
+        # Hand over the apt package permissions to the _apt user (if present),
+        # and then back to the invoking user on return
         setup_script = Script(f"apt cache mount setup for {self.destination}")
         setup_script.write(
             Path("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"),
@@ -326,11 +328,16 @@ class BindConfigAptCache(BindConfig):
             description="Do not clear apt cache",
         )
         with setup_script.if_("id -u _apt > /dev/null"):
-            setup_script.run(["chown", "-R", "_apt", "/var/cache/apt/archives"])
+            setup_script.run(["touch", "/var/cache/apt/archives/.moncic-ci"])
+            setup_script.run(["chown", "--reference=/var/cache/apt/archives", "/var/cache/apt/archives/.moncic-ci"])
+            setup_script.run_unquoted("chown _apt /var/cache/apt/archives/*.deb")
+            setup_script.run(["chown", "_apt", "/var/cache/apt/archives"])
 
         teardown_script = Script(f"apt cache mount teardown for {self.destination}")
         teardown_script.run(["rm", "-f", "/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"])
-        teardown_script.run(["chown", "-R", "root:root", "/var/cache/apt/archives"])
+        teardown_script.run(
+            ["chown", "-R", "--reference=/var/cache/apt/archives/.moncic-ci", "/var/cache/apt/archives"]
+        )
 
         self._run_script(setup_script, container)
         try:

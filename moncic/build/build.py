@@ -189,11 +189,11 @@ class Build:
         """
         if not self.quick:
             # Update package databases
-            for cmd in image.distro.get_update_pkgdb_script(image):
+            for cmd in image.distro.get_update_pkgdb_script():
                 self.trace_run(cmd)
 
             # Upgrade system packages
-            for cmd in image.distro.get_upgrade_system_script(image):
+            for cmd in image.distro.get_upgrade_system_script():
                 self.trace_run(cmd)
 
     @classmethod

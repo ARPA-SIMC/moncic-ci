@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, cast
 
-from moncic.context import privs
+from moncic import context
 
 from ..container import ContainerConfig
 from ..runner import UserConfig
@@ -71,7 +71,7 @@ class ContainerSourceOperation(abc.ABC):
         This is run on the host system before starting the build
         """
         container_root = container.get_root()
-        with privs.root():
+        with context.privs.root():
             # Set user permissions on source and build directories
             srcdir = container_root / "srv" / "moncic-ci" / "source"
             os.chown(srcdir, self.user.user_id, self.user.group_id)
@@ -177,7 +177,8 @@ class ContainerSourceOperation(abc.ABC):
                 result = container.run_callable(self.guest_main, run_config)
                 self.process_guest_result(result)
                 if self.artifacts_dir:
-                    self.collect_artifacts(container, self.artifacts_dir)
+                    with context.privs.root():
+                        self.collect_artifacts(container, self.artifacts_dir)
             finally:
                 self._after_build(container)
 

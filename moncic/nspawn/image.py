@@ -4,6 +4,7 @@ import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, override
 
+from moncic import context
 from moncic.distro import Distro
 from moncic.image import BootstrappableImage, ImageType, RunnableImage
 from moncic.utils.btrfs import Subvolume
@@ -38,24 +39,15 @@ class NspawnImage(RunnableImage, abc.ABC):
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
         from .container import NspawnContainer
 
-        return NspawnContainer(self, path=self.path, config=config, instance_name=instance_name)
+        return NspawnContainer(self, config=config, instance_name=instance_name)
 
     @override
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
     ) -> "Container":
-        from moncic.provision.image import ConfiguredImage
-
         from .container import NspawnMaintenanceContainer
 
-        match self.bootstrap_from:
-            case ConfiguredImage():
-                compression = self.bootstrap_from.config.bootstrap_info.compression
-            case _:
-                compression = self.session.moncic.config.compression
-
-        with self.images.transactional_workdir(self.path, compression) as work_path:
-            return NspawnMaintenanceContainer(self, path=work_path, config=config, instance_name=instance_name)
+        return NspawnMaintenanceContainer(self, config=config, instance_name=instance_name)
 
     @override
     def get_backend_id(self) -> str:
@@ -112,19 +104,28 @@ class NspawnImage(RunnableImage, abc.ABC):
         Create or remove a CACHEDIR.TAG file, depending on the image
         configuration
         """
-        cachedir_path = self.path / "CACHEDIR.TAG"
-        if self.backup:
-            try:
-                cachedir_path.unlink()
-            except FileNotFoundError:
-                pass
-        else:
-            if not cachedir_path.exists():
-                with cachedir_path.open("wt") as fd:
-                    # See https://bford.info/cachedir/
-                    print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
-                    print("# This file hints to backup software that they can skip this directory.", file=fd)
-                    print("# See https://bford.info/cachedir/", file=fd)
+        from moncic.provision.image import ConfiguredImage
+
+        match self.bootstrap_from:
+            case ConfiguredImage():
+                backup = self.bootstrap_from.config.bootstrap_info.backup
+            case _:
+                return
+
+        with context.privs.root():
+            cachedir_path = self.path / "CACHEDIR.TAG"
+            if backup:
+                try:
+                    cachedir_path.unlink()
+                except FileNotFoundError:
+                    pass
+            else:
+                if not cachedir_path.exists():
+                    with cachedir_path.open("wt") as fd:
+                        # See https://bford.info/cachedir/
+                        print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
+                        print("# This file hints to backup software that they can skip this directory.", file=fd)
+                        print("# See https://bford.info/cachedir/", file=fd)
 
 
 class NspawnImagePlain(NspawnImage):
@@ -139,15 +140,17 @@ class NspawnImagePlain(NspawnImage):
 
     @override
     def remove(self) -> BootstrappableImage | None:
-        if self.path.exists():
-            shutil.rmtree(self.path)
+        with context.privs.root():
+            if self.path.exists():
+                shutil.rmtree(self.path)
         return self.bootstrap_from
 
 
 class NspawnImageBtrfs(NspawnImage):
     @override
     def remove(self) -> BootstrappableImage | None:
-        if self.path.exists():
-            subvolume = Subvolume(self.session.images.session.moncic.config, self.path, None)
-            subvolume.remove()
+        with context.privs.root():
+            if self.path.exists():
+                subvolume = Subvolume(self.session.images.session.moncic.config, self.path, None)
+                subvolume.remove()
         return self.bootstrap_from

@@ -12,7 +12,7 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, ContextManager, override
 
-from moncic.context import privs
+from moncic import context
 from moncic.distro import Distro, DistroFamily
 from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
@@ -84,9 +84,9 @@ class NspawnImages(BootstrappingImages, abc.ABC):
         try:
             return DistroFamily.from_path(path)
         except PermissionError:
-            if not privs.can_regain():
+            if not context.privs.can_regain():
                 raise
-            with privs.root():
+            with context.privs.root():
                 return DistroFamily.from_path(path)
 
     @abc.abstractmethod
@@ -103,7 +103,7 @@ class NspawnImages(BootstrappingImages, abc.ABC):
 
     @override
     def bootstrap(self, image: BootstrappableImage) -> RunnableImage:
-        with privs.root():
+        with context.privs.root():
             from moncic.provision.image import ConfiguredImage, DistroImage
 
             path = self.imagedir / image.name
@@ -241,26 +241,29 @@ class BtrfsImages(NspawnImages):
     def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path]:
         work_path = path.parent / f"{path.name}.new"
         subvolume = Subvolume(self.session.moncic.config, work_path, compression)
-        if not path.exists():
-            with subvolume.create():
+        with context.privs.root():
+            if not path.exists():
+                with subvolume.create():
+                    try:
+                        with context.privs.user():
+                            yield work_path
+                    except BaseException:
+                        subvolume.remove()
+                        raise
+                    else:
+                        work_path.rename(path)
+            else:
+                subvolume = Subvolume(self.session.moncic.config, work_path, compression)
+                # Create work_path as a snapshot of path
+                subvolume.snapshot(path)
                 try:
-                    yield work_path
+                    with context.privs.user():
+                        yield work_path
                 except BaseException:
                     subvolume.remove()
                     raise
                 else:
-                    work_path.rename(path)
-        else:
-            subvolume = Subvolume(self.session.moncic.config, work_path, compression)
-            # Create work_path as a snapshot of path
-            subvolume.snapshot(path)
-            try:
-                yield work_path
-            except BaseException:
-                subvolume.remove()
-                raise
-            else:
-                subvolume.replace_subvolume(path)
+                    subvolume.replace_subvolume(path)
 
     @override
     def _extend_parent(self, image: Image, path: Path, compression: str | None) -> None:

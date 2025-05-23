@@ -118,6 +118,8 @@ class RunnableImage(Image, abc.ABC):
 
     def get_container_info(self) -> "ContainerInfo":
         """Get the ContainerInfo configuration for this image."""
+        from moncic.provision.image import ConfiguredImage
+
         match self.bootstrap_from:
             case ConfiguredImage():
                 return self.bootstrap_from.config.container_info

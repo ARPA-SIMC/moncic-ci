@@ -31,6 +31,6 @@ def parse_osrelase_contents(fd: IO[str], filename: str) -> dict[str, str]:
     """
     lexer = shlex.shlex(fd, filename, posix=True)
     # Python 3.9 needs this, python 3.7 did not need it, release note don't
-    # seem to mention a relevant change
-    lexer.wordchars += "-"
+    # seem to mention a relevant change. Python 3.12 also needs "."
+    lexer.wordchars += "-."
     return dict(iter_assigns(lexer))

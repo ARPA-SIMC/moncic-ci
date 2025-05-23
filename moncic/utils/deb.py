@@ -56,6 +56,27 @@ class DebCache:
             else:
                 size += info.size
 
+    def _debs_to_aptdir(self, dst_dir_fd: int) -> None:
+        """Handlink existing debs to the destination directory."""
+        with os.scandir(self.src_dir_fd) as it:
+            for de in it:
+                if not de.name.endswith(".deb"):
+                    continue
+                st = de.stat()
+                self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+                os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
+
+    def _debs_from_aptdir(self, dst_dir_fd: int) -> None:
+        """Hardlink new debs to cache dir."""
+        os.lseek(dst_dir_fd, 0, os.SEEK_SET)
+        with os.scandir(dst_dir_fd) as it:
+            for de in it:
+                if de.name.endswith(".deb"):
+                    st = de.stat()
+                    if de.name not in self.debs:
+                        os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
+                    self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+
     @contextlib.contextmanager
     def apt_archives(self) -> Generator[Path]:
         """
@@ -64,34 +85,11 @@ class DebCache:
         with tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir_str:
             aptdir = Path(aptdir_str)
             with dirfd(aptdir) as dst_dir_fd:
-                # Handlink debs to temp dir
-                with os.scandir(self.src_dir_fd) as it:
-                    for de in it:
-                        if de.name.endswith(".deb"):
-                            st = de.stat()
-                            self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
-                            os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
-
+                self._debs_to_aptdir(dst_dir_fd)
                 try:
                     yield aptdir
                 finally:
-                    # Hardlink new debs to cache dir
-                    os.lseek(dst_dir_fd, 0, os.SEEK_SET)
-                    with os.scandir(dst_dir_fd) as it:
-                        for de in it:
-                            if de.name.endswith(".deb"):
-                                st = de.stat()
-                                if de.name not in self.debs:
-                                    os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
-                                if st.st_uid != self.cache_user.user_id:
-                                    with privs.root():
-                                        os.chown(
-                                            de.name,
-                                            self.cache_user.user_id,
-                                            self.cache_user.group_id,
-                                            dir_fd=self.src_dir_fd,
-                                        )
-                                self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+                    self._debs_from_aptdir(dst_dir_fd)
 
 
 def apt_get_cmd(*args) -> list[str]:

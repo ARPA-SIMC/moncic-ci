@@ -21,6 +21,11 @@ class Script:
     def add_line(self, line: str) -> None:
         self.lines.append(" " * self.indent + line)
 
+    def run_unquoted(self, command: str, *, description: str | None = None) -> None:
+        if description:
+            self.add_line("echo " + shlex.quote(description))
+        self.add_line(command)
+
     def run(
         self, command: list[str], *, description: str | None = None, output: Path | None = None, cwd: Path | None = None
     ) -> None:

@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, NoReturn, override
 
 from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
-from moncic.context import privs
+from moncic import context
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
 from moncic.utils.nspawn import escape_bind_ro
 
@@ -27,11 +27,10 @@ class NspawnContainer(Container):
     image: NspawnImage
 
     def __init__(
-        self, image: NspawnImage, path: Path, *, config: ContainerConfig | None = None, instance_name: str | None = None
+        self, image: NspawnImage, *, config: ContainerConfig | None = None, instance_name: str | None = None
     ) -> None:
         config = self._container_config(image, config)
         super().__init__(image, config=config, instance_name=instance_name)
-        self.path = path
         # machinectl properties of the running machine
         self.properties: dict[str, str] = {}
 
@@ -97,7 +96,7 @@ class NspawnContainer(Container):
         systemd_run_cmd.extend(cmd)
 
         self.image.logger.info("Running %s", shlex.join(systemd_run_cmd))
-        with privs.root():
+        with context.privs.root():
             res = subprocess.run(systemd_run_cmd, capture_output=True)
         if res.returncode != 0:
             self.image.logger.error(
@@ -108,11 +107,11 @@ class NspawnContainer(Container):
             )
             raise RuntimeError("Failed to start container")
 
-    def get_start_command(self):
+    def get_start_command(self, path: Path):
         cmd = [
             "systemd-nspawn",
             "--quiet",
-            f"--directory={self.path}",
+            f"--directory={path}",
             f"--machine={self.instance_name}",
             "--boot",
             "--notify-ready=yes",
@@ -139,12 +138,14 @@ class NspawnContainer(Container):
     @override
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
-        self.image.logger.info(
-            "Starting system %s as %s using image %s", self.image.name, self.instance_name, self.image.path
-        )
+        with self._container_in_path(self.image.path):
+            yield None
 
-        cmd = self.get_start_command()
+    @contextmanager
+    def _container_in_path(self, path: Path) -> Generator[None, None, None]:
+        self.image.logger.info("Starting system %s as %s using image %s", self.image.name, self.instance_name, path)
 
+        cmd = self.get_start_command(path)
         self._run_nspawn(cmd)
 
         # Read machine properties
@@ -157,7 +158,7 @@ class NspawnContainer(Container):
         try:
             yield None
         finally:
-            with privs.root():
+            with context.privs.root():
                 # See https://github.com/systemd/systemd/issues/6458
                 leader_pid = self.get_pid()
                 os.kill(leader_pid, signal.SIGRTMIN + 4)
@@ -202,7 +203,7 @@ class NspawnContainer(Container):
     ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
-        with privs.root():
+        with context.privs.root():
             completed = runner.execute()
         return completed
 
@@ -216,3 +217,18 @@ class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
         # Force ephemeral to False in maintenance systems
         config.ephemeral = False
         return config
+
+    @override
+    @contextmanager
+    def _container(self) -> Generator[None, None, None]:
+        from moncic.provision.image import ConfiguredImage
+
+        match self.image.bootstrap_from:
+            case ConfiguredImage():
+                compression = self.image.bootstrap_from.config.bootstrap_info.compression
+            case _:
+                compression = self.image.images.session.moncic.config.compression
+
+        with self.image.images.transactional_workdir(self.image.path, compression) as work_path:
+            with self._container_in_path(work_path):
+                yield None
