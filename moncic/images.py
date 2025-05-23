@@ -30,6 +30,10 @@ class ImagesBase(abc.ABC):
         return self.get_logger()
 
     @abc.abstractmethod
+    def reload(self) -> None:
+        """Reload configuration."""
+
+    @abc.abstractmethod
     def list_images(self) -> list[str]:
         """List the names of images found in image directories."""
 
@@ -56,6 +60,10 @@ class ImagesBase(abc.ABC):
 
 class Images(ImagesBase, abc.ABC):
     """Manage access to a group of container images."""
+
+    @override
+    def reload(self) -> None:
+        pass
 
     @override
     def deduplicate(self) -> None:
@@ -89,6 +97,11 @@ class ImageRepository(ImagesBase):
 
     def add(self, images: Images) -> None:
         self.images.append(images)
+
+    @override
+    def reload(self) -> None:
+        for images in self.images:
+            images.reload()
 
     @override
     def has_image(self, name: str) -> bool:

@@ -14,7 +14,7 @@ class MockImage(RunnableImage):
     session: "MockSession"
 
     def __init__(self, *, session: "MockSession", name: str, distro: Distro) -> None:
-        super().__init__(session=session, image_type=ImageType.NSPAWN, name=name, distro=distro)
+        super().__init__(session=session, image_type=ImageType.MOCK, name=name, distro=distro)
 
     @override
     def get_backend_id(self) -> str:

@@ -33,8 +33,7 @@ maintscript: |
             )
             self.images.bootstrap_system(test_image_name)
 
-    @classmethod
-    def tearDownClass(cls):
+    def tearDown(self):
         with context.privs.root():
             image = cls.images.image(test_image_name)
             image.remove()

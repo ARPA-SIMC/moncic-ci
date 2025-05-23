@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import contextlib
 import logging
+import re
 import os
 import shutil
 import stat
@@ -25,7 +26,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("images")
 
-MACHINECTL_PATH = "/var/lib/machines"
+MACHINECTL_PATH = Path("/var/lib/machines")
 
 
 class NspawnImages(BootstrappingImages, abc.ABC):
@@ -37,6 +38,11 @@ class NspawnImages(BootstrappingImages, abc.ABC):
         self.session = session
         self.imagedir = imagedir
         self.logger = logging.getLogger("images.nspawn")
+
+    @classmethod
+    @abc.abstractmethod
+    def create_machinectl(cls, session: Session) -> "NspawnImages":
+        """Create a NspawnImages accessing machinectl storage."""
 
     @override
     def get_logger(self) -> logging.Logger:
@@ -52,14 +58,11 @@ class NspawnImages(BootstrappingImages, abc.ABC):
     @override
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
-        for path in self.session.moncic.config.imageconfdirs:
-            if any(x.exists() for x in (path / name, path / f"{name}.yaml")):
-                return True
-        return False
+        return (self.imagedir / name).is_dir()
 
     @override
     def list_images(self) -> list[str]:
-        images: list[str]
+        images: list[str] = []
         for path in self.imagedir.iterdir():
             if path.name.startswith(".") or not path.is_dir():
                 continue
@@ -74,10 +77,18 @@ class NspawnImages(BootstrappingImages, abc.ABC):
 
         Return None if no such tarball is present
         """
-        for ext in (".tar.gz", ".tar.xz", ".tar"):
-            tarball_path = self.imagedir / (distro.name + ext)
-            if tarball_path.exists():
-                return tarball_path
+        re_tarball = re.compile(r"^(.+)(?:\.tar|\.tar\.gz|\.tar\.xz)")
+        for path in self.imagedir.iterdir():
+            if mo := re_tarball.match(path.name):
+                name = mo.group(1)
+            else:
+                continue
+            try:
+                found = DistroFamily.lookup_distro(name)
+            except KeyError:
+                continue
+            if found.name == distro.name:
+                return path
         return None
 
     def _find_distro(self, path: Path) -> Distro:
@@ -132,9 +143,15 @@ class PlainImages(NspawnImages):
     Images stored in a non-btrfs filesystem
     """
 
+    @classmethod
+    def create_machinectl(cls, session: Session) -> "NspawnImages":
+        return PlainMachinectlImages(session)
+
     @override
     def image(self, name: str) -> NspawnImage:
         path = (self.imagedir / name).absolute()
+        if not path.is_dir():
+            raise KeyError(f"Image {name!r} not found")
         distro = self._find_distro(path)
         return NspawnImagePlain(images=self, name=name, distro=distro, path=path)
 
@@ -188,9 +205,15 @@ class BtrfsImages(NspawnImages):
     Images stored in a btrfs filesystem
     """
 
+    @classmethod
+    def create_machinectl(cls, session: Session) -> "NspawnImages":
+        return BtrfsMachinectlImages(session)
+
     @override
     def image(self, name: str) -> NspawnImage:
         path = (self.imagedir / name).absolute()
+        if not path.is_dir():
+            raise KeyError(f"Image {name!r} not found")
         distro = self._find_distro(path)
         return NspawnImageBtrfs(images=self, name=name, distro=distro, path=path)
 
@@ -287,12 +310,16 @@ class BtrfsImages(NspawnImages):
         tarball_path = self.get_distro_tarball(distro)
         if tarball_path is not None:
             # Shortcut in case we have a chroot in a tarball
-            self.host_run(cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
+            with context.privs.root():
+                self.host_run(cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
         else:
             distro.bootstrap(self, path)
 
 
 class MachinectlImages(NspawnImages):
+    def __init__(self, session: Session) -> None:
+        super().__init__(session, MACHINECTL_PATH)
+
     def _list_machines(self) -> set[str]:
         res = subprocess.run(
             ["machinectl", "list-images", "--no-pager", "--no-legend"], check=True, stdout=subprocess.PIPE, text=True

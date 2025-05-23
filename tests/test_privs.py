@@ -12,6 +12,7 @@ class TestPrivs(unittest.TestCase):
     def setUpClass(cls) -> None:
         super().setUpClass()
         cls.privs = SudoTestSuite()
+        cls.privs.drop()
 
     def assertUnprivileged(self):
         uid, euid, suid = os.getresuid()

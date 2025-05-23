@@ -1,4 +1,5 @@
 import contextlib
+import os
 import copy
 import logging
 import re
@@ -14,25 +15,10 @@ from . import context
 from .mock.session import MockSession
 from .moncic import Moncic, MoncicConfig
 from .runner import UserConfig
+from .images import Images
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 from .utils.script import Script
-
-TEST_CHROOTS = [
-    "centos7",
-    "centos8",
-    "rocky8",
-    "rocky9",
-    "fedora32",
-    "fedora34",
-    "fedora36",
-    "fedora38",
-    "fedora40",
-    "fedora42",
-    "buster",
-    "bookworm",
-    "bullseye",
-]
 
 log = logging.getLogger(__name__)
 
@@ -143,6 +129,8 @@ class MoncicTestCase(TestCase):
         elif filesystem_type == "tmpfs":
             imagedir = self.tempdir()
             self.enterContext(self.mount("tmpfs", "none", imagedir))
+            with context.privs.root():
+                os.chown(imagedir, context.privs.user_uid, context.privs.user_gid)
             return imagedir
         elif filesystem_type == "btrfs":
             imagedir = self.tempdir()
@@ -152,6 +140,8 @@ class MoncicTestCase(TestCase):
             backing.truncate(1024 * 1024 * 1024)
             subprocess.run(["mkfs.btrfs", backing.name], check=True)
             self.enterContext(self.mount("btrfs", backing.name, imagedir))
+            with context.privs.root():
+                os.chown(imagedir, context.privs.user_uid, context.privs.user_gid)
             return imagedir
         else:
             raise NotImplementedError(f"unsupported filesystem type {filesystem_type!r}")
@@ -176,8 +166,6 @@ class MoncicTestCase(TestCase):
         else:
             config = MoncicConfig.load()
 
-        config.imageconfdirs = [self.tempdir()]
-
         if config.imagedir is None or not config.imagedir.is_dir():
             imagedir = Path(self.enterContext(tempfile.TemporaryDirectory()))
             config.imagedir = Path(imagedir)
@@ -185,7 +173,7 @@ class MoncicTestCase(TestCase):
         else:
             return Moncic(config=config)
 
-    def mock_session(self, moncic: Moncic | None = None) -> MockSession:
+    def mock_session(self, moncic: Moncic | None = None, images_class: type[Images] | None = None) -> MockSession:
         if moncic is None:
             moncic = self.moncic()
-        return MockSession(moncic, MockRunLog(self))
+        return MockSession(moncic, MockRunLog(self), images_class=images_class)

@@ -22,6 +22,7 @@ class ImageType(enum.StrEnum):
 
     NSPAWN = "nspawn"
     PODMAN = "podman"
+    MOCK = "mock"
 
 
 class Image(abc.ABC):

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, override
 
 from moncic.session import Session
 from moncic.utils.deb import DebCache
+from moncic.images import Images
 
 if TYPE_CHECKING:
     import podman as _podman
@@ -21,7 +22,11 @@ class MockSession(Session):
     Mock session used for tests
     """
 
-    def __init__(self, moncic: "Moncic", run_log: "MockRunLog") -> None:
+    def __init__(self, moncic: "Moncic", run_log: "MockRunLog", images_class: type[Images] | None = None) -> None:
+        from .images import MockImages
+
+        self.images_class = images_class or MockImages
+
         super().__init__(moncic)
         self.run_log = run_log
         self.log: list[dict[str, Any]] = []
@@ -30,15 +35,30 @@ class MockSession(Session):
     @override
     def _instantiate_images_imagedir(self, path: Path) -> None:
         from .images import MockImages
+        from moncic.nspawn.images import NspawnImages
 
-        images = MockImages(self)
+        images: Images
+        if issubclass(self.images_class, MockImages):
+            images = self.images_class(self)
+        elif issubclass(self.images_class, NspawnImages):
+            images = self.images_class(self, path)
+        else:
+            raise NotImplementedError()
+
         self.images.add(images)
         self.bootstrapper = images
 
     def _instantiate_images_default(self) -> None:
         from .images import MockImages
+        from moncic.nspawn.images import NspawnImages
 
-        images = MockImages(self)
+        if issubclass(self.images_class, MockImages):
+            images = self.images_class(self)
+        elif issubclass(self.images_class, NspawnImages):
+            images = self.images_class.create_machinectl()
+        else:
+            raise NotImplementedError()
+
         self.images.add(images)
         self.bootstrapper = images
 

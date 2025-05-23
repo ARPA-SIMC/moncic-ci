@@ -8,33 +8,37 @@ import time
 import unittest
 from collections.abc import Generator
 from typing import ClassVar
+from pathlib import Path
 
 from moncic import context
 from moncic.container import BindConfig, Container, ContainerConfig
+from moncic.nspawn.images import PlainImages
 from moncic.nspawn.image import NspawnImage
 from moncic.runner import UserConfig
-from moncic.session import Session
-from moncic.unittest import TEST_CHROOTS, MoncicTestCase
+from moncic.unittest import MoncicTestCase
 
 
-class RunTestCase(MoncicTestCase):
-    distro_name: str
-    session: ClassVar[Session]
-
-    def setUp(self):
+class TestNspawnContainer(MoncicTestCase):
+    def setUp(self) -> None:
         super().setUp()
-        self.moncic = self.moncic()
-        self.session = self.enterContext(self.moncic.session())
+        self.imageconfdir = self.workdir()
+        self.mconfig = self.config()
+        self.mconfig.imageconfdirs.append(self.imageconfdir)
+        assert self.mconfig.imagedir is not None
+        self.imagedir: Path = self.mconfig.imagedir
+        self.image_yaml = self.imageconfdir / "test.yaml"
+        self.image_yaml.write_text("distro: fedora34\n")
+        self.session = self.enterContext(self.mock_session(self.moncic(self.mconfig), images_class=PlainImages))
+        self.images = self.session.images.images[-1]
 
     @contextlib.contextmanager
     def image(self) -> Generator[NspawnImage, None, None]:
         with context.privs.root():
-            if self.distro_name not in self.session.images.list_images():
-                raise unittest.SkipTest(f"Image {self.distro_name} not available")
-            image = self.session.images.image(self.distro_name)
+            images = self.images.list_images()
+            if not images:
+                raise unittest.SkipTest("No nspawn test images are available")
+            image = self.images.image(images[0])
             assert isinstance(image, NspawnImage)
-            if not image.path.exists():
-                raise unittest.SkipTest(f"Image {self.distro_name} has not been bootstrapped")
             yield image
 
     @contextlib.contextmanager
@@ -334,16 +338,3 @@ class RunTestCase(MoncicTestCase):
             self.assertIsNone(res.returnvalue)
             self.assertIsNone(res.exc_info)
             self.assertIsNone(res.result())
-
-
-# Create an instance of RunTestCase for each distribution in TEST_CHROOTS.
-# The test cases will be named Test$DISTRO. For example:
-#   TestCentos7, TestCentos8, TestFedora32, TestFedora34
-this_module = sys.modules[__name__]
-for distro_name in TEST_CHROOTS:
-    cls_name = "Test" + distro_name.capitalize()
-    test_case = type(cls_name, (RunTestCase, unittest.TestCase), {"distro_name": distro_name})
-    test_case.__module__ = __name__
-    setattr(this_module, cls_name, test_case)
-
-del RunTestCase

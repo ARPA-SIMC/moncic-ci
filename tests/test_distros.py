@@ -22,7 +22,8 @@ class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
 
     def setUp(self) -> None:
         super().setUp()
-        self.session = self.enterContext(self.mock_session())
+        mconfig = self.config()
+        self.session = self.enterContext(self.mock_session(self.moncic(mconfig)))
         self.distro_image = DistroImage(session=self.session, name=self.NAME, distro=self.distro)
         self.image = self.session.images.image(self.NAME)
 

@@ -23,6 +23,10 @@ class ConfiguredImages(Images):
     def get_logger(self) -> logging.Logger:
         return logging.getLogger("images.configured")
 
+    @override
+    def reload(self) -> None:
+        self.__dict__.pop("configs", None)
+
     @cached_property
     def configs(self) -> dict[str, Path]:
         """Return a dict mapping image names to configuration files."""
