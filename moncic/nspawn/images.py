@@ -212,8 +212,9 @@ class BtrfsImages(NspawnImages):
     @override
     def image(self, name: str) -> NspawnImage:
         path = (self.imagedir / name).absolute()
-        if not path.is_dir():
-            raise KeyError(f"Image {name!r} not found")
+        with context.privs.root():
+            if not path.is_dir():
+                raise KeyError(f"Image {name!r} not found")
         distro = self._find_distro(path)
         return NspawnImageBtrfs(images=self, name=name, distro=distro, path=path)
 

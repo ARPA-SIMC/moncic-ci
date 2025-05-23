@@ -4,7 +4,9 @@ import os
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING
+import importlib.util
 
+from .exceptions import Fail
 from . import context
 from .context import privs
 from .utils.deb import DebCache
@@ -56,18 +58,23 @@ class Session(contextlib.ExitStack):
     def _instantiate_images_default(self) -> None:
         from .images import BootstrappingImages
         from .nspawn.imagestorage import NspawnImageStorage
-        from .podman.images import PodmanImages
 
-        podman_images = PodmanImages(self)
-        self.images.add(podman_images)
+        podman_images: BootstrappingImages | None = None
+        if importlib.util.find_spec("podman"):
+            from .podman.images import PodmanImages
+
+            podman_images = PodmanImages(self)
+            self.images.add(podman_images)
 
         if privs.can_regain():
             images = self.enter_context(NspawnImageStorage.create(self, MACHINECTL_PATH).images())
             assert isinstance(images, BootstrappingImages)
             self.images.add(images)
             self.bootstrapper = images
-        else:
+        elif podman_images:
             self.bootstrapper = podman_images
+        else:
+            raise Fail("neither nspawn nor podman are accessible (try running with sudo?)")
 
     def __enter__(self):
         self.orig_moncic = context.moncic.set(self.moncic)

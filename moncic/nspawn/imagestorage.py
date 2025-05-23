@@ -80,7 +80,7 @@ class PlainMachineImageStorage(PlainImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
-        yield PlainMachinectlImages(self.session, self.imagedir)
+        yield PlainMachinectlImages(self.session)
 
 
 class BtrfsMachineImageStorage(BtrfsImageStorage):
@@ -94,4 +94,4 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
 
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
-        yield BtrfsMachinectlImages(self.session, self.imagedir)
+        yield BtrfsMachinectlImages(self.session)
