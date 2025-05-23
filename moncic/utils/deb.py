@@ -57,11 +57,12 @@ class DebCache:
                 size += info.size
 
     @contextlib.contextmanager
-    def apt_archives(self) -> Generator[str]:
+    def apt_archives(self) -> Generator[Path]:
         """
         Create a directory that can be bind mounted as /apt/cache/apt/archives
         """
-        with tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir:
+        with tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir_str:
+            aptdir = Path(aptdir_str)
             with dirfd(aptdir) as dst_dir_fd:
                 # Handlink debs to temp dir
                 with os.scandir(self.src_dir_fd) as it:
@@ -72,8 +73,7 @@ class DebCache:
                             os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
 
                 try:
-                    with privs.user():
-                        yield aptdir
+                    yield aptdir
                 finally:
                     # Hardlink new debs to cache dir
                     os.lseek(dst_dir_fd, 0, os.SEEK_SET)

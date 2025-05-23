@@ -321,16 +321,12 @@ class BindConfigAptCache(BindConfig):
             'Binary::apt::APT::Keep-Downloaded-Packages "1";',
             description="Do not clear apt cache",
         )
-        # TODO:
-        # try:
-        #     apt_user = pwd.getpwnam("_apt")
-        # except KeyError:
-        #     apt_user = None
-        # if apt_user:
-        #     os.chown("/var/cache/apt/archives", apt_user.pw_uid, apt_user.pw_gid)
+        with setup_script.if_("id -u _apt > /dev/null"):
+            setup_script.run(["chown", "-R", "_apt", "/var/cache/apt/archives"])
 
         teardown_script = Script(f"apt cache mount teardown for {self.destination}")
         teardown_script.run(["rm", "-f", "/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"])
+        teardown_script.run(["chown", "-R", "root:root", "/var/cache/apt/archives"])
 
         self._run_script(setup_script, container)
         try:

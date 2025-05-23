@@ -100,7 +100,7 @@ class Session(contextlib.ExitStack):
             return None
 
     @cached_property
-    def apt_archives(self) -> str | None:
+    def apt_archives(self) -> Path | None:
         """
         Return the path of a directory that can be bind-mounted as
         /var/cache/apt/archives in Debian containers
@@ -166,7 +166,7 @@ class MockSession(Session):
         return None
 
     @cached_property
-    def apt_archives(self) -> str | None:
+    def apt_archives(self) -> Path | None:
         """
         Return the path of a directory that can be bind-mounted as
         /var/cache/apt/archives in Debian containers

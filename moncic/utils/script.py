@@ -1,4 +1,5 @@
-from typing import IO
+from contextlib import contextmanager
+from typing import IO, Generator, Iterable
 from pathlib import Path
 import shlex
 
@@ -10,35 +11,53 @@ class Script:
         self.title = title
         self.shell = "/bin/sh -uxe"
         self.lines: list[str] = []
+        self.indent = 0
 
     def __bool__(self) -> bool:
         """Check if the script contains any command."""
         return bool(self.lines)
+
+    def add_line(self, line: str) -> None:
+        self.lines.append(" " * self.indent + line)
 
     def run(
         self, command: list[str], *, description: str | None = None, output: Path | None = None, cwd: Path | None = None
     ) -> None:
         """Append a command to the script."""
         if description:
-            self.lines.append("echo " + shlex.quote(description))
+            self.add_line("echo " + shlex.quote(description))
         cmd = shlex.join(command)
         if output:
             cmd += f" > {shlex.quote(output.as_posix())}"
         if cwd:
             cmd = "(cd {shlex.quote(cwd.as_posix())} && {cmd})"
-        self.lines.append(cmd)
+        self.add_line(cmd)
+
+    @contextmanager
+    def if_(self, condition: str | Iterable[str]) -> Generator[None, None, None]:
+        """Delimit a conditional block."""
+        if not isinstance(condition, str):
+            condition = shlex.join(condition)
+        self.add_line(f"if {condition}")
+        self.add_line("then")
+        self.indent += 4
+        try:
+            yield
+        finally:
+            self.indent -= 4
+            self.add_line("fi")
 
     def debug(self, command: list[str], *, description: str | None = None) -> None:
         """Append a command to the script."""
         if description:
-            self.lines.append("echo " + shlex.quote(description))
-        self.lines.append(shlex.join(command) + " >&2")
+            self.add_line("echo " + shlex.quote(description))
+        self.add_line(shlex.join(command) + " >&2")
 
     def write(self, path: Path, contents: str, description: str | None = None) -> None:
         """Append a command to write data to a file."""
         if description:
-            self.lines.append("echo " + shlex.quote(description))
-        self.lines.append(f"echo {shlex.quote(contents)} > {shlex.quote(path.as_posix())}")
+            self.add_line("echo " + shlex.quote(description))
+        self.add_line(f"echo {shlex.quote(contents)} > {shlex.quote(path.as_posix())}")
 
     def print(self, file: IO[str] | None = None) -> None:
         """Write the script to a file."""
