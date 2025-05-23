@@ -14,7 +14,6 @@ from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
-    from moncic.image import Image
     from moncic.images import Images
 
 
@@ -85,7 +84,7 @@ class RpmDistro(Distro):
             yield fd.name
 
     @override
-    def bootstrap(self, images: "Images", path: Path) -> None:
+    def bootstrap(self, images: Images, path: Path) -> None:
         installer = shutil.which("dnf")
         if installer is None:
             installer = shutil.which("yum")
@@ -220,7 +219,7 @@ class Centos7(YumDistro):
         return ("quay.io/centos/centos/centos7", "latest")
 
     @override
-    def bootstrap(self, images: "Images", path: Path) -> None:
+    def bootstrap(self, images: Images, path: Path) -> None:
         super().bootstrap(images, path)
         installroot = path.absolute()
         varsdir = installroot / "etc" / "yum" / "vars"
@@ -239,7 +238,7 @@ class Centos8(DnfDistro):
         return ("quay.io/centos/centos/centos8", "latest")
 
     @override
-    def bootstrap(self, images: "Images", path: Path) -> None:
+    def bootstrap(self, images: Images, path: Path) -> None:
         super().bootstrap(images, path)
         # self.system.local_run(["tar", "-C", self.system.path, "-zxf", "images/centos8.tar.gz"])
         # Fixup repository information to point at the vault

@@ -1,7 +1,7 @@
 import abc
 import enum
-import subprocess
 import logging
+import subprocess
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
@@ -10,7 +10,6 @@ from moncic.distro import Distro
 
 if TYPE_CHECKING:
     from moncic.provision.config import ContainerInfo
-    from moncic.provision.image import ConfiguredImage
 
     from .container import Container, ContainerConfig, MaintenanceContainer
     from .session import Session

@@ -12,8 +12,8 @@ from typing import ClassVar
 from moncic import context
 from moncic.container import BindConfig, Container, ContainerConfig
 from moncic.nspawn.image import NspawnImage
-from moncic.session import Session
 from moncic.runner import UserConfig
+from moncic.session import Session
 from moncic.unittest import TEST_CHROOTS, MoncicTestCase
 
 

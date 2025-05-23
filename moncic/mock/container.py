@@ -4,11 +4,11 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, override
 
-from moncic.utils.script import Script
 from moncic.container import Container, Result
 from moncic.container.binds import BindConfig
 from moncic.container.config import ContainerConfig
 from moncic.runner import CompletedCallable, RunConfig
+from moncic.utils.script import Script
 
 from .image import MockImage
 

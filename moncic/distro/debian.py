@@ -144,7 +144,7 @@ class DebianDistro(Distro):
             return ["debian/" + self.suite, "debian/latest"]
 
     @override
-    def bootstrap(self, images: "Images", path: Path) -> None:
+    def bootstrap(self, images: Images, path: Path) -> None:
         with contextlib.ExitStack() as stack:
             installroot = path.absolute()
             cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]

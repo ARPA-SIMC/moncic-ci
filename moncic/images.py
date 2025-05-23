@@ -1,6 +1,6 @@
 import abc
-import subprocess
 import logging
+import subprocess
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, override

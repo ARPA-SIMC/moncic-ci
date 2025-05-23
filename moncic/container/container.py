@@ -4,13 +4,13 @@ import logging
 import os
 import pwd
 import shlex
+import subprocess
 import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack
 from functools import cached_property
 from pathlib import Path
 from typing import Any, ContextManager, TypeVar
-import subprocess
 
 from moncic.image import RunnableImage
 from moncic.runner import CompletedCallable, RunConfig, UserConfig

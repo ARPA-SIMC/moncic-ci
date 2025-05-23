@@ -15,8 +15,8 @@ from .mock.session import MockSession
 from .moncic import Moncic, MoncicConfig
 from .runner import UserConfig
 from .utils.btrfs import is_btrfs
-from .utils.script import Script
 from .utils.privs import ProcessPrivs
+from .utils.script import Script
 
 TEST_CHROOTS = [
     "centos7",

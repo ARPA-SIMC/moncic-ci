@@ -8,8 +8,6 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import NamedTuple
 
-from moncic.context import privs
-
 from ..runner import UserConfig
 from .fs import dirfd
 

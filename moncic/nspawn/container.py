@@ -11,8 +11,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, NoReturn, override
 
-from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
 from moncic import context
+from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
 from moncic.utils.nspawn import escape_bind_ro
 

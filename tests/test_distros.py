@@ -8,7 +8,7 @@ from typing import Any, ClassVar, override
 
 from moncic.distro import Distro, DistroFamily
 from moncic.provision.image import DistroImage
-from moncic.unittest import MoncicTestCase, MockRunLog
+from moncic.unittest import MockRunLog, MoncicTestCase
 
 
 class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
