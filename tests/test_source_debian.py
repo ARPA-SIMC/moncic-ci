@@ -3,24 +3,36 @@ from __future__ import annotations
 import abc
 import contextlib
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from typing import ContextManager, cast
-from collections.abc import Generator
 from unittest import mock
 
 from moncic.distro import DistroFamily
 from moncic.distro.debian import DebianDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
-from moncic.source.debian import (DebianDir, DebianDirGit, DebianDsc,
-                                  DebianGBPRelease, DebianGBPTestDebian,
-                                  DebianGBPTestUpstream, DebianSource, DSCInfo,
-                                  GBPInfo, SourceInfo)
+from moncic.source.debian import (
+    DebianDir,
+    DebianDirGit,
+    DebianDsc,
+    DebianGBPRelease,
+    DebianGBPTestDebian,
+    DebianGBPTestUpstream,
+    DebianSource,
+    DSCInfo,
+    GBPInfo,
+    SourceInfo,
+)
 from moncic.source.local import Dir, File, Git
 
-from .source import (GitFixture, GitRepo, WorkdirFixture,
-                     create_lint_version_fixture_git,
-                     create_lint_version_fixture_path)
+from .source import (
+    GitFixture,
+    GitRepo,
+    WorkdirFixture,
+    create_lint_version_fixture_git,
+    create_lint_version_fixture_path,
+)
 
 SID = cast(DebianDistro, DistroFamily.lookup_distro("sid"))
 

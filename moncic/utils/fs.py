@@ -4,22 +4,22 @@ import contextlib
 import logging
 import os
 import tempfile
-from pathlib import Path
 from collections.abc import Generator
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
 def atomic_writer(
-    fname: str, mode: str = "w+b", chmod: int | None = 0o664, sync: bool = True, use_umask: bool = False, **kw
+    path: Path, mode: str = "w+b", chmod: int | None = 0o664, sync: bool = True, use_umask: bool = False, **kw
 ):
     """
     open/tempfile wrapper to atomically write to a file, by writing its
     contents to a temporary file in the same directory, and renaming it at the
     end of the block if no exception has been raised.
 
-    :arg fname: name of the file to create
+    :arg path: file to create
     :arg mode: passed to mkstemp/open
     :arg chmod: permissions of the resulting file
     :arg sync: if True, call fdatasync before renaming
@@ -33,25 +33,20 @@ def atomic_writer(
         os.umask(cur_umask)
         chmod &= ~cur_umask
 
-    dirname = os.path.dirname(fname)
-    if not os.path.isdir(dirname):
-        os.makedirs(dirname)
+    path.parent.mkdir(parents=True, exist_ok=True)
 
-    fd, abspath = tempfile.mkstemp(dir=dirname, text="b" not in mode, prefix=fname)
-    outfd = open(fd, mode, closefd=True, **kw)
-    try:
-        yield outfd
-        outfd.flush()
-        if sync:
-            os.fdatasync(fd)
-        if chmod is not None:
-            os.fchmod(fd, chmod)
-        os.rename(abspath, fname)
-    except Exception:
-        os.unlink(abspath)
-        raise
-    finally:
-        outfd.close()
+    with tempfile.NamedTemporaryFile(mode, dir=path.parent, prefix=path.name, delete=False) as tf:
+        try:
+            yield tf
+            tf.flush()
+            if sync:
+                os.fdatasync(tf)
+            if chmod is not None:
+                os.fchmod(tf.fileno(), chmod)
+            os.rename(tf.name, path)
+        except Exception:
+            os.unlink(tf.name)
+            raise
 
 
 def is_on_rotational(pathname: str) -> bool | None:

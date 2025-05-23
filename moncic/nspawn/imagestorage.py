@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from moncic.imagestorage import ImageStorage
 from moncic.utils.btrfs import is_btrfs
 
-from .images import BtrfsImages, PlainImages, PlainMachinectlImages, BtrfsMachinectlImages
+from .images import BtrfsImages, BtrfsMachinectlImages, PlainImages, PlainMachinectlImages
 
 if TYPE_CHECKING:
     from moncic.images import Images

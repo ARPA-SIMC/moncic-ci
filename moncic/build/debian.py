@@ -22,7 +22,7 @@ from .utils import link_or_copy
 
 if TYPE_CHECKING:
     from ..container import Container
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
 
@@ -82,8 +82,8 @@ class Debian(Build):
         return [name.strip() for name in res.stdout.strip().splitlines()]
 
     @guest_only
-    def setup_container_guest(self, system: NspawnSystem):
-        super().setup_container_guest(system)
+    def setup_container_guest(self, image: NspawnImage):
+        super().setup_container_guest(image)
 
         # TODO: run apt update if the apt index is older than some threshold
 

@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional, override
 
 from moncic.distro import Distro
-from moncic.image import RunnableImage, ImageType, BootstrappableImage
+from moncic.image import BootstrappableImage, ImageType, RunnableImage
 from moncic.utils.btrfs import Subvolume
 
 if TYPE_CHECKING:
-    from moncic.provision.config import ContainerInfo
     from moncic.container import Container, ContainerConfig
+    from moncic.provision.config import ContainerInfo
 
     from .images import NspawnImages
 
@@ -44,8 +44,9 @@ class NspawnImage(RunnableImage, abc.ABC):
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
     ) -> "Container":
-        from .container import NspawnMaintenanceContainer
         from moncic.provision.image import ConfiguredImage
+
+        from .container import NspawnMaintenanceContainer
 
         match self.bootstrap_from:
             case ConfiguredImage():

@@ -2,23 +2,22 @@ from __future__ import annotations
 
 import abc
 import contextlib
-import graphlib
-import shutil
 import logging
 import os
-import subprocess
+import shutil
 import stat
+import subprocess
 from collections import defaultdict
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, ContextManager, override, Generator
+from typing import TYPE_CHECKING, ContextManager, override
 
-from moncic.runner import LocalRunner
-from moncic.image import BootstrappableImage, RunnableImage, Image
-from moncic.images import BootstrappingImages
-from moncic.utils.btrfs import do_dedupe
-from moncic.utils.btrfs import Subvolume
 from moncic.context import privs
 from moncic.distro import Distro, DistroFamily
+from moncic.image import BootstrappableImage, Image, RunnableImage
+from moncic.images import BootstrappingImages
+from moncic.runner import LocalRunner
+from moncic.utils.btrfs import Subvolume, do_dedupe
 
 from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
 
@@ -77,23 +76,6 @@ class NspawnImages(BootstrappingImages, abc.ABC):
             if tarball_path.exists():
                 return tarball_path
         return None
-
-    def add_dependencies(self, images: list[str]) -> list[str]:
-        """
-        Add dependencies to the given list of images, returning the extended
-        list.
-
-        The list returned is ordered by dependencies: if an image extends
-        another, the base image is listed before those that depend on it.
-        """
-        res: graphlib.TopologicalSorter = graphlib.TopologicalSorter()
-        for name in images:
-            image = self.image(name)
-            if image.bootstrap_info.extends is not None:
-                res.add(image.name, image.bootstrap_info.extends)
-            else:
-                res.add(image.name)
-        return list(res.static_order())
 
     def _find_distro(self, path: Path) -> Distro:
         try:
@@ -155,7 +137,7 @@ class PlainImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path, None, None]:
+    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path]:
         if path.exists():
             logging.info("%s: transactional updates on non-btrfs nspawn images are not supported", path)
             yield path
@@ -253,7 +235,7 @@ class BtrfsImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path, None, None]:
+    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path]:
         work_path = path.parent / f"{path.name}.new"
         subvolume = Subvolume(self.session.moncic.config, work_path, compression)
         if not path.exists():

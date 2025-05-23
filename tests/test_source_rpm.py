@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import contextlib
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from typing import cast
-from collections.abc import Generator
 from unittest import mock
 
 from moncic.distro import DistroFamily
@@ -12,12 +12,15 @@ from moncic.distro.rpm import RpmDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import Dir, File, Git
-from moncic.source.rpm import (ARPASource, ARPASourceDir, ARPASourceGit,
-                               RPMSource)
+from moncic.source.rpm import ARPASource, ARPASourceDir, ARPASourceGit, RPMSource
 
-from .source import (GitFixture, GitRepo, WorkdirFixture,
-                     create_lint_version_fixture_git,
-                     create_lint_version_fixture_path)
+from .source import (
+    GitFixture,
+    GitRepo,
+    WorkdirFixture,
+    create_lint_version_fixture_git,
+    create_lint_version_fixture_path,
+)
 
 ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))
 

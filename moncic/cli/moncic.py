@@ -7,12 +7,14 @@ import tempfile
 import urllib.parse
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import git
 
+from moncic.context import privs
+from moncic.runner import LocalRunner, RunConfig, UserConfig
+
 from ..container import BindConfig, ContainerConfig
-from moncic.runner import RunConfig, UserConfig
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
 from ..source import Source
@@ -20,7 +22,6 @@ from ..source.distro import DistroSource
 from ..source.local import LocalSource
 from .base import Command
 from .utils import SourceTypeAction
-from moncic.context import privs
 
 if TYPE_CHECKING:
     from moncic.nspawn.image import NspawnImage
@@ -58,19 +59,19 @@ def checkout(image: NspawnImage, repo: str | None = None, branch: str | None = N
             yield Path(repo_abspath)
             return
 
-    with tempfile.TemporaryDirectory() as workdir:
+    with tempfile.TemporaryDirectory() as workdir_str:
+        workdir = Path(workdir_str)
         # Git checkout in a temporary directory
         cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]
         if branch is not None:
             cmd += ["--branch", branch]
-        image.local_run(cmd, config=RunConfig(cwd=workdir))
+        LocalRunner.run(logger=image.logger, cmd=cmd, config=RunConfig(cwd=workdir))
         # Look for the directory that git created
         names = os.listdir(workdir)
         if len(names) != 1:
             raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
 
-        repo_path = os.path.join(workdir, names[0])
-        yield Path(repo_path)
+        yield workdir / names[0]
 
 
 class MoncicCommand(Command):
@@ -266,8 +267,7 @@ class SourceCommand(MoncicCommand):
         Instantiate a local Source object
         """
         with Source.create_local(source=self.args.source, branch=self.args.branch) as source:
-            # FIXME: remove cast from python 3.11+
-            yield cast(LocalSource, source)
+            yield source
 
     def distro_source(self, source: LocalSource, distro: Distro) -> DistroSource:
         """

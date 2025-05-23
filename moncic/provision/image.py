@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, override
 
-from moncic.image import BootstrappableImage, RunnableImage
+from moncic.image import BootstrappableImage
 
 from .config import Config
 

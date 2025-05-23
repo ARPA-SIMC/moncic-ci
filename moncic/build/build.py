@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     import subprocess
 
     from ..container import Container
-    from moncic.nspawn.system import NspawnSystem
+    from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
 
@@ -183,17 +183,17 @@ class Build:
         # TODO: remove in favour of something more specific
 
     @guest_only
-    def setup_container_guest(self, system: NspawnSystem):
+    def setup_container_guest(self, image: NspawnImage):
         """
         Set up the build environment in the container
         """
         if not self.quick:
             # Update package databases
-            for cmd in system.distro.get_update_pkgdb_script(system):
+            for cmd in image.distro.get_update_pkgdb_script(image):
                 self.trace_run(cmd)
 
             # Upgrade system packages
-            for cmd in system.distro.get_upgrade_system_script(system):
+            for cmd in image.distro.get_upgrade_system_script(image):
                 self.trace_run(cmd)
 
     @classmethod

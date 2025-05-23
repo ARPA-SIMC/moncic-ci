@@ -60,7 +60,6 @@ class DistroSource(LocalSource, abc.ABC):
         :param artifact_dir: if provided, it is an extra possible source of artifacts
         """
         # Do nothing by default
-        pass
 
     @classmethod
     @abc.abstractmethod

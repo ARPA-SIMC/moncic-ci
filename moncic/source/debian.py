@@ -11,7 +11,7 @@ from collections.abc import Sequence
 from configparser import ConfigParser
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import git
 
@@ -356,7 +356,7 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
         parent: Dir,
         *,
         distro: Distro,
-    ) -> DebianDir:  # TODO: Self from python 3.11+
+    ) -> Self:
         source_info = SourceInfo.create_from_dir(parent.path)
         return cls(**parent.derive_kwargs(distro=distro, source_info=source_info))
 
@@ -367,7 +367,7 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
         *,
         distro: Distro,
         source_info: SourceInfo | None = None,
-    ) -> DebianDirGit:  # TODO: Self from python 3.11+
+    ) -> DebianDirGit:
         if source_info is None:
             source_info = SourceInfo.create_from_dir(parent.path)
         parent = parent.get_clean()

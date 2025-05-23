@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import contextlib
-import re
 import logging
+import re
 import shutil
 import subprocess
 import tempfile
@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING, override
 
 import requests
 
-from ..container import BindConfig, Container, ContainerConfig
 from moncic.runner import LocalRunner
+
+from ..container import BindConfig, ContainerConfig
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:

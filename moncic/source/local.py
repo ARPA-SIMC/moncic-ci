@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import git
 
@@ -37,7 +37,7 @@ class LocalSource(Source, abc.ABC):
         kwargs["path"] = self.path
 
     @abc.abstractmethod
-    def in_path(self, path: Path) -> LocalSource:  # TODO: use Self in 3.11+
+    def in_path(self, path: Path) -> Self:
         """
         Return a new source, the same as this one but on a different path.
 

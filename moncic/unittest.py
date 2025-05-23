@@ -7,18 +7,19 @@ import re
 import shlex
 import subprocess
 import tempfile
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ContextManager
-from collections.abc import Callable
 from unittest import SkipTest, mock
 
 from moncic.nspawn.image import NspawnImage, NspawnImagePlain
 from moncic.nspawn.images import NspawnImages
 
-from .container import Container, RunConfig, UserConfig
+from . import context
+from .container import Container
+from .image import RunnableImage
 from .moncic import Moncic, MoncicConfig
-from .runner import CompletedCallable
+from .runner import CompletedCallable, RunConfig, UserConfig
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 
@@ -51,10 +52,6 @@ class SudoTestSuite(ProcessPrivs):
             raise SkipTest("Tests need to be run under sudo")
 
 
-privs = SudoTestSuite()
-privs.drop()
-
-
 @contextlib.contextmanager
 def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic]:
     """
@@ -66,12 +63,20 @@ def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic]:
     else:
         config = MoncicConfig.load()
 
-    if config.imagedir is None or not config.imagedir.is_dir():
-        with tempfile.TemporaryDirectory() as imagedir:
-            config.imagedir = Path(imagedir)
-            yield Moncic(config=config, privs=privs)
-    else:
-        yield Moncic(config=config, privs=privs)
+    try:
+        privs = SudoTestSuite()
+        privs.drop()
+        old_privs = context.privs
+        context.privs = privs
+
+        if config.imagedir is None or not config.imagedir.is_dir():
+            with tempfile.TemporaryDirectory() as imagedir:
+                config.imagedir = Path(imagedir)
+                yield Moncic(config=config)
+        else:
+            yield Moncic(config=config)
+    finally:
+        context.privs = old_privs
 
 
 class MockRunLog:
@@ -139,12 +144,12 @@ def workdir(filesystem_type: str | None = None) -> Generator[Path]:
             yield Path(imagedir_str)
     elif filesystem_type == "tmpfs":
         with tempfile.TemporaryDirectory() as imagedir_str:
-            with privs.root():
+            with context.privs.root():
                 subprocess.run(["mount", "-t", "tmpfs", "none", imagedir_str], check=True)
             try:
                 yield Path(imagedir_str)
             finally:
-                with privs.root():
+                with context.privs.root():
                     subprocess.run(["umount", imagedir_str], check=True)
     elif filesystem_type == "btrfs":
         with tempfile.TemporaryDirectory() as imagedir_str:
@@ -155,12 +160,12 @@ def workdir(filesystem_type: str | None = None) -> Generator[Path]:
                 with tempfile.NamedTemporaryFile() as backing:
                     backing.truncate(1024 * 1024 * 1024)
                     subprocess.run(["mkfs.btrfs", backing.name], check=True)
-                    with privs.root():
+                    with context.privs.root():
                         subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir.as_posix()], check=True)
                     try:
                         yield imagedir
                     finally:
-                        with privs.root():
+                        with context.privs.root():
                             subprocess.run(["umount", imagedir.as_posix()], check=True)
 
 
@@ -281,6 +286,7 @@ class DistroTestMixin:
         with self.config() as mconfig, make_moncic(mconfig) as moncic:
 
             def _load(mconfig: MoncicConfig, images: NspawnImages, name: str):
+                assert mconfig.imagedir is not None
                 return NspawnImagePlain(
                     images=images,
                     name=name,
@@ -296,5 +302,6 @@ class DistroTestMixin:
     def make_container(self, distro: Distro) -> Generator[Container]:
         with self.make_images(distro) as images:
             image = images.image("test")
+            assert isinstance(image, RunnableImage)
             with image.maintenance_container() as container:
                 yield container

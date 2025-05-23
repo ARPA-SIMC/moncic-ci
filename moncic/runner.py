@@ -18,10 +18,10 @@ import struct
 import subprocess
 import sys
 import types
+from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, BinaryIO, Generic, NamedTuple, TypeVar, cast
-from collections.abc import Callable
 
 import tblib
 
@@ -30,7 +30,6 @@ from .utils import guest, setns
 
 if TYPE_CHECKING:
     from .container import Container
-    from .nspawn.image import NspawnImage
 
 Result = TypeVar("Result")
 
@@ -489,7 +488,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
 
                 if self.config.cwd is not None:
                     os.chdir(self.config.cwd)
-                    env["PWD"] = self.config.cwd
+                    env["PWD"] = self.config.cwd.as_posix()
 
                 # Replace environment
                 os.environ.clear()
@@ -517,6 +516,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 else:
                     # Forward the child return code
                     wres = os.waitid(os.P_PID, pid, os.WEXITED)
+                    assert wres is not None
                     os._exit(wres.si_status)
             except BaseException:
                 self.send_exception()
@@ -540,6 +540,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
             stderr = None
 
         wres = os.waitid(os.P_PID, pid, os.WEXITED)
+        assert wres is not None
         if self.exc_info and wres.si_status == 255:
             raise self.exc_info[1].with_traceback(self.exc_info[2])
 

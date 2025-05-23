@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, cast
 
 from moncic.context import privs
+
 from ..container import ContainerConfig
 from ..runner import UserConfig
 from ..source.distro import DistroSource
@@ -99,7 +100,7 @@ class ContainerSourceOperation(abc.ABC):
         Log all available information about how the task is executed in the container
         """
         # Log moncic config
-        moncic_config = self.image.images.session.moncic.config
+        moncic_config = self.image.session.moncic.config
         for key, value in moncic_config.dict().items():
             log.debug("moncic:%s = %r", key, value)
         # Log container config
@@ -132,7 +133,6 @@ class ContainerSourceOperation(abc.ABC):
         Handle the result value of the main callable run on the guest system
         """
         # Do nothing by default
-        pass
 
     @host_only
     def collect_artifacts(self, container: Container, destdir: Path):
@@ -140,7 +140,6 @@ class ContainerSourceOperation(abc.ABC):
         Collect artifacts from the guest filesystem before it is shut down
         """
         # Do nothing by default
-        pass
 
     @host_only
     def _after_build(self, container: Container):
@@ -148,7 +147,6 @@ class ContainerSourceOperation(abc.ABC):
         Hook to run commands on the container after the main operation ended
         """
         # Do nothing by default
-        pass
 
     @guest_only
     def get_guest_source(self) -> DistroSource:

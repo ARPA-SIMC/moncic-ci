@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 import ruamel.yaml
 import yaml
 
-from moncic.nspawn.image import NspawnImage
+from moncic.image import RunnableImage
 
 from ..exceptions import Fail
 from ..operations import query as ops_query
@@ -94,15 +94,14 @@ class MaintCommand(MoncicCommand):
         Run system maintenance
         """
         image = session.images.image(self.args.name)
-        assert isinstance(image, NspawnImage)
-        with image.maintenance_system() as system:
-            if not system.is_bootstrapped():
-                return
-            log.info("%s: updating image", self.args.name)
-            try:
-                system.update()
-            except Exception:
-                log.error("%s: cannot update image", self.args.name, exc_info=True)
+        assert isinstance(image, RunnableImage)
+        if not image.bootstrapped:
+            return
+        log.info("%s: updating image", self.args.name)
+        try:
+            image.update()
+        except Exception:
+            log.error("%s: cannot update image", self.args.name, exc_info=True)
 
     @contextlib.contextmanager
     def edit_config(self) -> Generator[dict[str, Any]]:

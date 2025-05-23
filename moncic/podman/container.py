@@ -1,18 +1,17 @@
 import dataclasses
-import subprocess
 import signal
+import subprocess
 import warnings
-from pathlib import Path
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
-from typing import Any, override, Generator
-from collections.abc import Callable
-from collections.abc import Iterator
+from pathlib import Path
+from typing import Any, override
 
 import podman
 
-from moncic.container import BindConfig, Container, ContainerConfig, Result
-from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, LocalRunner
+from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
 from moncic.context import privs
+from moncic.runner import CompletedCallable, LocalRunner, RunConfig, SetnsCallableRunner
 
 from .image import PodmanImage
 
@@ -168,7 +167,7 @@ class PodmanContainer(Container):
             return runner.execute()
 
 
-class PodmanMaintenanceContainer(PodmanContainer):
+class PodmanMaintenanceContainer(PodmanContainer, MaintenanceContainer):
     """Non-ephemeral container."""
 
     @classmethod

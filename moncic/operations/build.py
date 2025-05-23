@@ -73,7 +73,7 @@ class Builder(ContainerSourceOperation):
                 run_config.interactive = True
                 run_config.check = False
                 run_config.user = UserConfig.root()
-                run_config.cwd = "/srv/moncic-ci/build"
+                run_config.cwd = Path("/srv/moncic-ci/build")
                 container.run_shell(config=run_config)
             elif cmd == "@linger":
                 container.linger = True

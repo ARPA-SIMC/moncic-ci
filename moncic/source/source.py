@@ -7,9 +7,9 @@ import shlex
 import subprocess
 import tempfile
 import urllib.parse
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
 from collections.abc import Sequence
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Self
 
 import git
 
@@ -51,7 +51,7 @@ class SourceStack(contextlib.ExitStack):
         super().__init__()
         self.entered: bool = False
 
-    def __enter__(self) -> SourceStack:  # TODO: use Self from 3.11+
+    def __enter__(self) -> Self:
         if self.entered:
             raise RuntimeError("__enter__ called in multiple Sources of the same chain")
         super().__enter__()
@@ -101,7 +101,7 @@ class Source(abc.ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
-    def __enter__(self) -> Source:
+    def __enter__(self) -> Self:
         self.stack.__enter__()
         return self
 

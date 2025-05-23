@@ -6,7 +6,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
-from ..utils.osrelease import parse_osrelase
+from moncic.runner import LocalRunner
+from moncic.utils.osrelease import parse_osrelase
 
 if TYPE_CHECKING:
     from moncic.container import ContainerConfig
@@ -199,7 +200,7 @@ class Distro(abc.ABC):
                 "--force",
                 # f"--mirror={self.mirror}",
             ]
-            container.image.local_run(cmd)
+            LocalRunner.run(logger=logging.getLogger(f"distro.{self.name}"), cmd=cmd)
 
         # Cleanup mkosi manifest file
         try:

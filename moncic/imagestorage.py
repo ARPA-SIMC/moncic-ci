@@ -4,7 +4,6 @@ import abc
 import contextlib
 import logging
 from collections.abc import Generator
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -38,6 +37,7 @@ class ImageStorage(abc.ABC):
         """
         Instantiate a default ImageStorage in case no path has been provided
         """
-        from .mock.imagestorage import NspawnImageStorage
+        raise NotImplementedError()
+        # from .mock.imagestorage import NspawnImageStorage
 
-        return NspawnImageStorage.create_mock(session)
+        # return NspawnImageStorage.create_mock(session)

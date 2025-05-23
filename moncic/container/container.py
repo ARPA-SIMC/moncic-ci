@@ -1,16 +1,17 @@
 import abc
+import grp
 import logging
 import os
+import pwd
 import shlex
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack
 from functools import cached_property
 from pathlib import Path
-from typing import Any, TypeVar, ContextManager
-from collections.abc import Callable
+from typing import Any, ContextManager, TypeVar
 
-from moncic.image import Image
+from moncic.image import RunnableImage
 from moncic.runner import CompletedCallable, RunConfig, UserConfig
 from moncic.utils import libbanana
 from moncic.utils.script import Script
@@ -40,7 +41,7 @@ class Container(abc.ABC):
     An instance of an Image in execution as a container
     """
 
-    def __init__(self, image: Image, *, config: ContainerConfig, instance_name: str | None = None):
+    def __init__(self, image: RunnableImage, *, config: ContainerConfig, instance_name: str | None = None):
         config.check()
         self.stack = ExitStack()
         self.image = image
@@ -307,3 +308,7 @@ done
             raise RuntimeError(f"No valid shell found. Tried: {shlex.join(shell_candidates)}")
 
         return self.run([shell, "--login"], config=config)
+
+
+class MaintenanceContainer(Container, abc.ABC):
+    """Non-ephemeral container used for maintenance."""

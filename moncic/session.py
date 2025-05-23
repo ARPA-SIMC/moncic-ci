@@ -9,8 +9,8 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .context import privs
 from . import context
+from .context import privs
 from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
 
@@ -28,7 +28,7 @@ class Session(contextlib.ExitStack):
     """
 
     def __init__(self, moncic: "Moncic"):
-        from .images import Images, ImageRepository, BootstrappingImages
+        from .images import BootstrappingImages, ImageRepository
 
         super().__init__()
         self.moncic = moncic
@@ -48,14 +48,17 @@ class Session(contextlib.ExitStack):
             self._instantiate_images_imagedir(self.moncic.config.imagedir)
 
     def _instantiate_images_imagedir(self, path: Path) -> None:
+        from .images import BootstrappingImages
         from .nspawn.imagestorage import NspawnImageStorage
 
         imagestorage = NspawnImageStorage.create(self, path)
         images = self.enter_context(imagestorage.images())
+        assert isinstance(images, BootstrappingImages)
         self.images.add(images)
         self.bootstrapper = images
 
     def _instantiate_images_default(self) -> None:
+        from .images import BootstrappingImages
         from .nspawn.imagestorage import NspawnImageStorage
         from .podman.images import PodmanImages
 
@@ -64,6 +67,7 @@ class Session(contextlib.ExitStack):
 
         if privs.can_regain():
             images = self.enter_context(NspawnImageStorage.create(self, MACHINECTL_PATH).images())
+            assert isinstance(images, BootstrappingImages)
             self.images.add(images)
             self.bootstrapper = images
         else:

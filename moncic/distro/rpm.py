@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import glob
 import json
 import logging
 import os
@@ -12,8 +11,8 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from ..container import Container, ContainerConfig
 from moncic.runner import LocalRunner
+
 from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
 
@@ -277,7 +276,7 @@ class FedoraDistro(DnfDistro):
     @override
     def get_podman_name(self) -> tuple[str, str]:
         distro, suite = self.name.split(":")
-        return (f"registry.fedoraproject.org/fedora", suite)
+        return ("registry.fedoraproject.org/fedora", suite)
 
 
 class RockyDistro(DnfDistro):
@@ -291,4 +290,4 @@ class RockyDistro(DnfDistro):
     @override
     def get_podman_name(self) -> tuple[str, str]:
         distro, suite = self.name.split(":")
-        return (f"quay.io/rockylinux/rockylinux/", suite)
+        return ("quay.io/rockylinux/rockylinux/", suite)

@@ -3,7 +3,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .image import Image, BootstrappableImage, RunnableImage
+    from .image import BootstrappableImage, Image, RunnableImage
     from .session import Session
 
 log = logging.getLogger("images")
@@ -69,7 +69,7 @@ class ImageRepository:
             res.update(images.list_images())
         return sorted(res)
 
-    def parent_image(self, name: str, parent_of: str) -> "Image":
+    def parent_image(self, name: str, parent_of: str) -> "BootstrappableImage":
         """Return the parent image for a named image."""
         # TODO: change this once podman can generate BoostrappableImage images
         if name != parent_of and self.configured_images.has_image(name):

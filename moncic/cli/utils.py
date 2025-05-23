@@ -50,7 +50,7 @@ class BuildOptionAction(argparse._AppendAction):
     Build subclasses.
     """
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(self, parser, namespace, values, option_string=None) -> None:
         from ..build import Build
 
         if values == "list":

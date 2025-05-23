@@ -6,13 +6,12 @@ import shlex
 import signal
 import subprocess
 import time
-from collections.abc import Iterator, Generator
+from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, NoReturn, override
-from collections.abc import Callable
 
-from moncic.container import BindConfig, Container, ContainerConfig, Result
+from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
 from moncic.context import privs
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
 from moncic.utils.nspawn import escape_bind_ro
@@ -208,7 +207,7 @@ class NspawnContainer(Container):
         return completed
 
 
-class NspawnMaintenanceContainer(NspawnContainer):
+class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
     """Non-ephemeral container."""
 
     @classmethod

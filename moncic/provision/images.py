@@ -11,7 +11,7 @@ from moncic.images import Images
 from .config import Config
 
 if TYPE_CHECKING:
-    from moncic.image import Image
+    from moncic.image import BootstrappableImage
 
 log = logging.getLogger("images")
 
@@ -43,7 +43,7 @@ class ConfiguredImages(Images):
         return name in self.configs
 
     @override
-    def image(self, name: str) -> Image:
+    def image(self, name: str) -> BootstrappableImage:
         from .image import ConfiguredImage
 
         if path := self.configs.get(name):
@@ -74,7 +74,7 @@ class DistroImages(Images):
             return False
 
     @override
-    def image(self, name: str) -> Image:
+    def image(self, name: str) -> BootstrappableImage:
         from .image import DistroImage
 
         distro = DistroFamily.lookup_distro(name)

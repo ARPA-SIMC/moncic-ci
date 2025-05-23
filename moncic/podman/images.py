@@ -1,13 +1,14 @@
 import logging
 from functools import cached_property
-from typing import TYPE_CHECKING, override
 from pathlib import Path
+from typing import TYPE_CHECKING, override
 
 from moncic.image import BootstrappableImage, RunnableImage
 from moncic.images import BootstrappingImages
 
 if TYPE_CHECKING:
     from moncic.session import Session
+
     from .image import PodmanImage
 
 log = logging.getLogger("images")
@@ -66,6 +67,8 @@ class PodmanImages(BootstrappingImages):
 
     @override
     def bootstrap(self, image: BootstrappableImage) -> RunnableImage:
+        import podman as podman_
+
         if self.has_image(image.name):
             return self.image(image.name)
 
@@ -75,7 +78,7 @@ class PodmanImages(BootstrappingImages):
         repository, tag = image.distro.get_podman_name()
         image.logger.info("pulling from %s:%s", repository, tag)
         podman_image = podman.images.pull(repository, tag)
-
+        assert isinstance(podman_image, podman_.domain.images.Image)
         podman_image.tag(self.session.podman_repository_prefix + image.name, "latest")
 
         res = self.image(image.name)

@@ -1,14 +1,14 @@
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, Self, Any
+from typing import TYPE_CHECKING, Any, NamedTuple, Self
 
 import yaml
 
-from moncic.distro import DistroFamily, Distro
+from moncic.distro import Distro
 
 if TYPE_CHECKING:
-    from moncic.session import Session
     from moncic.image import BootstrappableImage
+    from moncic.session import Session
 
 
 class BootstrapInfo(NamedTuple):
@@ -124,7 +124,6 @@ class Config:
             raise RuntimeError(f"{self.path}: neither 'distro' nor 'extends' have been specified")
         parent_name = distro_name or extends_name
 
-        # TODO: make sure we get the bootstrappableimage for it
         self.parent = session.images.parent_image(parent_name, name)
         self.distro = self.parent.distro
 

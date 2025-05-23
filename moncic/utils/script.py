@@ -1,7 +1,8 @@
-from contextlib import contextmanager
-from typing import IO, Generator, Iterable
-from pathlib import Path
 import shlex
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager
+from pathlib import Path
+from typing import IO
 
 
 class Script:

@@ -1,21 +1,21 @@
 import abc
 import enum
-from pathlib import Path
 import hashlib
-import subprocess
 import os
 import re
 import shlex
+import subprocess
 import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, assert_never, TypedDict, override, TYPE_CHECKING
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, TypedDict, assert_never, override
 
 from moncic.image import ImageType
 from moncic.runner import RunConfig, UserConfig
 from moncic.utils.deb import apt_get_cmd
-from moncic.utils.script import Script
 from moncic.utils.nspawn import escape_bind_ro
+from moncic.utils.script import Script
 
 if TYPE_CHECKING:
     from .container import Container
@@ -74,7 +74,11 @@ class BindConfig(abc.ABC):
                            source directory, and add it to apt's sources
         """
 
-        Args = TypedDict("Args", {"source": Path, "destination": Path, "cwd": bool})
+        class Args(TypedDict):
+            source: Path
+            destination: Path
+            cwd: bool
+
         args: Args = {"source": Path(source), "destination": Path(destination), "cwd": cwd}
 
         match BindType(bind_type):

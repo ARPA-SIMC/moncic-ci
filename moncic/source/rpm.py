@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Self
 
 import git
 
@@ -56,21 +56,21 @@ class RPMSource(DistroSource, abc.ABC):
         kwargs["specfile_path"] = self.specfile_path
 
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro) -> RPMSource:  # TODO: use Self from 3.11+
+    def create_from_file(cls, parent: File, *, distro: Distro) -> Self:
         if parent.path.suffix == ".dsc":
             raise Fail(f"{parent.path}: cannot build Debian source package on a RPM distribution")
         else:
             raise Fail(f"{parent.path}: cannot detect source type")
 
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> RPMSource:  # TODO: use Self from 3.11+
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> ARPASourceDir:
         if not isinstance(distro, RpmDistro):
             raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
         specfiles = ARPASourceDir.locate_specfiles(parent.path)
         return ARPASourceDir.prepare_from_dir(parent=parent, specfiles=specfiles, distro=distro)
 
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> RPMSource:  # TODO: use Self from 3.11+
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> ARPASourceGit:
         if not isinstance(distro, RpmDistro):
             raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
         specfiles = ARPASourceGit.locate_specfiles(parent.path)
@@ -163,7 +163,7 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         *,
         distro: Distro,
         specfiles: list[Path] | None = None,
-    ) -> ARPASourceDir:  # TODO: Self from python 3.11+
+    ) -> ARPASourceDir:
         if specfiles is None:
             specfiles = cls.locate_specfiles(parent.path)
         if not specfiles:
@@ -179,7 +179,7 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         *,
         distro: Distro,
         specfiles: list[Path] | None = None,
-    ) -> ARPASourceGit:  # TODO: Self from python 3.11+
+    ) -> ARPASourceGit:
         if specfiles is None:
             specfiles = cls.locate_specfiles(parent.path)
         if not specfiles:

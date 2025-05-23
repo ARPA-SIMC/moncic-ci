@@ -1,10 +1,10 @@
 import io
-import re
 import logging
+import re
 from typing import TYPE_CHECKING, Optional, override
 
 from moncic.distro import DistroFamily
-from moncic.image import RunnableImage, ImageType, BootstrappableImage
+from moncic.image import BootstrappableImage, ImageType, RunnableImage
 from moncic.utils.osrelease import parse_osrelase_contents
 
 if TYPE_CHECKING:
