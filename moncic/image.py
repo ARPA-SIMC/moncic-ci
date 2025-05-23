@@ -1,7 +1,9 @@
 import abc
 import enum
+import subprocess
 import logging
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from moncic.distro import Distro
@@ -38,12 +40,20 @@ class Image(abc.ABC):
         #: True if the image is bootstrapped
         self.bootstrapped: bool = bootstrapped
 
-    @property
-    def logger(self):
+    @cached_property
+    def logger(self) -> logging.Logger:
         """
         Return a logger for this system
         """
         return logging.getLogger(f"image.{self.name}")
+
+    def host_run(
+        self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
+    ) -> subprocess.CompletedProcess:
+        """Run a command in the host system."""
+        from .runner import LocalRunner
+
+        return LocalRunner.run(self.logger, cmd, check=check, cwd=cwd, interactive=interactive)
 
 
 class BootstrappableImage(Image, abc.ABC):
@@ -136,28 +146,19 @@ class RunnableImage(Image, abc.ABC):
             container.forward_user(UserConfig.from_user(u), allow_maint=True)
 
         # Setup network
-        for cmd in self.distro.get_setup_network_script(self):
+        for cmd in self.distro.get_setup_network_script():
             container.run(cmd)
 
         # Update package databases
-        for cmd in self.distro.get_update_pkgdb_script(self):
+        for cmd in self.distro.get_update_pkgdb_script():
             container.run(cmd)
 
         # Upgrade system packages
-        for cmd in self.distro.get_upgrade_system_script(self):
+        for cmd in self.distro.get_upgrade_system_script():
             container.run(cmd)
 
-        # Build list of packages to install, removing duplicates
-        packages: list[str] = []
-        seen: set[str] = set()
-        for pkg in self.bootstrap_from.package_list:
-            if pkg in seen:
-                continue
-            packages.append(pkg)
-            seen.add(pkg)
-
         # Install packages
-        for cmd in self.distro.get_install_packages_script(self, packages):
+        for cmd in self.distro.get_install_packages_script(sorted(self.bootstrap_from.package_list)):
             container.run(cmd)
 
         # Run maintscripts

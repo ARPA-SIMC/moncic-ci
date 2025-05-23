@@ -19,6 +19,10 @@ log = logging.getLogger("images")
 class ConfiguredImages(Images):
     """Images described by configuration files."""
 
+    @override
+    def get_logger(self) -> logging.Logger:
+        return logging.getLogger("images.configured")
+
     @cached_property
     def configs(self) -> dict[str, Path]:
         """Return a dict mapping image names to configuration files."""
@@ -55,6 +59,10 @@ class ConfiguredImages(Images):
 
 class DistroImages(Images):
     """Images described by Moncic-CI distribution database."""
+
+    @override
+    def get_logger(self) -> logging.Logger:
+        return logging.getLogger("images.distro")
 
     @override
     def list_images(self) -> list[str]:

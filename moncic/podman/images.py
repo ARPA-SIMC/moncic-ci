@@ -21,6 +21,10 @@ class PodmanImages(BootstrappingImages):
         self.session = session
 
     @override
+    def get_logger(self) -> logging.Logger:
+        return logging.getLogger("images.podman")
+
+    @override
     def image(self, name: str) -> "PodmanImage":
         """
         Return the configuration for the named system

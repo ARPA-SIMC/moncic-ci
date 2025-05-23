@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import copy
 import logging
@@ -9,23 +7,16 @@ import subprocess
 import tempfile
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ContextManager
-from unittest import SkipTest, mock
-
-from moncic.nspawn.image import NspawnImage, NspawnImagePlain
-from moncic.nspawn.images import NspawnImages
+from typing import Any, ClassVar
+from unittest import SkipTest, TestCase
 
 from . import context
-from .container import Container
-from .image import RunnableImage
+from .mock.session import MockSession
 from .moncic import Moncic, MoncicConfig
-from .runner import CompletedCallable, RunConfig, UserConfig
+from .runner import UserConfig
 from .utils.btrfs import is_btrfs
+from .utils.script import Script
 from .utils.privs import ProcessPrivs
-
-if TYPE_CHECKING:
-    from moncic import imagestorage
-    from moncic.distro import Distro
 
 TEST_CHROOTS = [
     "centos7",
@@ -52,43 +43,22 @@ class SudoTestSuite(ProcessPrivs):
             raise SkipTest("Tests need to be run under sudo")
 
 
-@contextlib.contextmanager
-def make_moncic(config: MoncicConfig | None = None) -> Generator[Moncic]:
-    """
-    Create a Moncic instance configured to work with the test suite.
-    """
-    if config is not None:
-        # Use dataclasses.replace to make a copy
-        config = copy.deepcopy(config)
-    else:
-        config = MoncicConfig.load()
-
-    try:
-        privs = SudoTestSuite()
-        privs.drop()
-        old_privs = context.privs
-        context.privs = privs
-
-        if config.imagedir is None or not config.imagedir.is_dir():
-            with tempfile.TemporaryDirectory() as imagedir:
-                config.imagedir = Path(imagedir)
-                yield Moncic(config=config)
-        else:
-            yield Moncic(config=config)
-    finally:
-        context.privs = old_privs
-
-
 class MockRunLog:
     def __init__(self, testcase):
         self.testcase = testcase
         self.log = []
 
+    def append_action(self, action: str) -> None:
+        self.log.append((action, {}))
+
     def append(self, cmd: list[str], kwargs: dict[str, Any]):
         self.log.append((shlex.join(cmd), kwargs))
 
-    def append_script(self, body: str):
-        self.log.append((f"script:{body}", {}))
+    def append_script(self, script: Script | str):
+        if isinstance(script, Script):
+            self.log.append((script.title, {"script": script}))
+        else:
+            self.log.append((f"script:{script}", {}))
 
     def append_callable(self, func: Callable[[], int | None]):
         self.log.append((f"callable:{func.__name__}", {}))
@@ -132,176 +102,90 @@ class MockRunLog:
         self.testcase.assertEqual(self.log, [])
 
 
-@contextlib.contextmanager
-def workdir(filesystem_type: str | None = None) -> Generator[Path]:
-    """
-    Create a temporary working directory. If filesystem_type is set to one of
-    the supported options, make sure it is backed by that given filessytem
-    """
-    if filesystem_type is None or filesystem_type == "default":
-        # Default: let tempfile choose
-        with tempfile.TemporaryDirectory() as imagedir_str:
-            yield Path(imagedir_str)
-    elif filesystem_type == "tmpfs":
-        with tempfile.TemporaryDirectory() as imagedir_str:
-            with context.privs.root():
-                subprocess.run(["mount", "-t", "tmpfs", "none", imagedir_str], check=True)
-            try:
-                yield Path(imagedir_str)
-            finally:
-                with context.privs.root():
-                    subprocess.run(["umount", imagedir_str], check=True)
-    elif filesystem_type == "btrfs":
-        with tempfile.TemporaryDirectory() as imagedir_str:
-            imagedir = Path(imagedir_str)
-            if is_btrfs(imagedir):
-                yield imagedir
-            else:
-                with tempfile.NamedTemporaryFile() as backing:
-                    backing.truncate(1024 * 1024 * 1024)
-                    subprocess.run(["mkfs.btrfs", backing.name], check=True)
-                    with context.privs.root():
-                        subprocess.run(["mount", "-t", "btrfs", backing.name, imagedir.as_posix()], check=True)
-                    try:
-                        yield imagedir
-                    finally:
-                        with context.privs.root():
-                            subprocess.run(["umount", imagedir.as_posix()], check=True)
+class MoncicTestCase(TestCase):
+    old_privs: ClassVar[ProcessPrivs]
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        privs = SudoTestSuite()
+        privs.drop()
+        cls.old_privs = context.privs
+        context.privs = privs
 
-class DistroTestMixin:
-    """
-    TestCase mixin with extra common utility infrastructure to test Moncic-CI
-    """
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        context.privs = cls.old_privs
 
     @contextlib.contextmanager
-    def config(self, filesystem_type: str | None = None) -> Generator[MoncicConfig]:
+    def mount(self, mount_type: str, src: str | Path, path: Path) -> Generator[None]:
+        with context.privs.root():
+            subprocess.run(["mount", "-t", mount_type, str(src), str(path)], check=True)
+        try:
+            yield None
+        finally:
+            with context.privs.root():
+                subprocess.run(["umount", str(path)], check=True)
+
+    def tempdir(self) -> Path:
+        """Create a temporary directory."""
+        return Path(self.enterContext(tempfile.TemporaryDirectory()))
+
+    def workdir(self, filesystem_type: str | None = None) -> Path:
+        """
+        Create a temporary working directory. If filesystem_type is set to one of
+        the supported options, make sure it is backed by that given filessytem
+        """
+        if filesystem_type is None or filesystem_type == "default":
+            # Default: let tempfile choose
+            return self.tempdir()
+        elif filesystem_type == "tmpfs":
+            imagedir = self.tempdir()
+            self.enterContext(self.mount("tmpfs", "none", imagedir))
+            return imagedir
+        elif filesystem_type == "btrfs":
+            imagedir = self.tempdir()
+            if is_btrfs(imagedir):
+                return imagedir
+            backing = self.enterContext(tempfile.NamedTemporaryFile())
+            backing.truncate(1024 * 1024 * 1024)
+            subprocess.run(["mkfs.btrfs", backing.name], check=True)
+            self.enterContext(self.mount("btrfs", backing.name, imagedir))
+            return imagedir
+        else:
+            raise NotImplementedError(f"unsupported filesystem type {filesystem_type!r}")
+
+    def config(self, filesystem_type: str | None = None) -> MoncicConfig:
         if filesystem_type is None:
             filesystem_type = getattr(self, "DEFAULT_FILESYSTEM_TYPE", None)
+        imagedir = self.workdir(filesystem_type)
+        res = MoncicConfig()
+        res.imagedir = imagedir
+        res.imageconfdirs = []
+        res.deb_cache_dir = None
+        return res
 
-        with workdir(filesystem_type=filesystem_type) as imagedir:
-            res = MoncicConfig()
-            res.imagedir = imagedir
-            res.imageconfdirs = []
-            res.deb_cache_dir = None
-            yield res
-
-    @contextlib.contextmanager
-    def _mock_system(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog]:
+    def moncic(self, config: MoncicConfig | None = None) -> Moncic:
         """
-        Mock System objects to log operations instead of running them
+        Create a Moncic instance configured to work with the test suite.
         """
-        rlog: MockRunLog
-        if run_log is None:
-            rlog = MockRunLog(self)
+        if config is not None:
+            # Use dataclasses.replace to make a copy
+            config = copy.deepcopy(config)
         else:
-            rlog = run_log
+            config = MoncicConfig.load()
 
-        def _subvolume_replace_subvolume(self, path: str):
-            rlog.append(["<replace>", self.path, path], {})
-            self.path = path
+        config.imageconfdirs = [self.tempdir()]
 
-        def _subvolume_local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
-            rlog.append(cmd, {})
-            return subprocess.CompletedProcess(cmd, 0, b"", b"")
-
-        def _images_local_run(self: NspawnImage, cmd: list[str]) -> subprocess.CompletedProcess:
-            rlog.append(cmd, {})
-            return subprocess.CompletedProcess(cmd, 0, b"", b"")
-
-        def _update_cachedir(self):
-            rlog.append_cachedir()
-
-        with mock.patch("moncic.utils.btrfs.Subvolume.replace_subvolume", new=_subvolume_replace_subvolume):
-            with mock.patch("moncic.utils.btrfs.Subvolume.local_run", new=_subvolume_local_run):
-                with mock.patch("moncic.nspawn.image.NspawnImage.local_run", new=_images_local_run):
-                    with mock.patch("moncic.nspawn.image.NspawnImage._update_cachedir", new=_update_cachedir):
-                        yield rlog
-
-    @contextlib.contextmanager
-    def _mock_container(self, run_log: MockRunLog | None = None) -> Generator[MockRunLog]:
-        """
-        Mock System objects to log operations instead of running them
-        """
-        rlog: MockRunLog
-        if run_log is None:
-            rlog = MockRunLog(self)
+        if config.imagedir is None or not config.imagedir.is_dir():
+            imagedir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+            config.imagedir = Path(imagedir)
+            return Moncic(config=config)
         else:
-            rlog = run_log
+            return Moncic(config=config)
 
-        def _start(self):
-            self.started = True
-
-        def _stop(self, exc: Exception | None):
-            self.started = False
-
-        def _forward_user(self, user: UserConfig, allow_maint: bool = False):
-            rlog.append_forward_user(user)
-
-        def _run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
-            rlog.append(command, {})
-            return CompletedCallable(command, 0, b"", b"")
-
-        def _run_script(self, body: str, config: RunConfig | None = None) -> CompletedCallable:
-            rlog.append_script(body)
-            return CompletedCallable(["script"], 0, b"", b"")
-
-        def _run_callable(self, func: Callable[[], int | None], config: RunConfig | None = None) -> CompletedCallable:
-            rlog.append_callable(func)
-            return CompletedCallable(func.__name__, 0, b"", b"")
-
-        with mock.patch("moncic.nspawn.container.NspawnContainer._start", new=_start):
-            with mock.patch("moncic.nspawn.container.NspawnContainer._stop", new=_stop):
-                with mock.patch("moncic.nspawn.container.NspawnContainer.forward_user", new=_forward_user):
-                    with mock.patch("moncic.nspawn.container.NspawnContainer.run", new=_run):
-                        with mock.patch("moncic.nspawn.container.NspawnContainer.run_script", new=_run_script):
-                            with mock.patch("moncic.nspawn.container.NspawnContainer.run_callable", new=_run_callable):
-                                yield rlog
-
-    @contextlib.contextmanager
-    def mock(self, system: bool = True, container: bool = True) -> Generator[MockRunLog]:
-        """
-        Mock System or Container objects
-        """
-        run_log = MockRunLog(self)
-
-        msys: ContextManager[MockRunLog]
-        if system:
-            msys = self._mock_system(run_log)
-        else:
-            msys = contextlib.nullcontext(run_log)
-
-        mcont: ContextManager[MockRunLog]
-        if container:
-            mcont = self._mock_container(run_log)
-        else:
-            mcont = contextlib.nullcontext(run_log)
-
-        with msys as run_log:
-            with mcont as run_log:
-                yield run_log
-
-    @contextlib.contextmanager
-    def make_images(self, distro: Distro) -> Generator[imagestorage.Images]:
-        with self.config() as mconfig, make_moncic(mconfig) as moncic:
-
-            def _load(mconfig: MoncicConfig, images: NspawnImages, name: str):
-                assert mconfig.imagedir is not None
-                return NspawnImagePlain(
-                    images=images,
-                    name=name,
-                    distro=distro,
-                    path=mconfig.imagedir / "test",
-                )
-
-            with mock.patch("moncic.nspawn.image.NspawnImage.load", new=_load):
-                with moncic.session() as session:
-                    yield session.images
-
-    @contextlib.contextmanager
-    def make_container(self, distro: Distro) -> Generator[Container]:
-        with self.make_images(distro) as images:
-            image = images.image("test")
-            assert isinstance(image, RunnableImage)
-            with image.maintenance_container() as container:
-                yield container
+    def mock_session(self, moncic: Moncic | None = None) -> MockSession:
+        if moncic is None:
+            moncic = self.moncic()
+        return MockSession(moncic, MockRunLog(self))

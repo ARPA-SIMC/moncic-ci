@@ -8,7 +8,7 @@ from typing import Any, Self, overload
 import yaml
 
 from .context import privs
-from .session import MockSession, Session
+from .session import Session
 from .utils.privs import ProcessPrivs
 
 log = logging.getLogger(__name__)
@@ -179,14 +179,6 @@ class Moncic:
         Session is a context manager, so you can use this as `with moncic.session() as session:`
         """
         return Session(self)
-
-    def mock_session(self) -> Session:
-        """
-        Create a new mock session for tests.
-
-        Session is a context manager, so you can use this as `with moncic.mock_session() as session:`
-        """
-        return MockSession(self)
 
     @property
     def privs(self) -> ProcessPrivs:

@@ -16,7 +16,6 @@ from moncic.context import privs
 from moncic.distro import Distro, DistroFamily
 from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
-from moncic.runner import LocalRunner
 from moncic.utils.btrfs import Subvolume, do_dedupe
 
 from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
@@ -38,6 +37,10 @@ class NspawnImages(BootstrappingImages, abc.ABC):
         self.session = session
         self.imagedir = imagedir
         self.logger = logging.getLogger("images.nspawn")
+
+    @override
+    def get_logger(self) -> logging.Logger:
+        return logging.getLogger("images.nspawn")
 
     @abc.abstractmethod
     @override
@@ -167,7 +170,7 @@ class PlainImages(NspawnImages):
             case _:
                 raise NotImplementedError(f"Cannot extend image of type {image.__class__}")
         assert isinstance(image, NspawnImage)
-        LocalRunner.run(logger=self.logger, cmd=["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
+        image.host_run(["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
 
     @override
     def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
@@ -175,9 +178,9 @@ class PlainImages(NspawnImages):
         if tarball_path is not None:
             # Shortcut in case we have a chroot in a tarball
             path.mkdir()
-            LocalRunner.run(logger=self.logger, cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
+            self.host_run(["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
         else:
-            distro.bootstrap(path)
+            distro.bootstrap(self, path)
 
 
 class BtrfsImages(NspawnImages):
@@ -281,9 +284,9 @@ class BtrfsImages(NspawnImages):
         tarball_path = self.get_distro_tarball(distro)
         if tarball_path is not None:
             # Shortcut in case we have a chroot in a tarball
-            LocalRunner.run(logger=self.logger, cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
+            self.host_run(cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
         else:
-            distro.bootstrap(path)
+            distro.bootstrap(self, path)
 
 
 class MachinectlImages(NspawnImages):

@@ -9,35 +9,26 @@ import unittest
 from collections.abc import Generator
 from typing import ClassVar
 
-from moncic.container import BindConfig, Container, ContainerConfig, RunConfig, UserConfig
+from moncic import context
+from moncic.container import BindConfig, Container, ContainerConfig
 from moncic.nspawn.image import NspawnImage
 from moncic.session import Session
-from moncic.unittest import TEST_CHROOTS, make_moncic, privs
+from moncic.runner import UserConfig
+from moncic.unittest import TEST_CHROOTS, MoncicTestCase
 
 
-class RunTestCase:
+class RunTestCase(MoncicTestCase):
     distro_name: str
     session: ClassVar[Session]
 
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.cls_exit_stack = contextlib.ExitStack()
-        cls.moncic = cls.cls_exit_stack.enter_context(make_moncic())
-        cls.session = cls.cls_exit_stack.enter_context(cls.moncic.session())
-
-    @classmethod
-    def tearDownClass(cls):
-        with privs.root():
-            cls.cls_exit_stack.close()
-        cls.images = None
-        cls.moncic = None
-        cls.cls_exit_stack = None
-        super().tearDownClass()
+    def setUp(self):
+        super().setUp()
+        self.moncic = self.moncic()
+        self.session = self.enterContext(self.moncic.session())
 
     @contextlib.contextmanager
     def image(self) -> Generator[NspawnImage, None, None]:
-        with privs.root():
+        with context.privs.root():
             if self.distro_name not in self.session.images.list_images():
                 raise unittest.SkipTest(f"Image {self.distro_name} not available")
             image = self.session.images.image(self.distro_name)
@@ -194,35 +185,35 @@ class RunTestCase:
 
     def test_forward_user_workdir(self):
         user = UserConfig.from_sudoer()
+        workdir = self.tempdir()
 
-        with tempfile.TemporaryDirectory() as workdir:
-            # By default, things are run as root
-            container_config = ContainerConfig()
-            container_config.configure_workdir(workdir)
-            with self.container(config=container_config) as container:
-                res = container.run(["/usr/bin/id", "-u"])
-                self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")
-                self.assertEqual(res.stderr, b"")
+        # By default, things are run as root
+        container_config = ContainerConfig()
+        container_config.configure_workdir(workdir)
+        with self.container(config=container_config) as container:
+            res = container.run(["/usr/bin/id", "-u"])
+            self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")
+            self.assertEqual(res.stderr, b"")
 
-                res = container.run_script("#!/bin/sh\n/usr/bin/id -u\n")
-                self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")
-                self.assertEqual(res.stderr, b"")
+            res = container.run_script("#!/bin/sh\n/usr/bin/id -u\n")
+            self.assertEqual(res.stdout.decode(), f"{user.user_id}\n")
+            self.assertEqual(res.stderr, b"")
 
-                res = container.run(["/usr/bin/pwd"])
-                self.assertEqual(res.stdout.decode(), f"/media/{os.path.basename(workdir)}\n")
-                self.assertEqual(res.stderr, b"")
+            res = container.run(["/usr/bin/pwd"])
+            self.assertEqual(res.stdout.decode(), f"/media/{os.path.basename(workdir)}\n")
+            self.assertEqual(res.stderr, b"")
 
-                binds = list(container.binds())
-                self.assertIn(len(binds), (1, 2))
-                self.assertEqual(binds[0].source, workdir)
-                self.assertEqual(binds[0].destination, "/media/" + os.path.basename(workdir))
-                self.assertEqual(binds[0].bind_type, "rw")
-                self.assertEqual(binds[0].mount_options, [])
-                if len(binds) == 2:
-                    # self.assertEqual(binds[1].source, workdir)
-                    self.assertEqual(binds[1].destination, "/var/cache/apt/archives")
-                    self.assertEqual(binds[1].bind_type, "rw")
-                    self.assertEqual(binds[1].mount_options, [])
+            binds = list(container.binds())
+            self.assertIn(len(binds), (1, 2))
+            self.assertEqual(binds[0].source, workdir)
+            self.assertEqual(binds[0].destination, "/media/" + os.path.basename(workdir))
+            self.assertEqual(binds[0].bind_type, "rw")
+            self.assertEqual(binds[0].mount_options, [])
+            if len(binds) == 2:
+                # self.assertEqual(binds[1].source, workdir)
+                self.assertEqual(binds[1].destination, "/var/cache/apt/archives")
+                self.assertEqual(binds[1].bind_type, "rw")
+                self.assertEqual(binds[1].mount_options, [])
 
     def test_bind_mount_rw(self):
         with tempfile.TemporaryDirectory() as workdir:
@@ -354,3 +345,5 @@ for distro_name in TEST_CHROOTS:
     test_case = type(cls_name, (RunTestCase, unittest.TestCase), {"distro_name": distro_name})
     test_case.__module__ = __name__
     setattr(this_module, cls_name, test_case)
+
+del RunTestCase

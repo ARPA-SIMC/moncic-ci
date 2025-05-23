@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import contextlib
 import logging
 import os
-import unittest
 
-from moncic.unittest import make_moncic, privs
+from moncic import context
+from moncic.unittest import MoncicTestCase
 
 # Use this image, if it exists, as a base for maintenance tests
 # It can be any Linux distribution, and it will be snapshotted for the tests
@@ -13,33 +12,30 @@ base_image_name = "rocky8"
 test_image_name = "moncic-ci-tests"
 
 
-class TestMaintenance(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.cls_exit_stack = contextlib.ExitStack()
-        cls.moncic = cls.cls_exit_stack.enter_context(make_moncic())
-        cls.session = cls.cls_exit_stack.enter_context(cls.moncic.session())
-        cls.images = cls.session.images
-        cls.test_image_config_file = os.path.join(cls.images.imagedir, test_image_name) + ".yaml"
+class TestMaintenance(MoncicTestCase):
+    def setUp(self):
+        super().setUp()
+        self.moncic = self.moncic()
+        self.session = self.enterContext(self.moncic.session())
+        self.images = self.session.images
+        self.test_image_config_file = self.moncic.config.imagedir / (test_image_name + ".yaml")
         # Bootstrap a snapshot of base_image_name to use as our playground
-        with privs.root():
-            if base_image_name not in cls.images.list_images():
-                raise unittest.SkipTest(f"Image {base_image_name} not available")
-            with open(cls.test_image_config_file, "w") as fd:
-                fd.write(
-                    f"""
+        with context.privs.root():
+            if base_image_name not in self.images.list_images():
+                self.skipTest(f"Image {base_image_name} not available")
+            self.test_image_config_file.write_text(
+                f"""
 extends: {base_image_name}
 maintscript: |
     # Prevent the default system update
     /bin/true
 """
-                )
-            cls.images.bootstrap_system(test_image_name)
+            )
+            self.images.bootstrap_system(test_image_name)
 
     @classmethod
     def tearDownClass(cls):
-        with privs.root():
+        with context.privs.root():
             image = cls.images.image(test_image_name)
             image.remove()
             try:
@@ -53,7 +49,7 @@ maintscript: |
         super().tearDownClass()
 
     def test_transactional_update_succeeded(self):
-        with privs.root():
+        with context.privs.root():
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
             image = self.images.image(test_image_name)
@@ -84,7 +80,7 @@ maintscript: |
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".tmp"))
 
     def test_transactional_update_failed(self):
-        with privs.root():
+        with context.privs.root():
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
             with self.assertRaises(RuntimeError):

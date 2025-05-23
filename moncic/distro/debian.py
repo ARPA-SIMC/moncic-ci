@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import logging
 import re
 import shutil
 import subprocess
@@ -12,13 +11,12 @@ from typing import TYPE_CHECKING, override
 
 import requests
 
-from moncic.runner import LocalRunner
-
 from ..container import BindConfig, ContainerConfig
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
     from moncic.image import Image
+    from moncic.images import Images
 
 
 @DistroFamily.register
@@ -146,7 +144,7 @@ class DebianDistro(Distro):
             return ["debian/" + self.suite, "debian/latest"]
 
     @override
-    def bootstrap(self, path: Path):
+    def bootstrap(self, images: "Images", path: Path) -> None:
         with contextlib.ExitStack() as stack:
             installroot = path.absolute()
             cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
@@ -169,20 +167,20 @@ class DebianDistro(Distro):
             eatmydata = shutil.which("eatmydata")
             if eatmydata is not None:
                 cmd.insert(0, eatmydata)
-            LocalRunner.run(logger=logging.getLogger(f"distro.{self.name}"), cmd=cmd)
+            images.host_run(cmd)
 
-    def get_update_pkgdb_script(self, image: Image):
-        res = super().get_update_pkgdb_script(image)
+    def get_update_pkgdb_script(self):
+        res = super().get_update_pkgdb_script()
         res.append(["/usr/bin/apt-get", "update"])
         return res
 
-    def get_upgrade_system_script(self, image: Image) -> list[list[str]]:
-        res = super().get_upgrade_system_script(image)
+    def get_upgrade_system_script(self) -> list[list[str]]:
+        res = super().get_upgrade_system_script()
         res.append(self.APT_INSTALL_CMD + ["full-upgrade"])
         return res
 
-    def get_install_packages_script(self, image: Image, packages: list[str]) -> list[list[str]]:
-        res = super().get_install_packages_script(image, packages)
+    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
+        res = super().get_install_packages_script(packages)
         res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res
 

@@ -6,12 +6,12 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
-from moncic.runner import LocalRunner
 from moncic.utils.osrelease import parse_osrelase
 
 if TYPE_CHECKING:
     from moncic.container import ContainerConfig
     from moncic.image import Image
+    from moncic.images import Images
 
 log = logging.getLogger(__name__)
 
@@ -178,7 +178,7 @@ class Distro(abc.ABC):
         """
         # Do nothing by default
 
-    def bootstrap(self, path: Path) -> None:
+    def bootstrap(self, images: "Images", path: Path) -> None:
         """
         Boostrap a fresh system inside the given directory
         """
@@ -200,7 +200,7 @@ class Distro(abc.ABC):
                 "--force",
                 # f"--mirror={self.mirror}",
             ]
-            LocalRunner.run(logger=logging.getLogger(f"distro.{self.name}"), cmd=cmd)
+            images.host_run(cmd)
 
         # Cleanup mkosi manifest file
         try:
@@ -208,25 +208,25 @@ class Distro(abc.ABC):
         except FileNotFoundError:
             pass
 
-    def get_setup_network_script(self, image: "Image") -> list[list[str]]:
+    def get_setup_network_script(self) -> list[list[str]]:
         """
         Get the sequence of commands to use to setup networking
         """
         return []
 
-    def get_update_pkgdb_script(self, image: "Image") -> list[list[str]]:
+    def get_update_pkgdb_script(self) -> list[list[str]]:
         """
         Get the sequence of commands to use to update package information
         """
         return []
 
-    def get_upgrade_system_script(self, image: "Image") -> list[list[str]]:
+    def get_upgrade_system_script(self) -> list[list[str]]:
         """
         Get the sequence of commands to use to upgrade system packages
         """
         return []
 
-    def get_install_packages_script(self, image: "Image", packages: list[str]) -> list[list[str]]:
+    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
         """
         Get the sequence of commands to use to install packages
         """

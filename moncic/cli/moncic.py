@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import git
 
 from moncic.context import privs
-from moncic.runner import LocalRunner, RunConfig, UserConfig
+from moncic.runner import RunConfig, UserConfig
 
 from ..container import BindConfig, ContainerConfig
 from ..exceptions import Fail
@@ -65,7 +65,7 @@ def checkout(image: NspawnImage, repo: str | None = None, branch: str | None = N
         cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]
         if branch is not None:
             cmd += ["--branch", branch]
-        LocalRunner.run(logger=image.logger, cmd=cmd, config=RunConfig(cwd=workdir))
+        image.host_run(cmd, cwd=workdir)
         # Look for the directory that git created
         names = os.listdir(workdir)
         if len(names) != 1:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import logging
 import os
 import shutil
 import stat
@@ -11,16 +10,12 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from moncic.runner import LocalRunner
-
 from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
     from moncic.image import Image
-
-
-log = logging.getLogger(__name__)
+    from moncic.images import Images
 
 
 @DistroFamily.register
@@ -90,7 +85,7 @@ class RpmDistro(Distro):
             yield fd.name
 
     @override
-    def bootstrap(self, path: Path):
+    def bootstrap(self, images: "Images", path: Path) -> None:
         installer = shutil.which("dnf")
         if installer is None:
             installer = shutil.which("yum")
@@ -121,16 +116,14 @@ class RpmDistro(Distro):
             # eatmydata = shutil.which("eatmydata")
             # if eatmydata is not None:
             #     cmd.insert(0, eatmydata)
-
-            logger = logging.getLogger(f"distro.{self.name}")
-            LocalRunner.run(logger=logger, cmd=cmd)
+            images.host_run(cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
             # created system. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
             private_rpmdb = installroot / "root" / ".rpmdb"
             system_rpmdb = installroot / "var" / "lib" / "rpm"
             if os.path.isdir(private_rpmdb):
-                log.info("Moving %r to %r", private_rpmdb, system_rpmdb)
+                images.logger.info("Moving %r to %r", private_rpmdb, system_rpmdb)
                 if os.path.islink(system_rpmdb):
                     system_rpmdb = system_rpmdb.resolve()
                     if installroot.as_posix() not in os.path.commonprefix((system_rpmdb, installroot)):
@@ -139,25 +132,25 @@ class RpmDistro(Distro):
                         )
                 shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-            LocalRunner.run(logger=logger, cmd=["chroot", installroot.as_posix(), "/usr/bin/rpmdb", "--rebuilddb"])
+            images.host_run(["chroot", installroot.as_posix(), "/usr/bin/rpmdb", "--rebuilddb"])
 
 
 class YumDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["yum"]
 
-    def get_update_pkgdb_script(self, image: Image):
-        res = super().get_update_pkgdb_script(image)
+    def get_update_pkgdb_script(self):
+        res = super().get_update_pkgdb_script()
         res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, image: Image) -> list[list[str]]:
-        res = super().get_upgrade_system_script(image)
+    def get_upgrade_system_script(self) -> list[list[str]]:
+        res = super().get_upgrade_system_script()
         res.append(["/usr/bin/yum", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, image: Image, packages: list[str]) -> list[list[str]]:
-        res = super().get_install_packages_script(image, packages)
+    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
+        res = super().get_install_packages_script(packages)
         res.append(["/usr/bin/yum", "install", "-q", "-y"] + packages)
         return res
 
@@ -166,23 +159,23 @@ class DnfDistro(RpmDistro):
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["dnf"]
 
-    def get_setup_network_script(self, image: Image):
-        res = super().get_setup_network_script(image)
+    def get_setup_network_script(self):
+        res = super().get_setup_network_script()
         res.append(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
         return res
 
-    def get_update_pkgdb_script(self, image: Image):
-        res = super().get_update_pkgdb_script(image)
+    def get_update_pkgdb_script(self):
+        res = super().get_update_pkgdb_script()
         res.append(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
         return res
 
-    def get_upgrade_system_script(self, image: Image) -> list[list[str]]:
-        res = super().get_upgrade_system_script(image)
+    def get_upgrade_system_script(self) -> list[list[str]]:
+        res = super().get_upgrade_system_script()
         res.append(["/usr/bin/dnf", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, image: Image, packages: list[str]):
-        res = super().get_install_packages_script(image, packages)
+    def get_install_packages_script(self, packages: list[str]):
+        res = super().get_install_packages_script(packages)
         res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
         return res
 
@@ -227,8 +220,8 @@ class Centos7(YumDistro):
         return ("quay.io/centos/centos/centos7", "latest")
 
     @override
-    def bootstrap(self, path: Path) -> None:
-        super().bootstrap(path)
+    def bootstrap(self, images: "Images", path: Path) -> None:
+        super().bootstrap(images, path)
         installroot = path.absolute()
         varsdir = installroot / "etc" / "yum" / "vars"
         os.makedirs(varsdir, exist_ok=True)
@@ -246,12 +239,12 @@ class Centos8(DnfDistro):
         return ("quay.io/centos/centos/centos8", "latest")
 
     @override
-    def bootstrap(self, path: Path):
-        super().bootstrap(path)
+    def bootstrap(self, images: "Images", path: Path) -> None:
+        super().bootstrap(images, path)
         # self.system.local_run(["tar", "-C", self.system.path, "-zxf", "images/centos8.tar.gz"])
         # Fixup repository information to point at the vault
         for p in (path / "etc/yum.repos.d/").glob("CentOS-*"):
-            log.info("Updating %s to point mirrors to the Vault", p)
+            images.logger.info("Updating %s to point mirrors to the Vault", p)
             with p.open() as fd:
                 st = os.stat(fd.fileno())
                 with atomic_writer(p, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:

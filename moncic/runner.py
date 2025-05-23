@@ -314,16 +314,17 @@ class LocalRunner(AsyncioRunner):
 
     @classmethod
     def run(
-        cls, *, logger: logging.Logger, cmd: list[str], config: RunConfig | None = None, path: Path | None = None
+        cls,
+        logger: logging.Logger,
+        cmd: list[str],
+        *,
+        check: bool = True,
+        cwd: Path | None = None,
+        interactive: bool = False,
+        use_path: bool = False,
     ) -> subprocess.CompletedProcess:
-        """
-        Run a one-off command
-        """
-        if config is None:
-            config = RunConfig()
-        if path and path.exists() and config.cwd is None:
-            config.cwd = path
-
+        """Run a command in the host system."""
+        config = RunConfig(check=check, cwd=cwd, interactive=interactive, use_path=use_path)
         runner = LocalRunner(logger, config, cmd)
         return runner.execute()
 

@@ -10,6 +10,7 @@ from contextlib import ExitStack
 from functools import cached_property
 from pathlib import Path
 from typing import Any, ContextManager, TypeVar
+import subprocess
 
 from moncic.image import RunnableImage
 from moncic.runner import CompletedCallable, RunConfig, UserConfig
@@ -67,6 +68,21 @@ class Container(abc.ABC):
         if self._instance_name:
             return self._instance_name
         return self.get_instance_name()
+
+    @cached_property
+    def logger(self) -> logging.Logger:
+        """
+        Return a logger for this system
+        """
+        return logging.getLogger(f"container.{self.instance_name}")
+
+    def host_run(
+        self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
+    ) -> subprocess.CompletedProcess:
+        """Run a command in the host system."""
+        from moncic.runner import LocalRunner
+
+        return LocalRunner.run(self.logger, cmd, check=check, cwd=cwd, interactive=interactive)
 
     def get_instance_name(self) -> str:
         """Compute an instance name when none was provided in constructor."""
