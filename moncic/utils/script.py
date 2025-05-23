@@ -4,13 +4,19 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import IO
 
+from moncic import context
+
 
 class Script:
     """Incrementally build a shellscript."""
 
     def __init__(self, title: str) -> None:
         self.title = title
-        self.shell = "/bin/sh -uxe"
+        self.debug_mode = context.debug.get()
+        if self.debug_mode:
+            self.shell = "/bin/sh -uxe"
+        else:
+            self.shell = "/bin/sh -ue"
         self.lines: list[str] = []
         self.indent = 0
 
@@ -53,8 +59,19 @@ class Script:
             self.indent -= 4
             self.add_line("fi")
 
+    def fail(self, message: str) -> None:
+        """
+        Append an error message that terminates the script with an error.
+
+        The message will undergo double-quote shell interpolation.
+        """
+        self.add_line(f'echo "{message}" >&2')
+        self.add_line("exit 1")
+
     def debug(self, command: list[str], *, description: str | None = None) -> None:
-        """Append a command to the script."""
+        """Append a command generating debugging output."""
+        if not self.debug_mode:
+            return
         if description:
             self.add_line("echo " + shlex.quote(description))
         self.add_line(shlex.join(command) + " >&2")

@@ -130,13 +130,11 @@ class Container(abc.ABC):
         """
         Ensure the system has a matching user and group
         """
-        check_script = f"""#!/bin/sh
-set -uxe
+        check_script = Script("Check user IDs in container")
+        check_script.run_unquoted(f"UID=$(id -u {user.user_id} || true)")
+        check_script.run_unquoted(f"GID=$(id -g {user.user_id} || true)")
+        check_script.run_unquoted('echo "$UID:$GID"')
 
-UID=$(id -u {user.user_id} || true)
-GID=$(id -g {user.user_id} || true)
-echo "$UID:$GID"
-"""
         res = self.run_script(check_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
         uid, gid = res.stdout.strip().decode().split(":")
 
@@ -164,30 +162,23 @@ echo "$UID:$GID"
             )
             self.run_script(setup_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
         else:
-            validate_script = f"""#!/bin/sh
+            script = Script("Validate user database")
+            with script.if_("[ $(id -u) -eq 0 ] && [ $(id -g) -eq 0 ]"):
+                script.run(["exit", "0"])
 
-set -uxe
+            script.run_unquoted(f'UNAME="$(id -un {user.user_id})"')
+            with script.if_('[ "$UNAME" != {shlex.quote(user.user_name)} ]'):
+                script.fail(
+                    f"user {user.user_id} in container is named $UNAME but outside it is named {user.user_name}"
+                )
 
-if [ $(id -u) == 0 ] && [ $(id -g) == 0 ]
-then
-    exit 0
-fi
+            script.run_unquoted('''GNAME="$(getent group {user.group_id} | sed -r 's/:.+//')"''')
+            with script.if_('[ "$GNAME" != {shlex.quote(user.group_name)} ]'):
+                script.fail(
+                    f"group {user.group_id} in container is named $GNAME but outside it is named {user.group_name}"
+                )
 
-UNAME="$(id -un {user.user_id})"
-if [ "$UNAME"  != {shlex.quote(user.user_name)} ]
-then
-    echo "user {user.user_id} in container is named $UNAME but outside it is named" {shlex.quote(user.user_name)} >&2
-    exit 1
-fi
-
-GNAME="$(getent group {user.group_id} | sed -r 's/:.+//')"
-if [ "$GNAME"  != {shlex.quote(user.group_name)} ]
-then
-    echo "group {user.group_id} in container is named $GNAME but outside it is named" {shlex.quote(user.group_name)} >&2
-    exit 1
-fi
-"""
-            self.run_script(validate_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
+            self.run_script(script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
 
     def check_system(self):
         """

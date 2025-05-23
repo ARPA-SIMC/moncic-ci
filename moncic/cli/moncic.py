@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import git
 
-from moncic.context import privs
+from moncic import context
 from moncic.runner import RunConfig, UserConfig
 
 from ..container import BindConfig, ContainerConfig
@@ -115,7 +115,9 @@ class MoncicCommand(Command):
         super().__init__(args)
 
         # Drop privileges by default, regain them only when needed
-        privs.drop()
+        context.privs.drop()
+
+        context.debug.set(self.args.debug)
 
         # Load config
         if self.args.config:
