@@ -254,7 +254,7 @@ class AsyncioRunner(Runner):
         super().__init__(logger, config)
         self.cmd = cmd
 
-    def execute(self):
+    def execute(self) -> subprocess.CompletedProcess:
         return asyncio.run(self._run())
 
     async def start_process(self):
@@ -314,7 +314,9 @@ class LocalRunner(AsyncioRunner):
         )
 
     @classmethod
-    def run(cls, *, logger: logging.Logger, cmd: list[str], config: RunConfig | None = None, path: Path | None = None):
+    def run(
+        cls, *, logger: logging.Logger, cmd: list[str], config: RunConfig | None = None, path: Path | None = None
+    ) -> subprocess.CompletedProcess:
         """
         Run a one-off command
         """

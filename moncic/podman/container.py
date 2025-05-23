@@ -1,3 +1,4 @@
+import dataclasses
 import subprocess
 import signal
 import warnings
@@ -10,7 +11,7 @@ from collections.abc import Iterator
 import podman
 
 from moncic.container import BindConfig, Container, ContainerConfig, Result
-from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
+from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, LocalRunner
 from moncic.context import privs
 
 from .image import PodmanImage
@@ -129,7 +130,13 @@ class PodmanContainer(Container):
 
         podman_command.append(self.container.id)
         podman_command += command
-        res = subprocess.run(podman_command, check=False, **kwargs)
+        if config.interactive:
+            res = subprocess.run(podman_command, check=False, **kwargs)
+        else:
+            res = LocalRunner.run(
+                logger=self.image.logger, cmd=podman_command, config=dataclasses.replace(config, user=None, cwd=None)
+            )
+
         if config.check and res.returncode != 0:
             self.image.logger.error("Script failed with return code %d", res.returncode)
             for line in res.stdout.decode().splitlines():
