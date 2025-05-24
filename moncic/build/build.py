@@ -175,13 +175,6 @@ class Build:
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build is not implemented")
 
-    @host_only
-    def setup_container_host(self, container: Container):
-        """
-        Hook to run setup functions in the host container
-        """
-        # TODO: remove in favour of something more specific
-
     @guest_only
     def setup_container_guest(self, image: NspawnImage):
         """

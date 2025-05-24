@@ -32,11 +32,6 @@ class Builder(ContainerSourceOperation):
         self.build: Build = build
 
     @host_only
-    def setup_container_host(self, container: Container):
-        super().setup_container_host(container)
-        self.build.setup_container_host(container)
-
-    @host_only
     def log_execution_info(self, container: Container) -> None:
         # General builder information
         log.info("Build strategy: %s", self.build.__class__.__name__)
