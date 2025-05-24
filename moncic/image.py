@@ -49,7 +49,7 @@ class Image(abc.ABC):
 
     def host_run(
         self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
-    ) -> subprocess.CompletedProcess:
+    ) -> subprocess.CompletedProcess[bytes]:
         """Run a command in the host system."""
         from .runner import LocalRunner
 
@@ -135,7 +135,7 @@ class RunnableImage(Image, abc.ABC):
     def get_backend_id(self) -> str:
         """Return how the image is called in the backend."""
 
-    def update_container(self, container: "MaintenanceContainer"):
+    def update_container(self, container: "MaintenanceContainer") -> None:
         """
         Run update machinery on a container.
         """
@@ -168,7 +168,7 @@ class RunnableImage(Image, abc.ABC):
         for script in self.bootstrap_from.maintscripts:
             container.run_script(script)
 
-    def update(self):
+    def update(self) -> None:
         """Run periodic maintenance on the system."""
         with self.maintenance_container() as container:
             self.update_container(container)

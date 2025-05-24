@@ -5,7 +5,7 @@ import contextlib
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import ContextManager, cast
+from typing import ContextManager, cast, override
 from unittest import mock
 
 from moncic.distro import DistroFamily
@@ -223,8 +223,9 @@ class TestDebianDsc(WorkdirFixture):
     path: Path
     source_info: DSCInfo
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.path = cls.workdir / "moncic-ci_0.1.0-1.dsc"
         cls.path.write_text(
@@ -298,7 +299,7 @@ Files:
         with self.source() as src:
             self.assertEqual(src.build_source_package(), src.path)
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         with self.source() as src:
             self.assertEqual(src.lint_find_versions(), {"debian-release": "0.1.0-1", "debian-upstream": "0.1.0"})
             self.assertEqual(
@@ -310,8 +311,9 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
     path: Path
     source_info: SourceInfo
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.source_info = SourceInfo(
             name="moncic-ci",
@@ -372,7 +374,7 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
                     ["moncic-ci_0.1.0.orig.tar.xz"],
                 )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         with self.source() as src:
             self.assertEqual(
                 src.lint_find_versions(),
@@ -402,8 +404,9 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
 class TestDebianDir(TestDebianLegacy):
     path: Path
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.path = cls.workdir / "moncic-ci"
         cls.path.mkdir(parents=True)
@@ -412,6 +415,7 @@ class TestDebianDir(TestDebianLegacy):
         debian_dir.mkdir(parents=True, exist_ok=True)
         (debian_dir / "changelog").write_text("moncic-ci (0.1.0-1) UNRELEASED; urgency=low")
 
+    @override
     @contextlib.contextmanager
     def source(self) -> Generator[DebianDir]:
         with Source.create_local(source=self.path) as parent:
@@ -449,14 +453,16 @@ class TestDebianDir(TestDebianLegacy):
 class TestDebianDirGit(TestDebianLegacy, GitFixture):
     git_name = "moncic-ci"
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         create_lint_version_fixture_git(cls.git)
         cls.git.add("testfile")
         cls.git.add("debian/changelog", "moncic-ci (0.1.0-1) UNRELEASED; urgency=low\n")
         cls.git.commit()
 
+    @override
     @contextlib.contextmanager
     def source(self) -> Generator[DebianDirGit]:
         with Source.create_local(source=self.path) as parent:
@@ -516,8 +522,9 @@ class TestDebianGBPTestUpstream(GitFixture):
     source_info: SourceInfo
     gbp_info: GBPInfo
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         # Initial upstream
         cls.git.add("testfile")
@@ -632,7 +639,7 @@ class TestDebianGBPTestUpstream(GitFixture):
                 cwd=src.path,
             )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         with self.source() as src:
             self.assertEqual(
                 src.lint_find_versions(),
@@ -672,6 +679,7 @@ class TestDebianGBPRelease(GitFixture):
     source_info: SourceInfo
     gbp_info: GBPInfo
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -774,7 +782,7 @@ debian-branch=debian/unstable
                 cwd=src.path,
             )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         with self.source() as src:
             self.assertEqual(
                 src.lint_find_versions(),
@@ -806,6 +814,7 @@ class TestDebianGBPTestDebian(GitFixture):
     source_info: SourceInfo
     gbp_info: GBPInfo
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -901,7 +910,7 @@ debian-branch=debian/unstable
                 cwd=src.path,
             )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         with self.source() as src:
             self.assertEqual(
                 src.lint_find_versions(),

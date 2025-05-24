@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import argparse
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, override
 
 
 class SharedArgument(NamedTuple):
@@ -19,7 +17,8 @@ class Namespace(argparse.Namespace):
     Hacks around a namespace to allow merging of values set multiple times
     """
 
-    def __setattr__(self, name, value):
+    @override
+    def __setattr__(self, name: str, value: Any) -> Any:
         if arg := self._shared_args.get(name):
             action_type = arg.kwargs.get("action")
             if action_type == "store_true":
@@ -32,7 +31,7 @@ class Namespace(argparse.Namespace):
                     super().__setattr__(name, value)
                 elif old != value:
                     raise argparse.ArgumentError(
-                        f"conflicting values provided for {arg.action.dest!r} ({old!r} and {value!r})"
+                        arg, f"conflicting values provided for {arg.action.dest!r} ({old!r} and {value!r})"
                     )
             else:
                 raise NotImplementedError("Action {action_type!r} for {arg.action.dest!r} is not supported")
@@ -46,7 +45,7 @@ class ArgumentParser(argparse.ArgumentParser):
     options both outside and inside subcommands
     """
 
-    def __init__(self, *args, **kw) -> None:
+    def __init__(self, *args: Any, **kw: Any) -> None:
         super().__init__(*args, **kw)
 
         if not hasattr(self, "shared_args"):
@@ -56,7 +55,8 @@ class ArgumentParser(argparse.ArgumentParser):
         for a in self.shared_args.values():
             super().add_argument(*a.args, **a.kwargs)
 
-    def add_argument(self, *args, **kw):
+    @override
+    def add_argument(self, *args: Any, **kw: Any) -> Any:
         shared = kw.pop("shared", False)
         res = super().add_argument(*args, **kw)
         if shared:
@@ -66,12 +66,14 @@ class ArgumentParser(argparse.ArgumentParser):
             self.shared_args[res.dest] = SharedArgument(res, args, kw)
         return res
 
-    def add_subparsers(self, *args, **kw):
-        if "parser_class" not in kw:
-            kw["parser_class"] = type("ArgumentParser", (self.__class__,), {"shared_args": dict(self.shared_args)})
-        return super().add_subparsers(*args, **kw)
+    @override
+    def add_subparsers(self, **kwargs: Any) -> Any:
+        if "parser_class" not in kwargs:
+            kwargs["parser_class"] = type("ArgumentParser", (self.__class__,), {"shared_args": dict(self.shared_args)})
+        return super().add_subparsers(**kwargs)
 
-    def parse_args(self, *args, **kw):
+    @override
+    def parse_args(self, *args: Any, **kw: Any) -> Any:
         if "namespace" not in kw:
             # Use a subclass to pass the special action list without making it
             # appear as an argument

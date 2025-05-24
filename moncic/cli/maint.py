@@ -1,5 +1,5 @@
-from __future__ import annotations
-
+import argparse
+from typing import override, Any
 import logging
 
 from .moncic import MoncicCommand, main_command
@@ -13,8 +13,9 @@ class Bootstrap(MoncicCommand):
     Create or update the whole set of OS images for the CI
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("--recreate", action="store_true", help="delete the images and recreate them from scratch")
         parser.add_argument(
@@ -24,7 +25,7 @@ class Bootstrap(MoncicCommand):
         )
         return parser
 
-    def run(self):
+    def run(self) -> int | None:
         with self.moncic.session() as session:
             images = session.images
             names = self.args.images
@@ -35,7 +36,7 @@ class Bootstrap(MoncicCommand):
                     if self.args.recreate:
                         image = image.remove()
                     else:
-                        return
+                        return None
 
                 try:
                     image = image.bootstrap()
@@ -49,6 +50,7 @@ class Bootstrap(MoncicCommand):
                 except Exception:
                     log.critical("%s: cannot update image", name, exc_info=True)
                     return 6
+        return None
 
 
 @main_command
@@ -57,8 +59,9 @@ class Update(MoncicCommand):
     Update existing OS images
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "systems",
@@ -67,7 +70,7 @@ class Update(MoncicCommand):
         )
         return parser
 
-    def run(self):
+    def run(self) -> int | None:
         with self.moncic.session() as session:
             images = session.images
             if not self.args.systems:
@@ -95,6 +98,7 @@ class Update(MoncicCommand):
             if count_failed:
                 log.error("%d images failed to update", count_failed)
                 return 6
+        return None
 
 
 @main_command
@@ -103,8 +107,9 @@ class Remove(MoncicCommand):
     Remove existing OS images
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "systems",
@@ -114,7 +119,7 @@ class Remove(MoncicCommand):
         parser.add_argument("--purge", "-P", action="store_true", help="also remove the image configuration file")
         return parser
 
-    def run(self):
+    def run(self) -> None:
         with self.moncic.session() as session:
             images = session.images
             for name in self.args.systems:
@@ -130,6 +135,6 @@ class Dedup(MoncicCommand):
     Deduplicate disk usage in image directories
     """
 
-    def run(self):
+    def run(self) -> None:
         with self.moncic.session() as session:
             session.images.deduplicate()

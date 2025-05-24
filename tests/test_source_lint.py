@@ -1,20 +1,13 @@
-from __future__ import annotations
-
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import override, Self
 from unittest import mock
 
-from moncic.distro import DistroFamily
+from moncic.distro import DistroFamily, Distro
 from moncic.source import Source
 from moncic.source.distro import DistroSource
 from moncic.source.lint import Reporter, guest_lint
 from moncic.source.local import Dir, File, Git
-
-from .source import GitRepo
-
-if TYPE_CHECKING:
-    from moncic.distro import Distro
 
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
@@ -22,33 +15,39 @@ SID = DistroFamily.lookup_distro("sid")
 
 
 class MockDistroSource(DistroSource):
+    @override
     @classmethod
     def create_from_file(cls, parent: File, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
+    @override
     @classmethod
     def create_from_dir(cls, parent: Dir, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
+    @override
     @classmethod
     def create_from_git(cls, parent: Git, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
-    def in_path(self, path: Path) -> LocalSource:  # TODO: use Self in 3.11+
+    @override
+    def in_path(self, path: Path) -> Self:
         raise NotImplementedError()
 
 
 class MockReporter(Reporter):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.errors: list[str] = []
         self.warnings: list[str] = []
 
-    def error(self, source: Source, message: str):
+    @override
+    def error(self, source: Source, message: str) -> None:
         self.errors.append(message)
         self.error_count += 1
 
-    def warning(self, source: Source, message: str):
+    @override
+    def warning(self, source: Source, message: str) -> None:
         self.warnings.append(message)
         self.warning_count += 1
 
@@ -56,7 +55,7 @@ class MockReporter(Reporter):
 class TestLint(unittest.TestCase):
     def assertLint(
         self, *, versions: dict[str, str], errors: list[str] | None = None, warnings: list[str] | None = None
-    ):
+    ) -> None:
         """
         Make sure we get the given lint warning given a set of detected versions
         """
@@ -76,7 +75,7 @@ class TestLint(unittest.TestCase):
         else:
             self.assertEqual(reporter.warnings, [])
 
-    def test_versions(self):
+    def test_versions(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.1",
@@ -87,7 +86,7 @@ class TestLint(unittest.TestCase):
             warnings=["Versions mismatch: 1.1 in autotools; 1.2 in meson, debian-release, spec-release"],
         )
 
-    def test_versions_tag(self):
+    def test_versions_tag(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.2",
@@ -99,7 +98,7 @@ class TestLint(unittest.TestCase):
             warnings=["Versions mismatch: 1.2 in autotools, meson, debian-release, spec-release; 1.3 in tag"],
         )
 
-    def test_versions_tag_debian(self):
+    def test_versions_tag_debian(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.2",
@@ -110,7 +109,7 @@ class TestLint(unittest.TestCase):
             warnings=["Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-debian, tag-debian-release"],
         )
 
-    def test_versions_tag_arpa(self):
+    def test_versions_tag_arpa(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.2",

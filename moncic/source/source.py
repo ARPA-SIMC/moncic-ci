@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import contextlib
 import logging
@@ -9,7 +7,7 @@ import tempfile
 import urllib.parse
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, override, Optional
 
 import git
 
@@ -34,7 +32,7 @@ class CommandLog(list[str]):
         """
         self.append(shlex.join(args))
 
-    def run(self, cmd: Sequence[str], **kwargs) -> subprocess.CompletedProcess:
+    def run(self, cmd: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess:
         """
         Run a command and append it to the command log
         """
@@ -51,6 +49,7 @@ class SourceStack(contextlib.ExitStack):
         super().__init__()
         self.entered: bool = False
 
+    @override
     def __enter__(self) -> Self:
         if self.entered:
             raise RuntimeError("__enter__ called in multiple Sources of the same chain")
@@ -76,13 +75,15 @@ class Source(abc.ABC):
     #: User-provided name for this resource
     name: str
     #: Source from which this one was generated. None if this is the original source
-    parent: Source | None
+    parent: Optional["Source"]
     #: ExitStack to use for temporary state
     stack: contextlib.ExitStack
     #: Commands that can be used to recreate this source
     command_log: CommandLog
 
-    def __init__(self, *, name: str | None = None, parent: Source | None = None, command_log: CommandLog | None = None):
+    def __init__(
+        self, *, name: str | None = None, parent: Optional["Source"] = None, command_log: CommandLog | None = None
+    ):
         self.parent = parent
         if parent is None:
             self.stack = SourceStack()
@@ -95,9 +96,11 @@ class Source(abc.ABC):
         self.name = name
         self.command_log = command_log or CommandLog()
 
+    @override
     def __str__(self) -> str:
         return self.name
 
+    @override
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
@@ -143,7 +146,7 @@ class Source(abc.ABC):
         return new_kwargs
 
     @classmethod
-    def create_local(cls, *, source: str | Path, branch: str | None = None) -> LocalSource:
+    def create_local(cls, *, source: str | Path, branch: str | None = None) -> "LocalSource":
         """
         Create a distro-agnostic source from a user-defined string
         """
@@ -185,7 +188,7 @@ class Source(abc.ABC):
                 raise Fail("Cannot specify a branch when working on a file")
             return File(name=name, path=source.absolute())
 
-    def _git_clone(self, repository: str, branch: str | None = None) -> Git:
+    def _git_clone(self, repository: str, branch: str | None = None) -> "Git":
         """
         Derive a Git source from this one, by cloning a git repository
         Clone this git repository into a temporary working directory.

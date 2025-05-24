@@ -51,7 +51,7 @@ class ImagesBase(abc.ABC):
 
     def host_run(
         self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
-    ) -> subprocess.CompletedProcess:
+    ) -> subprocess.CompletedProcess[bytes]:
         """Run a command in the host system."""
         from .runner import LocalRunner
 

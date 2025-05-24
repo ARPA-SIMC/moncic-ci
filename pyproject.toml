@@ -4,6 +4,12 @@ line-length = 120
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html
 mypy_path = "stubs"
+strict = true
+enable_error_code = "explicit-override"
+
+[[tool.mypy.overrides]]
+module = "tblib.*"
+ignore_missing_imports = true
 
 [tool.pylint.MAIN]
 max-line-length = 120

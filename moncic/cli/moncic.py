@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import argparse
 import contextlib
 import logging
 import os
@@ -7,14 +6,14 @@ import tempfile
 import urllib.parse
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override, Any
 
 import git
 
 from moncic import context
 from moncic.runner import RunConfig, UserConfig
 
-from ..container import BindConfig, ContainerConfig
+from ..container import BindConfig, ContainerConfig, Container
 from ..exceptions import Fail
 from ..moncic import Moncic, MoncicConfig, expand_path
 from ..source import Source
@@ -34,7 +33,7 @@ log = logging.getLogger(__name__)
 MAIN_COMMANDS: list[type[Command]] = []
 
 
-def main_command(cls):
+def main_command(cls: type[Command]) -> type[Command]:
     """
     Decorator used to register a Commnad class as a main Moncic-CI command
     """
@@ -43,7 +42,7 @@ def main_command(cls):
 
 
 @contextlib.contextmanager
-def checkout(image: NspawnImage, repo: str | None = None, branch: str | None = None) -> Generator[Path | None]:
+def checkout(image: "NspawnImage", repo: str | None = None, branch: str | None = None) -> Generator[Path | None]:
     if repo is None:
         yield None
         return
@@ -79,8 +78,9 @@ class MoncicCommand(Command):
     Base class for commands that need a Moncic state
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         if "imagedir" not in parser.shared_args:
             parser.add_argument(
@@ -111,7 +111,7 @@ class MoncicCommand(Command):
             )
         return parser
 
-    def __init__(self, args):
+    def __init__(self, args: Any) -> None:
         super().__init__(args)
 
         # Drop privileges by default, regain them only when needed
@@ -130,7 +130,7 @@ class MoncicCommand(Command):
         # Instantiate Moncic
         self.moncic = Moncic(config=config)
 
-    def setup_moncic_config(self, config: MoncicConfig):
+    def setup_moncic_config(self, config: MoncicConfig) -> None:
         """
         Customize configuration before a Moncic object is instantiated
         """
@@ -142,8 +142,9 @@ class MoncicCommand(Command):
 
 
 class ImageActionCommand(MoncicCommand):
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("system", help="name or path of the system to use")
 
@@ -203,7 +204,7 @@ class ImageActionCommand(MoncicCommand):
         return run_config
 
     @contextlib.contextmanager
-    def container(self):
+    def container(self) -> Generator[Container, None, None]:
         with self.moncic.session() as session:
             images = session.images
             image = images.image(self.args.system)
@@ -224,6 +225,7 @@ class ImageActionCommand(MoncicCommand):
 
             config = ContainerConfig()
             if workdir is not None:
+                assert workdir_bind_type is not None
                 config.configure_workdir(workdir, bind_type=workdir_bind_type)
             elif self.args.user:
                 config.forward_user = UserConfig.from_sudoer()
@@ -250,8 +252,9 @@ class SourceCommand(MoncicCommand):
     Command that operates on sources
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("--branch", action="store", help="branch to be used. Default: let 'git clone' choose")
         parser.add_argument(
@@ -271,14 +274,14 @@ class SourceCommand(MoncicCommand):
         with Source.create_local(source=self.args.source, branch=self.args.branch) as source:
             yield source
 
-    def distro_source(self, source: LocalSource, distro: Distro) -> DistroSource:
+    def distro_source(self, source: LocalSource, distro: "Distro") -> DistroSource:
         """
         Instantiate a DistroSource object from a local source
         """
         return DistroSource.create_from_local(source, distro=distro, style=self.args.source_type)
 
     @contextlib.contextmanager
-    def source(self, distro: Distro) -> Generator[DistroSource]:
+    def source(self, distro: "Distro") -> Generator[DistroSource]:
         """
         Instantiate a DistroSource object in one go
         """

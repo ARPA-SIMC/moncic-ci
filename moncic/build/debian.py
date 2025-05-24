@@ -8,7 +8,7 @@ import os
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from moncic.context import privs
 from ..runner import UserConfig
@@ -71,18 +71,19 @@ class Debian(Build):
     )
 
     @guest_only
-    def get_build_deps_in_container(self):
+    def get_build_deps_in_container(self) -> list[str]:
         res = subprocess.run(
             ["/srv/moncic-ci/dpkg-listbuilddeps"],
             stdout=subprocess.PIPE,
             text=True,
             check=True,
-            cwd=self.source.as_posix(),
+            cwd=self.source.path.as_posix(),
         )
         return [name.strip() for name in res.stdout.strip().splitlines()]
 
+    @override
     @guest_only
-    def setup_container_guest(self, image: NspawnImage):
+    def setup_container_guest(self, image: NspawnImage) -> None:
         super().setup_container_guest(image)
 
         # TODO: run apt update if the apt index is older than some threshold
@@ -123,6 +124,7 @@ class Debian(Build):
             if k.startswith("DEB_"):
                 log.debug("%s=%r", k, v)
 
+    @override
     @guest_only
     def build(self) -> None:
         from ..source.debian import DebianSource
@@ -146,7 +148,7 @@ class Debian(Build):
         self.success = True
 
     @guest_only
-    def build_binary(self, dsc_path: Path):
+    def build_binary(self, dsc_path: Path) -> None:
         """
         Build binary packages
         """
@@ -182,8 +184,9 @@ class Debian(Build):
                     cmd.append("-sa")
                 self.trace_run(cmd, env=env)
 
+    @override
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path):
+    def collect_artifacts(self, container: Container, destdir: Path) -> None:
         container_root = container.get_root()
         user = UserConfig.from_sudoer()
         for path in self.artifacts:

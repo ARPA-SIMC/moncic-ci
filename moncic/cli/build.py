@@ -1,11 +1,10 @@
-from __future__ import annotations
-
+import argparse
 import dataclasses
 import json
 import logging
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from ..build import Build
 from ..distro import Distro
@@ -29,8 +28,9 @@ class CI(SourceCommand):
 
     NAME = "ci"
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "-B", "--build-config", metavar="file.yaml", action="store", help="YAML file with build configuration"
@@ -113,7 +113,8 @@ class CI(SourceCommand):
                 finally:
 
                     class ResultEncoder(json.JSONEncoder):
-                        def default(self, obj):
+                        @override
+                        def default(self, obj: Any) -> Any:
                             if dataclasses.is_dataclass(obj):
                                 return dataclasses.asdict(obj)
                             elif isinstance(obj, Source):
@@ -138,8 +139,9 @@ class Lint(SourceCommand):
     styles
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("image", action="store", help="name of the image used for checking")
         parser.add_argument(
@@ -150,7 +152,7 @@ class Lint(SourceCommand):
         )
         return parser
 
-    def run(self):
+    def run(self) -> int | None:
         from ..source.lint import Reporter
 
         reporter = Reporter()
@@ -169,6 +171,7 @@ class Lint(SourceCommand):
         if reporter.warning_count:
             print(f"{reporter.warning_count} warning(s)")
             return 1
+        return None
 
 
 @main_command
@@ -179,8 +182,9 @@ class QuerySource(SourceCommand):
 
     NAME = "query-source"
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("image", action="store", help="name of the image used to query the package")
         parser.add_argument(
@@ -191,7 +195,7 @@ class QuerySource(SourceCommand):
         )
         return parser
 
-    def run(self):
+    def run(self) -> None:
         with self.moncic.session() as session:
             images = session.images
             image = images.image(self.args.image)

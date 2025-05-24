@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import http.server
 import logging
@@ -9,6 +7,7 @@ import subprocess
 import tempfile
 import threading
 import unittest
+from typing import override, ClassVar, Any
 from collections.abc import Generator
 from pathlib import Path
 
@@ -18,7 +17,7 @@ class GitRepo(contextlib.ExitStack):
     Temporary git repository used for testing
     """
 
-    def __init__(self, workdir: Path | None = None):
+    def __init__(self, workdir: Path | None = None) -> None:
         super().__init__()
         if workdir is None:
             self.root = Path(self.enter_context(tempfile.TemporaryDirectory()))
@@ -30,7 +29,7 @@ class GitRepo(contextlib.ExitStack):
         self.git("config", "user.name", "Test User")
         self.git("config", "user.email", "hyde@example.com")
 
-    def git(self, *args: str):
+    def git(self, *args: str) -> None:
         """
         Run git commands in the test repository
         """
@@ -38,7 +37,7 @@ class GitRepo(contextlib.ExitStack):
         cmd.extend(args)
         subprocess.run(cmd, cwd=self.root, check=True, capture_output=True)
 
-    def add(self, relpath: str, content: str | bytes = b""):
+    def add(self, relpath: str, content: str | bytes = b"") -> None:
         """
         Create a file and git add it
         """
@@ -52,7 +51,7 @@ class GitRepo(contextlib.ExitStack):
                 out.write(content)
         self.git("add", relpath)
 
-    def commit(self, message="test commit"):
+    def commit(self, message: str = "test commit") -> None:
         """
         Run git commit with the given message
         """
@@ -72,11 +71,12 @@ class GitRepo(contextlib.ExitStack):
         root = self.root
 
         class Handler(http.server.SimpleHTTPRequestHandler):
-            def __init__(self, *args, **kw):
-                kw["directory"] = root
-                super().__init__(*args, **kw)
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                kwargs["directory"] = root
+                super().__init__(*args, **kwargs)
 
-            def log_message(self, *args):
+            @override
+            def log_message(self, *args: Any) -> None:
                 logging.debug(*args)
 
         # Auto-allocate the server port
@@ -94,18 +94,21 @@ class GitRepo(contextlib.ExitStack):
 
 
 class WorkdirFixture(unittest.TestCase):
+    stack: ClassVar[contextlib.ExitStack]
     workdir: Path
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         # We have self.enterContext from Python 3.11
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
         cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory()))
 
+    @override
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         cls.stack.__exit__(None, None, None)
         super().tearDownClass()
 
@@ -115,8 +118,9 @@ class GitFixture(WorkdirFixture):
     git: GitRepo
     git_name: str = "repo"
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.path = cls.workdir / cls.git_name
         cls.git = cls.stack.enter_context(GitRepo(cls.path))

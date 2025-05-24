@@ -55,7 +55,7 @@ class MockSession(Session):
         if issubclass(self.images_class, MockImages):
             images = self.images_class(self)
         elif issubclass(self.images_class, NspawnImages):
-            images = self.images_class.create_machinectl()
+            images = self.images_class.create_machinectl(self)
         else:
             raise NotImplementedError()
 

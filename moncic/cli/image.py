@@ -10,7 +10,7 @@ import shutil
 import stat
 import sys
 from collections.abc import Generator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 import ruamel.yaml
 import yaml
@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 
 class CreateCommand(MoncicCommand):
-    def create(self, contents: dict[str, Any]):
+    def create(self, contents: dict[str, Any]) -> None:
         """
         Create a configuration with the given contents
         """
@@ -63,13 +63,14 @@ class Extends(CreateCommand):
     create a new image, extending an existing one
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("image", help="parent image")
         return parser
 
-    def run(self):
+    def run(self) -> None:
         self.create({"extends": self.args.image})
 
 
@@ -78,18 +79,19 @@ class Distro(CreateCommand):
     create a new image, bootstrapping the given distribution
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("distro", help="distribution to bootstrap")
         return parser
 
-    def run(self):
+    def run(self) -> None:
         self.create({"distro": self.args.distro})
 
 
 class MaintCommand(MoncicCommand):
-    def run_maintenance(self, session: Session):
+    def run_maintenance(self, session: Session) -> None:
         """
         Run system maintenance
         """
@@ -142,15 +144,16 @@ class Setup(MaintCommand):
     run and record a maintenance command to setup the image
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "command", nargs=argparse.REMAINDER, help="run and record a maintenance command to setup the image"
         )
         return parser
 
-    def run(self):
+    def run(self) -> None:
         with self.edit_config() as data:
             if maintscript := data.get("maintscript"):
                 maintscript += "\n" + shlex.join(self.args.command)
@@ -164,13 +167,14 @@ class Install(MaintCommand):
     install the given packages in the image
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("packages", nargs="+", help="packages to install in the image")
         return parser
 
-    def run(self):
+    def run(self) -> None:
         with self.edit_config() as data:
             packages = data.get("packages")
             if packages is None:
@@ -184,15 +188,16 @@ class Install(MaintCommand):
             data["packages"] = packages
 
 
-class BuildDep(SourceCommand):
+class BuildDep(MaintCommand, SourceCommand):
     """
     install the build-dependencies of the given sources
     """
 
     NAME = "build-dep"
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "source",
@@ -202,7 +207,7 @@ class BuildDep(SourceCommand):
         )
         return parser
 
-    def run(self):
+    def run(self) -> None:
         with self.moncic.session() as session:
             images = session.images
             image = images.image(self.args.system)
@@ -228,7 +233,7 @@ class Edit(MaintCommand):
     open an editor on the image configuration file
     """
 
-    def run(self):
+    def run(self) -> None:
         changed = False
 
         with self.moncic.session() as session:
@@ -255,7 +260,7 @@ class Cat(MoncicCommand):
     show the image configuration
     """
 
-    def run(self):
+    def run(self) -> None:
         with self.moncic.session() as session:
             image = session.images.image(self.args.name)
             if path := image.config_path:
@@ -269,7 +274,7 @@ class Describe(MoncicCommand):
     show a description of the image
     """
 
-    def run(self):
+    def run(self) -> None:
         ryaml = ruamel.yaml.YAML(typ="rt")
         with self.moncic.session() as session:
             image = session.images.image(self.args.name)
@@ -287,8 +292,9 @@ class Image(MoncicCommand):
     image creation and maintenance
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("name", help="name of the image")
 
@@ -304,8 +310,5 @@ class Image(MoncicCommand):
 
         return parser
 
-    def run(self):
-        if self.args.install:
-            self.do_install()
-        else:
-            raise NotImplementedError("cannot determine what to do")
+    def run(self) -> None:
+        raise NotImplementedError("cannot determine what to do")

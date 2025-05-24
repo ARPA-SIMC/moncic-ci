@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import urllib.parse
+from typing import override
 
 from moncic.distro import DistroFamily
-from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import Git
 from moncic.source.remote import URL
@@ -15,8 +13,9 @@ SID = DistroFamily.lookup_distro("sid")
 
 
 class TestURL(GitFixture):
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.git.add("testfile")
         cls.git.commit("Initial")
@@ -31,7 +30,7 @@ class TestURL(GitFixture):
         cls.git.add("test-main")
         cls.git.commit()
 
-    def test_url(self):
+    def test_url(self) -> None:
         with self.git.serve() as url:
             with Source.create_local(source=url) as src:
                 assert isinstance(src, Git)
@@ -49,7 +48,7 @@ class TestURL(GitFixture):
                     {"parent": remote, "name": url, "url": remote.url},
                 )
 
-    def test_url_branch(self):
+    def test_url_branch(self) -> None:
         with self.git.serve() as url:
             with Source.create_local(source=url, branch="branch1") as src:
                 assert isinstance(src, Git)

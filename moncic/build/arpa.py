@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import glob
 import logging
 import os
@@ -7,7 +5,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from moncic.context import privs
 from ..runner import UserConfig
@@ -29,7 +27,9 @@ class RPM(Build):
     Build RPM packages
     """
 
-    def __post_init__(self):
+    source: RPMSource
+
+    def __post_init__(self) -> None:
         from ..distro.rpm import DnfDistro, YumDistro
 
         if isinstance(self.distro, YumDistro):
@@ -37,7 +37,7 @@ class RPM(Build):
         elif isinstance(self.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
-            raise RuntimeError(f"Unsupported distro: {self.system.distro.name}")
+            raise RuntimeError(f"Unsupported distro: {self.distro.name}")
         self.name = self.source.specfile_path.name.removesuffix(".spec")
 
     # @host_only
@@ -69,6 +69,7 @@ class ARPA(RPM):
     configured for travis
     """
 
+    @override
     @guest_only
     def build(self) -> None:
         assert isinstance(self.source, RPMSource)
@@ -113,8 +114,9 @@ class ARPA(RPM):
 
         self.success = True
 
+    @override
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path):
+    def collect_artifacts(self, container: "Container", destdir: Path) -> None:
         container_root = container.get_root()
 
         user = UserConfig.from_sudoer()

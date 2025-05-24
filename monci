@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from typing import Protocol
 
 import moncic
 from moncic import cli, exceptions
@@ -13,7 +14,11 @@ cli.FAIL_EXCEPTIONS.append(exceptions.Fail)
 cli.SUCCESS_EXCEPTIONS.append(exceptions.Success)
 
 
-def main():
+class Handler(Protocol):
+    def run(self) -> int | None: ...
+
+
+def main() -> int | None:
     parser = argparse.ArgumentParser(description="CI tool")
     parser.add_argument("--version", action="version", version=moncic.__version__)
     parser.add_argument(
@@ -40,7 +45,7 @@ def main():
         print(str(e), file=sys.stderr)
         return 1
 
-    handler = args.handler(args)
+    handler: Handler = args.handler(args)
     return handler.run()
 
 

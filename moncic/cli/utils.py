@@ -6,7 +6,7 @@ import inspect
 import shutil
 import textwrap
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override, Sequence
 
 from ..exceptions import Fail, Success
 
@@ -20,7 +20,14 @@ def get_doc_wrapper(lead_width: int) -> textwrap.TextWrapper:
 
 
 class SourceTypeAction(argparse._StoreAction):
-    def __call__(self, parser, namespace, values, option_string=None):
+    @override
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
         if values == "list":
             from ..source.distro import source_types
 
@@ -29,7 +36,9 @@ class SourceTypeAction(argparse._StoreAction):
             help_wrapper = get_doc_wrapper(name_width + 2)
 
             for name, source_cls in sorted(source_types.items()):
-                for idx, line in enumerate(help_wrapper.wrap(inspect.getdoc(source_cls))):
+                doc = inspect.getdoc(source_cls)
+                assert doc is not None
+                for idx, line in enumerate(help_wrapper.wrap(doc)):
                     if idx == 0:
                         print(f"{name.rjust(name_width)}: {line}")
                     else:
@@ -50,8 +59,17 @@ class BuildOptionAction(argparse._AppendAction):
     Build subclasses.
     """
 
-    def __call__(self, parser, namespace, values, option_string=None) -> None:
-        from ..build import Build
+    @override
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        from moncic.build import Build
+
+        assert isinstance(values, str)
 
         if values == "list":
             # Compute width for option names

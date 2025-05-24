@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from typing import override, Never
 
 from moncic import context
 from moncic.unittest import MoncicTestCase
@@ -13,12 +14,12 @@ test_image_name = "moncic-ci-tests"
 
 
 class TestMaintenance(MoncicTestCase):
-    def setUp(self):
+    @override
+    def setUp(self) -> None:
         super().setUp()
-        self.moncic = self.moncic()
-        self.session = self.enterContext(self.moncic.session())
+        self.session = self.enterContext(self.moncic().session())
         self.images = self.session.images
-        self.test_image_config_file = self.moncic.config.imagedir / (test_image_name + ".yaml")
+        self.test_image_config_file = self.session.moncic.config.imagedir / (test_image_name + ".yaml")
         # Bootstrap a snapshot of base_image_name to use as our playground
         with context.privs.root():
             if base_image_name not in self.images.list_images():
@@ -33,21 +34,19 @@ maintscript: |
             )
             self.images.bootstrap_system(test_image_name)
 
-    def tearDown(self):
+    @override
+    def tearDown(self) -> None:
         with context.privs.root():
-            image = cls.images.image(test_image_name)
+            image = self.images.image(test_image_name)
             image.remove()
             try:
-                os.unlink(cls.test_image_config_file)
+                os.unlink(self.test_image_config_file)
             except FileNotFoundError:
                 pass
-        cls.cls_exit_stack.close()
-        cls.images = None
-        cls.moncic = None
-        cls.cls_exit_stack = None
+        self.images = None
         super().tearDownClass()
 
-    def test_transactional_update_succeeded(self):
+    def test_transactional_update_succeeded(self) -> None:
         with context.privs.root():
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
@@ -58,7 +57,7 @@ maintscript: |
 
                 with system.create_container() as container:
 
-                    def test_function():
+                    def test_function() -> tuple[str, int]:
                         with open("/root/token", "w") as out:
                             out.write("test_transactional_updates")
                         return ("result", 123)
@@ -78,7 +77,7 @@ maintscript: |
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".new"))
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".tmp"))
 
-    def test_transactional_update_failed(self):
+    def test_transactional_update_failed(self) -> None:
         with context.privs.root():
             self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
@@ -91,7 +90,7 @@ maintscript: |
 
                         with system.create_container() as container:
 
-                            def test_function():
+                            def test_function() -> Never:
                                 with open("/root/token", "w") as out:
                                     out.write("test_transactional_updates")
                                 raise RuntimeError("expected error")

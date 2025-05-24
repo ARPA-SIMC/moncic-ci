@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import contextlib
 import logging
@@ -21,19 +19,19 @@ class ImageStorage(abc.ABC):
     to be activated before use and deactivated after use.
     """
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: "Session") -> None:
         self.session = session
 
     @abc.abstractmethod
     @contextlib.contextmanager
-    def images(self) -> Generator[Images]:
+    def images(self) -> Generator["Images"]:
         """
         Make the image storage accessible for the duration of this context
         manager
         """
 
     @classmethod
-    def create_mock(cls, session: Session) -> ImageStorage:
+    def create_mock(cls, session: "Session") -> "ImageStorage":
         """
         Instantiate a default ImageStorage in case no path has been provided
         """

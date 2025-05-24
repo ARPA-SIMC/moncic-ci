@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Any
+from typing import Any, Never, Callable
 
 try:
     import coloredlogs
@@ -15,7 +15,7 @@ except ModuleNotFoundError:
 
 def _get_first_docstring_line(obj: Any) -> str | None:
     try:
-        return obj.__doc__.split("\n")[1].strip()
+        return str(obj.__doc__).split("\n")[1].strip()
     except (AttributeError, IndexError):
         return None
 
@@ -31,7 +31,7 @@ class Command:
 
     NAME: str | None = None
 
-    def __init__(self, args: argparse.Namespace):
+    def __init__(self, args: argparse.Namespace) -> None:
         if self.NAME is None:
             self.NAME = self.__class__.__name__.lower()
         self.args = args
@@ -52,10 +52,10 @@ class Command:
             logging.basicConfig(level=level, stream=sys.stderr, format=FORMAT)
 
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         if cls.NAME is None:
             cls.NAME = cls.__name__.lower()
-        parser = subparsers.add_parser(
+        parser: argparse.ArgumentParser = subparsers.add_parser(
             cls.NAME,
             help=_get_first_docstring_line(cls),
         )
@@ -63,7 +63,7 @@ class Command:
         return parser
 
 
-def run_main(func):
+def run_main(func: Callable[[], int | None]) -> Never:
     try:
         sys.exit(func())
     except tuple(FAIL_EXCEPTIONS) as e:

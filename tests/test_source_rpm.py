@@ -1,10 +1,8 @@
-from __future__ import annotations
-
 import contextlib
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import cast
+from typing import cast, override
 from unittest import mock
 
 from moncic.distro import DistroFamily
@@ -155,6 +153,7 @@ class TestARPA(WorkdirFixture):
 class TestARPASourceDir(WorkdirFixture):
     path: Path
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -206,7 +205,7 @@ class TestARPASourceDir(WorkdirFixture):
                 },
             )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         create_lint_version_fixture_path(path)
         with self.source(specfile=Path("fedora/SPECS/test.spec"), root=path) as src:
@@ -236,6 +235,7 @@ class TestARPASourceDir(WorkdirFixture):
 
 
 class TestARPASourceGit(GitFixture):
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -292,7 +292,7 @@ class TestARPASourceGit(GitFixture):
                 },
             )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         git = self.stack.enter_context(GitRepo(path))
         create_lint_version_fixture_git(git)
@@ -324,7 +324,7 @@ class TestARPASourceGit(GitFixture):
                 },
             )
 
-    def test_lint_find_tags(self):
+    def test_lint_find_tags(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         git = self.stack.enter_context(GitRepo(path))
         git.add("testfile")
@@ -346,11 +346,13 @@ test
         git.git("tag", "v1.0-1")
         with self.source(branch="main", specfile=Path("testfile.spec"), root=path) as src:
             tag = src.lint_find_upstream_tag()
+            assert tag is not None
             self.assertEqual(tag.name, "v1.0")
             tag = src.lint_find_packaging_tag()
+            assert tag is not None
             self.assertEqual(tag.name, "v1.0-1")
 
-    def test_lint_find_tags_upstream_dash(self):
+    def test_lint_find_tags_upstream_dash(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         git = self.stack.enter_context(GitRepo(path))
         git.add("testfile")
@@ -372,11 +374,13 @@ test
         git.git("tag", "v1.0-2")
         with self.source(branch="main", specfile=Path("testfile.spec"), root=path) as src:
             tag = src.lint_find_upstream_tag()
+            assert tag is not None
             self.assertEqual(tag.name, "v1.0-1")
             tag = src.lint_find_packaging_tag()
+            assert tag is not None
             self.assertEqual(tag.name, "v1.0-2")
 
-    def test_lint_find_tags_release_not_found(self):
+    def test_lint_find_tags_release_not_found(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         git = self.stack.enter_context(GitRepo(path))
         git.add("testfile")
@@ -398,11 +402,12 @@ test
         git.git("tag", "v1.0-2")
         with self.source(branch="main", specfile=Path("testfile.spec"), root=path) as src:
             tag = src.lint_find_upstream_tag()
+            assert tag is not None
             self.assertEqual(tag.name, "v1.0-1")
             tag = src.lint_find_packaging_tag()
             self.assertIsNone(tag)
 
-    def test_lint_find_tags_not_found(self):
+    def test_lint_find_tags_not_found(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         git = self.stack.enter_context(GitRepo(path))
         git.add("testfile")

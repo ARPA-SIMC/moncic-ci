@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import logging
 import lzma
@@ -11,7 +9,7 @@ from collections.abc import Sequence
 from configparser import ConfigParser
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Any, Self, override
 
 import git
 
@@ -48,7 +46,7 @@ class SourceInfo:
     tar_stem: str
 
     @classmethod
-    def create_from_dir(cls, path: Path) -> SourceInfo:
+    def create_from_dir(cls, path: Path) -> "SourceInfo":
         """
         Get source information from an unpacked Debian source
         """
@@ -62,7 +60,7 @@ class SourceInfo:
         return cls(**cls._infer_args_from_name_version(name, version))
 
     @classmethod
-    def _infer_args_from_name_version(cls, name: str, version: str, **kwargs) -> dict[str, str]:
+    def _infer_args_from_name_version(cls, name: str, version: str, **kwargs: Any) -> dict[str, str]:
         res: dict[str, str] = {
             "name": name,
             "version": version,
@@ -89,7 +87,7 @@ class SourceInfo:
 
         return None
 
-    def parse_gbp(self, gbp_conf_path: Path) -> GBPInfo:
+    def parse_gbp(self, gbp_conf_path: Path) -> "GBPInfo":
         """
         Parse gbp.conf returning values for DebianGBP fields
         """
@@ -121,7 +119,7 @@ class DSCInfo(SourceInfo):
     file_list: list[str]
 
     @classmethod
-    def create_from_file(cls, path: Path) -> DSCInfo:
+    def create_from_file(cls, path: Path) -> Self:
         name: str | None = None
         version: str | None = None
         file_list: list[str] = []
@@ -171,16 +169,18 @@ class DebianSource(DistroSource, abc.ABC):
 
     source_info: SourceInfo
 
-    def __init__(self, *, source_info: SourceInfo, **kwargs) -> None:
+    def __init__(self, *, source_info: SourceInfo, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.source_info = source_info
 
+    @override
     def info_dict(self) -> dict[str, Any]:
         """Return JSON-able information about this source, without parent information."""
         res = super().info_dict()
         res["source_info"] = asdict(self.source_info)
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["source_info"] = self.source_info
@@ -194,8 +194,9 @@ class DebianSource(DistroSource, abc.ABC):
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build_source_package not implemented")
 
+    @override
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro) -> DebianSource:
+    def create_from_file(cls, parent: File, *, distro: "Distro") -> "DebianSource":
         if not isinstance(distro, DebianDistro):
             raise RuntimeError("cannot create a DebianSource non a non-Debian distro")
         if parent.path.suffix == ".dsc":
@@ -203,8 +204,9 @@ class DebianSource(DistroSource, abc.ABC):
         else:
             raise Fail(f"{parent.path}: cannot detect source type")
 
+    @override
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> DebianSource:
+    def create_from_dir(cls, parent: Dir, *, distro: "Distro") -> "DebianSource":
         if not (parent.path / "debian").is_dir():
             raise Fail(f"{parent.path}: cannot detect source type")
         if not isinstance(distro, DebianDistro):
@@ -212,8 +214,9 @@ class DebianSource(DistroSource, abc.ABC):
 
         return DebianDir.prepare_from_dir(parent, distro=distro)
 
+    @override
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> DebianSource:
+    def create_from_git(cls, parent: Git, *, distro: "Distro") -> "DebianSource":
         """
         Detect the style of packaging repository.
 
@@ -290,6 +293,7 @@ class DebianSource(DistroSource, abc.ABC):
 
         raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
 
+    @override
     def lint_find_versions(self, allow_exec: bool = False) -> dict[str, str]:
         versions = super().lint_find_versions(allow_exec=allow_exec)
 
@@ -318,15 +322,17 @@ class DebianDsc(DebianSource, File, style="debian-dsc"):
 
     source_info: DSCInfo
 
-    def __init__(self, *, source_info: DSCInfo, **kwargs) -> None:
+    def __init__(self, *, source_info: DSCInfo, **kwargs: Any) -> None:
         super().__init__(source_info=source_info, **kwargs)
 
+    @override
     @classmethod
-    def prepare_from_file(cls, parent: File, *, distro: Distro) -> DebianDsc:
+    def prepare_from_file(cls, parent: File, *, distro: "Distro") -> Self:
         assert parent.path.suffix == ".dsc"
         source_info = DSCInfo.create_from_file(parent.path)
         return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info)
 
+    @override
     @host_only
     def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
         super().collect_build_artifacts(destdir, artifact_dir)
@@ -337,6 +343,7 @@ class DebianDsc(DebianSource, File, style="debian-dsc"):
         for fname in file_list:
             link_or_copy(srcdir / fname, destdir)
 
+    @override
     def build_source_package(self) -> Path:
         return self.path
 
@@ -350,24 +357,26 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
     as a last-resort measure.
     """
 
+    @override
     @classmethod
     def prepare_from_dir(
         cls,
         parent: Dir,
         *,
-        distro: Distro,
+        distro: "Distro",
     ) -> Self:
         source_info = SourceInfo.create_from_dir(parent.path)
         return cls(**parent.derive_kwargs(distro=distro, source_info=source_info))
 
+    @override
     @classmethod
     def prepare_from_git(
         cls,
         parent: Git,
         *,
-        distro: Distro,
+        distro: "Distro",
         source_info: SourceInfo | None = None,
-    ) -> DebianDirGit:
+    ) -> "DebianDirGit":
         if source_info is None:
             source_info = SourceInfo.create_from_dir(parent.path)
         parent = parent.get_clean()
@@ -387,6 +396,7 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
         """
         raise Fail(f"Tarball {self.source_info.tar_stem}.* not found")
 
+    @override
     @host_only
     def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
         super().collect_build_artifacts(destdir, artifact_dir)
@@ -396,6 +406,7 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
         else:
             link_or_copy(tarball, destdir)
 
+    @override
     def build_source_package(self) -> Path:
         # Uses --no-pre-clean to avoid requiring build-deps to be installed at
         # this stage
@@ -409,6 +420,7 @@ class DebianDirGit(DebianDir, Git):
     Debian sources from a git repository, without gbp-buildpackage
     """
 
+    @override
     def _on_tarball_not_found(self, destdir: Path) -> None:
         """
         Hook called if the tarball was not found, to allow a subclass to generate it
@@ -439,11 +451,12 @@ class DebianGBP(DebianSource, Git, abc.ABC):
     gbp_info: GBPInfo
     gbp_args: list[str]
 
-    def __init__(self, *, gbp_info: GBPInfo, gbp_args: list[str], **kwargs) -> None:
+    def __init__(self, *, gbp_info: GBPInfo, gbp_args: list[str], **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.gbp_info = gbp_info
         self.gbp_args = gbp_args
 
+    @override
     def info_dict(self) -> dict[str, Any]:
         """Return JSON-able information about this source, without parent information."""
         res = super().info_dict()
@@ -451,6 +464,7 @@ class DebianGBP(DebianSource, Git, abc.ABC):
         res["gbp_args"] = self.gbp_args
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["gbp_info"] = self.gbp_info
@@ -494,6 +508,7 @@ class DebianGBP(DebianSource, Git, abc.ABC):
 
         return source_info, gbp_info
 
+    @override
     def build_source_package(self) -> Path:
         """
         Build a source package in /srv/moncic-ci/source returning the name of
@@ -505,12 +520,15 @@ class DebianGBP(DebianSource, Git, abc.ABC):
 
         return self._find_built_dsc()
 
+    @override
     def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
         return self.tags_by_name.get(self.gbp_info.upstream_tag)
 
+    @override
     def lint_find_packaging_tag(self) -> git.refs.symbolic.SymbolicReference | None:
         return self.tags_by_name.get(self.gbp_info.debian_tag)
 
+    @override
     def lint_find_packaging_branch(self) -> git.refs.symbolic.SymbolicReference | None:
         for branch in self.repo.refs:
             if branch.name == self.gbp_info.debian_branch:
@@ -541,28 +559,31 @@ class DebianGBPTestUpstream(DebianGBP, style="debian-gbp-upstream"):
 
     packaging_branch: str
 
-    def __init__(self, *, packaging_branch: str, **kwargs) -> None:
+    def __init__(self, *, packaging_branch: str, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.packaging_branch = packaging_branch
 
+    @override
     def info_dict(self) -> dict[str, Any]:
         """Return JSON-able information about this source, without parent information."""
         res = super().info_dict()
         res["packaging_branch"] = self.packaging_branch
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["packaging_branch"] = self.packaging_branch
 
+    @override
     @classmethod
     def prepare_from_git(
         cls,
         parent: Git,
         *,
-        distro: Distro,
+        distro: "Distro",
         packaging_branch: git.refs.symbolic.SymbolicReference | None = None,
-    ) -> DebianGBPTestUpstream:
+    ) -> Self:
         assert isinstance(distro, DebianDistro)
         if packaging_branch is None:
             packaging_branch = DebianGBP.find_packaging_branch(parent, distro)
@@ -632,15 +653,16 @@ class DebianGBPRelease(DebianGBP, style="debian-gbp-release"):
     release version of a package.
     """
 
+    @override
     @classmethod
     def prepare_from_git(
         cls,
         parent: Git,
         *,
-        distro: Distro,
+        distro: "Distro",
         source_info: SourceInfo | None = None,
         gbp_info: GBPInfo | None = None,
-    ) -> DebianGBPRelease:
+    ) -> Self:
         assert isinstance(distro, DebianDistro)
         source_info, gbp_info = cls.find_gbp(parent, distro, source_info, gbp_info)
 
@@ -672,15 +694,16 @@ class DebianGBPTestDebian(DebianGBP, style="debian-gbp-test"):
     branch.
     """
 
+    @override
     @classmethod
     def prepare_from_git(
         cls,
         parent: Git,
         *,
-        distro: Distro,
+        distro: "Distro",
         source_info: SourceInfo | None = None,
         gbp_info: GBPInfo | None = None,
-    ) -> DebianGBPTestDebian:
+    ) -> Self:
         assert isinstance(distro, DebianDistro)
         source_info, gbp_info = cls.find_gbp(parent, distro, source_info, gbp_info)
 
