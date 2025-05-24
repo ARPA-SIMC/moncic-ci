@@ -1,6 +1,7 @@
 # Version UNRELEASED
 
 * [Support podman images and containers](doc/podman.md) (#112)
+* Install systemd when bootstrapping Fedora 42 (#111)
 
 # Version 0.17
 

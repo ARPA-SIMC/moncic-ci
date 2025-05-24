@@ -270,6 +270,13 @@ class FedoraDistro(DnfDistro):
         distro, suite = self.name.split(":")
         return ("registry.fedoraproject.org/fedora", suite)
 
+    @override
+    def get_base_packages(self) -> list[str]:
+        res = super().get_base_packages()
+        if self.version >= 42:
+            res += ["systemd"]
+        return res
+
 
 class RockyDistro(DnfDistro):
     mirror = "http://dl.rockylinux.org"

@@ -213,7 +213,7 @@ class TestFedora42(DistroTests, name="fedora42"):
         run_log.assertPopFirst(
             re.compile(
                 rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=42 install bash dbus rootfiles iproute dnf"
+                rf" --installroot={path} --releasever=42 install bash dbus rootfiles iproute dnf systemd"
             )
         )
         run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
@@ -223,7 +223,7 @@ class TestFedora42(DistroTests, name="fedora42"):
         run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
         run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
         run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles systemd")
 
 
 class TestRocky8(DistroTests, name="rocky8"):
