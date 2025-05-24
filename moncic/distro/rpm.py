@@ -8,7 +8,7 @@ import stat
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, override, Generator
 
 from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
@@ -22,6 +22,7 @@ class Fedora(DistroFamily):
     VERSIONS = (32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42)
     SHORTCUTS = {f"fedora{version}": f"fedora:{version}" for version in VERSIONS}
 
+    @override
     def create_distro(self, version: str) -> Distro:
         intver = int(version)
         if intver in self.VERSIONS:
@@ -35,6 +36,7 @@ class Rocky(DistroFamily):
     VERSIONS = (8, 9)
     SHORTCUTS = {f"rocky{version}": f"rocky:{version}" for version in VERSIONS}
 
+    @override
     def create_distro(self, version: str) -> Distro:
         major = int(version.split(".")[0])
         if major in self.VERSIONS:
@@ -48,6 +50,7 @@ class Centos(DistroFamily):
     VERSIONS = (7, 8)
     SHORTCUTS = {f"centos{version}": f"centos:{version}" for version in VERSIONS}
 
+    @override
     def create_distro(self, version: str) -> Distro:
         intver = int(version)
         if intver == 7:
@@ -65,13 +68,14 @@ class RpmDistro(Distro):
 
     version: int
 
+    @override
     def get_base_packages(self) -> list[str]:
         res = super().get_base_packages()
         res += ["rootfiles", "iproute"]
         return res
 
     @contextlib.contextmanager
-    def chroot_config(self):
+    def chroot_config(self) -> Generator[str, None, None]:
         baseurl = self.baseurl.format(mirror=self.mirror)
 
         with tempfile.NamedTemporaryFile("wt", suffix=".repo") as fd:
@@ -135,19 +139,23 @@ class RpmDistro(Distro):
 
 
 class YumDistro(RpmDistro):
+    @override
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["yum"]
 
-    def get_update_pkgdb_script(self):
+    @override
+    def get_update_pkgdb_script(self) -> list[str]:
         res = super().get_update_pkgdb_script()
         res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
         return res
 
+    @override
     def get_upgrade_system_script(self) -> list[list[str]]:
         res = super().get_upgrade_system_script()
         res.append(["/usr/bin/yum", "upgrade", "-q", "-y"])
         return res
 
+    @override
     def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
         res = super().get_install_packages_script(packages)
         res.append(["/usr/bin/yum", "install", "-q", "-y"] + packages)
@@ -155,29 +163,35 @@ class YumDistro(RpmDistro):
 
 
 class DnfDistro(RpmDistro):
+    @override
     def get_base_packages(self) -> list[str]:
         return super().get_base_packages() + ["dnf"]
 
-    def get_setup_network_script(self):
+    @override
+    def get_setup_network_script(self) -> list[list[str]]:
         res = super().get_setup_network_script()
         res.append(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
         return res
 
-    def get_update_pkgdb_script(self):
+    @override
+    def get_update_pkgdb_script(self) -> list[list[str]]:
         res = super().get_update_pkgdb_script()
         res.append(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
         return res
 
+    @override
     def get_upgrade_system_script(self) -> list[list[str]]:
         res = super().get_upgrade_system_script()
         res.append(["/usr/bin/dnf", "upgrade", "-q", "-y"])
         return res
 
-    def get_install_packages_script(self, packages: list[str]):
+    @override
+    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
         res = super().get_install_packages_script(packages)
         res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
         return res
 
+    @override
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
         # We cannot just import dnf here, as it is unlikely to match the
         # version of python in the host system. We therefore shell out to the

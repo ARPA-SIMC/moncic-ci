@@ -7,18 +7,19 @@ import tempfile
 import time
 import unittest
 from collections.abc import Generator
-from typing import ClassVar
+from typing import ClassVar, override, Any
 from pathlib import Path
 
 from moncic import context
 from moncic.container import BindConfig, Container, ContainerConfig
 from moncic.nspawn.images import PlainImages
 from moncic.nspawn.image import NspawnImage
-from moncic.runner import UserConfig
+from moncic.runner import UserConfig, RunConfig
 from moncic.unittest import MoncicTestCase
 
 
 class TestNspawnContainer(MoncicTestCase):
+    @override
     def setUp(self) -> None:
         super().setUp()
         self.imageconfdir = self.workdir()
@@ -47,34 +48,34 @@ class TestNspawnContainer(MoncicTestCase):
             with image.container(config=config) as container:
                 yield container
 
-    def test_true(self):
+    def test_true(self) -> None:
         with self.container() as container:
             container.run(["/usr/bin/true"])
 
-    def test_sleep(self):
+    def test_sleep(self) -> None:
         with self.container() as container:
             start = time.time()
             container.run(["/usr/bin/sleep", "0.1"])
             # Check that 0.1 seconds have passed
             self.assertGreaterEqual(time.time() - start, 0.1)
 
-    def test_stdout(self):
+    def test_stdout(self) -> None:
         with self.container() as container:
             res = container.run(["/usr/bin/echo", "test"])
             self.assertEqual(res.stdout, b"test\n")
             self.assertEqual(res.stderr, b"")
 
-    def test_env(self):
+    def test_env(self) -> None:
         with self.container() as container:
             res = container.run(["/bin/sh", "-c", "echo $HOME"])
             self.assertEqual(res.stdout, b"/root\n")
             self.assertEqual(res.stderr, b"")
 
-    def test_callable(self):
+    def test_callable(self) -> None:
         token = secrets.token_bytes(8)
         with self.container() as container:
 
-            def test_function():
+            def test_function() -> None:
                 with open("/tmp/token", "wb") as out:
                     out.write(token)
 
@@ -92,10 +93,10 @@ class TestNspawnContainer(MoncicTestCase):
             self.assertIsNone(res.returnvalue)
             self.assertIsNone(res.exc_info)
 
-    def test_callable_prints(self):
+    def test_callable_prints(self) -> None:
         with self.container() as container:
 
-            def test_function():
+            def test_function() -> None:
                 print("stdout")
                 print("stderr", file=sys.stderr)
 
@@ -106,10 +107,10 @@ class TestNspawnContainer(MoncicTestCase):
             self.assertIsNone(res.returnvalue)
             self.assertIsNone(res.exc_info)
 
-    def test_callable_returns(self):
+    def test_callable_returns(self) -> None:
         with self.container() as container:
 
-            def test_function():
+            def test_function() -> dict[str, Any]:
                 return {"success": True}
 
             res = container.run_callable_raw(test_function)
@@ -120,10 +121,10 @@ class TestNspawnContainer(MoncicTestCase):
             self.assertIsNone(res.exc_info)
             self.assertEqual(res.result(), {"success": True})
 
-    def test_callable_raises(self):
+    def test_callable_raises(self) -> None:
         with self.container() as container:
 
-            def test_function():
+            def test_function() -> None:
                 raise RuntimeError("expected failure")
 
             res = container.run_callable_raw(test_function)
@@ -138,7 +139,7 @@ class TestNspawnContainer(MoncicTestCase):
             with self.assertRaises(RuntimeError):
                 res.result()
 
-    def test_multi_maint_runs(self):
+    def test_multi_maint_runs(self) -> None:
         with self.image() as image:
             with image.container() as container:
                 res = container.run(["/bin/echo", "1"])
@@ -149,15 +150,15 @@ class TestNspawnContainer(MoncicTestCase):
                 self.assertEqual(res.stdout, b"2\n")
                 self.assertEqual(res.stderr, b"")
 
-    def test_run_script(self):
+    def test_run_script(self) -> None:
         with self.container() as container:
             res = container.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", config=RunConfig(check=False))
             self.assertEqual(res.stdout, b"test\n")
             self.assertEqual(res.stderr, b"")
             self.assertEqual(res.returncode, 1)
 
-    def test_forward_user(self):
-        def get_user():
+    def test_forward_user(self) -> None:
+        def get_user() -> UserConfig:
             return UserConfig.from_current()
 
         user = UserConfig.from_sudoer()
@@ -187,7 +188,7 @@ class TestNspawnContainer(MoncicTestCase):
                 self.assertEqual(res.stdout, b"")
                 self.assertEqual(res.stderr, b"")
 
-    def test_forward_user_workdir(self):
+    def test_forward_user_workdir(self) -> None:
         user = UserConfig.from_sudoer()
         workdir = self.tempdir()
 
@@ -219,7 +220,7 @@ class TestNspawnContainer(MoncicTestCase):
                 self.assertEqual(binds[1].bind_type, "rw")
                 self.assertEqual(binds[1].mount_options, [])
 
-    def test_bind_mount_rw(self):
+    def test_bind_mount_rw(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             # By default, things are run as root
             container_config = ContainerConfig()
@@ -243,7 +244,7 @@ class TestNspawnContainer(MoncicTestCase):
                     self.assertEqual(binds[1].bind_type, "rw")
                     self.assertEqual(binds[1].mount_options, [])
 
-    def test_bind_mount_ro(self):
+    def test_bind_mount_ro(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             # By default, things are run as root
             container_config = ContainerConfig()
@@ -269,7 +270,7 @@ class TestNspawnContainer(MoncicTestCase):
                     self.assertEqual(binds[1].bind_type, "rw")
                     self.assertEqual(binds[1].mount_options, [])
 
-    def test_bind_mount_volatile(self):
+    def test_bind_mount_volatile(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             # By default, things are run as root
             container_config = ContainerConfig()
@@ -293,8 +294,8 @@ class TestNspawnContainer(MoncicTestCase):
                     self.assertEqual(binds[1].bind_type, "rw")
                     self.assertEqual(binds[1].mount_options, [])
 
-    def test_run_callable_logging(self):
-        def test_log():
+    def test_run_callable_logging(self) -> None:
+        def test_log() -> None:
             logging.debug("debug")
             logging.info("info")
             logging.warning("warning")
@@ -316,16 +317,16 @@ class TestNspawnContainer(MoncicTestCase):
             self.assertEqual(
                 output,
                 [
-                    f"INFO:{container.system.log.name}:Running test_log",
-                    f"DEBUG:{container.system.log.name}.root:debug",
-                    f"INFO:{container.system.log.name}.root:info",
-                    f"WARNING:{container.system.log.name}.root:warning",
-                    f"ERROR:{container.system.log.name}.root:error",
+                    f"INFO:{container.image.logger.name}:Running test_log",
+                    f"DEBUG:{container.image.logger.name}.root:debug",
+                    f"INFO:{container.image.logger.name}.root:info",
+                    f"WARNING:{container.image.logger.name}.root:warning",
+                    f"ERROR:{container.image.logger.name}.root:error",
                 ],
             )
 
-    def test_issue37(self):
-        def test_redirect():
+    def test_issue37(self) -> None:
+        def test_redirect() -> None:
             sys.stdin.read(1)
 
         self.maxDiff = None

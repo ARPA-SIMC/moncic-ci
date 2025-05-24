@@ -32,15 +32,21 @@ log = logging.getLogger("libbanana")
 
 
 class Codec:
-    def __init__(self, shiftalpha=0, alphaend=0, minlength=0, alphabets=None):
+    def __init__(
+        self,
+        shiftalpha: int = 0,
+        alphaend: int = 0,
+        minlength: int = 0,
+        alphabets: tuple[list[str], list[str]] | None = None,
+    ) -> None:
         self.shiftalpha = shiftalpha
         self.alphaend = alphaend
         if alphabets is None:
-            self.alphabets = [list("bcdfglmnprstvz"), list("aeiou")]
+            self.alphabets = (list("bcdfglmnprstvz"), list("aeiou"))
         else:
             self.alphabets = alphabets
 
-    def encode(self, num, minlength=1):
+    def encode(self, num: int, minlength: int = 1) -> str:
         alphabets = self.alphabets
         numalpha = len(alphabets)
         v = num
@@ -57,7 +63,7 @@ class Codec:
 
         return st
 
-    def decode(self, word):
+    def decode(self, word: str) -> int:
         alphabets = self.alphabets
 
         numalpha = len(alphabets)
@@ -69,11 +75,11 @@ class Codec:
             try:
                 v = v * len(alphabets[r]) + alphabets[r].index(word[i])
             except (ValueError, KeyError):
-                raise ValueError("Invalid character in position %d" % i + 1)
+                raise ValueError(f"Invalid character in position {i+1}")
 
         return v
 
-    def is_valid(self, word):
+    def is_valid(self, word: str) -> bool:
         alphabets = self.alphabets
 
         numalpha = len(alphabets)
@@ -86,7 +92,7 @@ class Codec:
 
         return True
 
-    def random(self, minlength=6, prng=random.Random()):
+    def random(self, minlength: int = 6, prng: random.Random = random.Random()) -> str:
         numalpha = len(self.alphabets)
         word = ""
 
@@ -103,7 +109,7 @@ class Codec:
 
 
 class BananaCodec(Codec):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
 

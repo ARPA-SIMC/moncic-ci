@@ -21,7 +21,7 @@ import types
 from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, BinaryIO, Generic, NamedTuple, TypeVar, cast
+from typing import IO, TYPE_CHECKING, Any, BinaryIO, Generic, NamedTuple, TypeVar, cast, override
 
 import tblib
 
@@ -103,7 +103,7 @@ class UserConfig(NamedTuple):
         gr = grp.getgrgid(pw.pw_gid)
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
-    def check_system(self):
+    def check_system(self) -> None:
         """
         Check that this user/group information is consistent in the current
         system
@@ -168,7 +168,7 @@ class CompletedCallable(Generic[Result], subprocess.CompletedProcess):
     and exception information
     """
 
-    def __init__(self, *args, **kw) -> None:
+    def __init__(self, *args: Any, **kw: Any) -> None:
         super().__init__(*args, **kw)
         self.returnvalue: Result | None = None
         self.exc_info: tuple[type[BaseException], BaseException, types.TracebackType] | None = None
@@ -212,7 +212,7 @@ class Runner:
         """
         raise NotImplementedError(f"{self.__class__}._get_name not implemented")
 
-    async def read_stdout(self, reader: asyncio.StreamReader):
+    async def read_stdout(self, reader: asyncio.StreamReader) -> None:
         while True:
             line = await reader.readline()
             if not line:
@@ -220,7 +220,7 @@ class Runner:
             self.stdout.append(line)
             self.log.info("stdout: %s", line.decode(errors="replace").rstrip())
 
-    async def read_stderr(self, reader: asyncio.StreamReader):
+    async def read_stderr(self, reader: asyncio.StreamReader) -> None:
         while True:
             line = await reader.readline()
             if not line:
@@ -228,7 +228,7 @@ class Runner:
             self.stderr.append(line)
             self.log.info("stderr: %s", line.decode(errors="replace").rstrip())
 
-    async def read_log(self, reader: asyncio.StreamReader):
+    async def read_log(self, reader: asyncio.StreamReader) -> None:
         while True:
             try:
                 size_encoded = await reader.readexactly(5)
@@ -256,7 +256,7 @@ class AsyncioRunner(Runner):
     def execute(self) -> subprocess.CompletedProcess:
         return asyncio.run(self._run())
 
-    async def start_process(self):
+    async def start_process(self) -> asyncio.subprocess.Process:
         """
         Start an asyncio subprocess for the command, returning it so it can be
         supervised
@@ -265,12 +265,15 @@ class AsyncioRunner(Runner):
 
     async def _run(self) -> subprocess.CompletedProcess:
         proc = await self.start_process()
+        assert proc.stdout is not None
+        assert proc.stderr is not None
 
         await asyncio.gather(
             self.read_stdout(proc.stdout),
             self.read_stderr(proc.stderr),
             proc.wait(),
         )
+        assert proc.returncode is not None
 
         stdout = b"".join(self.stdout)
         stderr = b"".join(self.stderr)
@@ -286,10 +289,12 @@ class LocalRunner(AsyncioRunner):
     Run a command locally, logging its output
     """
 
+    @override
     def _get_name(self) -> str:
         return shlex.join(self.cmd)
 
-    async def start_process(self):
+    @override
+    async def start_process(self) -> asyncio.subprocess.Process:
         if self.config.user is not None:
             raise NotImplementedError("support for user config in LocalRunner is not yet implemented")
         if self.config.interactive:
@@ -334,12 +339,13 @@ class PickleStreamHandler(logging.Handler):
     Serialize log records as json over a stream
     """
 
-    def __init__(self, logger_name_prefix: str, stream: IO[bytes], level=logging.NOTSET):
+    def __init__(self, logger_name_prefix: str, stream: IO[bytes], level=logging.NOTSET) -> None:
         super().__init__(level)
         self.logger_name_prefix = logger_name_prefix
         self.stream = stream
 
-    def emit(self, record):
+    @override
+    def emit(self, record) -> None:
         record.name = self.logger_name_prefix + "." + record.name
         pickled = pickle.dumps(record, pickle.HIGHEST_PROTOCOL)
         self.stream.write(struct.pack("=BL", RESULT_LOG, len(pickled)))
@@ -364,17 +370,18 @@ class SetnsCallableRunner(Generic[Result], Runner):
         self.kwargs = kwargs
         self.result_stream_writer: BinaryIO
 
+    @override
     def _get_name(self) -> str:
         return self.func.__doc__.strip() if self.func.__doc__ else self.func.__name__
 
-    async def make_reader(self, fd: int):
+    async def make_reader(self, fd: int) -> asyncio.StreamReader:
         loop = asyncio.get_running_loop()
         reader = asyncio.StreamReader()
         reader_protocol = asyncio.StreamReaderProtocol(reader)
         transport, protocol = await loop.connect_read_pipe(lambda: reader_protocol, os.fdopen(fd))
         return reader
 
-    async def collect_output(self, stdout_r: int | None, stderr_r: int | None, result_r: int):
+    async def collect_output(self, stdout_r: int | None, stderr_r: int | None, result_r: int) -> None:
         # See https://gist.github.com/oconnor663/08c081904264043e55bf
         readers = []
         if stdout_r is not None:
@@ -402,7 +409,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
 
         return self.config.user
 
-    def send_exception(self):
+    def send_exception(self) -> None:
         """
         Send the current exception to the result stream
         """
@@ -412,7 +419,7 @@ class SetnsCallableRunner(Generic[Result], Runner):
         self.result_stream_writer.write(pickled)
         self.result_stream_writer.flush()
 
-    def send_result(self, value: Any):
+    def send_result(self, value: Any) -> None:
         """
         Send a function return value to the result stream
         """

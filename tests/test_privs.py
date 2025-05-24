@@ -1,6 +1,6 @@
 import os
 import unittest
-from typing import ClassVar
+from typing import ClassVar, override
 
 from moncic.unittest import SudoTestSuite
 
@@ -8,13 +8,14 @@ from moncic.unittest import SudoTestSuite
 class TestPrivs(unittest.TestCase):
     privs: ClassVar[SudoTestSuite]
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
         cls.privs = SudoTestSuite()
         cls.privs.drop()
 
-    def assertUnprivileged(self):
+    def assertUnprivileged(self) -> None:
         uid, euid, suid = os.getresuid()
         self.assertEqual(uid, self.privs.user_uid)
         self.assertEqual(euid, self.privs.user_uid)
@@ -25,7 +26,7 @@ class TestPrivs(unittest.TestCase):
         self.assertEqual(egid, self.privs.user_gid)
         self.assertEqual(sgid, 0)
 
-    def assertPrivileged(self):
+    def assertPrivileged(self) -> None:
         uid, euid, suid = os.getresuid()
         self.assertEqual(uid, 0)
         self.assertEqual(euid, 0)
@@ -36,13 +37,13 @@ class TestPrivs(unittest.TestCase):
         self.assertEqual(egid, 0)
         self.assertEqual(sgid, self.privs.user_gid)
 
-    def test_default(self):
+    def test_default(self) -> None:
         self.privs.needs_sudo()
 
         self.assertTrue(self.privs.dropped)
         self.assertUnprivileged()
 
-    def test_root(self):
+    def test_root(self) -> None:
         self.privs.needs_sudo()
 
         self.assertTrue(self.privs.dropped)

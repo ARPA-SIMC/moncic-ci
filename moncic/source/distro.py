@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from ..exceptions import Fail
 from .local import Dir, File, Git, LocalSource
@@ -23,10 +23,11 @@ class DistroSource(LocalSource, abc.ABC):
     style: ClassVar[str | None] = None
     distro: Distro
 
-    def __init__(self, *, distro: Distro, **kwargs) -> None:
+    def __init__(self, *, distro: Distro, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.distro = distro
 
+    @override
     def info_dict(self) -> dict[str, Any]:
         """Return JSON-able information about this source, without parent information."""
         res = super().info_dict()
@@ -34,7 +35,8 @@ class DistroSource(LocalSource, abc.ABC):
         res["distro"] = self.distro
         return res
 
-    def __init_subclass__(cls, style: str | None = None, **kwargs) -> None:
+    @override
+    def __init_subclass__(cls, style: str | None = None, **kwargs: Any) -> None:
         """Register subclasses."""
         super().__init_subclass__(**kwargs)
         if style is not None:
@@ -48,6 +50,7 @@ class DistroSource(LocalSource, abc.ABC):
         """
         return cls.style or cls.__name__.lower()
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["distro"] = self.distro

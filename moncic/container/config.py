@@ -27,12 +27,12 @@ class ContainerConfig:
     # Cannot be used when ephemeral is False
     forward_user: UserConfig | None = None
 
-    def check(self):
+    def check(self) -> None:
         """
         Raise exceptions if options are used inconsistently
         """
 
-    def configure_workdir(self, workdir: Path, bind_type: str = "rw", mountpoint: Path = Path("/media")):
+    def configure_workdir(self, workdir: Path, bind_type: str = "rw", mountpoint: Path = Path("/media")) -> None:
         """
         Configure a working directory, bind mounted into the container, set as
         the container working directory, with its user forwarded in the container.

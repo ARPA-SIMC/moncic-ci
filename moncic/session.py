@@ -3,7 +3,8 @@ import contextvars
 import os
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override, Self
+import types
 import importlib.util
 
 from .exceptions import Fail
@@ -30,8 +31,8 @@ class Session(contextlib.ExitStack):
 
         super().__init__()
         self.moncic = moncic
-        self.orig_moncic: contextvars.Token | None = None
-        self.orig_session: contextvars.Token | None = None
+        self.orig_moncic: contextvars.Token["Moncic"] | None = None
+        self.orig_session: contextvars.Token["Session"] | None = None
         #: Prefix used to filter podman repositories that Moncic-CI will use
         self.podman_repository_prefix = "localhost/moncic-ci/"
 
@@ -76,18 +77,24 @@ class Session(contextlib.ExitStack):
         else:
             raise Fail("neither nspawn nor podman are accessible (try running with sudo?)")
 
-    def __enter__(self):
+    @override
+    def __enter__(self) -> Self:
         self.orig_moncic = context.moncic.set(self.moncic)
         self.orig_session = context.session.set(self)
         return super().__enter__()
 
-    def __exit__(self, *args):
-        res = super().__exit__(*args)
+    @override
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        super().__exit__(exc_type, exc_val, exc_tb)
         if self.orig_session is not None:
             context.session.reset(self.orig_session)
         if self.orig_moncic is not None:
-            context.moncic.set(self.orig_moncic)
-        return res
+            context.moncic.reset(self.orig_moncic)
 
     @cached_property
     def podman(self) -> "_podman.PodmanClient":

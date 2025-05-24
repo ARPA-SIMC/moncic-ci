@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from ..source.lint import Reporter, guest_lint
 from ..utils.guest import guest_only
@@ -20,6 +20,7 @@ class Query(ContainerSourceOperation):
     Query informations about a Source using a container
     """
 
+    @override
     @guest_only
     def guest_main(self) -> dict[str, Any]:
         """
@@ -38,6 +39,7 @@ class BuildDeps(ContainerSourceOperation):
     Query informations about a Source using a container
     """
 
+    @override
     @guest_only
     def guest_main(self) -> list[str]:
         """
@@ -60,6 +62,7 @@ class Lint(ContainerSourceOperation):
         super().__init__(image, source, artifacts_dir=artifacts_dir)
         self.reporter = reporter
 
+    @override
     @guest_only
     def guest_main(self) -> Reporter:
         """

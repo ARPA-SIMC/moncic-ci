@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from .local import Git, LocalSource
 
@@ -24,11 +24,11 @@ class Reporter:
         #: Number of warnings found
         self.warning_count: int = 0
 
-    def error(self, source: Source, message: str):
+    def error(self, source: Source, message: str) -> None:
         log.error("%s", message)
         self.error_count += 1
 
-    def warning(self, source: Source, message: str):
+    def warning(self, source: Source, message: str) -> None:
         log.warning("%s", message)
         self.warning_count += 1
 
@@ -85,7 +85,7 @@ class BaseLinter:
         """
         return False
 
-    def run(self):
+    def run(self) -> None:
         pass
 
 
@@ -100,7 +100,8 @@ class GuestLinter(BaseLinter):
         super().__init__(source, reporter)
         self.versions = source.lint_find_versions(allow_exec=True)
 
-    def run(self):
+    @override
+    def run(self) -> None:
         super().run()
         self.check_versions()
         if isinstance(self.source, Git):

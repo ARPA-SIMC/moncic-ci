@@ -32,6 +32,7 @@ class Debian(DistroFamily):
     EXTRA_SUITES = ("oldstable", "stable", "testing", "unstable")
     SHORTCUTS = {suite: f"debian:{suite}" for suite in list(VERSION_IDS.values()) + ["sid"]}
 
+    @override
     def create_distro(self, version: str) -> Distro:
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
@@ -41,6 +42,7 @@ class Debian(DistroFamily):
         else:
             raise KeyError(f"Debian version {version!r} is not (yet) supported")
 
+    @override
     def list_distros(self) -> list[DistroInfo]:
         """
         Return a list of distros available in this family
@@ -73,6 +75,7 @@ class Ubuntu(DistroFamily):
     SHORTCUTS = {suite: f"ubuntu:{suite}" for suite in VERSION_IDS.values()}
     LEGACY = ("xenial",)
 
+    @override
     def create_distro(self, version: str) -> Distro:
         # Map version numbers to release codenames
         suite = self.VERSION_IDS.get(version, version)
@@ -82,6 +85,7 @@ class Ubuntu(DistroFamily):
         else:
             raise KeyError(f"Ubuntu version {version!r} is not (yet) supported")
 
+    @override
     def list_distros(self) -> list[DistroInfo]:
         """
         Return a list of distros available in this family
@@ -120,7 +124,8 @@ class DebianDistro(Distro):
         distro, suite = self.name.split(":")
         return ("docker.io/library/debian", suite)
 
-    def container_config_hook(self, image: Image, config: ContainerConfig):
+    @override
+    def container_config_hook(self, image: Image, config: ContainerConfig) -> None:
         super().container_config_hook(image, config)
         if apt_archive_path := image.session.apt_archives:
             config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", "aptcache"))
@@ -128,6 +133,7 @@ class DebianDistro(Distro):
         if extra_packages_dir := image.session.extra_packages_dir:
             config.binds.append(BindConfig.create(extra_packages_dir, "/srv/moncic-ci/mirror/packages", "aptpackages"))
 
+    @override
     def get_base_packages(self) -> list[str]:
         res = super().get_base_packages()
         res += ["systemd", "apt-utils", "eatmydata", "iproute2"]
@@ -169,21 +175,25 @@ class DebianDistro(Distro):
                 cmd.insert(0, eatmydata)
             images.host_run(cmd)
 
-    def get_update_pkgdb_script(self):
+    @override
+    def get_update_pkgdb_script(self) -> list[list[str]]:
         res = super().get_update_pkgdb_script()
         res.append(["/usr/bin/apt-get", "update"])
         return res
 
+    @override
     def get_upgrade_system_script(self) -> list[list[str]]:
         res = super().get_upgrade_system_script()
         res.append(self.APT_INSTALL_CMD + ["full-upgrade"])
         return res
 
+    @override
     def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
         res = super().get_install_packages_script(packages)
         res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
         return res
 
+    @override
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
         re_inst = re.compile(r"^Inst (\S+) \((\S+)")
         cmd_prefix = [
@@ -239,6 +249,7 @@ class UbuntuDistro(DebianDistro):
         distro, suite = self.name.split(":")
         return ("docker.io/library/ubuntu/", suite)
 
+    @override
     def get_gbp_branches(self) -> list[str]:
         """
         Return the default git-buildpackage debian-branch name for this

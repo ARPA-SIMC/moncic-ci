@@ -4,7 +4,7 @@ import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple, override
 
 from moncic.utils.osrelease import parse_osrelase
 
@@ -47,7 +47,7 @@ class DistroFamily:
         return family_cls
 
     @classmethod
-    def populate(cls):
+    def populate(cls) -> None:
         """
         Ensure modules that register DistroFamily instances get loaded
         """
@@ -137,6 +137,7 @@ class DistroFamily:
             name = self.__class__.__name__.lower()
         return name
 
+    @override
     def __str__(self) -> str:
         return self.name
 
@@ -159,9 +160,10 @@ class Distro(abc.ABC):
     Common base class for bootstrapping distributions
     """
 
-    def __init__(self, name: str):
+    def __init__(self, name: str) -> None:
         self.name = name
 
+    @override
     def __str__(self) -> str:
         return self.name
 
@@ -172,7 +174,7 @@ class Distro(abc.ABC):
         """
         return ["bash", "dbus"]
 
-    def container_config_hook(self, image: "Image", config: "ContainerConfig"):
+    def container_config_hook(self, image: "Image", config: "ContainerConfig") -> None:
         """
         Hook to allow distro-specific container setup
         """
@@ -208,6 +210,7 @@ class Distro(abc.ABC):
         except FileNotFoundError:
             pass
 
+    # TODO: switch to Script
     def get_setup_network_script(self) -> list[list[str]]:
         """
         Get the sequence of commands to use to setup networking

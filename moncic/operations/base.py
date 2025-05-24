@@ -8,7 +8,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, cast
+from typing import IO, TYPE_CHECKING, Any, Generator
 
 from moncic import context
 
@@ -18,7 +18,7 @@ from ..source.distro import DistroSource
 from ..utils.guest import guest_only, host_only
 
 if TYPE_CHECKING:
-    from moncic.image import Image
+    from moncic.image import RunnableImage
 
     from ..container import Container
 
@@ -30,7 +30,7 @@ class ContainerSourceOperation(abc.ABC):
     Base class for operations on sources performed inside a container
     """
 
-    def __init__(self, image: Image, source: DistroSource, *, artifacts_dir: Path | None = None):
+    def __init__(self, image: RunnableImage, source: DistroSource, *, artifacts_dir: Path | None = None) -> None:
         #: Image used for container operations
         self.image = image
         #: Source to work on
@@ -47,7 +47,7 @@ class ContainerSourceOperation(abc.ABC):
         self.guest_source_path: Path | None = None
 
     @host_only
-    def log_capture_start(self, log_file: Path):
+    def log_capture_start(self, log_file: Path) -> None:
         self.log_file = log_file.open("wt")
         self.log_handler = logging.StreamHandler(self.log_file)
         self.log_handler.setLevel(logging.DEBUG)
@@ -56,7 +56,7 @@ class ContainerSourceOperation(abc.ABC):
         logging.getLogger().setLevel(logging.DEBUG)
 
     @host_only
-    def log_capture_end(self):
+    def log_capture_end(self) -> None:
         if self.log_handler is not None:
             logging.getLogger().removeHandler(self.log_handler)
             self.log_handler = None
@@ -64,7 +64,7 @@ class ContainerSourceOperation(abc.ABC):
             self.log_file = None
 
     @host_only
-    def setup_container_host(self, container: Container):
+    def setup_container_host(self, container: Container) -> None:
         """
         Set up the container before starting the build.
 
@@ -109,7 +109,7 @@ class ContainerSourceOperation(abc.ABC):
 
     @host_only
     @contextlib.contextmanager
-    def container(self):
+    def container(self) -> Generator[Container, None, None]:
         """
         Start a container to run CI operations
         """
@@ -135,14 +135,14 @@ class ContainerSourceOperation(abc.ABC):
         # Do nothing by default
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path):
+    def collect_artifacts(self, container: Container, destdir: Path) -> None:
         """
         Collect artifacts from the guest filesystem before it is shut down
         """
         # Do nothing by default
 
     @host_only
-    def _after_build(self, container: Container):
+    def _after_build(self, container: Container) -> None:
         """
         Hook to run commands on the container after the main operation ended
         """
@@ -154,8 +154,7 @@ class ContainerSourceOperation(abc.ABC):
         Return self.source pointing to its location inside the guest system
         """
         assert self.guest_source_path
-        # TODO: remove cast from python 3.11
-        return cast(DistroSource, self.source.in_path(self.guest_source_path))
+        return self.source.in_path(self.guest_source_path)
 
     @host_only
     def host_main(self) -> Any:
@@ -185,7 +184,7 @@ class ContainerSourceOperation(abc.ABC):
         return result
 
     @abc.abstractmethod
-    def guest_main(self):
+    def guest_main(self) -> None:
         """
         Function run on the guest system to perform the operation
         """

@@ -33,7 +33,7 @@ CLONE_INTO_CGROUP = 0x200000000  # Clone into a specific cgroup given the right 
 CLONE_NEWTIME = 0x00000080  # New time namespace
 
 
-def setns(fd: int, flags: int = 0):
+def setns(fd: int, flags: int = 0) -> None:
     """
     Wrapper for the libc setns syscall
     """
@@ -45,7 +45,7 @@ def setns(fd: int, flags: int = 0):
         raise OSError(ctypes.get_errno(), os.strerror(errno))
 
 
-def unshare(flags: int = 0):
+def unshare(flags: int = 0) -> None:
     """
     Wrapper for the libc unshare syscall
     """
@@ -57,7 +57,17 @@ def unshare(flags: int = 0):
         raise OSError(ctypes.get_errno(), os.strerror(errno))
 
 
-def nsenter(leader_pid: int, cgroup=True, ipc=True, net=True, mnt=True, pid=True, time=True, user=True, uts=True):
+def nsenter(
+    leader_pid: int,
+    cgroup: bool = True,
+    ipc: bool = True,
+    net: bool = True,
+    mnt: bool = True,
+    pid: bool = True,
+    time: bool = True,
+    user: bool = True,
+    uts: bool = True,
+) -> None:
     """
     Move this process to the namespace(s) of the given process.
 

@@ -1,16 +1,15 @@
 import abc
-import grp
 import logging
 import os
-import pwd
 import shlex
 import subprocess
 import tempfile
+import types
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ContextManager, TypeVar
+from typing import Any, ContextManager, TypeVar, Self
 
 from moncic.image import RunnableImage
 from moncic.runner import CompletedCallable, RunConfig, UserConfig
@@ -31,8 +30,8 @@ machine_name_sequence: int = 0
 # Convert PIDs to machine names
 machine_name_generator = libbanana.Codec(
     alphabets=(
-        "bcdfgjklmnprstvwxyz",
-        "aeiou",
+        list("bcdfgjklmnprstvwxyz"),
+        list("aeiou"),
     )
 ).encode
 
@@ -78,7 +77,7 @@ class Container(abc.ABC):
 
     def host_run(
         self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
-    ) -> subprocess.CompletedProcess:
+    ) -> subprocess.CompletedProcess[bytes]:
         """Run a command in the host system."""
         from moncic.runner import LocalRunner
 
@@ -99,7 +98,7 @@ class Container(abc.ABC):
             instance_name += str(seq)
         return instance_name
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self.stack.__enter__()
         for bind in self.config.binds:
             self.stack.enter_context(bind.host_setup(self))
@@ -116,7 +115,12 @@ class Container(abc.ABC):
         self.started = True
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
         self.started = False
         if self.linger:
             return
@@ -126,7 +130,7 @@ class Container(abc.ABC):
     def _container(self) -> ContextManager[None]:
         """Start the container for the duration of the context manager."""
 
-    def forward_user(self, user: UserConfig, allow_maint: bool = False):
+    def forward_user(self, user: UserConfig, allow_maint: bool = False) -> None:
         """
         Ensure the system has a matching user and group
         """
@@ -179,38 +183,6 @@ class Container(abc.ABC):
                 )
 
             self.run_script(script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
-
-    def check_system(self):
-        """
-        Check that this user/group information is consistent in the current
-        system
-        """
-        # Run consistency checks
-        if self.user_id == 0 and self.group_id == 0:
-            return
-
-        # TODO: do not use pwd and grp, as they may be cached from the host system
-        try:
-            pw = pwd.getpwuid(self.user_id)
-        except KeyError:
-            raise RuntimeError(f"container has no user {self.user_id} {self.user_name!r}") from None
-
-        try:
-            gr = grp.getgrgid(self.group_id)
-        except KeyError:
-            raise RuntimeError(f"container has no group {self.group_id} {self.group_name!r}") from None
-
-        if pw.pw_name != self.user_name:
-            raise RuntimeError(
-                f"user {self.user_id} in container is named {pw.pw_name!r}"
-                f" but outside it is named {self.user_name!r}"
-            )
-
-        if gr.gr_name != self.group_name:
-            raise RuntimeError(
-                f"group {self.group_id} in container is named {gr.gr_name!r}"
-                f" but outside it is named {self.group_name!r}"
-            )
 
     @abc.abstractmethod
     def get_root(self) -> Path:
@@ -270,7 +242,7 @@ class Container(abc.ABC):
         self,
         func: Callable[..., Result],
         config: RunConfig | None = None,
-        args: tuple = (),
+        args: tuple[str, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
         """
@@ -282,7 +254,7 @@ class Container(abc.ABC):
         self,
         func: Callable[..., Result],
         config: RunConfig | None = None,
-        args: tuple = (),
+        args: tuple[str, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> Result:
         """

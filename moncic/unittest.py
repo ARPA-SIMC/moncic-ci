@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, override
 from unittest import SkipTest, TestCase
 
 from . import context
@@ -24,38 +24,39 @@ log = logging.getLogger(__name__)
 
 
 class SudoTestSuite(ProcessPrivs):
-    def needs_sudo(self):
+    @override
+    def needs_sudo(self) -> None:
         if not self.have_sudo:
             raise SkipTest("Tests need to be run under sudo")
 
 
 class MockRunLog:
-    def __init__(self, testcase):
+    def __init__(self, testcase: TestCase) -> None:
         self.testcase = testcase
-        self.log = []
+        self.log: list[tuple[str, dict[str, Any]]] = []
 
     def append_action(self, action: str) -> None:
         self.log.append((action, {}))
 
-    def append(self, cmd: list[str], kwargs: dict[str, Any]):
+    def append(self, cmd: list[str], kwargs: dict[str, Any]) -> None:
         self.log.append((shlex.join(cmd), kwargs))
 
-    def append_script(self, script: Script | str):
+    def append_script(self, script: Script | str) -> None:
         if isinstance(script, Script):
             self.log.append((script.title, {"script": script}))
         else:
             self.log.append((f"script:{script}", {}))
 
-    def append_callable(self, func: Callable[[], int | None]):
+    def append_callable(self, func: Callable[[], int | None]) -> None:
         self.log.append((f"callable:{func.__name__}", {}))
 
-    def append_forward_user(self, user: UserConfig):
+    def append_forward_user(self, user: UserConfig) -> None:
         self.log.append((f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}", {}))
 
-    def append_cachedir(self):
+    def append_cachedir(self) -> None:
         self.log.append(("cachedir_tag:", {}))
 
-    def assertPopFirstOptional(self, cmd: str | re.Pattern, **kwargs):
+    def assertPopFirstOptional(self, cmd: str | re.Pattern[str], **kwargs: Any) -> None:
         actual_cmd, actual_kwargs = self.log[0]
 
         skip = False
@@ -74,7 +75,7 @@ class MockRunLog:
             self.log.pop(0)
             self.testcase.assertEqual(actual_kwargs, kwargs)
 
-    def assertPopFirst(self, cmd: str | re.Pattern, **kwargs):
+    def assertPopFirst(self, cmd: str | re.Pattern[str], **kwargs: Any) -> None:
         actual_cmd, actual_kwargs = self.log.pop(0)
 
         if isinstance(cmd, str):
@@ -84,13 +85,14 @@ class MockRunLog:
 
         self.testcase.assertEqual(actual_kwargs, kwargs)
 
-    def assertLogEmpty(self):
+    def assertLogEmpty(self) -> None:
         self.testcase.assertEqual(self.log, [])
 
 
 class MoncicTestCase(TestCase):
     old_privs: ClassVar[ProcessPrivs]
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -99,6 +101,7 @@ class MoncicTestCase(TestCase):
         cls.old_privs = context.privs
         context.privs = privs
 
+    @override
     @classmethod
     def tearDownClass(cls) -> None:
         super().tearDownClass()
