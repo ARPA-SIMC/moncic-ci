@@ -78,17 +78,18 @@ class NspawnImages(BootstrappingImages, abc.ABC):
         Return None if no such tarball is present
         """
         re_tarball = re.compile(r"^(.+)(?:\.tar|\.tar\.gz|\.tar\.xz)")
-        for path in self.imagedir.iterdir():
-            if mo := re_tarball.match(path.name):
-                name = mo.group(1)
-            else:
-                continue
-            try:
-                found = DistroFamily.lookup_distro(name)
-            except KeyError:
-                continue
-            if found.name == distro.name:
-                return path
+        with context.privs.root():
+            for path in self.imagedir.iterdir():
+                if mo := re_tarball.match(path.name):
+                    name = mo.group(1)
+                else:
+                    continue
+                try:
+                    found = DistroFamily.lookup_distro(name)
+                except KeyError:
+                    continue
+                if found.name == distro.name:
+                    return path
         return None
 
     def _find_distro(self, path: Path) -> Distro:
@@ -193,11 +194,13 @@ class PlainImages(NspawnImages):
     def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
         tarball_path = self.get_distro_tarball(distro)
         if tarball_path is not None:
-            # Shortcut in case we have a chroot in a tarball
-            path.mkdir()
-            self.host_run(["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
+            with context.privs.root():
+                # Shortcut in case we have a chroot in a tarball
+                path.mkdir()
+                self.host_run(["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
         else:
-            distro.bootstrap(self, path)
+            with context.privs.root():
+                distro.bootstrap(self, path)
 
 
 class BtrfsImages(NspawnImages):
@@ -314,7 +317,8 @@ class BtrfsImages(NspawnImages):
             with context.privs.root():
                 self.host_run(cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
         else:
-            distro.bootstrap(self, path)
+            with context.privs.root():
+                distro.bootstrap(self, path)
 
 
 class MachinectlImages(NspawnImages):
