@@ -31,6 +31,7 @@ class BindType(enum.StrEnum):
     VOLATILE = "volatile"
     APTCACHE = "aptcache"
     APTPACKAGES = "aptpackages"
+    ARTIFACTS = "artifacts"
 
 
 class BindConfig(abc.ABC):
@@ -92,6 +93,8 @@ class BindConfig(abc.ABC):
                 return BindConfigAptCache(**args)
             case BindType.APTPACKAGES:
                 return BindConfigAptPackages(**args)
+            case BindType.ARTIFACTS:
+                return BindConfigArtifacts(**args)
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -391,6 +394,40 @@ class BindConfigAptPackages(BindConfig):
         teardown_script.run(["rm", "-f", packages_file.as_posix()])
 
         self._run_script(setup_script, container)
+        try:
+            yield None
+        finally:
+            self._run_script(teardown_script, container)
+
+
+class BindConfigArtifacts(BindConfig):
+    """Directory that can be used to collect build artifacts."""
+
+    def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
+        super().__init__(bind_type=BindType.ARTIFACTS, source=source, destination=destination, cwd=cwd)
+
+    @override
+    def to_nspawn(self) -> str:
+        option = "--bind="
+        if self.source == self.destination:
+            return option + escape_bind_ro(self.source)
+        else:
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+
+    @override
+    def to_podman(self) -> dict[str, Any]:
+        return {
+            "Type": "bind",
+            "Readonly": "false",
+            "Source": self.source.as_posix(),
+            "Target": self.destination.as_posix(),
+        }
+
+    @override
+    @contextmanager
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
+        teardown_script = Script(f"Artifacts mount teardown for {self.destination}")
+        teardown_script.run(["chown", "-R", f"--reference={self.destination}", self.destination.as_posix()])
         try:
             yield None
         finally:

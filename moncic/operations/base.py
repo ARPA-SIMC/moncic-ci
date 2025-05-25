@@ -13,6 +13,7 @@ from typing import IO, TYPE_CHECKING, Any
 
 from moncic import context
 from moncic.container import ContainerConfig, BindType
+from moncic.build.utils import link_or_copy
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource
 from moncic.utils.guest import guest_only, host_only
@@ -44,6 +45,18 @@ class ContainerSourceOperation(abc.ABC):
         self.log_handler: logging.Handler | None = None
         #: Path inside the guest system where sources can be found
         self.guest_source_path: Path | None = None
+
+    @host_only
+    def get_container_config(self) -> ContainerConfig:
+        """Build the container configuration for this operation."""
+        config = ContainerConfig()
+        # Mount the source directory as /srv/moncic-ci/source/<name>
+        # Set it as the default current directory in the container
+        # Mounted volatile to prevent changes to it
+        mountpoint = Path("/srv/moncic-ci/source")
+        self.guest_source_path = mountpoint / self.source.path.name
+        config.configure_workdir(self.source.path, bind_type=BindType.VOLATILE, mountpoint=mountpoint)
+        return config
 
     @host_only
     def log_capture_start(self, log_file: Path) -> None:
@@ -111,19 +124,24 @@ class ContainerSourceOperation(abc.ABC):
         """
         Start a container to run CI operations
         """
-        container_config = ContainerConfig()
-        # Mount the source directory as /srv/moncic-ci/source/<name>
-        # Set it as the default current directory in the container
-        # Mounted volatile to prevent changes to it
-        mountpoint = Path("/srv/moncic-ci/source")
-        self.guest_source_path = mountpoint / self.source.path.name
-        container_config.configure_workdir(self.source.path, bind_type=BindType.VOLATILE, mountpoint=mountpoint)
-        with self.image.container(config=container_config) as container:
-            self.setup_container_host(container)
-            try:
-                yield container
-            finally:
-                self.log_capture_end()
+        config = self.get_container_config()
+        with contextlib.ExitStack() as stack:
+            if self.artifacts_dir:
+                artifacts_transfer_path = Path(stack.enter_context(tempfile.TemporaryDirectory(dir=self.artifacts_dir)))
+                config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
+
+            with self.image.container(config=config) as container:
+                self.setup_container_host(container)
+                try:
+                    yield container
+                finally:
+                    self.log_capture_end()
+
+            if self.artifacts_dir:
+                for path in artifacts_transfer_path.iterdir():
+                    if not path.is_file():
+                        continue
+                    link_or_copy(path, self.artifacts_dir, filename=path.name)
 
     @host_only
     def process_guest_result(self, result: Any) -> None:

@@ -3,15 +3,15 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
-from ..build.build import Build
-from ..build.utils import link_or_copy
-from ..runner import UserConfig
-from ..utils.guest import guest_only, host_only
-from ..utils.run import run
+from moncic.build.build import Build
+from moncic.build.utils import link_or_copy
+from moncic.runner import UserConfig
+from moncic.utils.guest import guest_only, host_only
+from moncic.utils.run import run
+from moncic.container import Container
 from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:
-    from moncic.container import Container
     from moncic.image import RunnableImage
 
 log = logging.getLogger(__name__)
