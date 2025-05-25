@@ -96,7 +96,7 @@ class BindConfig(abc.ABC):
                 assert_never(unreachable)
 
     @classmethod
-    def from_nspawn(cls, entry: str, bind_type: str | BindType) -> "BindConfig":
+    def from_nspawn(cls, entry: str, bind_type: BindType) -> "BindConfig":
         """
         Create a BindConfig from an nspawn --bind/--bind-ro option.
 

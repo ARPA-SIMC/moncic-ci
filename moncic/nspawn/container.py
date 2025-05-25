@@ -1,4 +1,4 @@
-import dataclasses
+import copy
 import errno
 import logging
 import os
@@ -48,7 +48,7 @@ class NspawnContainer(Container):
                 config.tmpfs = image.images.session.moncic.config.tmpfs
         elif config.ephemeral and config.tmpfs is None:
             # Make a copy to prevent changing the caller's config
-            config = dataclasses.replace(config)
+            config = copy.deepcopy(config)
             if container_info.tmpfs is not None:
                 config.tmpfs = container_info.tmpfs
             else:

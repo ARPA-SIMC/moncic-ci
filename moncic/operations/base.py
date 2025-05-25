@@ -12,16 +12,14 @@ from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any
 
 from moncic import context
-
-from ..container import ContainerConfig
-from ..runner import UserConfig
-from ..source.distro import DistroSource
-from ..utils.guest import guest_only, host_only
+from moncic.container import ContainerConfig, BindType
+from moncic.runner import UserConfig
+from moncic.source.distro import DistroSource
+from moncic.utils.guest import guest_only, host_only
 
 if TYPE_CHECKING:
     from moncic.image import RunnableImage
-
-    from ..container import Container
+    from moncic.container import Container
 
 log = logging.getLogger(__name__)
 
@@ -105,8 +103,7 @@ class ContainerSourceOperation(abc.ABC):
         for key, value in moncic_config.dict().items():
             log.debug("moncic:%s = %r", key, value)
         # Log container config
-        for fld in dataclasses.fields(container.config):
-            log.debug("container:%s = %r", fld.name, getattr(container.config, fld.name))
+        container.config.log_debug(log)
 
     @host_only
     @contextlib.contextmanager
@@ -120,7 +117,7 @@ class ContainerSourceOperation(abc.ABC):
         # Mounted volatile to prevent changes to it
         mountpoint = Path("/srv/moncic-ci/source")
         self.guest_source_path = mountpoint / self.source.path.name
-        container_config.configure_workdir(self.source.path, bind_type="volatile", mountpoint=mountpoint)
+        container_config.configure_workdir(self.source.path, bind_type=BindType.VOLATILE, mountpoint=mountpoint)
         with self.image.container(config=container_config) as container:
             self.setup_container_host(container)
             try:

@@ -11,7 +11,7 @@ from typing import Any, override
 import git
 
 from moncic import context
-from moncic.container import BindConfig, Container, ContainerConfig
+from moncic.container import BindConfig, Container, ContainerConfig, BindType
 from moncic.distro import Distro
 from moncic.exceptions import Fail
 from moncic.image import RunnableImage
@@ -226,18 +226,18 @@ class ImageActionCommand(MoncicCommand):
             config = ContainerConfig()
             if workdir is not None:
                 assert workdir_bind_type is not None
-                config.configure_workdir(workdir, bind_type=workdir_bind_type)
+                config.configure_workdir(workdir, bind_type=BindType(workdir_bind_type))
             elif self.args.user:
                 config.forward_user = UserConfig.from_sudoer()
             if self.args.bind:
                 for entry in self.args.bind:
-                    config.binds.append(BindConfig.from_nspawn(entry, bind_type="rw"))
+                    config.binds.append(BindConfig.from_nspawn(entry, bind_type=BindType.READWRITE))
             if self.args.bind_ro:
                 for entry in self.args.bind_ro:
-                    config.binds.append(BindConfig.from_nspawn(entry, bind_type="ro"))
+                    config.binds.append(BindConfig.from_nspawn(entry, bind_type=BindType.READONLY))
             if self.args.bind_volatile:
                 for entry in self.args.bind_volatile:
-                    config.binds.append(BindConfig.from_nspawn(entry, bind_type="volatile"))
+                    config.binds.append(BindConfig.from_nspawn(entry, bind_type=BindType.VOLATILE))
 
             if self.args.maintenance:
                 with image.maintenance_container(config=config) as container:
