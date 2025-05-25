@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast, override
 
 from moncic.distro import DistroFamily
 from moncic.distro.debian import DebianDistro
@@ -9,12 +7,9 @@ from moncic.distro.rpm import RpmDistro
 from moncic.exceptions import Fail
 from moncic.source.distro import DistroSource, source_types
 from moncic.source.local import Dir, File, Git
-from moncic.source.source import CommandLog, Source, SourceStack
+from moncic.source.source import Source
 
 from .source import GitFixture
-
-if TYPE_CHECKING:
-    from moncic.distro import Distro
 
 ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))
 SID = cast(DebianDistro, DistroFamily.lookup_distro("sid"))
@@ -30,6 +25,7 @@ class TestDistrSource(GitFixture):
     path_file: Path
     path_dir: Path
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()

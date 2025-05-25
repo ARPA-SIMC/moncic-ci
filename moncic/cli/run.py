@@ -1,6 +1,6 @@
 import argparse
 import logging
-from typing import override, Any
+from typing import Any, override
 
 from .moncic import ImageActionCommand, main_command
 

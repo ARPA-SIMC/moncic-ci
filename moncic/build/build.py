@@ -3,8 +3,9 @@ from __future__ import annotations
 import inspect
 import logging
 import shlex
+import subprocess
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from collections.abc import Generator, Sequence
 from pathlib import Path
 
@@ -17,9 +18,7 @@ from ..utils.guest import guest_only, host_only
 from ..utils.run import run
 
 if TYPE_CHECKING:
-    import subprocess
-
-    from ..container import Container
+    from moncic.container import Container
     from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
@@ -155,15 +154,15 @@ class Build:
                 else:
                     setattr(self, key, val)
 
-    def trace_run(self, cmd: Sequence[str], check: bool = True, **kw) -> subprocess.CompletedProcess:
+    def trace_run(self, cmd: Sequence[str], check: bool = True, **kwargs: Any) -> subprocess.CompletedProcess:
         """
         Run a command, adding it to trace_log
         """
         self.add_trace_log(*cmd)
-        return run(cmd, check=check, **kw)
+        return run(cmd, check=check, **kwargs)
 
     @guest_only
-    def build(self):
+    def build(self) -> None:
         """
         Run the build.
 
@@ -176,7 +175,7 @@ class Build:
         raise NotImplementedError(f"{self.__class__.__name__}.build is not implemented")
 
     @guest_only
-    def setup_container_guest(self, image: NspawnImage):
+    def setup_container_guest(self, image: NspawnImage) -> None:
         """
         Set up the build environment in the container
         """
@@ -194,8 +193,6 @@ class Build:
         """
         Get the user-facing name for this Build class
         """
-        if name := cls.__dict__.get("NAME"):
-            return name
         return cls.__name__.lower()
 
     @classmethod
@@ -224,7 +221,7 @@ class Build:
                 yield f.name, inspect.cleandoc(doc)
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path):
+    def collect_artifacts(self, container: Container, destdir: Path) -> None:
         """
         Look for artifacts created by the build, copy them to ``destdir``, add
         their names to self.artifacts

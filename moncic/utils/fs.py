@@ -1,19 +1,18 @@
-from __future__ import annotations
-
 import contextlib
 import logging
 import os
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
+from typing import IO, Any
 
 log = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
 def atomic_writer(
-    path: Path, mode: str = "w+b", chmod: int | None = 0o664, sync: bool = True, use_umask: bool = False, **kw
-):
+    path: Path, mode: str = "w+b", chmod: int | None = 0o664, sync: bool = True, use_umask: bool = False
+) -> Generator[IO[Any]]:
     """
     open/tempfile wrapper to atomically write to a file, by writing its
     contents to a temporary file in the same directory, and renaming it at the
@@ -73,7 +72,7 @@ def is_on_rotational(pathname: str) -> bool | None:
 
 
 @contextlib.contextmanager
-def cd(path: str):
+def cd(path: str) -> Generator[None, None, None]:
     """
     chdir to path for the duration of this context manager
     """

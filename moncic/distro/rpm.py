@@ -7,8 +7,9 @@ import shutil
 import stat
 import subprocess
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, override, Generator
+from typing import TYPE_CHECKING, override
 
 from ..utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
@@ -75,7 +76,7 @@ class RpmDistro(Distro):
         return res
 
     @contextlib.contextmanager
-    def chroot_config(self) -> Generator[str, None, None]:
+    def chroot_config(self) -> Generator[str]:
         baseurl = self.baseurl.format(mirror=self.mirror)
 
         with tempfile.NamedTemporaryFile("wt", suffix=".repo") as fd:
@@ -144,7 +145,7 @@ class YumDistro(RpmDistro):
         return super().get_base_packages() + ["yum"]
 
     @override
-    def get_update_pkgdb_script(self) -> list[str]:
+    def get_update_pkgdb_script(self) -> list[list[str]]:
         res = super().get_update_pkgdb_script()
         res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
         return res

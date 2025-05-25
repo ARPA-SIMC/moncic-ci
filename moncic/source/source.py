@@ -4,10 +4,11 @@ import logging
 import shlex
 import subprocess
 import tempfile
+import types
 import urllib.parse
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, override, Optional
+from typing import TYPE_CHECKING, Any, Optional, Self, override
 
 import git
 
@@ -108,8 +109,13 @@ class Source(abc.ABC):
         self.stack.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
-        return self.stack.__exit__(exc_type, exc_val, exc_tb)
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        self.stack.__exit__(exc_type, exc_val, exc_tb)
 
     def info_history(self) -> list[dict[str, Any]]:
         """Return JSON-able information about this source."""

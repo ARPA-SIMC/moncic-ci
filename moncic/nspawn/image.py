@@ -10,7 +10,7 @@ from moncic.image import BootstrappableImage, ImageType, RunnableImage
 from moncic.utils.btrfs import Subvolume
 
 if TYPE_CHECKING:
-    from moncic.container import Container, ContainerConfig
+    from moncic.container import Container, ContainerConfig, MaintenanceContainer
     from moncic.provision.config import ContainerInfo
 
     from .images import NspawnImages
@@ -44,7 +44,7 @@ class NspawnImage(RunnableImage, abc.ABC):
     @override
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
-    ) -> "Container":
+    ) -> "MaintenanceContainer":
         from .container import NspawnMaintenanceContainer
 
         return NspawnMaintenanceContainer(self, config=config, instance_name=instance_name)
@@ -92,14 +92,14 @@ class NspawnImage(RunnableImage, abc.ABC):
         return res
 
     @override
-    def update(self):
+    def update(self) -> None:
         """
         Run periodic maintenance on the system
         """
         super().update()
         self._update_cachedir()
 
-    def _update_cachedir(self):
+    def _update_cachedir(self) -> None:
         """
         Create or remove a CACHEDIR.TAG file, depending on the image
         configuration

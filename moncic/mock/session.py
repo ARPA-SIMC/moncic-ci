@@ -6,9 +6,9 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
+from moncic.images import BootstrappingImages, Images
 from moncic.session import Session
 from moncic.utils.deb import DebCache
-from moncic.images import Images
 
 if TYPE_CHECKING:
     import podman as _podman
@@ -34,8 +34,9 @@ class MockSession(Session):
 
     @override
     def _instantiate_images_imagedir(self, path: Path) -> None:
-        from .images import MockImages
         from moncic.nspawn.images import NspawnImages
+
+        from .images import MockImages
 
         images: Images
         if issubclass(self.images_class, MockImages):
@@ -48,10 +49,13 @@ class MockSession(Session):
         self.images.add(images)
         self.bootstrapper = images
 
+    @override
     def _instantiate_images_default(self) -> None:
-        from .images import MockImages
         from moncic.nspawn.images import NspawnImages
 
+        from .images import MockImages
+
+        images: BootstrappingImages
         if issubclass(self.images_class, MockImages):
             images = self.images_class(self)
         elif issubclass(self.images_class, NspawnImages):
@@ -82,7 +86,7 @@ class MockSession(Session):
     def extra_packages_dir(self) -> Path | None:
         return None
 
-    def mock_log(self, **kwargs: Any):
+    def mock_log(self, **kwargs: Any) -> None:
         caller_stack = sys._getframe(1)
         kwargs.setdefault("func", caller_stack.f_code.co_name)
         self.log.append(kwargs)
@@ -103,7 +107,7 @@ class MockSession(Session):
         returncode: int = 0,
         stdout: str | bytes | None = None,
         stderr: str | bytes | None = None,
-    ):
+    ) -> None:
         self.process_result_queue[regex] = subprocess.CompletedProcess(
             args=[], returncode=returncode, stdout=stdout, stderr=stderr
         )

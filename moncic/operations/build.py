@@ -1,22 +1,18 @@
-from __future__ import annotations
-
 import logging
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from ..build.build import Build
 from ..build.utils import link_or_copy
 from ..runner import UserConfig
 from ..utils.guest import guest_only, host_only
 from ..utils.run import run
-from . import build
 from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:
-    from moncic.image import Image
-
-    from ..container import Container
+    from moncic.container import Container
+    from moncic.image import RunnableImage
 
 log = logging.getLogger(__name__)
 
@@ -26,24 +22,27 @@ class Builder(ContainerSourceOperation):
     Build a Source using a container
     """
 
-    def __init__(self, image: Image, build: Build):
+    def __init__(self, image: "RunnableImage", build: Build) -> None:
         super().__init__(image=image, source=build.source, artifacts_dir=build.artifacts_dir)
         # Build object that is being built
         self.build: Build = build
 
+    @override
     @host_only
-    def log_execution_info(self, container: Container) -> None:
+    def log_execution_info(self, container: "Container") -> None:
         # General builder information
         log.info("Build strategy: %s", self.build.__class__.__name__)
         super().log_execution_info(container)
 
+    @override
     @host_only
     def process_guest_result(self, result: Any) -> None:
         assert isinstance(result, Build)
         self.build = result
 
+    @override
     @host_only
-    def _after_build(self, container: Container):
+    def _after_build(self, container: "Container") -> None:
         """
         Run configured commands after the build ended
         """
@@ -58,7 +57,7 @@ class Builder(ContainerSourceOperation):
             self._run_command(container, cmd)
 
     @host_only
-    def _run_command(self, container: Container, cmd: str):
+    def _run_command(self, container: "Container", cmd: str) -> None:
         """
         Run a command after a build
         """
@@ -85,8 +84,9 @@ class Builder(ContainerSourceOperation):
             env["MONCIC_SOURCE"] = self.build.source.name
             run(["/bin/sh", "-c", cmd], env=env)
 
+    @override
     @guest_only
-    def guest_main(self) -> build.Build:
+    def guest_main(self) -> Build:
         """
         Run the build
         """
@@ -95,8 +95,9 @@ class Builder(ContainerSourceOperation):
         self.build.build()
         return self.build
 
+    @override
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path):
+    def collect_artifacts(self, container: "Container", destdir: Path) -> None:
         """
         Copy build artifacts to the given directory
         """

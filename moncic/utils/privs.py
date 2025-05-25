@@ -2,7 +2,7 @@ import contextlib
 import os
 import pwd
 import sys
-from typing import Generator
+from collections.abc import Generator
 
 from ..exceptions import Fail
 

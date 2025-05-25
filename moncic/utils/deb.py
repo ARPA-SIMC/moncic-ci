@@ -1,14 +1,14 @@
-from __future__ import annotations
-
 import contextlib
 import os
 import shutil
 import tempfile
+import types
 from collections.abc import Generator
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Self
 
-from ..runner import UserConfig
+from moncic.runner import UserConfig
+
 from .fs import dirfd
 
 
@@ -18,7 +18,7 @@ class FileInfo(NamedTuple):
 
 
 class DebCache:
-    def __init__(self, cache_dir: Path, cache_size: int = 512 * 1024 * 1024):
+    def __init__(self, cache_dir: Path, cache_size: int = 512 * 1024 * 1024) -> None:
         self.cache_dir = cache_dir
         # Maximum cache size in bytes
         self.cache_size = cache_size
@@ -27,18 +27,23 @@ class DebCache:
         self.src_dir_fd: int | None = None
         self.cache_user = UserConfig.from_sudoer()
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.src_dir_fd = os.open(self.cache_dir, os.O_RDONLY)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
         # Do cache cleanup
         self.trim_cache()
-
+        assert self.src_dir_fd is not None
         os.close(self.src_dir_fd)
 
-    def trim_cache(self):
+    def trim_cache(self) -> None:
         """
         Trim cache to fit self.cache_size, removing the files least recently
         accessed
@@ -90,7 +95,7 @@ class DebCache:
                     self._debs_from_aptdir(dst_dir_fd)
 
 
-def apt_get_cmd(*args) -> list[str]:
+def apt_get_cmd(*args: str) -> list[str]:
     """
     Build an apt-get command
     """

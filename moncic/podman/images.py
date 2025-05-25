@@ -39,6 +39,7 @@ class PodmanImages(BootstrappingImages):
         else:
             raise KeyError(f"image {name!r} not found")
 
+    @override
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
         return self.session.podman.images.exists(self.session.podman_repository_prefix + name)
@@ -56,6 +57,7 @@ class PodmanImages(BootstrappingImages):
                 configured[f.stem.replace("-", ":")] = f
         return configured
 
+    @override
     def list_images(self) -> list[str]:
         """
         List the names of images found in image directories

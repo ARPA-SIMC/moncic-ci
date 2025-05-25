@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import os
 import shutil
 from pathlib import Path
@@ -8,10 +6,8 @@ from ..runner import UserConfig
 
 
 def link_or_copy(
-        src: str | Path,
-        dstdir: str | Path,
-        filename: str | None = None,
-        user: UserConfig | None = None):
+    src: str | Path, dstdir: str | Path, filename: str | None = None, user: UserConfig | None = None
+) -> None:
     """
     Try to make a hardlink of src inside directory dstdir.
 

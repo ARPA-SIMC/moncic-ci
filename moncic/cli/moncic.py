@@ -6,26 +6,24 @@ import tempfile
 import urllib.parse
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, override, Any
+from typing import Any, override
 
 import git
 
 from moncic import context
+from moncic.container import BindConfig, Container, ContainerConfig
+from moncic.distro import Distro
+from moncic.exceptions import Fail
+from moncic.image import RunnableImage
+from moncic.moncic import Moncic, MoncicConfig, expand_path
 from moncic.runner import RunConfig, UserConfig
+from moncic.source import Source
+from moncic.source.distro import DistroSource
+from moncic.source.local import LocalSource
+from moncic.utils.argparse import ArgumentParser as ArgumentParserWithSharedArgs
 
-from ..container import BindConfig, ContainerConfig, Container
-from ..exceptions import Fail
-from ..moncic import Moncic, MoncicConfig, expand_path
-from ..source import Source
-from ..source.distro import DistroSource
-from ..source.local import LocalSource
 from .base import Command
 from .utils import SourceTypeAction
-
-if TYPE_CHECKING:
-    from moncic.nspawn.image import NspawnImage
-
-    from ..distro import Distro
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +40,7 @@ def main_command(cls: type[Command]) -> type[Command]:
 
 
 @contextlib.contextmanager
-def checkout(image: "NspawnImage", repo: str | None = None, branch: str | None = None) -> Generator[Path | None]:
+def checkout(image: RunnableImage, repo: str | None = None, branch: str | None = None) -> Generator[Path | None]:
     if repo is None:
         yield None
         return
@@ -82,6 +80,7 @@ class MoncicCommand(Command):
     @classmethod
     def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
+        assert isinstance(parser, ArgumentParserWithSharedArgs)
         if "imagedir" not in parser.shared_args:
             parser.add_argument(
                 "-I",
@@ -210,6 +209,7 @@ class ImageActionCommand(MoncicCommand):
             image = images.image(self.args.system)
             if not image.bootstrapped:
                 raise Fail(f"{image.name!r} has not been bootstrapped")
+            assert isinstance(image, RunnableImage)
 
             workdir_bind_type = None
             with checkout(image, self.args.clone) as workdir:

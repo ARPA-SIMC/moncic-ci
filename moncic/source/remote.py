@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import urllib.parse
-from typing import Any
+from typing import Any, override
 
 from .local import Git
 from .source import Source
@@ -21,6 +19,7 @@ class URL(Source):
         super().__init__(**kwargs)
         self.url = url
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["url"] = self.url

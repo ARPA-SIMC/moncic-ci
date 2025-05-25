@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import re
 import unittest
@@ -7,6 +5,7 @@ from pathlib import Path
 from typing import Any, ClassVar, override
 
 from moncic.distro import Distro, DistroFamily
+from moncic.image import RunnableImage
 from moncic.provision.image import DistroImage
 from moncic.unittest import MockRunLog, MoncicTestCase
 
@@ -15,17 +14,21 @@ class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
     NAME: ClassVar[str]
     distro: ClassVar[Distro]
 
+    @override
     def __init_subclass__(cls, name: str, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.NAME = name
         cls.distro = DistroFamily.lookup_distro(cls.NAME)
 
+    @override
     def setUp(self) -> None:
         super().setUp()
         mconfig = self.config()
         self.session = self.enterContext(self.mock_session(self.moncic(mconfig)))
         self.distro_image = DistroImage(session=self.session, name=self.NAME, distro=self.distro)
-        self.image = self.session.images.image(self.NAME)
+        image = self.session.images.image(self.NAME)
+        assert isinstance(image, RunnableImage)
+        self.image = image
 
     @abc.abstractmethod
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None: ...
@@ -33,12 +36,12 @@ class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
     @abc.abstractmethod
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None: ...
 
-    def test_bootstrap(self):
+    def test_bootstrap(self) -> None:
         path = self.tempdir()
         self.distro.bootstrap(self.session.bootstrapper, path)
         self.assertBootstrapCommands(self.session.run_log, path)
 
-    def test_update(self):
+    def test_update(self) -> None:
         self.image.update()
         self.session.run_log.assertPopFirst(f"{self.NAME}: container start")
         self.assertUpdateCommands(self.session.run_log, Path("/test"))

@@ -6,6 +6,7 @@ import re
 import struct
 import subprocess
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -29,7 +30,7 @@ class Subvolume:
         else:
             self.compression = compression
 
-    def replace_subvolume(self, path: Path):
+    def replace_subvolume(self, path: Path) -> None:
         """
         Replace the given subvolume with this one.
 
@@ -44,14 +45,12 @@ class Subvolume:
         old = Subvolume(self.mconfig, stash_path, self.compression)
         old.remove()
 
-    def local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
-        """
-        Run a command on the host system.
-        """
-        return subprocess.run(cmd)
+    def local_run(self, cmd: list[str]) -> None:
+        """Run a command on the host system."""
+        subprocess.run(cmd)
 
     @contextlib.contextmanager
-    def create(self):
+    def create(self) -> Generator[None, None, None]:
         """
         Create a btrfs subvolume, and leave it on exit only if the context
         manager did not raise an exception
@@ -73,7 +72,7 @@ class Subvolume:
             self.remove()
             raise
 
-    def snapshot(self, source_path: Path):
+    def snapshot(self, source_path: Path) -> None:
         """
         Create a btrfs subvolume, and leave it on exit only if the context
         manager did not raise an exception
@@ -85,7 +84,7 @@ class Subvolume:
 
         self.local_run(["btrfs", "-q", "subvolume", "snapshot", source_path.as_posix(), self.path.as_posix()])
 
-    def remove(self):
+    def remove(self) -> None:
         """
         Remove this subvolume and all subvolumes nested inside it
         """
@@ -125,7 +124,7 @@ def ioctl_fideduperange(src_fd: int, s: bytes) -> tuple[int, int]:
     return bytes_dup, status
 
 
-def do_dedupe(src_file: str, dst_file: str, size: int):
+def do_dedupe(src_file: str, dst_file: str, size: int) -> int:
     """
     Tell the kernel to deduplicate the two files if their contents are the
     same.
@@ -173,7 +172,7 @@ def is_btrfs(path: Path) -> bool:
 
 
 @contextlib.contextmanager
-def pause_automounting(pathname: str):
+def pause_automounting(pathname: str) -> Generator[None, None, None]:
     """
     Pause automounting on the file image for the duration of this context manager
     """

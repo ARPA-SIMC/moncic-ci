@@ -65,7 +65,7 @@ class Extends(CreateCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(cls, subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("image", help="parent image")
         return parser
@@ -81,7 +81,7 @@ class Distro(CreateCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(cls, subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("distro", help="distribution to bootstrap")
         return parser
@@ -146,7 +146,7 @@ class Setup(MaintCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(cls, subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "command", nargs=argparse.REMAINDER, help="run and record a maintenance command to setup the image"
@@ -169,7 +169,7 @@ class Install(MaintCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(cls, subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("packages", nargs="+", help="packages to install in the image")
         return parser
@@ -197,7 +197,7 @@ class BuildDep(MaintCommand, SourceCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(cls, subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "source",
@@ -294,7 +294,7 @@ class Image(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(cls, subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("name", help="name of the image")
 

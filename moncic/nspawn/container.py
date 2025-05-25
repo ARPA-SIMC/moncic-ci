@@ -70,10 +70,11 @@ class NspawnContainer(Container):
     def get_pid(self) -> int:
         return int(self.properties["Leader"])
 
+    @override
     def binds(self) -> Iterator[BindConfig]:
         yield from self.config.binds
 
-    def _run_nspawn(self, cmd: list[str]):
+    def _run_nspawn(self, cmd: list[str]) -> None:
         """
         Run the given systemd-nspawn command line, contained into its own unit
         using systemd-run
@@ -107,7 +108,7 @@ class NspawnContainer(Container):
             )
             raise RuntimeError("Failed to start container")
 
-    def get_start_command(self, path: Path):
+    def get_start_command(self, path: Path) -> list[str]:
         cmd = [
             "systemd-nspawn",
             "--quiet",
@@ -172,7 +173,7 @@ class NspawnContainer(Container):
                     time.sleep(0.1)
 
     @override
-    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
+    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         run_config = self.config.run_config(config)
 
         exec_func: Callable[[str, list[str]], NoReturn]
@@ -181,7 +182,7 @@ class NspawnContainer(Container):
         else:
             exec_func = os.execv
 
-        def command_runner():
+        def command_runner() -> int:
             try:
                 exec_func(command[0], command)
             except FileNotFoundError:
@@ -198,7 +199,7 @@ class NspawnContainer(Container):
         self,
         func: Callable[..., Result],
         config: RunConfig | None = None,
-        args: tuple = (),
+        args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
         run_config = self.config.run_config(config)
@@ -211,6 +212,7 @@ class NspawnContainer(Container):
 class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
     """Non-ephemeral container."""
 
+    @override
     @classmethod
     def _container_config(cls, image: NspawnImage, config: ContainerConfig | None = None) -> ContainerConfig:
         config = super()._container_config(image, config)

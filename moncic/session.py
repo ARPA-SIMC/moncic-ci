@@ -1,15 +1,15 @@
 import contextlib
 import contextvars
+import importlib.util
 import os
+import types
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, override, Self
-import types
-import importlib.util
+from typing import TYPE_CHECKING, Self, override
 
-from .exceptions import Fail
 from . import context
 from .context import privs
+from .exceptions import Fail
 from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
 

@@ -1,10 +1,10 @@
 import shlex
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from pathlib import Path
 from typing import IO
 
 
-def iter_assigns(tokens: Iterator[str]):
+def iter_assigns(tokens: Iterator[str]) -> Generator[tuple[str, str]]:
     while True:
         try:
             name = next(tokens)

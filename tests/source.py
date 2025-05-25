@@ -7,9 +7,9 @@ import subprocess
 import tempfile
 import threading
 import unittest
-from typing import override, ClassVar, Any
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any, ClassVar, override
 
 
 class GitRepo(contextlib.ExitStack):

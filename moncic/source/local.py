@@ -1,12 +1,10 @@
-from __future__ import annotations
-
 import abc
 import re
 import shutil
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Self, override
 
 import git
 
@@ -26,12 +24,14 @@ class LocalSource(Source, abc.ABC):
         super().__init__(**kwargs)
         self.path = path
 
+    @override
     def info_dict(self) -> dict[str, Any]:
         """Return JSON-able information about this source, without parent information."""
         res = super().info_dict()
         res["path"] = self.path
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["path"] = self.path
@@ -67,7 +67,8 @@ class File(LocalSource):
         super().__init__(**kwargs)
         assert self.path.is_file()
 
-    def in_path(self, path: Path) -> File:
+    @override
+    def in_path(self, path: Path) -> Self:
         return self.__class__(**self.derive_kwargs(path=path))
 
 
@@ -80,9 +81,11 @@ class Dir(LocalSource):
         super().__init__(**kwargs)
         assert self.path.is_dir()
 
-    def in_path(self, path: Path) -> Dir:
+    @override
+    def in_path(self, path: Path) -> Self:
         return self.__class__(**self.derive_kwargs(path=path))
 
+    @override
     def lint_find_versions(self, *, allow_exec: bool = False) -> dict[str, str]:
         versions = super().lint_find_versions(allow_exec=allow_exec)
 
@@ -147,26 +150,29 @@ class Git(Dir):
     #: False if the git repo is ephemeral and can be modified at will
     readonly: bool
 
-    def __init__(self, *, repo: git.Repo | None = None, readonly: bool = True, **kwargs) -> None:
+    def __init__(self, *, repo: git.Repo | None = None, readonly: bool = True, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.repo = repo or git.Repo(self.path)
         self.readonly = readonly
 
+    @override
     def info_dict(self) -> dict[str, Any]:
         """Return JSON-able information about this source, without parent information."""
         res = super().info_dict()
         res["readonly"] = self.readonly
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["repo"] = self.repo
         kwargs["readonly"] = self.readonly
 
-    def in_path(self, path: Path) -> Git:
+    @override
+    def in_path(self, path: Path) -> Self:
         return self.__class__(**self.derive_kwargs(path=path, repo=None))
 
-    def get_branch(self, branch: str) -> Git:
+    def get_branch(self, branch: str) -> "Git":
         """
         Return a Git repo with self.branch as the current branch
         """
@@ -178,7 +184,7 @@ class Git(Dir):
 
         return self._git_clone(self.path.as_posix(), branch)
 
-    def get_writable(self) -> Git:
+    def get_writable(self) -> "Git":
         """
         Return a Git repo that is not readonly.
 
@@ -189,7 +195,7 @@ class Git(Dir):
 
         return self._git_clone(self.path.as_posix())
 
-    def get_clean(self) -> Git:
+    def get_clean(self) -> "Git":
         """
         Return a Git repo that is not dirty.
 

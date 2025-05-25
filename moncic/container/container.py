@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterator
 from contextlib import ExitStack
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ContextManager, TypeVar, Self
+from typing import Any, ContextManager, Self, TypeVar
 
 from moncic.image import RunnableImage
 from moncic.runner import CompletedCallable, RunConfig, UserConfig
@@ -199,7 +199,7 @@ class Container(abc.ABC):
         """
 
     @abc.abstractmethod
-    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
+    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         """
         Run the given command inside the running system.
 
@@ -213,7 +213,7 @@ class Container(abc.ABC):
         stdout and stderr are logged in real time as the process is running.
         """
 
-    def run_script(self, script: str | Script, config: RunConfig | None = None) -> CompletedCallable:
+    def run_script(self, script: str | Script, config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         """
         Run the given Script or string as a script in the machine.
 
@@ -264,7 +264,7 @@ class Container(abc.ABC):
         completed = self.run_callable_raw(func, config, args, kwargs)
         return completed.result()
 
-    def run_shell(self, config: RunConfig | None) -> CompletedCallable:
+    def run_shell(self, config: RunConfig | None) -> subprocess.CompletedProcess[bytes]:
         """
         Open a shell in the container
         """

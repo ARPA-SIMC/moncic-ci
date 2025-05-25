@@ -118,8 +118,8 @@ class RunnableImage(Image, abc.ABC):
 
     def get_container_info(self) -> "ContainerInfo":
         """Get the ContainerInfo configuration for this image."""
-        from moncic.provision.image import ConfiguredImage
         from moncic.provision.config import ContainerInfo
+        from moncic.provision.image import ConfiguredImage
 
         match self.bootstrap_from:
             case ConfiguredImage():
@@ -190,7 +190,7 @@ class RunnableImage(Image, abc.ABC):
     @abc.abstractmethod
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
-    ) -> "Container":
+    ) -> "MaintenanceContainer":
         """
         Boot a container with this system
         """

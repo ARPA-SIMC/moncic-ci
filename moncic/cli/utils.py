@@ -5,8 +5,9 @@ import configparser
 import inspect
 import shutil
 import textwrap
+from collections.abc import Sequence
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any, override, Sequence
+from typing import TYPE_CHECKING, Any, override
 
 from ..exceptions import Fail, Success
 

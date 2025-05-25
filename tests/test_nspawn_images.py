@@ -1,18 +1,20 @@
-from pathlib import Path
 import io
 import tarfile
+from pathlib import Path
+from typing import override
 from unittest import mock
 
 from moncic import context
 from moncic.image import BootstrappableImage, RunnableImage
-from moncic.nspawn.images import NspawnImages, PlainImages, BtrfsImages
 from moncic.nspawn.image import NspawnImage
+from moncic.nspawn.images import BtrfsImages, NspawnImages, PlainImages
 from moncic.unittest import MoncicTestCase
 
 
 class NspawnImagesTests(MoncicTestCase):
     images_class: type[NspawnImages]
 
+    @override
     def setUp(self) -> None:
         super().setUp()
         self.imageconfdir = self.workdir()
@@ -55,6 +57,7 @@ VERSION_ID=34
     def test_bootstrap(self) -> None:
         self.session.images.reload()
         image = self.session.images.image("test")
+        assert isinstance(image, BootstrappableImage)
         image_path = self.imagedir / "test"
         self.assertIsInstance(image, BootstrappableImage)
 
@@ -66,9 +69,10 @@ VERSION_ID=34
         self.assertIsInstance(bootstrapped, NspawnImage)
         self.assertEqual(bootstrapped.path, image_path)
 
-    def test_bootstrap_tarball(self):
+    def test_bootstrap_tarball(self) -> None:
         self.session.images.reload()
         image = self.session.images.image("test")
+        assert isinstance(image, BootstrappableImage)
         image_path = self.imagedir / "test"
         self.assertIsInstance(image, BootstrappableImage)
 

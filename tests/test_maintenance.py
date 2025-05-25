@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import override, Never
+from typing import Never, override
 
 from moncic import context
+from moncic.image import BootstrappableImage, RunnableImage
 from moncic.unittest import MoncicTestCase
 
 # Use this image, if it exists, as a base for maintenance tests
@@ -19,6 +20,7 @@ class TestMaintenance(MoncicTestCase):
         super().setUp()
         self.session = self.enterContext(self.moncic().session())
         self.images = self.session.images
+        assert self.session.moncic.config.imagedir is not None
         self.test_image_config_file = self.session.moncic.config.imagedir / (test_image_name + ".yaml")
         # Bootstrap a snapshot of base_image_name to use as our playground
         with context.privs.root():
@@ -32,18 +34,21 @@ maintscript: |
     /bin/true
 """
             )
-            self.images.bootstrap_system(test_image_name)
+            bootstrappable_image = self.images.image(test_image_name)
+            assert isinstance(bootstrappable_image, BootstrappableImage)
+            self.session.bootstrapper.bootstrap(bootstrappable_image)
 
     @override
     def tearDown(self) -> None:
         with context.privs.root():
             image = self.images.image(test_image_name)
+            assert isinstance(image, RunnableImage)
             image.remove()
             try:
                 os.unlink(self.test_image_config_file)
             except FileNotFoundError:
                 pass
-        self.images = None
+        del self.images
         super().tearDownClass()
 
     def test_transactional_update_succeeded(self) -> None:

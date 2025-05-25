@@ -3,8 +3,8 @@ from __future__ import annotations
 import abc
 import contextlib
 import logging
-import re
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -41,7 +41,7 @@ class NspawnImages(BootstrappingImages, abc.ABC):
 
     @classmethod
     @abc.abstractmethod
-    def create_machinectl(cls, session: Session) -> "NspawnImages":
+    def create_machinectl(cls, session: Session) -> NspawnImages:
         """Create a NspawnImages accessing machinectl storage."""
 
     @override
@@ -144,8 +144,9 @@ class PlainImages(NspawnImages):
     Images stored in a non-btrfs filesystem
     """
 
+    @override
     @classmethod
-    def create_machinectl(cls, session: Session) -> "NspawnImages":
+    def create_machinectl(cls, session: Session) -> NspawnImages:
         return PlainMachinectlImages(session)
 
     @override
@@ -208,8 +209,9 @@ class BtrfsImages(NspawnImages):
     Images stored in a btrfs filesystem
     """
 
+    @override
     @classmethod
-    def create_machinectl(cls, session: Session) -> "NspawnImages":
+    def create_machinectl(cls, session: Session) -> NspawnImages:
         return BtrfsMachinectlImages(session)
 
     @override
@@ -222,7 +224,7 @@ class BtrfsImages(NspawnImages):
         return NspawnImageBtrfs(images=self, name=name, distro=distro, path=path)
 
     @override
-    def deduplicate(self):
+    def deduplicate(self) -> None:
         """
         Attempt deduplicating files that have the same name and size across OS
         images

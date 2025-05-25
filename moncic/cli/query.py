@@ -14,7 +14,9 @@ try:
 except ModuleNotFoundError:
     HAVE_TEXTTABLE = False
 
-from ..distro import DistroFamily, Distro
+from moncic.distro import DistroFamily
+from moncic.image import RunnableImage
+
 from .moncic import MoncicCommand, main_command
 
 log = logging.getLogger(__name__)
@@ -101,6 +103,7 @@ class Images(MoncicCommand):
             for name in images.list_images():
                 image = images.image(name)
                 if image.bootstrapped:
+                    assert isinstance(image, RunnableImage)
                     output.add_row((image.name, image.distro, "yes", image.image_type, image.get_backend_id()))
                 else:
                     output.add_row((image.name, image.distro, "no", "-", "-"))

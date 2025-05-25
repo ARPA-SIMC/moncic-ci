@@ -1,6 +1,8 @@
 import argparse
-from typing import override, Any
 import logging
+from typing import Any, override
+
+from moncic.image import RunnableImage
 
 from .moncic import MoncicCommand, main_command
 
@@ -33,13 +35,15 @@ class Bootstrap(MoncicCommand):
                 image = images.image(name)
 
                 if image.bootstrapped:
+                    assert isinstance(image, RunnableImage)
                     if self.args.recreate:
-                        image = image.remove()
+                        bootstrappable_image = image.remove()
                     else:
                         return None
 
+                assert bootstrappable_image is not None
                 try:
-                    image = image.bootstrap()
+                    image = bootstrappable_image.bootstrap()
                 except Exception:
                     log.critical("%s: cannot create image", name, exc_info=True)
                     return 5
@@ -85,6 +89,7 @@ class Update(MoncicCommand):
                 image = images.image(name)
                 if not image.bootstrapped:
                     continue
+                assert isinstance(image, RunnableImage)
                 log.info("%s: updating image", name)
                 try:
                     image.update()
@@ -124,9 +129,11 @@ class Remove(MoncicCommand):
             images = session.images
             for name in self.args.systems:
                 image = images.image(name)
-                image = image.remove()
+                assert isinstance(image, RunnableImage)
+                bootstrappable_image = image.remove()
                 if self.args.purge:
-                    image.remove_config()
+                    assert bootstrappable_image is not None
+                    bootstrappable_image.remove_config()
 
 
 @main_command

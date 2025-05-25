@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 import git
 
@@ -41,8 +41,9 @@ class MockSource(Source):
 
 
 class TestSource(GitFixture):
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.git.add("test", b"test")
         cls.git.commit("initial commit")

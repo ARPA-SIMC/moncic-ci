@@ -1,15 +1,17 @@
-import re
+# import re
 from pathlib import Path
+from typing import override
 
-from moncic.runner import UserConfig
-from moncic.image import BootstrappableImage, RunnableImage
-from moncic.nspawn.images import NspawnImages, PlainImages, BtrfsImages
+# from moncic.runner import UserConfig
+# from moncic.image import BootstrappableImage, RunnableImage
+from moncic.nspawn.images import BtrfsImages, NspawnImages, PlainImages
 from moncic.unittest import MoncicTestCase
 
 
 class NspawnTests(MoncicTestCase):
     images_class: type[NspawnImages]
 
+    @override
     def setUp(self) -> None:
         super().setUp()
         self.imageconfdir = self.workdir()

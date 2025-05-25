@@ -7,14 +7,14 @@ import tempfile
 import time
 import unittest
 from collections.abc import Generator
-from typing import ClassVar, override, Any
 from pathlib import Path
+from typing import Any, override
 
 from moncic import context
 from moncic.container import BindConfig, Container, ContainerConfig
-from moncic.nspawn.images import PlainImages
 from moncic.nspawn.image import NspawnImage
-from moncic.runner import UserConfig, RunConfig
+from moncic.nspawn.images import PlainImages
+from moncic.runner import RunConfig, UserConfig
 from moncic.unittest import MoncicTestCase
 
 

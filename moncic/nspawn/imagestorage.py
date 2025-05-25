@@ -2,7 +2,7 @@ import contextlib
 import logging
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from moncic.imagestorage import ImageStorage
 from moncic.utils.btrfs import is_btrfs
@@ -50,6 +50,7 @@ class PlainImageStorage(NspawnImageStorage):
         super().__init__(session)
         self.imagedir = imagedir
 
+    @override
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
         yield PlainImages(self.session, self.imagedir)
@@ -64,6 +65,7 @@ class BtrfsImageStorage(NspawnImageStorage):
         super().__init__(session)
         self.imagedir = imagedir
 
+    @override
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
         yield BtrfsImages(self.session, self.imagedir)
@@ -78,6 +80,7 @@ class PlainMachineImageStorage(PlainImageStorage):
     def __init__(self, session: "Session"):
         super().__init__(session, MACHINECTL_PATH)
 
+    @override
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
         yield PlainMachinectlImages(self.session)
@@ -92,6 +95,7 @@ class BtrfsMachineImageStorage(BtrfsImageStorage):
     def __init__(self, session: "Session"):
         super().__init__(session, MACHINECTL_PATH)
 
+    @override
     @contextlib.contextmanager
     def images(self) -> Generator["Images", None, None]:
         yield BtrfsMachinectlImages(self.session)

@@ -113,7 +113,7 @@ class PodmanContainer(Container):
             self.container.wait(condition="stopped")
             self.container = None
 
-    def _run(self, command: list[str], config: RunConfig) -> subprocess.CompletedProcess:
+    def _run(self, command: list[str], config: RunConfig) -> subprocess.CompletedProcess[bytes]:
         assert self.container is not None
         podman_command = ["podman", "exec"]
         if config.interactive:
@@ -132,18 +132,17 @@ class PodmanContainer(Container):
         return res
 
     @override
-    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
+    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         assert self.container is not None
         run_config = self.config.run_config(config)
-        res = self._run(command, run_config)
-        return CompletedCallable(command, res.returncode, res.stdout, res.stderr)
+        return self._run(command, run_config)
 
     @override
     def run_callable_raw(
         self,
         func: Callable[..., Result],
         config: RunConfig | None = None,
-        args: tuple = (),
+        args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
         warnings.warn("please migrate away from run_callable which requires root", DeprecationWarning)
@@ -156,6 +155,7 @@ class PodmanContainer(Container):
 class PodmanMaintenanceContainer(PodmanContainer, MaintenanceContainer):
     """Non-ephemeral container."""
 
+    @override
     @classmethod
     def _container_config(cls, image: PodmanImage, config: ContainerConfig | None = None) -> ContainerConfig:
         config = super()._container_config(image, config)

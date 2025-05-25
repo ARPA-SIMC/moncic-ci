@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from typing import Any, Never, Callable
+from collections.abc import Callable
+from typing import Any, Never
 
 try:
     import coloredlogs
@@ -52,7 +53,7 @@ class Command:
             logging.basicConfig(level=level, stream=sys.stderr, format=FORMAT)
 
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(cls, subparsers: argparse._SubParsersAction[Any]) -> argparse.ArgumentParser:
         if cls.NAME is None:
             cls.NAME = cls.__name__.lower()
         parser: argparse.ArgumentParser = subparsers.add_parser(

@@ -1,14 +1,13 @@
 import unittest
 from pathlib import Path
-from typing import override, Self
+from typing import Self, override
 from unittest import mock
 
-from moncic.distro import DistroFamily, Distro
+from moncic.distro import Distro, DistroFamily
 from moncic.source import Source
 from moncic.source.distro import DistroSource
 from moncic.source.lint import Reporter, guest_lint
 from moncic.source.local import Dir, File, Git
-
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")

@@ -3,8 +3,6 @@ Infrastructure for running commands (in local or running systems) and logging
 their output
 """
 
-from __future__ import annotations
-
 import asyncio
 import dataclasses
 import grp
@@ -21,7 +19,7 @@ import types
 from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, BinaryIO, Generic, NamedTuple, TypeVar, cast, override
+from typing import IO, TYPE_CHECKING, Any, BinaryIO, Generic, NamedTuple, Self, TypeVar, cast, override
 
 import tblib
 
@@ -30,6 +28,7 @@ from .utils import guest, setns
 
 if TYPE_CHECKING:
     from .container import Container
+
 
 Result = TypeVar("Result")
 
@@ -50,7 +49,7 @@ class UserConfig(NamedTuple):
     group_id: int
 
     @classmethod
-    def from_file(cls, pathname: Path) -> UserConfig:
+    def from_file(cls, pathname: Path) -> Self:
         """
         Instantiate a UserConfig from ownership of a file
         """
@@ -60,14 +59,14 @@ class UserConfig(NamedTuple):
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
     @classmethod
-    def root(cls) -> UserConfig:
+    def root(cls) -> Self:
         """
         Instantiate a UserConfig for the root user
         """
         return cls("root", 0, "root", 0)
 
     @classmethod
-    def from_current(cls) -> UserConfig:
+    def from_current(cls) -> Self:
         """
         Instantiate a UserConfig from the current user and group
         """
@@ -79,7 +78,7 @@ class UserConfig(NamedTuple):
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
     @classmethod
-    def from_sudoer(cls) -> UserConfig:
+    def from_sudoer(cls) -> Self:
         """
         Instantiate a UserConfig from the user and group that were active
         before sudo
@@ -95,7 +94,7 @@ class UserConfig(NamedTuple):
         return cls(pw.pw_name, pw.pw_uid, gr.gr_name, gr.gr_gid)
 
     @classmethod
-    def from_user(cls, name: str) -> UserConfig:
+    def from_user(cls, name: str) -> Self:
         """
         Instantiate a UserConfig from the username of a local user
         """
@@ -162,7 +161,7 @@ class RunConfig:
     use_path: bool = False
 
 
-class CompletedCallable(Generic[Result], subprocess.CompletedProcess):
+class CompletedCallable(Generic[Result], subprocess.CompletedProcess[bytes]):
     """
     Extension of subprocess.CompletedProcess that can also store a return value
     and exception information
@@ -253,7 +252,7 @@ class AsyncioRunner(Runner):
         super().__init__(logger, config)
         self.cmd = cmd
 
-    def execute(self) -> subprocess.CompletedProcess:
+    def execute(self) -> subprocess.CompletedProcess[bytes]:
         return asyncio.run(self._run())
 
     async def start_process(self) -> asyncio.subprocess.Process:
@@ -263,7 +262,7 @@ class AsyncioRunner(Runner):
         """
         raise NotImplementedError(f"{self.__class__}.start_process")
 
-    async def _run(self) -> subprocess.CompletedProcess:
+    async def _run(self) -> subprocess.CompletedProcess[bytes]:
         proc = await self.start_process()
         assert proc.stdout is not None
         assert proc.stderr is not None
@@ -302,7 +301,7 @@ class LocalRunner(AsyncioRunner):
 
         self.log.info("Running %s", self.name)
 
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
         if self.config.cwd is not None:
             kwargs["cwd"] = self.config.cwd
 
@@ -327,7 +326,7 @@ class LocalRunner(AsyncioRunner):
         cwd: Path | None = None,
         interactive: bool = False,
         use_path: bool = False,
-    ) -> subprocess.CompletedProcess:
+    ) -> subprocess.CompletedProcess[bytes]:
         """Run a command in the host system."""
         config = RunConfig(check=check, cwd=cwd, interactive=interactive, use_path=use_path)
         runner = LocalRunner(logger, config, cmd)
@@ -339,13 +338,13 @@ class PickleStreamHandler(logging.Handler):
     Serialize log records as json over a stream
     """
 
-    def __init__(self, logger_name_prefix: str, stream: IO[bytes], level=logging.NOTSET) -> None:
+    def __init__(self, logger_name_prefix: str, stream: IO[bytes], level: Any = logging.NOTSET) -> None:
         super().__init__(level)
         self.logger_name_prefix = logger_name_prefix
         self.stream = stream
 
     @override
-    def emit(self, record) -> None:
+    def emit(self, record: logging.LogRecord) -> None:
         record.name = self.logger_name_prefix + "." + record.name
         pickled = pickle.dumps(record, pickle.HIGHEST_PROTOCOL)
         self.stream.write(struct.pack("=BL", RESULT_LOG, len(pickled)))
@@ -356,7 +355,7 @@ class PickleStreamHandler(logging.Handler):
 class SetnsCallableRunner(Generic[Result], Runner):
     def __init__(
         self,
-        container: Container,
+        container: "Container",
         config: RunConfig,
         func: Callable[..., Result],
         args: tuple[Any, ...] = (),

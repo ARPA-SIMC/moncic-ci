@@ -7,8 +7,9 @@ import logging
 import os
 import shutil
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Generator
+from typing import IO, TYPE_CHECKING, Any
 
 from moncic import context
 
@@ -109,7 +110,7 @@ class ContainerSourceOperation(abc.ABC):
 
     @host_only
     @contextlib.contextmanager
-    def container(self) -> Generator[Container, None, None]:
+    def container(self) -> Generator[Container]:
         """
         Start a container to run CI operations
         """
@@ -184,7 +185,7 @@ class ContainerSourceOperation(abc.ABC):
         return result
 
     @abc.abstractmethod
-    def guest_main(self) -> None:
+    def guest_main(self) -> Any:
         """
         Function run on the guest system to perform the operation
         """

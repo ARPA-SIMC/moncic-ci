@@ -1,7 +1,7 @@
 import contextlib
-import os
 import copy
 import logging
+import os
 import re
 import shlex
 import subprocess
@@ -12,10 +12,10 @@ from typing import Any, ClassVar, override
 from unittest import SkipTest, TestCase
 
 from . import context
+from .images import Images
 from .mock.session import MockSession
 from .moncic import Moncic, MoncicConfig
 from .runner import UserConfig
-from .images import Images
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
 from .utils.script import Script

@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from moncic.container import Container, ContainerConfig
+from moncic.container import Container, ContainerConfig, MaintenanceContainer
 from moncic.distro import Distro
 from moncic.image import BootstrappableImage, ImageType, RunnableImage
 
@@ -34,11 +34,12 @@ class MockImage(RunnableImage):
     @override
     def maintenance_container(
         self, *, instance_name: str | None = None, config: ContainerConfig | None = None
-    ) -> Container:
-        from .container import MockContainer
+    ) -> MaintenanceContainer:
+        from .container import MockMaintenanceContainer
 
-        return MockContainer(self, config=config)
+        return MockMaintenanceContainer(self, config=config)
 
+    @override
     def host_run(
         self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
     ) -> subprocess.CompletedProcess:

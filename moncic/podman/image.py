@@ -10,7 +10,7 @@ from moncic.utils.osrelease import parse_osrelase_contents
 if TYPE_CHECKING:
     import podman
 
-    from moncic.container import Container, ContainerConfig
+    from moncic.container import Container, ContainerConfig, MaintenanceContainer
     from moncic.session import Session
 
     from .container import PodmanContainer
@@ -72,7 +72,7 @@ class PodmanImage(RunnableImage):
     @override
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
-    ) -> "Container":
+    ) -> "MaintenanceContainer":
         from .container import PodmanMaintenanceContainer
 
         return PodmanMaintenanceContainer(self, config=config)

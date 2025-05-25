@@ -4,7 +4,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, override
 
-from moncic.container import Container, Result
+from moncic.container import Container, MaintenanceContainer, Result
 from moncic.container.binds import BindConfig
 from moncic.container.config import ContainerConfig
 from moncic.runner import CompletedCallable, RunConfig
@@ -56,7 +56,7 @@ class MockContainer(Container):
         raise NotImplementedError()
 
     @override
-    def run(self, command: list[str], config: RunConfig | None = None) -> CompletedCallable:
+    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         self.image.session.run_log.append(command, {})
         # run_config = self.config.run_config(config)
         # self.image.images.session.mock_log(system=self.image.name, action="run", config=run_config, cmd=command)
@@ -64,7 +64,7 @@ class MockContainer(Container):
         return CompletedCallable(command, 0, b"", b"")
 
     @override
-    def run_script(self, script: str | Script, config: RunConfig | None = None) -> CompletedCallable:
+    def run_script(self, script: str | Script, config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         self.image.session.run_log.append_script(script)
         return CompletedCallable(["script"], 0, b"", b"")
 
@@ -73,7 +73,7 @@ class MockContainer(Container):
         self,
         func: Callable[..., Result],
         config: RunConfig | None = None,
-        args: tuple = (),
+        args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
         raise NotImplementedError()
@@ -88,3 +88,7 @@ class MockContainer(Container):
         #     kwargs=kwargs,
         # )
         # return CompletedCallable(args=func.__name__, returncode=0)
+
+
+class MockMaintenanceContainer(MockContainer, MaintenanceContainer):
+    pass
