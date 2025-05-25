@@ -59,6 +59,20 @@ class Script:
             self.indent -= 4
             self.add_line("fi")
 
+    @contextmanager
+    def for_(self, var: str, generator: str | Iterable[str]) -> Generator[None, None, None]:
+        """Delimit a for loop."""
+        if not isinstance(generator, str):
+            generator = shlex.join(generator)
+        self.add_line(f"for {var} in {generator}")
+        self.add_line("do")
+        self.indent += 4
+        try:
+            yield
+        finally:
+            self.indent -= 4
+            self.add_line("done")
+
     def fail(self, message: str) -> None:
         """
         Append an error message that terminates the script with an error.

@@ -1,27 +1,23 @@
 from __future__ import annotations
 
-# import importlib.resources
 import logging
 import os
-
-# import shutil
+import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from moncic.context import privs
-from ..runner import UserConfig
-from ..utils import setns
-from ..utils.deb import apt_get_cmd
-from ..utils.fs import cd
-from ..utils.guest import guest_only, host_only
-from ..utils.run import run
+from moncic.utils import setns
+from moncic.utils.deb import apt_get_cmd
+from moncic.utils.fs import cd
+from moncic.utils.guest import guest_only, host_only
+from moncic.utils.run import run
+from moncic.utils.script import Script
 from .build import Build
-from .utils import link_or_copy
 
 if TYPE_CHECKING:
-    from ..container import Container
     from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
@@ -139,12 +135,6 @@ class Debian(Build):
         if not self.source_only:
             self.build_binary(dsc_path)
 
-        for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
-            with os.scandir(path) as it:
-                for de in it:
-                    if de.is_file():
-                        self.artifacts.append(de.path)
-
         self.success = True
 
     @guest_only
@@ -186,10 +176,8 @@ class Debian(Build):
 
     @override
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path) -> None:
-        container_root = container.get_root()
-        user = UserConfig.from_sudoer()
-        for path in self.artifacts:
-            log.info("Copying %s to %s", path, destdir)
-            link_or_copy(os.path.join(container_root, path.lstrip("/")), destdir, user=user)
-        self.artifacts = [os.path.basename(path) for path in self.artifacts]
+    def collect_artifacts(self, script: Script) -> None:
+        dest = Path("/srv/moncic-ci/artifacts")
+        for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
+            with script.for_("f", f"$(find {shlex.quote(path)} -maxdepth 1 -type f)"):
+                script.run_unquoted(f'mv "$f" {shlex.quote(dest.as_posix())}')

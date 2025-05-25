@@ -14,6 +14,7 @@ from typing import IO, TYPE_CHECKING, Any
 from moncic import context
 from moncic.container import ContainerConfig, BindType
 from moncic.build.utils import link_or_copy
+from moncic.utils.script import Script
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource
 from moncic.utils.guest import guest_only, host_only
@@ -120,6 +121,29 @@ class ContainerSourceOperation(abc.ABC):
 
     @host_only
     @contextlib.contextmanager
+    def _container_collect_artifacts(self, config: ContainerConfig) -> Generator[None]:
+        """Wrap operation execution to handle collecting artifacts produced inside the container."""
+        assert self.artifacts_dir is not None
+        with tempfile.TemporaryDirectory(dir=self.artifacts_dir) as artifacts_transfer_path_str:
+            artifacts_transfer_path = Path(artifacts_transfer_path_str)
+            config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
+            try:
+                yield None
+            finally:
+                self.harvest_artifacts(artifacts_transfer_path)
+
+    @host_only
+    def harvest_artifacts(self, transfer_dir: Path) -> None:
+        """Move artifacts from the transfer directory to their final destination."""
+        assert self.artifacts_dir is not None
+        for path in transfer_dir.iterdir():
+            if not path.is_file():
+                continue
+            # TODO: this can be a move instead
+            link_or_copy(path, self.artifacts_dir, filename=path.name)
+
+    @host_only
+    @contextlib.contextmanager
     def container(self) -> Generator[Container]:
         """
         Start a container to run CI operations
@@ -127,8 +151,7 @@ class ContainerSourceOperation(abc.ABC):
         config = self.get_container_config()
         with contextlib.ExitStack() as stack:
             if self.artifacts_dir:
-                artifacts_transfer_path = Path(stack.enter_context(tempfile.TemporaryDirectory(dir=self.artifacts_dir)))
-                config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
+                stack.enter_context(self._container_collect_artifacts(config))
 
             with self.image.container(config=config) as container:
                 self.setup_container_host(container)
@@ -136,12 +159,6 @@ class ContainerSourceOperation(abc.ABC):
                     yield container
                 finally:
                     self.log_capture_end()
-
-            if self.artifacts_dir:
-                for path in artifacts_transfer_path.iterdir():
-                    if not path.is_file():
-                        continue
-                    link_or_copy(path, self.artifacts_dir, filename=path.name)
 
     @host_only
     def process_guest_result(self, result: Any) -> None:
@@ -151,11 +168,11 @@ class ContainerSourceOperation(abc.ABC):
         # Do nothing by default
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path) -> None:
+    def collect_artifacts_script(self) -> Script:
         """
         Collect artifacts from the guest filesystem before it is shut down
         """
-        # Do nothing by default
+        return Script(title="Collect artifacts produced inside the container")
 
     @host_only
     def _after_build(self, container: Container) -> None:
@@ -192,8 +209,8 @@ class ContainerSourceOperation(abc.ABC):
                 result = container.run_callable(self.guest_main, run_config)
                 self.process_guest_result(result)
                 if self.artifacts_dir:
-                    with context.privs.root():
-                        self.collect_artifacts(container, self.artifacts_dir)
+                    script = self.collect_artifacts_script()
+                container.run_script(script)
             finally:
                 self._after_build(container)
 

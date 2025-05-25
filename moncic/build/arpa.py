@@ -1,22 +1,19 @@
 import glob
 import logging
+import shlex
 import os
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import override
 
 from moncic.context import privs
-from ..runner import UserConfig
-from ..utils.guest import guest_only, host_only
-from ..utils.run import run
+from moncic.utils.guest import guest_only, host_only
+from moncic.utils.run import run
+from moncic.utils.script import Script
 from .build import Build
-from .utils import link_or_copy
-from ..source.rpm import RPMSource
-
-if TYPE_CHECKING:
-    from ..container import Container
+from moncic.source.rpm import RPMSource
 
 log = logging.getLogger(__name__)
 
@@ -116,18 +113,12 @@ class ARPA(RPM):
 
     @override
     @host_only
-    def collect_artifacts(self, container: "Container", destdir: Path) -> None:
-        container_root = container.get_root()
-
-        user = UserConfig.from_sudoer()
+    def collect_artifacts(self, script: Script) -> None:
+        dest = Path("/srv/moncic-ci/artifacts")
         patterns = (
             "RPMS/*/*.rpm",
             "SRPMS/*.rpm",
         )
-        basedir = os.path.join(container_root, "root/rpmbuild")
+        basedir = Path("/root/rpmbuild")
         for pattern in patterns:
-            for file in glob.glob(os.path.join(basedir, pattern)):
-                filename = os.path.basename(file)
-                log.info("Copying %s to %s", filename, destdir)
-                link_or_copy(file, destdir, user=user)
-                self.artifacts.append(filename)
+            script.run_unquoted(f"cp --reflink=auto {basedir}/{pattern} {shlex.quote(dest.as_posix())}")
