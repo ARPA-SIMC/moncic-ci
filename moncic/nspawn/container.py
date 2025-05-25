@@ -26,41 +26,10 @@ class NspawnContainer(Container):
 
     image: NspawnImage
 
-    def __init__(
-        self, image: NspawnImage, *, config: ContainerConfig | None = None, instance_name: str | None = None
-    ) -> None:
-        config = self._container_config(image, config)
+    def __init__(self, image: NspawnImage, *, config: ContainerConfig, instance_name: str | None = None) -> None:
         super().__init__(image, config=config, instance_name=instance_name)
         # machinectl properties of the running machine
         self.properties: dict[str, str] = {}
-
-    @classmethod
-    def _container_config(cls, image: NspawnImage, config: ContainerConfig | None = None) -> ContainerConfig:
-        """
-        Create or complete a ContainerConfig
-        """
-        container_info = image.get_container_info()
-        if config is None:
-            config = ContainerConfig()
-            if container_info.tmpfs is not None:
-                config.tmpfs = container_info.tmpfs
-            else:
-                config.tmpfs = image.images.session.moncic.config.tmpfs
-        elif config.ephemeral and config.tmpfs is None:
-            # Make a copy to prevent changing the caller's config
-            config = copy.deepcopy(config)
-            if container_info.tmpfs is not None:
-                config.tmpfs = container_info.tmpfs
-            else:
-                config.tmpfs = image.images.session.moncic.config.tmpfs
-
-        # Allow distro-specific setup
-        image.distro.container_config_hook(image, config)
-
-        # Force ephemeral to True in plain systems
-        config.ephemeral = True
-
-        return config
 
     @override
     def get_root(self) -> Path:
@@ -121,8 +90,14 @@ class NspawnContainer(Container):
         cmd.append(f"--bind-ro={escape_bind_ro(self.scriptdir)}:{escape_bind_ro(self.mounted_scriptdir)}")
         for bind_config in self.config.binds:
             cmd.append(bind_config.to_nspawn())
-        if self.config.ephemeral:
-            if self.config.tmpfs:
+        if self.ephemeral:
+            container_info = self.image.get_container_info()
+            if container_info.tmpfs is not None:
+                tmpfs = container_info.tmpfs
+            else:
+                tmpfs = self.image.images.session.moncic.config.tmpfs
+
+            if tmpfs:
                 cmd.append("--volatile=overlay")
                 # See https://github.com/Truelite/nspawn-runner/issues/10
                 # According to systemd-nspawn(1), --read-only is implied if --volatile
@@ -211,14 +186,6 @@ class NspawnContainer(Container):
 
 class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
     """Non-ephemeral container."""
-
-    @override
-    @classmethod
-    def _container_config(cls, image: NspawnImage, config: ContainerConfig | None = None) -> ContainerConfig:
-        config = super()._container_config(image, config)
-        # Force ephemeral to False in maintenance systems
-        config.ephemeral = False
-        return config
 
     @override
     @contextmanager

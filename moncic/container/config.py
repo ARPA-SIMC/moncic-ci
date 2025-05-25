@@ -12,14 +12,6 @@ class ContainerConfig:
     """
 
     def __init__(self) -> None:
-        #: If true, changes done to the container filesystem will not persist
-        self.ephemeral: bool = True
-
-        #: Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
-        #
-        # Leave to None to use system or container defaults.
-        self.tmpfs: bool | None = None
-
         #: List of bind mounts requested on the container
         self.binds: list[BindConfig] = []
 
@@ -28,8 +20,6 @@ class ContainerConfig:
         self.forward_user: UserConfig | None = None
 
     def log_debug(self, logger: logging.Logger) -> None:
-        logger.debug("container:ephemeral = %r", self.ephemeral)
-        logger.debug("container:tmpfs = %r", self.tmpfs)
         logger.debug("container:forward_user = %r", self.forward_user)
         for bind in self.binds:
             logger.debug(

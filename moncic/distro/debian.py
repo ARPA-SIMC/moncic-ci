@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, override
 
 import requests
 
-from ..container import BindConfig, ContainerConfig
+from ..container import BindConfig, ContainerConfig, BindType
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
@@ -128,10 +128,12 @@ class DebianDistro(Distro):
     def container_config_hook(self, image: Image, config: ContainerConfig) -> None:
         super().container_config_hook(image, config)
         if apt_archive_path := image.session.apt_archives:
-            config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", "aptcache"))
+            config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", BindType.APTCACHE))
 
         if extra_packages_dir := image.session.extra_packages_dir:
-            config.binds.append(BindConfig.create(extra_packages_dir, "/srv/moncic-ci/mirror/packages", "aptpackages"))
+            config.binds.append(
+                BindConfig.create(extra_packages_dir, "/srv/moncic-ci/mirror/packages", BindType.APTPACKAGES)
+            )
 
     @override
     def get_base_packages(self) -> list[str]:

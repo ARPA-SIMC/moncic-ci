@@ -29,6 +29,11 @@ class MockImage(RunnableImage):
     def container(self, *, instance_name: str | None = None, config: ContainerConfig | None = None) -> Container:
         from .container import MockContainer
 
+        config = config or ContainerConfig()
+
+        # Allow distro-specific setup
+        self.distro.container_config_hook(self, config)
+
         return MockContainer(self, config=config)
 
     @override
@@ -36,6 +41,11 @@ class MockImage(RunnableImage):
         self, *, instance_name: str | None = None, config: ContainerConfig | None = None
     ) -> MaintenanceContainer:
         from .container import MockMaintenanceContainer
+
+        config = config or ContainerConfig()
+
+        # Allow distro-specific setup
+        self.distro.container_config_hook(self, config)
 
         return MockMaintenanceContainer(self, config=config)
 

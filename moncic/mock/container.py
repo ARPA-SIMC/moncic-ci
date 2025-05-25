@@ -6,7 +6,6 @@ from typing import Any, override
 
 from moncic.container import Container, MaintenanceContainer, Result
 from moncic.container.binds import BindConfig
-from moncic.container.config import ContainerConfig
 from moncic.runner import CompletedCallable, RunConfig
 from moncic.utils.script import Script
 
@@ -18,21 +17,10 @@ class MockContainer(Container):
 
     image: MockImage
 
-    def __init__(
-        self,
-        image: MockImage,
-        *,
-        config: ContainerConfig | None = None,
-        instance_name: str | None = None,
-    ) -> None:
-        if config is None:
-            config = ContainerConfig()
-        super().__init__(image, config=config, instance_name=instance_name)
-
     @override
     def host_run(
         self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
-    ) -> subprocess.CompletedProcess:
+    ) -> subprocess.CompletedProcess[bytes]:
         self.image.session.run_log.append(cmd, {})
         return subprocess.CompletedProcess(cmd, 0, b"", b"")
 

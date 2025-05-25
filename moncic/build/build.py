@@ -175,7 +175,7 @@ class Build:
         raise NotImplementedError(f"{self.__class__.__name__}.build is not implemented")
 
     @guest_only
-    def setup_container_guest(self, image: NspawnImage) -> None:
+    def setup_container_guest(self, image: RunnableImage) -> None:
         """
         Set up the build environment in the container
         """

@@ -41,8 +41,11 @@ class Container(abc.ABC):
     An instance of an Image in execution as a container
     """
 
-    def __init__(self, image: RunnableImage, *, config: ContainerConfig, instance_name: str | None = None):
+    def __init__(
+        self, image: RunnableImage, *, config: ContainerConfig, instance_name: str | None = None, ephemeral: bool = True
+    ):
         config.check()
+        self.ephemeral = ephemeral
         self.stack = ExitStack()
         self.image = image
         self.config = config
@@ -143,11 +146,11 @@ class Container(abc.ABC):
         uid, gid = res.stdout.strip().decode().split(":")
 
         has_user = uid and int(uid) == user.user_id
-        if not has_user and not allow_maint and not self.config.ephemeral:
+        if not has_user and not allow_maint and not self.ephemeral:
             raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
 
         has_group = gid and int(gid) == user.group_id
-        if not has_group and not allow_maint and not self.config.ephemeral:
+        if not has_group and not allow_maint and not self.ephemeral:
             raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
         if not has_user and not has_group:
@@ -291,3 +294,6 @@ done
 
 class MaintenanceContainer(Container, abc.ABC):
     """Non-ephemeral container used for maintenance."""
+
+    def __init__(self, image: RunnableImage, *, config: ContainerConfig, instance_name: str | None = None):
+        super().__init__(image, config=config, instance_name=instance_name, ephemeral=False)

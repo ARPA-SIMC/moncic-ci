@@ -22,28 +22,9 @@ class PodmanContainer(Container):
 
     image: PodmanImage
 
-    def __init__(
-        self, image: PodmanImage, *, config: ContainerConfig | None = None, instance_name: str | None = None
-    ) -> None:
-        config = self._container_config(image, config)
+    def __init__(self, image: PodmanImage, *, config: ContainerConfig, instance_name: str | None = None) -> None:
         super().__init__(image, config=config, instance_name=instance_name)
         self.container: podman.domain.containers.Container | None = None
-
-    @classmethod
-    def _container_config(cls, image: PodmanImage, config: ContainerConfig | None = None) -> ContainerConfig:
-        """
-        Create or complete a ContainerConfig
-        """
-        if config is None:
-            config = ContainerConfig()
-
-        # Allow distro-specific setup
-        image.distro.container_config_hook(image, config)
-
-        # Force ephemeral to True in plain systems
-        config.ephemeral = True
-
-        return config
 
     @override
     def get_root(self) -> Path:
@@ -107,7 +88,7 @@ class PodmanContainer(Container):
             yield None
         finally:
             self.container.reload()
-            if not self.config.ephemeral:
+            if not self.ephemeral:
                 self.image.commit(self)
             self.container.kill(signal.SIGKILL)
             self.container.wait(condition="stopped")
@@ -154,11 +135,3 @@ class PodmanContainer(Container):
 
 class PodmanMaintenanceContainer(PodmanContainer, MaintenanceContainer):
     """Non-ephemeral container."""
-
-    @override
-    @classmethod
-    def _container_config(cls, image: PodmanImage, config: ContainerConfig | None = None) -> ContainerConfig:
-        config = super()._container_config(image, config)
-        # Force ephemeral to False in maintenance systems
-        config.ephemeral = False
-        return config
