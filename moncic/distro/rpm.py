@@ -304,4 +304,4 @@ class RockyDistro(DnfDistro):
     @override
     def get_podman_name(self) -> tuple[str, str]:
         distro, suite = self.name.split(":")
-        return ("quay.io/rockylinux/rockylinux/", suite)
+        return ("quay.io/rockylinux/rockylinux", suite)
