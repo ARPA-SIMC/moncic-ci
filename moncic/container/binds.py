@@ -243,7 +243,6 @@ class BindConfigVolatile(BindConfig):
                 ),
                 overlay.as_posix(),
             ]
-            print(shlex.join(cmd))
             subprocess.run(cmd, check=True)
             self.overlay = overlay
             try:

@@ -136,9 +136,9 @@ class Container(abc.ABC):
         Ensure the system has a matching user and group
         """
         check_script = Script("Check user IDs in container", cwd=Path("/"), root=True)
-        check_script.run_unquoted(f"UID=$(id -u {user.user_id} || true)")
-        check_script.run_unquoted(f"GID=$(id -g {user.user_id} || true)")
-        check_script.run_unquoted('echo "$UID:$GID"')
+        check_script.run_unquoted(f"USER_ID=$(id -u {user.user_id} 2>/dev/null || true)")
+        check_script.run_unquoted(f"GROUP_ID=$(id -g {user.user_id} 2>/dev/null || true)")
+        check_script.run_unquoted('echo "$USER_ID:$GROUP_ID"')
 
         res = self.run_script(check_script)
         uid, gid = res.stdout.strip().decode().split(":")
@@ -214,7 +214,7 @@ class Container(abc.ABC):
         stdout and stderr are logged in real time as the process is running.
         """
 
-    def run_script(self, script: Script) -> subprocess.CompletedProcess[bytes]:
+    def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         """
         Run the given Script or string as a script in the machine.
 
@@ -223,6 +223,7 @@ class Container(abc.ABC):
         Returns the process exit status.
         """
         run_config = self.config.run_config()
+        run_config.check = check
         if script.root:
             run_config.user = UserConfig.root()
         if script.cwd is not None:

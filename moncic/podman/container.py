@@ -9,7 +9,7 @@ from typing import Any, override
 import podman
 
 from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
-from moncic.context import privs
+from moncic import context
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
 
 from .image import PodmanImage
@@ -129,7 +129,7 @@ class PodmanContainer(Container):
         warnings.warn("please migrate away from run_callable which requires root", DeprecationWarning)
         run_config = self.config.run_config(config)
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
-        with privs.root():
+        with context.privs.root():
             return runner.execute()
 
 
