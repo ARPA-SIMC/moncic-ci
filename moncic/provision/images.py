@@ -32,6 +32,8 @@ class ConfiguredImages(Images):
         """Return a dict mapping image names to configuration files."""
         configured: dict[str, Path] = {}
         for path in self.session.moncic.config.imageconfdirs:
+            if not path.is_dir():
+                continue
             for f in path.iterdir():
                 if f.name.startswith(".") or f.is_dir():
                     continue
