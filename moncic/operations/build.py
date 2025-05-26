@@ -3,15 +3,15 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
-from ..build.build import Build
-from ..build.utils import link_or_copy
-from ..runner import UserConfig
-from ..utils.guest import guest_only, host_only
-from ..utils.run import run
+from moncic.build.build import Build
+from moncic.runner import UserConfig
+from moncic.utils.guest import guest_only, host_only
+from moncic.utils.run import run
+from moncic.utils.script import Script
+from moncic.container import Container, ContainerConfig
 from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:
-    from moncic.container import Container
     from moncic.image import RunnableImage
 
 log = logging.getLogger(__name__)
@@ -29,10 +29,10 @@ class Builder(ContainerSourceOperation):
 
     @override
     @host_only
-    def log_execution_info(self, container: "Container") -> None:
+    def log_execution_info(self, container_config: "ContainerConfig") -> None:
         # General builder information
         log.info("Build strategy: %s", self.build.__class__.__name__)
-        super().log_execution_info(container)
+        super().log_execution_info(container_config)
 
     @override
     @host_only
@@ -97,21 +97,28 @@ class Builder(ContainerSourceOperation):
 
     @override
     @host_only
-    def collect_artifacts(self, container: "Container", destdir: Path) -> None:
-        """
-        Copy build artifacts to the given directory
-        """
-        super().collect_artifacts(container, destdir)
+    def collect_artifacts_script(self) -> Script:
+        script = super().collect_artifacts_script()
 
         # Do nothing by default
-        self.build.collect_artifacts(container, destdir)
+        self.build.collect_artifacts(script)
 
-        user = UserConfig.from_sudoer()
-        if self.build.name is None:
-            raise RuntimeError("build name not set")
-        build_log_name = self.build.name + ".buildlog"
-        if (logfile := container.get_root() / "srv" / "moncic-ci" / "buildlog").exists():
-            self.log_capture_end()
-            link_or_copy(logfile, destdir, user=user, filename=build_log_name)
-            log.info("Saving build log to %s/%s", destdir, build_log_name)
-            self.build.artifacts.append(build_log_name)
+        # TODO: collect build log (if needed: we are streaming back the output after all)
+        # user = UserConfig.from_sudoer()
+        # if self.build.name is None:
+        #     raise RuntimeError("build name not set")
+        # build_log_name = self.build.name + ".buildlog"
+        # if (logfile := container.get_root() / "srv" / "moncic-ci" / "buildlog").exists():
+        #     self.log_capture_end()
+        #     link_or_copy(logfile, destdir, user=user, filename=build_log_name)
+        #     log.info("Saving build log to %s/%s", destdir, build_log_name)
+        #     self.build.artifacts.append(build_log_name)
+
+        return script
+
+    @override
+    @host_only
+    def harvest_artifacts(self, transfer_dir: Path) -> None:
+        for path in transfer_dir.iterdir():
+            self.build.artifacts.append(path.name)
+        super().harvest_artifacts(transfer_dir)

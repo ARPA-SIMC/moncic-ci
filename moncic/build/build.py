@@ -1,31 +1,29 @@
-from __future__ import annotations
-
+import abc
 import inspect
 import logging
 import shlex
 import subprocess
 from dataclasses import dataclass, field, fields
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from collections.abc import Generator, Sequence
 from pathlib import Path
 
 import yaml
 
-from ..distro import Distro
-from ..exceptions import Fail
-from ..source.distro import DistroSource
-from ..utils.guest import guest_only, host_only
-from ..utils.run import run
+from moncic.distro import Distro
+from moncic.exceptions import Fail
+from moncic.source.distro import DistroSource
+from moncic.utils.guest import guest_only, host_only
+from moncic.utils.run import run
+from moncic.utils.script import Script
+from moncic.image import RunnableImage
 
-if TYPE_CHECKING:
-    from moncic.container import Container
-    from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
 
 
 @dataclass
-class Build:
+class Build(abc.ABC):
     """
     Build source packages
     """
@@ -102,7 +100,7 @@ class Build:
     )
 
     @classmethod
-    def get_build_class(cls, source: DistroSource) -> type[Build]:
+    def get_build_class(cls, source: DistroSource) -> type["Build"]:
         from ..source.debian import DebianSource
         from ..source.rpm import RPMSource, ARPASource
         from .debian import Debian
@@ -196,7 +194,7 @@ class Build:
         return cls.__name__.lower()
 
     @classmethod
-    def list_build_classes(cls) -> list[type[Build]]:
+    def list_build_classes(cls) -> list[type["Build"]]:
         """
         Return a list of all available build classes, including intermediate
         classes in class hierarchies
@@ -221,9 +219,9 @@ class Build:
                 yield f.name, inspect.cleandoc(doc)
 
     @host_only
-    def collect_artifacts(self, container: Container, destdir: Path) -> None:
+    @abc.abstractmethod
+    def collect_artifacts(self, script: Script) -> None:
         """
         Look for artifacts created by the build, copy them to ``destdir``, add
         their names to self.artifacts
         """
-        raise NotImplementedError(f"{self.__class__.__name__}.collect_artifacts not implemented")

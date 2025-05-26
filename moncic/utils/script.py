@@ -10,8 +10,10 @@ from moncic import context
 class Script:
     """Incrementally build a shellscript."""
 
-    def __init__(self, title: str) -> None:
+    def __init__(self, title: str, *, cwd: Path | None = None, root: bool = False) -> None:
         self.title = title
+        self.cwd = cwd
+        self.root = root
         self.debug_mode = context.debug.get()
         if self.debug_mode:
             self.shell = "/bin/sh -uxe"
@@ -58,6 +60,20 @@ class Script:
         finally:
             self.indent -= 4
             self.add_line("fi")
+
+    @contextmanager
+    def for_(self, var: str, generator: str | Iterable[str]) -> Generator[None, None, None]:
+        """Delimit a for loop."""
+        if not isinstance(generator, str):
+            generator = shlex.join(generator)
+        self.add_line(f"for {var} in {generator}")
+        self.add_line("do")
+        self.indent += 4
+        try:
+            yield
+        finally:
+            self.indent -= 4
+            self.add_line("done")
 
     def fail(self, message: str) -> None:
         """

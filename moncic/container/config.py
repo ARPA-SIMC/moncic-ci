@@ -1,9 +1,15 @@
+import contextlib
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Generator, ContextManager, Callable
 
 from moncic.runner import RunConfig, UserConfig
+from moncic.utils.script import Script
 
 from .binds import BindConfig, BindType
+
+if TYPE_CHECKING:
+    from .container import Container
 
 
 class ContainerConfig:
@@ -19,6 +25,26 @@ class ContainerConfig:
         #:  Cannot be used when ephemeral is False
         self.forward_user: UserConfig | None = None
 
+        #: Hooks to run before the contaner is started / after it has stopped
+        self.host_setup_hooks: list[Callable[["Container"], ContextManager[None]]] = []
+        #: Hooks to run after the contaner is started / before it has stopped
+        self.guest_setup_hooks: list[Callable[["Container"], ContextManager[None]]] = []
+
+    def add_guest_scripts(self, *, setup: Script | None = None, teardown: Script | None = None) -> None:
+        """Schedule scripts to be run in the container after starting/before stopping."""
+
+        @contextlib.contextmanager
+        def hook(container: "Container") -> Generator[None, None, None]:
+            if setup:
+                container.run_script(setup)
+            try:
+                yield None
+            finally:
+                if teardown:
+                    container.run_script(teardown)
+
+        self.guest_setup_hooks.append(hook)
+
     def log_debug(self, logger: logging.Logger) -> None:
         logger.debug("container:forward_user = %r", self.forward_user)
         for bind in self.binds:
@@ -29,6 +55,26 @@ class ContainerConfig:
                 bind.destination,
                 bind.cwd,
             )
+
+    @contextlib.contextmanager
+    def host_setup(self, container: "Container") -> Generator[None, None, None]:
+        """Perform setup/teardown on the host before starting/after stopping the container."""
+        with contextlib.ExitStack() as stack:
+            for bind in self.binds:
+                stack.enter_context(bind.host_setup(container))
+            for hook in self.host_setup_hooks:
+                stack.enter_context(hook(container))
+            yield None
+
+    @contextlib.contextmanager
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
+        """Perform setup/teardown on the guest after starting/before stopping the container."""
+        with contextlib.ExitStack() as stack:
+            for bind in self.binds:
+                stack.enter_context(bind.guest_setup(container))
+            for hook in self.guest_setup_hooks:
+                stack.enter_context(hook(container))
+            yield None
 
     def add_bind(self, source: Path, destination: Path, bind_type: BindType, cwd: bool = False) -> None:
         """Add a bind to this container configuration."""

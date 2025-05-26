@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict, assert_never, override
 
 from moncic.image import ImageType
-from moncic.runner import RunConfig, UserConfig
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.nspawn import escape_bind_ro
 from moncic.utils.script import Script
@@ -31,6 +30,7 @@ class BindType(enum.StrEnum):
     VOLATILE = "volatile"
     APTCACHE = "aptcache"
     APTPACKAGES = "aptpackages"
+    ARTIFACTS = "artifacts"
 
 
 class BindConfig(abc.ABC):
@@ -92,6 +92,8 @@ class BindConfig(abc.ABC):
                 return BindConfigAptCache(**args)
             case BindType.APTPACKAGES:
                 return BindConfigAptPackages(**args)
+            case BindType.ARTIFACTS:
+                return BindConfigArtifacts(**args)
             case _ as unreachable:
                 assert_never(unreachable)
 
@@ -143,7 +145,7 @@ class BindConfig(abc.ABC):
         """Run the setup/teardown script in the container."""
         if not script:
             return
-        container.run_script(script, RunConfig(check=True, cwd=Path("/"), user=UserConfig.root()))
+        container.run_script(script)
 
 
 class BindConfigReadonly(BindConfig):
@@ -267,7 +269,7 @@ class BindConfigVolatile(BindConfig):
         m.update(self.destination.as_posix().encode())
         workdir = volatile_root / m.hexdigest()
 
-        script = Script(f"Volatile mount setup for {self.destination}")
+        script = Script(f"Volatile mount setup for {self.destination}", cwd=Path("/"), root=True)
 
         script.run(["mkdir", "-p", self.destination.as_posix()])
 
@@ -321,7 +323,7 @@ class BindConfigAptCache(BindConfig):
     def guest_setup(self, container: "Container") -> Generator[None, None, None]:
         # Hand over the apt package permissions to the _apt user (if present),
         # and then back to the invoking user on return
-        setup_script = Script(f"apt cache mount setup for {self.destination}")
+        setup_script = Script(f"apt cache mount setup for {self.destination}", cwd=Path("/"), root=True)
         setup_script.write(
             Path("/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"),
             'Binary::apt::APT::Keep-Downloaded-Packages "1";',
@@ -333,7 +335,7 @@ class BindConfigAptCache(BindConfig):
             setup_script.run_unquoted("chown _apt /var/cache/apt/archives/*.deb")
             setup_script.run(["chown", "_apt", "/var/cache/apt/archives"])
 
-        teardown_script = Script(f"apt cache mount teardown for {self.destination}")
+        teardown_script = Script(f"apt cache mount teardown for {self.destination}", cwd=Path("/"), root=True)
         teardown_script.run(["rm", "-f", "/etc/apt/apt.conf.d/99-tmp-moncic-ci-keep-downloads"])
         teardown_script.run(
             ["chown", "-R", "--reference=/var/cache/apt/archives/.moncic-ci", "/var/cache/apt/archives"]
@@ -375,7 +377,7 @@ class BindConfigAptPackages(BindConfig):
         mirror_dir = self.destination.parent
         packages_file = mirror_dir / "Packages"
 
-        setup_script = Script(f"apt packages mount setup for {self.destination}")
+        setup_script = Script(f"apt packages mount setup for {self.destination}", cwd=Path("/"), root=True)
         setup_script.run(["apt-ftparchive", "packages", mirror_dir.name], output=packages_file, cwd=mirror_dir)
         setup_script.write(
             Path("/etc/apt/sources.list.d/tmp-moncic-ci.list"), f"deb [trusted=yes] file://{mirror_dir} ./"
@@ -386,11 +388,45 @@ class BindConfigAptPackages(BindConfig):
         setup_script.run(apt_get_cmd("update"))
         # subprocess.run(apt_get_cmd("full-upgrade"), env=env)
 
-        teardown_script = Script(f"apt packages mount teardown for {self.destination}")
+        teardown_script = Script(f"apt packages mount teardown for {self.destination}", cwd=Path("/"), root=True)
         teardown_script.run(["rm", "-f", "/etc/apt/sources.list.d/tmp-moncic-ci.list"])
         teardown_script.run(["rm", "-f", packages_file.as_posix()])
 
         self._run_script(setup_script, container)
+        try:
+            yield None
+        finally:
+            self._run_script(teardown_script, container)
+
+
+class BindConfigArtifacts(BindConfig):
+    """Directory that can be used to collect build artifacts."""
+
+    def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
+        super().__init__(bind_type=BindType.ARTIFACTS, source=source, destination=destination, cwd=cwd)
+
+    @override
+    def to_nspawn(self) -> str:
+        option = "--bind="
+        if self.source == self.destination:
+            return option + escape_bind_ro(self.source)
+        else:
+            return option + (escape_bind_ro(self.source) + ":" + escape_bind_ro(self.destination))
+
+    @override
+    def to_podman(self) -> dict[str, Any]:
+        return {
+            "Type": "bind",
+            "Readonly": "false",
+            "Source": self.source.as_posix(),
+            "Target": self.destination.as_posix(),
+        }
+
+    @override
+    @contextmanager
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
+        teardown_script = Script(f"Artifacts mount teardown for {self.destination}", cwd=Path("/"), root=True)
+        teardown_script.run(["chown", "-R", f"--reference={self.destination}", self.destination.as_posix()])
         try:
             yield None
         finally:
