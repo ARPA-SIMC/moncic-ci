@@ -29,7 +29,6 @@ class Query(ContainerSourceOperation):
         log.error("NOT YET IMPLEMENTED")
         return {}
         # self.build.source = self.get_guest_source()
-        # self.build.setup_container_guest(self.image)
         # self.build.build()
         # return self.build
 
@@ -48,7 +47,6 @@ class BuildDeps(ContainerSourceOperation):
         log.error("BUILD DEPS NOT YET IMPLEMENTED")
         return []
         # self.build.source = self.get_guest_source()
-        # self.build.setup_container_guest(self.image)
         # self.build.build()
         # return self.build
 

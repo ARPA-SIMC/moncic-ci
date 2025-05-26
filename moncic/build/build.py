@@ -1,4 +1,5 @@
 import abc
+import contextlib
 import inspect
 import logging
 import shlex
@@ -11,6 +12,7 @@ from pathlib import Path
 import yaml
 
 from moncic.distro import Distro
+from moncic.container import ContainerConfig
 from moncic.exceptions import Fail
 from moncic.source.distro import DistroSource
 from moncic.utils.guest import guest_only, host_only
@@ -159,6 +161,16 @@ class Build(abc.ABC):
         self.add_trace_log(*cmd)
         return run(cmd, check=check, **kwargs)
 
+    @contextlib.contextmanager
+    def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
+        """Build-specific container setup."""
+        if not self.quick:
+            script = Script("Update container packages before build", cwd=Path("/"), root=True)
+            self.distro.get_update_pkgdb_script(script)
+            self.distro.get_upgrade_system_script(script)
+            config.add_guest_scripts(setup=script)
+        yield None
+
     @guest_only
     def build(self) -> None:
         """
@@ -171,20 +183,6 @@ class Build(abc.ABC):
         Standard output and standard error are logged.
         """
         raise NotImplementedError(f"{self.__class__.__name__}.build is not implemented")
-
-    @guest_only
-    def setup_container_guest(self, image: RunnableImage) -> None:
-        """
-        Set up the build environment in the container
-        """
-        if not self.quick:
-            # Update package databases
-            for cmd in image.distro.get_update_pkgdb_script():
-                self.trace_run(cmd)
-
-            # Upgrade system packages
-            for cmd in image.distro.get_upgrade_system_script():
-                self.trace_run(cmd)
 
     @classmethod
     def get_name(cls) -> str:

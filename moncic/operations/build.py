@@ -26,6 +26,7 @@ class Builder(ContainerSourceOperation):
         super().__init__(image=image, source=build.source, artifacts_dir=build.artifacts_dir)
         # Build object that is being built
         self.build: Build = build
+        self.plugins.append(self.build.operation_plugin)
 
     @override
     @host_only
@@ -91,7 +92,6 @@ class Builder(ContainerSourceOperation):
         Run the build
         """
         self.build.source = self.get_guest_source()
-        self.build.setup_container_guest(self.image)
         self.build.build()
         return self.build
 

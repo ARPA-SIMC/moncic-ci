@@ -1,14 +1,14 @@
-from __future__ import annotations
-
+import contextlib
 import logging
 import os
 import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import override, Generator
 
 from moncic.context import privs
+from moncic.container import ContainerConfig
 from moncic.utils import setns
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.fs import cd
@@ -17,8 +17,6 @@ from moncic.utils.run import run
 from moncic.utils.script import Script
 from .build import Build
 
-if TYPE_CHECKING:
-    from moncic.nspawn.image import NspawnImage
 
 log = logging.getLogger(__name__)
 
@@ -78,15 +76,39 @@ class Debian(Build):
         return [name.strip() for name in res.stdout.strip().splitlines()]
 
     @override
+    @contextlib.contextmanager
+    def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
+        script = Script("Prepare Debian system for build", cwd=Path("/"), root=True)
+        script.run_unquoted(
+            "echo man-db man-db/auto-update boolean false | debconf-set-selections",
+            description="Disable reindexing of manpages during installation of build-dependencies",
+        )
+        with super().operation_plugin(config):
+            config.add_guest_scripts(setup=script)
+            yield
+
+    @override
     @guest_only
-    def setup_container_guest(self, image: NspawnImage) -> None:
-        super().setup_container_guest(image)
+    def build(self) -> None:
+        from ..source.debian import DebianSource
 
-        # TODO: run apt update if the apt index is older than some threshold
+        assert isinstance(self.source, DebianSource)
+        # Build source package
+        with privs.user():
+            dsc_path = self.source.build_source_package()
 
-        # Disable reindexing of manpages during installation of build-dependencies
-        run(["debconf-set-selections"], input="man-db man-db/auto-update boolean false\n", text=True)
+        self.name = self.source.source_info.name
 
+        if not self.source_only:
+            self.build_binary(dsc_path)
+
+        self.success = True
+
+    @guest_only
+    def build_binary(self, dsc_path: Path) -> None:
+        """
+        Build binary packages
+        """
         if self.build_profile:
             profiles: list[str] = []
             options: list[str] = []
@@ -120,28 +142,6 @@ class Debian(Build):
             if k.startswith("DEB_"):
                 log.debug("%s=%r", k, v)
 
-    @override
-    @guest_only
-    def build(self) -> None:
-        from ..source.debian import DebianSource
-
-        assert isinstance(self.source, DebianSource)
-        # Build source package
-        with privs.user():
-            dsc_path = self.source.build_source_package()
-
-        self.name = self.source.source_info.name
-
-        if not self.source_only:
-            self.build_binary(dsc_path)
-
-        self.success = True
-
-    @guest_only
-    def build_binary(self, dsc_path: Path) -> None:
-        """
-        Build binary packages
-        """
         with cd("/srv/moncic-ci/build"):
             self.trace_run(["dpkg-source", "-x", dsc_path.as_posix()])
 
