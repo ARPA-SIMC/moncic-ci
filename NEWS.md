@@ -1,3 +1,9 @@
+# Version 0.20
+
+* Use Script for build-specific container setup
+* Deal with the configuration directory not existing
+* Fixed user check script
+
 # Version 0.19
 
 * Add missing modules (#113)

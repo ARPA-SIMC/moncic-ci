@@ -1,3 +1,5 @@
 version: 1
 images:
  - name: fedora:40
+ - name: fedora:42
+ 

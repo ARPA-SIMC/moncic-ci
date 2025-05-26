@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.19
+Version:        0.20
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,11 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.20-1
+- Use Script for build-specific container setup
+- Deal with the configuration directory not existing
+- Fixed user check script
+
 * Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.19-1
 - Add missing modules (#113)
 - Refactored operations 
