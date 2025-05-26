@@ -2,7 +2,7 @@ import argparse
 import logging
 from typing import Any, override
 
-from moncic.image import RunnableImage
+from moncic.image import RunnableImage, BootstrappableImage
 
 from .moncic import MoncicCommand, main_command
 
@@ -40,6 +40,9 @@ class Bootstrap(MoncicCommand):
                         bootstrappable_image = image.remove()
                     else:
                         return None
+                else:
+                    assert isinstance(image, BootstrappableImage)
+                    bootstrappable_image = image
 
                 assert bootstrappable_image is not None
                 try:
