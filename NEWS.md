@@ -1,3 +1,8 @@
+# Version 0.19
+
+* Add missing modules (#113)
+* Refactored operations 
+
 # Version 0.18
 
 * [Support podman images and containers](doc/podman.md) (#112)

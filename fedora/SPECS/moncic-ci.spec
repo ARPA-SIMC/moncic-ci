@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.18
+Version:        0.19
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,14 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.19-1
+- Add missing modules (#113)
+- Refactored operations 
+
+* Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.18-1
+- Support podman images and containers (#112)
+- Install systemd when bootstrapping Fedora 42 (#111)
+
 * Thu Apr 24 2025 Daniele Branchini <dbranchini@arpae.it> - 0.17-1
 - Added Fedora 42 support
 - Added debian/latest and ubuntu/latest to candidate branches (per DEP-14)
