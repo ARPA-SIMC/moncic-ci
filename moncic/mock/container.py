@@ -52,7 +52,7 @@ class MockContainer(Container):
         return CompletedCallable(command, 0, b"", b"")
 
     @override
-    def run_script(self, script: str | Script, config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
+    def run_script(self, script: Script) -> subprocess.CompletedProcess[bytes]:
         self.image.session.run_log.append_script(script)
         return CompletedCallable(["script"], 0, b"", b"")
 

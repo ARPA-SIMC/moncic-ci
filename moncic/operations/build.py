@@ -4,12 +4,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
 from moncic.build.build import Build
-from moncic.build.utils import link_or_copy
 from moncic.runner import UserConfig
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from moncic.container import Container
+from moncic.container import Container, ContainerConfig
 from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:
@@ -30,10 +29,10 @@ class Builder(ContainerSourceOperation):
 
     @override
     @host_only
-    def log_execution_info(self, container: "Container") -> None:
+    def log_execution_info(self, container_config: "ContainerConfig") -> None:
         # General builder information
         log.info("Build strategy: %s", self.build.__class__.__name__)
-        super().log_execution_info(container)
+        super().log_execution_info(container_config)
 
     @override
     @host_only

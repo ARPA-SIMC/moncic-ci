@@ -103,8 +103,7 @@ class Container(abc.ABC):
 
     def __enter__(self) -> Self:
         self.stack.__enter__()
-        for bind in self.config.binds:
-            self.stack.enter_context(bind.host_setup(self))
+        self.stack.enter_context(self.config.host_setup(self))
         self.stack.enter_context(self._container())
 
         # Do user forwarding if requested
@@ -113,8 +112,7 @@ class Container(abc.ABC):
         # We do not need to delete the user if it was created, because we
         # enforce that forward_user is only used on ephemeral containers
 
-        for bind in self.config.binds:
-            self.stack.enter_context(bind.guest_setup(self))
+        self.stack.enter_context(self.config.guest_setup(self))
         self.started = True
         return self
 
@@ -137,12 +135,12 @@ class Container(abc.ABC):
         """
         Ensure the system has a matching user and group
         """
-        check_script = Script("Check user IDs in container")
+        check_script = Script("Check user IDs in container", cwd=Path("/"), root=True)
         check_script.run_unquoted(f"UID=$(id -u {user.user_id} || true)")
         check_script.run_unquoted(f"GID=$(id -g {user.user_id} || true)")
         check_script.run_unquoted('echo "$UID:$GID"')
 
-        res = self.run_script(check_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
+        res = self.run_script(check_script)
         uid, gid = res.stdout.strip().decode().split(":")
 
         has_user = uid and int(uid) == user.user_id
@@ -154,7 +152,7 @@ class Container(abc.ABC):
             raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
         if not has_user and not has_group:
-            setup_script = Script("Set up local user")
+            setup_script = Script("Set up local user", cwd=Path("/"), root=True)
             setup_script.run(["groupadd", "--gid", str(user.group_id), user.group_name])
             setup_script.run(
                 [
@@ -167,9 +165,9 @@ class Container(abc.ABC):
                     user.user_name,
                 ],
             )
-            self.run_script(setup_script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
+            self.run_script(setup_script)
         else:
-            script = Script("Validate user database")
+            script = Script("Validate user database", cwd=Path("/"), root=True)
             with script.if_("[ $(id -u) -eq 0 ] && [ $(id -g) -eq 0 ]"):
                 script.run(["exit", "0"])
 
@@ -185,7 +183,7 @@ class Container(abc.ABC):
                     f"group {user.group_id} in container is named $GNAME but outside it is named {user.group_name}"
                 )
 
-            self.run_script(script, config=RunConfig(cwd=Path("/"), user=UserConfig.root()))
+            self.run_script(script)
 
     @abc.abstractmethod
     def get_root(self) -> Path:
@@ -216,7 +214,7 @@ class Container(abc.ABC):
         stdout and stderr are logged in real time as the process is running.
         """
 
-    def run_script(self, script: str | Script, config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
+    def run_script(self, script: Script) -> subprocess.CompletedProcess[bytes]:
         """
         Run the given Script or string as a script in the machine.
 
@@ -224,18 +222,15 @@ class Container(abc.ABC):
 
         Returns the process exit status.
         """
-        run_config = self.config.run_config(config)
+        run_config = self.config.run_config()
+        if script.root:
+            run_config.user = UserConfig.root()
+        if script.cwd is not None:
+            run_config.cwd = script.cwd
 
         with tempfile.NamedTemporaryFile("w+t", dir=self.scriptdir, delete_on_close=False) as tf:
-            if isinstance(script, Script):
-                self.image.logger.info("Running script %s", script.title)
-                script.print(file=tf)
-            else:
-                if len(script) > 200:
-                    self.image.logger.info("Running script %r…", script[:200])
-                else:
-                    self.image.logger.info("Running script %r", script)
-                tf.write(script)
+            self.image.logger.info("Running script %s", script.title)
+            script.print(file=tf)
             os.fchmod(tf.fileno(), 0o755)
             tf.close()
             return self.run([(self.mounted_scriptdir / os.path.basename(tf.name)).as_posix()], run_config)
@@ -277,13 +272,10 @@ class Container(abc.ABC):
             shell_candidates.append(os.path.basename(os.environ["SHELL"]))
         shell_candidates.extend(("bash", "sh"))
 
-        script = f"""#!/bin/sh
+        script = Script("Find a usable shel")
+        with script.for_("candidate", shell_candidates):
+            script.run_unquoted('command -v "$candidate" && break')
 
-for candidate in {shlex.join(shell_candidates)}
-do
-    command -v $candidate && break
-done
-"""
         res = self.run_script(script)
         shell = res.stdout.strip().decode()
         if not shell:

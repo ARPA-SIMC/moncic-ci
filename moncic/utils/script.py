@@ -10,8 +10,10 @@ from moncic import context
 class Script:
     """Incrementally build a shellscript."""
 
-    def __init__(self, title: str) -> None:
+    def __init__(self, title: str, *, cwd: Path | None = None, root: bool = False) -> None:
         self.title = title
+        self.cwd = cwd
+        self.root = root
         self.debug_mode = context.debug.get()
         if self.debug_mode:
             self.shell = "/bin/sh -uxe"
