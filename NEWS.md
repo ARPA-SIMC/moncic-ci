@@ -2,6 +2,8 @@
 
 * Add missing modules (#113)
 * Refactored operations 
+* Fix bootstrapping without `--recreate`
+* Fixed podman bootstrapping for Rocky Linux distros
 
 # Version 0.18
 

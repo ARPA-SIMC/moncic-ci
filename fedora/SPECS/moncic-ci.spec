@@ -77,6 +77,8 @@ as you would run it on your normal system, keeping iteration lags low.
 * Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.19-1
 - Add missing modules (#113)
 - Refactored operations 
+- Fix bootstrapping without `--recreate`
+- Fixed podman bootstrapping for Rocky Linux distros
 
 * Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.18-1
 - Support podman images and containers (#112)
