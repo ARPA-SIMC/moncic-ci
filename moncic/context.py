@@ -27,4 +27,4 @@ container: ContextVar[Container] = ContextVar("container")
 privs: ProcessPrivs = ProcessPrivs()
 
 #: Running in debugging mode
-debug: ContextVar[bool] = ContextVar("debug")
+debug: ContextVar[bool] = ContextVar("debug", default=False)

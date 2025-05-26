@@ -41,11 +41,8 @@ class MockRunLog:
     def append(self, cmd: list[str], kwargs: dict[str, Any]) -> None:
         self.log.append((shlex.join(cmd), kwargs))
 
-    def append_script(self, script: Script | str) -> None:
-        if isinstance(script, Script):
-            self.log.append((script.title, {"script": script}))
-        else:
-            self.log.append((f"script:{script}", {}))
+    def append_script(self, script: Script) -> None:
+        self.log.append((script.title, {"script": script}))
 
     def append_callable(self, func: Callable[[], int | None]) -> None:
         self.log.append((f"callable:{func.__name__}", {}))
@@ -84,6 +81,13 @@ class MockRunLog:
             self.testcase.assertRegex(actual_cmd, cmd)
 
         self.testcase.assertEqual(actual_kwargs, kwargs)
+
+    def assertPopScript(self, title: str) -> Script:
+        actual_cmd, actual_kwargs = self.log.pop(0)
+        self.testcase.assertEqual(actual_cmd, title)
+        script = actual_kwargs["script"]
+        assert isinstance(script, Script)
+        return script
 
     def assertLogEmpty(self) -> None:
         self.testcase.assertEqual(self.log, [])

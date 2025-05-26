@@ -1,5 +1,6 @@
 import abc
 import re
+import shlex
 import unittest
 from pathlib import Path
 from typing import Any, ClassVar, override
@@ -36,6 +37,18 @@ class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
     @abc.abstractmethod
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None: ...
 
+    def assertUpdateScriptRPM(self, run_log: MockRunLog, packages: list[str]) -> None:
+        script = run_log.assertPopScript("Upgrade container")
+        self.assertEqual(
+            script.lines,
+            [
+                "/usr/bin/systemctl mask --now systemd-resolved",
+                "/usr/bin/dnf check-update -q -y",
+                "/usr/bin/dnf upgrade -q -y",
+                f"/usr/bin/dnf install -q -y {shlex.join(packages)}",
+            ],
+        )
+
     def test_bootstrap(self) -> None:
         path = self.tempdir()
         self.distro.bootstrap(self.session.bootstrapper, path)
@@ -62,14 +75,16 @@ class TestBullseye(DistroTests, name="bullseye"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/apt-get update")
-        run_log.assertPopFirst(
-            "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-            " full-upgrade"
-        )
-        run_log.assertPopFirst(
-            "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-            " satisfy apt-utils bash dbus eatmydata iproute2 systemd"
+        script = run_log.assertPopScript("Upgrade container")
+        self.assertEqual(
+            script.lines,
+            [
+                "/usr/bin/apt-get update",
+                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+                " full-upgrade",
+                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+                " satisfy apt-utils bash dbus eatmydata iproute2 systemd",
+            ],
         )
 
 
@@ -86,9 +101,15 @@ class TestCentos7(DistroTests, name="centos7"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/yum updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/yum upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/yum install -q -y bash dbus iproute rootfiles yum")
+        script = run_log.assertPopScript("Upgrade container")
+        self.assertEqual(
+            script.lines,
+            [
+                "/usr/bin/yum check-update -q -y",
+                "/usr/bin/yum upgrade -q -y",
+                "/usr/bin/yum install -q -y bash dbus iproute rootfiles yum",
+            ],
+        )
 
 
 class TestCentos8(DistroTests, name="centos8"):
@@ -104,10 +125,7 @@ class TestCentos8(DistroTests, name="centos8"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class TestFedora32(DistroTests, name="fedora32"):
@@ -123,10 +141,7 @@ class TestFedora32(DistroTests, name="fedora32"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class TestFedora34(DistroTests, name="fedora34"):
@@ -143,10 +158,7 @@ class TestFedora34(DistroTests, name="fedora34"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class TestFedora36(DistroTests, name="fedora36"):
@@ -163,10 +175,7 @@ class TestFedora36(DistroTests, name="fedora36"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class TestFedora38(DistroTests, name="fedora38"):
@@ -183,10 +192,7 @@ class TestFedora38(DistroTests, name="fedora38"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class TestFedora40(DistroTests, name="fedora40"):
@@ -203,10 +209,7 @@ class TestFedora40(DistroTests, name="fedora40"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class TestFedora42(DistroTests, name="fedora42"):
@@ -223,10 +226,7 @@ class TestFedora42(DistroTests, name="fedora42"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles systemd")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles", "systemd"])
 
 
 class TestRocky8(DistroTests, name="rocky8"):
@@ -243,10 +243,7 @@ class TestRocky8(DistroTests, name="rocky8"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class TestRocky9(DistroTests, name="rocky9"):
@@ -263,10 +260,7 @@ class TestRocky9(DistroTests, name="rocky9"):
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
-        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus dnf iproute rootfiles")
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 del DistroTests
