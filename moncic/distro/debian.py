@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING, override
 
 import requests
 
-from ..container import BindConfig, ContainerConfig, BindType
+from moncic.container import BindConfig, ContainerConfig, BindType
+from moncic.utils.script import Script
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
@@ -178,22 +179,19 @@ class DebianDistro(Distro):
             images.host_run(cmd)
 
     @override
-    def get_update_pkgdb_script(self) -> list[list[str]]:
-        res = super().get_update_pkgdb_script()
-        res.append(["/usr/bin/apt-get", "update"])
-        return res
+    def get_update_pkgdb_script(self, script: Script) -> None:
+        super().get_update_pkgdb_script(script)
+        script.run(["/usr/bin/apt-get", "update"])
 
     @override
-    def get_upgrade_system_script(self) -> list[list[str]]:
-        res = super().get_upgrade_system_script()
-        res.append(self.APT_INSTALL_CMD + ["full-upgrade"])
-        return res
+    def get_upgrade_system_script(self, script: Script) -> None:
+        super().get_upgrade_system_script(script)
+        script.run(self.APT_INSTALL_CMD + ["full-upgrade"])
 
     @override
-    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
-        res = super().get_install_packages_script(packages)
-        res.append(self.APT_INSTALL_CMD + ["satisfy"] + packages)
-        return res
+    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+        super().get_install_packages_script(script, packages)
+        script.run(self.APT_INSTALL_CMD + ["satisfy"] + packages)
 
     @override
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:

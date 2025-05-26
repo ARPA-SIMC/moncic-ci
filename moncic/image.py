@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
 from moncic.distro import Distro
+from moncic.utils.script import Script
 
 if TYPE_CHECKING:
     from moncic.provision.config import ContainerInfo
@@ -148,25 +149,15 @@ class RunnableImage(Image, abc.ABC):
         for u in self.bootstrap_from.forwards_users:
             container.forward_user(UserConfig.from_user(u), allow_maint=True)
 
-        # Setup network
-        for cmd in self.distro.get_setup_network_script():
-            container.run(cmd)
-
-        # Update package databases
-        for cmd in self.distro.get_update_pkgdb_script():
-            container.run(cmd)
-
-        # Upgrade system packages
-        for cmd in self.distro.get_upgrade_system_script():
-            container.run(cmd)
-
-        # Install packages
-        for cmd in self.distro.get_install_packages_script(sorted(self.bootstrap_from.package_list)):
-            container.run(cmd)
-
-        # Run maintscripts
-        for script in self.bootstrap_from.maintscripts:
-            container.run_script(script)
+        script = Script("Upgrade container", cwd=Path("/"), root=True)
+        self.distro.get_setup_network_script(script)
+        for text in self.bootstrap_from.maintscripts:
+            for line in text.splitlines():
+                script.run_unquoted(line)
+        self.distro.get_update_pkgdb_script(script)
+        self.distro.get_upgrade_system_script(script)
+        self.distro.get_install_packages_script(script, sorted(self.bootstrap_from.package_list))
+        container.run_script(script)
 
     def update(self) -> None:
         """Run periodic maintenance on the system."""

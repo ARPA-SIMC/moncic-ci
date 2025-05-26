@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, override
 
 from moncic.utils.osrelease import parse_osrelase
+from moncic.utils.script import Script
 
 if TYPE_CHECKING:
     from moncic.container import ContainerConfig
@@ -210,30 +211,17 @@ class Distro(abc.ABC):
         except FileNotFoundError:
             pass
 
-    # TODO: switch to Script
-    def get_setup_network_script(self) -> list[list[str]]:
-        """
-        Get the sequence of commands to use to setup networking
-        """
-        return []
+    def get_setup_network_script(self, script: Script) -> None:
+        """Add commands to use to setup networking."""
 
-    def get_update_pkgdb_script(self) -> list[list[str]]:
-        """
-        Get the sequence of commands to use to update package information
-        """
-        return []
+    def get_update_pkgdb_script(self, script: Script) -> None:
+        """Add commands to use to update package information."""
 
-    def get_upgrade_system_script(self) -> list[list[str]]:
-        """
-        Get the sequence of commands to use to upgrade system packages
-        """
-        return []
+    def get_upgrade_system_script(self, script: Script) -> None:
+        """Add commands to use to upgrade system packages."""
 
-    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
-        """
-        Get the sequence of commands to use to install packages
-        """
-        return []
+    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+        """Add commands to use to install packages."""
 
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
         """

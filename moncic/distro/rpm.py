@@ -11,8 +11,9 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from ..utils.fs import atomic_writer
+from moncic.utils.fs import atomic_writer
 from .distro import Distro, DistroFamily
+from moncic.utils.script import Script
 
 if TYPE_CHECKING:
     from moncic.images import Images
@@ -145,22 +146,19 @@ class YumDistro(RpmDistro):
         return super().get_base_packages() + ["yum"]
 
     @override
-    def get_update_pkgdb_script(self) -> list[list[str]]:
-        res = super().get_update_pkgdb_script()
-        res.append(["/usr/bin/yum", "updateinfo", "-q", "-y"])
-        return res
+    def get_update_pkgdb_script(self, script: Script) -> None:
+        super().get_update_pkgdb_script(script)
+        script.run(["/usr/bin/yum", "updateinfo", "-q", "-y"])
 
     @override
-    def get_upgrade_system_script(self) -> list[list[str]]:
-        res = super().get_upgrade_system_script()
-        res.append(["/usr/bin/yum", "upgrade", "-q", "-y"])
-        return res
+    def get_upgrade_system_script(self, script: Script) -> None:
+        super().get_upgrade_system_script(script)
+        script.run(["/usr/bin/yum", "upgrade", "-q", "-y"])
 
     @override
-    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
-        res = super().get_install_packages_script(packages)
-        res.append(["/usr/bin/yum", "install", "-q", "-y"] + packages)
-        return res
+    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+        super().get_install_packages_script(script, packages)
+        script.run(["/usr/bin/yum", "install", "-q", "-y"] + packages)
 
 
 class DnfDistro(RpmDistro):
@@ -169,28 +167,24 @@ class DnfDistro(RpmDistro):
         return super().get_base_packages() + ["dnf"]
 
     @override
-    def get_setup_network_script(self) -> list[list[str]]:
-        res = super().get_setup_network_script()
-        res.append(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
-        return res
+    def get_setup_network_script(self, script: Script) -> None:
+        super().get_setup_network_script(script)
+        script.run(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
 
     @override
-    def get_update_pkgdb_script(self) -> list[list[str]]:
-        res = super().get_update_pkgdb_script()
-        res.append(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
-        return res
+    def get_update_pkgdb_script(self, script: Script) -> None:
+        super().get_update_pkgdb_script(script)
+        script.run(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
 
     @override
-    def get_upgrade_system_script(self) -> list[list[str]]:
-        res = super().get_upgrade_system_script()
-        res.append(["/usr/bin/dnf", "upgrade", "-q", "-y"])
-        return res
+    def get_upgrade_system_script(self, script: Script) -> None:
+        super().get_upgrade_system_script(script)
+        script.run(["/usr/bin/dnf", "upgrade", "-q", "-y"])
 
     @override
-    def get_install_packages_script(self, packages: list[str]) -> list[list[str]]:
-        res = super().get_install_packages_script(packages)
-        res.append(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
-        return res
+    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+        super().get_install_packages_script(script, packages)
+        script.run(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
 
     @override
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
