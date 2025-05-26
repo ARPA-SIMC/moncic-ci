@@ -9,11 +9,11 @@ import subprocess
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, override, cast
 
 from moncic.utils.fs import atomic_writer
-from .distro import Distro, DistroFamily
 from moncic.utils.script import Script
+from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
     from moncic.images import Images
@@ -69,6 +69,8 @@ class RpmDistro(Distro):
     """
 
     version: int
+    baseurl: str
+    mirror: str
 
     @override
     def get_base_packages(self) -> list[str]:
@@ -148,7 +150,7 @@ class YumDistro(RpmDistro):
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
-        script.run(["/usr/bin/yum", "updateinfo", "-q", "-y"])
+        script.run(["/usr/bin/yum", "check-update", "-q", "-y"])
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
@@ -174,7 +176,7 @@ class DnfDistro(RpmDistro):
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
-        script.run(["/usr/bin/dnf", "updateinfo", "-q", "-y"])
+        script.run(["/usr/bin/dnf", "check-update", "-q", "-y"])
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
@@ -215,7 +217,7 @@ json.dump(res, sys.stdout)
         with open("/tmp/script", "w") as fd:
             fd.write(script)
         res = subprocess.run(["/usr/bin/python3", "/tmp/script"], stdout=subprocess.PIPE, text=True, check=True)
-        return json.loads(res.stdout)
+        return cast(dict[str, dict[str, str]], json.loads(res.stdout))
 
 
 class Centos7(YumDistro):
@@ -225,7 +227,7 @@ class Centos7(YumDistro):
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
-        return ("quay.io/centos/centos/centos7", "latest")
+        return ("quay.io/centos/centos", "centos7")
 
     @override
     def bootstrap(self, images: Images, path: Path) -> None:
