@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.17
+Version:        0.18
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
