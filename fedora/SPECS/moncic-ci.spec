@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.20
+Version:        0.21
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -74,6 +74,10 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Tue May 27 2025 Daniele Branchini <dbranchini@arpae.it> - 0.21-1
+- Use check-update instead of updateinfo for yum and dnf (#116)
+- Update distro tests to deal with running scripts instead of command sequences (#115)
+
 * Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.20-1
 - Use Script for build-specific container setup
 - Deal with the configuration directory not existing

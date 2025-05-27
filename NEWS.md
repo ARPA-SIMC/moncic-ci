@@ -1,3 +1,8 @@
+# Version 0.21
+
+* Use check-update instead of updateinfo for yum and dnf (#116)
+* Update distro tests to deal with running scripts instead of command sequences (#115)
+
 # Version 0.20
 
 * Use Script for build-specific container setup
