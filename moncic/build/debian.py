@@ -5,7 +5,8 @@ import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import override, Generator
+from typing import override
+from collections.abc import Generator
 
 from moncic.context import privs
 from moncic.container import ContainerConfig

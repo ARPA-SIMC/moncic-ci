@@ -11,8 +11,9 @@ from typing import TYPE_CHECKING, override
 
 import requests
 
-from moncic.container import BindConfig, ContainerConfig, BindType
+from moncic.container import BindConfig, BindType, ContainerConfig
 from moncic.utils.script import Script
+
 from .distro import Distro, DistroFamily, DistroInfo
 
 if TYPE_CHECKING:
@@ -247,7 +248,7 @@ class UbuntuDistro(DebianDistro):
     @override
     def get_podman_name(self) -> tuple[str, str]:
         distro, suite = self.name.split(":")
-        return ("docker.io/library/ubuntu/", suite)
+        return ("docker.io/library/ubuntu", suite)
 
     @override
     def get_gbp_branches(self) -> list[str]:

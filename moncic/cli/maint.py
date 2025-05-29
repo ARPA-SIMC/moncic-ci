@@ -2,7 +2,7 @@ import argparse
 import logging
 from typing import Any, override
 
-from moncic.image import RunnableImage, BootstrappableImage
+from moncic.image import BootstrappableImage, RunnableImage
 
 from .moncic import MoncicCommand, main_command
 

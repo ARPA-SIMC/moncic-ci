@@ -8,6 +8,7 @@ from typing import Any, ClassVar, override
 from moncic.distro import Distro, DistroFamily
 from moncic.image import RunnableImage
 from moncic.provision.image import DistroImage
+from moncic.provision.images import DistroImages
 from moncic.unittest import MockRunLog, MoncicTestCase
 
 
@@ -26,7 +27,8 @@ class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
         super().setUp()
         mconfig = self.config()
         self.session = self.enterContext(self.mock_session(self.moncic(mconfig)))
-        self.distro_image = DistroImage(session=self.session, name=self.NAME, distro=self.distro)
+        images = DistroImages(self.session)
+        self.distro_image = DistroImage(images=images, name=self.NAME, distro=self.distro)
         image = self.session.images.image(self.NAME)
         assert isinstance(image, RunnableImage)
         self.image = image

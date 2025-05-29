@@ -7,14 +7,16 @@ from moncic.distro import Distro
 from moncic.image import BootstrappableImage, ImageType, RunnableImage
 
 if TYPE_CHECKING:
+    from .images import MockImages
     from .session import MockSession
 
 
 class MockImage(RunnableImage):
     session: "MockSession"
+    images: "MockImages"
 
-    def __init__(self, *, session: "MockSession", name: str, distro: Distro) -> None:
-        super().__init__(session=session, image_type=ImageType.MOCK, name=name, distro=distro)
+    def __init__(self, *, images: "MockImages", name: str, distro: Distro) -> None:
+        super().__init__(images=images, image_type=ImageType.MOCK, name=name, distro=distro)
 
     @override
     def get_backend_id(self) -> str:

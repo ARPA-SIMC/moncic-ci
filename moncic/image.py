@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from moncic.provision.config import ContainerInfo
 
     from .container import Container, ContainerConfig, MaintenanceContainer
-    from .session import Session
+    from .images import Images
 
 log = logging.getLogger("image")
 
@@ -31,9 +31,11 @@ class Image(abc.ABC):
     Identify an image from which systems can be started.
     """
 
-    def __init__(self, *, session: "Session", name: str, distro: Distro, bootstrapped: bool = False) -> None:
+    def __init__(self, *, images: "Images", name: str, distro: Distro, bootstrapped: bool = False) -> None:
         #: Moncic-CI session
-        self.session = session
+        self.session = images.session
+        #: Containing Images instance
+        self.images = images
         #: Image name
         self.name: str = name
         #: Image distribution
@@ -111,8 +113,8 @@ class BootstrappableImage(Image, abc.ABC):
 
 
 class RunnableImage(Image, abc.ABC):
-    def __init__(self, *, session: "Session", image_type: ImageType, name: str, distro: Distro) -> None:
-        super().__init__(session=session, name=name, distro=distro, bootstrapped=True)
+    def __init__(self, *, images: "Images", image_type: ImageType, name: str, distro: Distro) -> None:
+        super().__init__(images=images, name=name, distro=distro, bootstrapped=True)
         #: Container type
         self.image_type: ImageType = image_type
         self.bootstrap_from: BootstrappableImage | None = None

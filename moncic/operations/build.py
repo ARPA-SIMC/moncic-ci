@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 
 from moncic.build.build import Build
+from moncic.container import Container, ContainerConfig
 from moncic.runner import UserConfig
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from moncic.container import Container, ContainerConfig
+
 from .base import ContainerSourceOperation
 
 if TYPE_CHECKING:

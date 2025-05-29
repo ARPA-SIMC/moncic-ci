@@ -1,110 +1,160 @@
-from __future__ import annotations
-
+import abc
+import contextlib
 import logging
-import os
-from typing import Never, override
+import shutil
+import sys
+import tempfile
+from collections.abc import Generator
+from pathlib import Path
+from typing import ClassVar, override
+
+from rich.logging import RichHandler
 
 from moncic import context
-from moncic.image import BootstrappableImage, RunnableImage
+from moncic.distro import Distro, DistroFamily
+from moncic.image import RunnableImage
+from moncic.images import BootstrappingImages
+from moncic.moncic import Moncic, MoncicConfig
+from moncic.nspawn.images import BtrfsImages, NspawnImages, PlainImages
+from moncic.podman.images import PodmanImages
+from moncic.provision.images import DistroImages
+from moncic.session import Session
 from moncic.unittest import MoncicTestCase
-
-# Use this image, if it exists, as a base for maintenance tests
-# It can be any Linux distribution, and it will be snapshotted for the tests
-base_image_name = "rocky8"
-test_image_name = "moncic-ci-tests"
+from moncic.utils.btrfs import is_btrfs
 
 
-class TestMaintenance(MoncicTestCase):
-    @override
-    def setUp(self) -> None:
-        super().setUp()
-        self.session = self.enterContext(self.moncic().session())
-        self.images = self.session.images
-        assert self.session.moncic.config.imagedir is not None
-        self.test_image_config_file = self.session.moncic.config.imagedir / (test_image_name + ".yaml")
-        # Bootstrap a snapshot of base_image_name to use as our playground
-        with context.privs.root():
-            if base_image_name not in self.images.list_images():
-                self.skipTest(f"Image {base_image_name} not available")
-            self.test_image_config_file.write_text(
-                f"""
-extends: {base_image_name}
-maintscript: |
-    # Prevent the default system update
-    /bin/true
-"""
-            )
-            bootstrappable_image = self.images.image(test_image_name)
-            assert isinstance(bootstrappable_image, BootstrappableImage)
-            self.session.bootstrapper.bootstrap(bootstrappable_image)
+class DistroMaintenanceTests(MoncicTestCase, abc.ABC):
+    distro: ClassVar[Distro]
+    session: ClassVar[Session]
+    distro_images: ClassVar[DistroImages]
+    images: ClassVar[BootstrappingImages]
+    bootstrapped: ClassVar[RunnableImage | None]
 
     @override
-    def tearDown(self) -> None:
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.session = cls.make_session()
+        cls.distro_images = DistroImages(cls.session)
+        cls.images = cls.make_images()
+        cls.bootstrapped = None
+
+    @classmethod
+    def make_session(cls) -> Session:
+        config = MoncicConfig()
+        config.imageconfdirs = []
+        config.auto_sudo = False
+        config.deb_cache_dir = None
+        return cls.enterClassContext(Moncic(config).session())
+
+    @classmethod
+    @abc.abstractmethod
+    def make_images(cls) -> BootstrappingImages: ...
+
+    @classmethod
+    def get_bootstrapped(cls) -> RunnableImage:
+        if not cls.bootstrapped:
+            with cls.verbose_logging():
+                bimage = cls.distro_images.image(cls.distro.name)
+                cls.bootstrapped = cls.images.bootstrap(bimage)
+        return cls.bootstrapped
+
+    @classmethod
+    @contextlib.contextmanager
+    def verbose_logging(cls) -> Generator[None, None, None]:
+        print()
+        handler = RichHandler()
+        handler.setLevel(logging.INFO)
+        root_logger = logging.getLogger()
+        orig_root_level = root_logger.level
+        root_logger.setLevel(logging.INFO)
+        root_logger.addHandler(handler)
+        try:
+            yield
+        finally:
+            root_logger.setLevel(orig_root_level)
+            root_logger.removeHandler(handler)
+
+    def test_bootstrap(self) -> None:
+        self.get_bootstrapped()
+
+    def test_update(self) -> None:
+        rimage = self.get_bootstrapped()
+        rimage.update()
+
+    # def test_remove(self) -> None:
+    #     raise NotImplementedError()
+
+    # def test_build(self) -> None:
+    #     raise NotImplementedError()
+
+
+class NspawnDistroMaintenanceTests(DistroMaintenanceTests, abc.ABC):
+    @override
+    @classmethod
+    def tearDownClass(cls) -> None:
         with context.privs.root():
-            image = self.images.image(test_image_name)
-            assert isinstance(image, RunnableImage)
-            image.remove()
-            try:
-                os.unlink(self.test_image_config_file)
-            except FileNotFoundError:
-                pass
-        del self.images
+            assert isinstance(cls.images, NspawnImages)
+            shutil.rmtree(cls.images.imagedir)
         super().tearDownClass()
 
-    def test_transactional_update_succeeded(self) -> None:
-        with context.privs.root():
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+    @override
+    @classmethod
+    def make_images(cls) -> NspawnImages:
+        image_path = Path(cls.enterClassContext(tempfile.TemporaryDirectory(delete=False)))
+        if is_btrfs(image_path):
+            return BtrfsImages(cls.session, image_path)
+        else:
+            return PlainImages(cls.session, image_path)
 
-            image = self.images.image(test_image_name)
-            with image.maintenance_system() as system:
-                # Check that we are working on a temporary snapshot
-                self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
 
-                with system.create_container() as container:
+class PodmanDistroMaintenanceTests(DistroMaintenanceTests, abc.ABC):
+    @override
+    @classmethod
+    def make_session(cls) -> Session:
+        session = super().make_session()
+        session.podman_repository = "localhost/moncic-ci-tests"
+        return session
 
-                    def test_function() -> tuple[str, int]:
-                        with open("/root/token", "w") as out:
-                            out.write("test_transactional_updates")
-                        return ("result", 123)
+    @override
+    @classmethod
+    def make_images(cls) -> PodmanImages:
+        return PodmanImages(cls.session)
 
-                    self.assertEqual(container.run_callable(test_function), ("result", 123))
+    def test_get_podman_name(self) -> None:
+        repo, tag = self.distro.get_podman_name()
+        name = f"{repo}:{tag}"
+        with self.subTest(name=name):
+            self.session.podman.images.pull(repo, tag)
+            self.assertTrue(self.session.podman.images.exists(name))
 
-                # The file has been written in a persistent way
-                self.assertTrue(os.path.exists(os.path.join(system.path, "root", "token")))
 
-                # But not in the original image
-                self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+bases: dict[str, type[DistroMaintenanceTests]] = {
+    "nspawn": NspawnDistroMaintenanceTests,
+    "podman": PodmanDistroMaintenanceTests,
+}
 
-            # Exiting the maintenance transaction commits the changes
-            self.assertTrue(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
 
-            # The temporary snapshot has been deleted
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".new"))
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".tmp"))
+def setup_tests() -> None:
 
-    def test_transactional_update_failed(self) -> None:
-        with context.privs.root():
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+    # Create an instance of DistroMaintenanceTests for each distribution in TEST_CHROOTS.
+    # The test cases will be named Test$DISTRO. For example:
+    #   TestCentos7, TestCentos8, TestFedora32, TestFedora34
+    this_module = sys.modules[__name__]
+    for distro_family in DistroFamily.list_families():
+        for distro_name in sorted({di.name for di in distro_family.list_distros()}):
+            distro = DistroFamily.lookup_distro(distro_name)
+            for tech in "nspawn", "podman":
+                base = bases[tech]
+                name = "".join(n.capitalize() for n in distro.name.split(":"))
+                cls_name = name + tech.capitalize() + "DistroMaintenanceTests"
+                test_case = type(cls_name, (base,), {"distro": distro})
+                test_case.__module__ = __name__
+                setattr(this_module, cls_name, test_case)
 
-            with self.assertRaises(RuntimeError):
-                with self.assertLogs(level=logging.WARNING):
-                    image = self.images.image(test_image_name)
-                    with image.maintenance_system() as system:
-                        # Check that we are working on a temporary snapshot
-                        self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
 
-                        with system.create_container() as container:
+setup_tests()
 
-                            def test_function() -> Never:
-                                with open("/root/token", "w") as out:
-                                    out.write("test_transactional_updates")
-                                raise RuntimeError("expected error")
-
-                            container.run_callable(test_function)
-
-            # Exiting the maintenance transaction rolls back the changes
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
-
-            # The temporary snapshot has been deleted
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".new"))
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".tmp"))
+del NspawnDistroMaintenanceTests
+del PodmanDistroMaintenanceTests
+del DistroMaintenanceTests

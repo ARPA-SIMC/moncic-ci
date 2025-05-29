@@ -42,7 +42,7 @@ class MockImages(BootstrappingImages):
     def image(self, name: str) -> "MockImage":
         from .image import MockImage
 
-        return MockImage(session=self.session, name=name, distro=DistroFamily.lookup_distro(name))
+        return MockImage(images=self, name=name, distro=DistroFamily.lookup_distro(name))
 
     @override
     def bootstrap(self, image: BootstrappableImage) -> RunnableImage:

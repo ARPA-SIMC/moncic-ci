@@ -9,10 +9,11 @@ import subprocess
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, override, cast
+from typing import TYPE_CHECKING, cast, override
 
 from moncic.utils.fs import atomic_writer
 from moncic.utils.script import Script
+
 from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
@@ -246,7 +247,7 @@ class Centos8(DnfDistro):
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
-        return ("quay.io/centos/centos/centos8", "latest")
+        return ("quay.io/centos/centos", "centos8")
 
     @override
     def bootstrap(self, images: Images, path: Path) -> None:

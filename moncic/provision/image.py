@@ -5,14 +5,16 @@ from moncic.image import BootstrappableImage
 from .config import Config
 
 if TYPE_CHECKING:
-    from moncic.session import Session
+    from .images import ConfiguredImages, DistroImages
 
 
 class ConfiguredImage(BootstrappableImage):
     """Image described in a configuration file."""
 
-    def __init__(self, *, session: "Session", name: str, config: Config) -> None:
-        super().__init__(session=session, name=name, distro=config.distro, bootstrapped=False)
+    images: "ConfiguredImages"
+
+    def __init__(self, *, images: "ConfiguredImages", name: str, config: Config) -> None:
+        super().__init__(images=images, name=name, distro=config.distro, bootstrapped=False)
         self.config = config
         self.config.warn_unsupported_entries(self.logger)
 
@@ -52,6 +54,8 @@ class ConfiguredImage(BootstrappableImage):
 
 class DistroImage(BootstrappableImage):
     """Image described in a configuration file."""
+
+    images: "DistroImages"
 
     @override
     def _distro_package_list(self) -> set[str]:

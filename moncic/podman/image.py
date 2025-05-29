@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     import podman
 
     from moncic.container import Container, ContainerConfig, MaintenanceContainer
-    from moncic.session import Session
 
     from .container import PodmanContainer
     from .images import PodmanImages
@@ -27,15 +26,15 @@ class PodmanImage(RunnableImage):
 
     images: "PodmanImages"
 
-    def __init__(self, *, session: "Session", name: str, podman_image: "podman.domain.images.Image") -> None:
-        podman = session.podman
+    def __init__(self, *, images: "PodmanImages", name: str, podman_image: "podman.domain.images.Image") -> None:
+        podman = images.session.podman
         os_release = podman.containers.run(podman_image, ["cat", "/etc/os-release"], remove=True)
         assert isinstance(os_release, bytes)
         with io.StringIO(os_release.decode()) as fd:
             osr = parse_osrelase_contents(fd, f"{name}:/etc/os-release")
         distro = DistroFamily.from_osrelease(osr, "test")
 
-        super().__init__(session=session, image_type=ImageType.PODMAN, name=name, distro=distro)
+        super().__init__(images=images, image_type=ImageType.PODMAN, name=name, distro=distro)
         self.id: str = podman_image.id
         self.short_id: str = podman_image.short_id
         self.podman_image = podman_image
@@ -51,7 +50,7 @@ class PodmanImage(RunnableImage):
             repository, tag = self.name.split(":")
         else:
             repository, tag = self.name, "latest"
-        self.podman_image.tag(self.session.podman_repository_prefix + repository, tag)
+        self.podman_image.tag(self.session.podman_repository + repository, tag)
 
     @override
     def get_backend_id(self) -> str:
@@ -60,12 +59,13 @@ class PodmanImage(RunnableImage):
     @override
     def remove(self) -> BootstrappableImage | None:
         podman = self.session.podman
-        podman.images.remove(self.session.podman_repository_prefix + self.name)
+        podman.images.remove(self.session.podman_repository + self.name)
         return self.bootstrap_from
 
     @override
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
         from moncic.container import ContainerConfig
+
         from .container import PodmanContainer
 
         return PodmanContainer(self, config=config or ContainerConfig())
@@ -75,6 +75,7 @@ class PodmanImage(RunnableImage):
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
     ) -> "MaintenanceContainer":
         from moncic.container import ContainerConfig
+
         from .container import PodmanMaintenanceContainer
 
         return PodmanMaintenanceContainer(self, config=config or ContainerConfig())

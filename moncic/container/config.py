@@ -1,7 +1,8 @@
 import contextlib
 import logging
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, ContextManager, Callable
+from typing import TYPE_CHECKING, ContextManager
 
 from moncic.runner import RunConfig, UserConfig
 from moncic.utils.script import Script

@@ -58,7 +58,7 @@ class ConfiguredImages(Images):
 
         if path := self.configs.get(name):
             config = Config(self.session, name, path)
-            return ConfiguredImage(session=self.session, name=name, config=config)
+            return ConfiguredImage(images=self, name=name, config=config)
 
         raise KeyError(f"Image {name!r} not found")
 
@@ -92,4 +92,4 @@ class DistroImages(Images):
         from .image import DistroImage
 
         distro = DistroFamily.lookup_distro(name)
-        return DistroImage(session=self.session, name=name, distro=distro)
+        return DistroImage(images=self, name=name, distro=distro)

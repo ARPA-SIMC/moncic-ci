@@ -11,7 +11,7 @@ from typing import Any, override
 import git
 
 from moncic import context
-from moncic.container import BindConfig, Container, ContainerConfig, BindType
+from moncic.container import BindConfig, BindType, Container, ContainerConfig
 from moncic.distro import Distro
 from moncic.exceptions import Fail
 from moncic.image import RunnableImage

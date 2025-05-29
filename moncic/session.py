@@ -34,7 +34,7 @@ class Session(contextlib.ExitStack):
         self.orig_moncic: contextvars.Token["Moncic"] | None = None
         self.orig_session: contextvars.Token["Session"] | None = None
         #: Prefix used to filter podman repositories that Moncic-CI will use
-        self.podman_repository_prefix = "localhost/moncic-ci/"
+        self.podman_repository = "localhost/moncic-ci"
 
         #: Images used to bootstrap OS images
         self.bootstrapper: BootstrappingImages

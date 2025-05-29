@@ -21,6 +21,8 @@ log = logging.getLogger("nspawn")
 class NspawnImage(RunnableImage, abc.ABC):
     """Boostrapped nspawn image."""
 
+    images: "NspawnImages"
+
     def __init__(
         self,
         *,
@@ -29,7 +31,7 @@ class NspawnImage(RunnableImage, abc.ABC):
         distro: Distro,
         path: Path,
     ) -> None:
-        super().__init__(session=images.session, image_type=ImageType.NSPAWN, name=name, distro=distro)
+        super().__init__(images=images, image_type=ImageType.NSPAWN, name=name, distro=distro)
         #: Image storage for this image
         self.images = images
         #: Path to the image on disk
@@ -38,6 +40,7 @@ class NspawnImage(RunnableImage, abc.ABC):
     @override
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
         from moncic.container import ContainerConfig
+
         from .container import NspawnContainer
 
         return NspawnContainer(self, config=config or ContainerConfig(), instance_name=instance_name)
@@ -47,6 +50,7 @@ class NspawnImage(RunnableImage, abc.ABC):
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
     ) -> "MaintenanceContainer":
         from moncic.container import ContainerConfig
+
         from .container import NspawnMaintenanceContainer
 
         return NspawnMaintenanceContainer(self, config=config or ContainerConfig(), instance_name=instance_name)

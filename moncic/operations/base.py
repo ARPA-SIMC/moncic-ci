@@ -5,20 +5,20 @@ import contextlib
 import dataclasses
 import logging
 import tempfile
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Callable, ContextManager
+from typing import IO, TYPE_CHECKING, Any, ContextManager
 
-from moncic.container import ContainerConfig, BindType
 from moncic.build.utils import link_or_copy
-from moncic.utils.script import Script
+from moncic.container import BindType, ContainerConfig
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource
 from moncic.utils.guest import guest_only, host_only
+from moncic.utils.script import Script
 
 if TYPE_CHECKING:
-    from moncic.image import RunnableImage
     from moncic.container import Container
+    from moncic.image import RunnableImage
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class ContainerSourceOperation(abc.ABC):
             self.plugins.append(self.plugin_build_artifacts)
 
     @contextlib.contextmanager
-    def plugin_container_filesystem(self, config: ContainerConfig) -> Generator[None, None, None]:
+    def plugin_container_filesystem(self, config: ContainerConfig) -> Generator[None]:
         """Set up the container before starting the build."""
         script = Script("Set up the container filesystem", cwd=Path("/"), root=True)
         script.run(["mkdir", "-p", "/srv/moncic-ci/source"])
@@ -79,7 +79,7 @@ class ContainerSourceOperation(abc.ABC):
         # self.log_capture_start(log_file)
 
     @contextlib.contextmanager
-    def plugin_mount_source(self, config: ContainerConfig) -> Generator[None, None, None]:
+    def plugin_mount_source(self, config: ContainerConfig) -> Generator[None]:
         """Mount the source path inside the container."""
         # Mount the source path as /srv/moncic-ci/source/<name>
         # Set it as the default current directory in the container
@@ -90,7 +90,7 @@ class ContainerSourceOperation(abc.ABC):
         yield
 
     @contextlib.contextmanager
-    def plugin_source_artifacts(self, config: ContainerConfig) -> Generator[None, None, None]:
+    def plugin_source_artifacts(self, config: ContainerConfig) -> Generator[None]:
         """Collect source artifacts and make them available in the container."""
         with tempfile.TemporaryDirectory(dir=self.artifacts_dir) as source_artifacts_dir_str:
             source_artifacts_dir = Path(source_artifacts_dir_str)
@@ -120,7 +120,7 @@ class ContainerSourceOperation(abc.ABC):
             yield None
 
     @contextlib.contextmanager
-    def plugin_build_artifacts(self, config: ContainerConfig) -> Generator[None, None, None]:
+    def plugin_build_artifacts(self, config: ContainerConfig) -> Generator[None]:
         """Collect artifacts produced by the build."""
         assert self.artifacts_dir is not None
         with tempfile.TemporaryDirectory(dir=self.artifacts_dir) as artifacts_transfer_path_str:

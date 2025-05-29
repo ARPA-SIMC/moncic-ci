@@ -1,6 +1,4 @@
 import logging
-from functools import cached_property
-from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from moncic.image import BootstrappableImage, RunnableImage
@@ -20,6 +18,12 @@ class PodmanImages(BootstrappingImages):
     def __init__(self, session: "Session") -> None:
         self.session = session
 
+    def podman_name(self, name: str) -> tuple[str, str]:
+        """Return a podman (repo, tag) for a Moncic-CI image name."""
+        if ":" in name:
+            name = "_".join(name.split(":"))
+        return self.session.podman_repository, name
+
     @override
     def get_logger(self) -> logging.Logger:
         return logging.getLogger("images.podman")
@@ -31,31 +35,20 @@ class PodmanImages(BootstrappingImages):
         """
         from .image import PodmanImage
 
-        full_name = self.session.podman_repository_prefix + name
+        repo, tag = self.podman_name(name)
+        full_name = f"{repo}:{tag}"
         podman = self.session.podman
         if podman.images.exists(full_name):
             podman_image = podman.images.get(full_name)
-            return PodmanImage(session=self.session, name=name, podman_image=podman_image)
+            return PodmanImage(images=self, name=name, podman_image=podman_image)
         else:
             raise KeyError(f"image {name!r} not found")
 
     @override
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
-        return self.session.podman.images.exists(self.session.podman_repository_prefix + name)
-
-    @cached_property
-    def _configured_images(self) -> dict[str, Path]:
-        """Return the list of images defined in configuration files."""
-        configured: dict[str, Path] = {}
-        for path in self.session.moncic.config.imageconfdirs:
-            for f in path.iterdir():
-                if f.name.startswith(".") or f.is_dir():
-                    continue
-                if not f.suffix == ".Containerfile":
-                    continue
-                configured[f.stem.replace("-", ":")] = f
-        return configured
+        repo, tag = self.podman_name(name)
+        return self.session.podman.images.exists(repo + tag)
 
     @override
     def list_images(self) -> list[str]:
@@ -63,11 +56,11 @@ class PodmanImages(BootstrappingImages):
         List the names of images found in image directories
         """
         images: list[str] = []
-        for image in self.session.podman.images.list(name=self.session.podman_repository_prefix + "*"):
+        for image in self.session.podman.images.list(name=self.session.podman_repository + "*"):
             for tag in image.tags:
-                if not tag.startswith(self.session.podman_repository_prefix):
+                if not tag.startswith(self.session.podman_repository):
                     continue
-                images.append(tag.removeprefix(self.session.podman_repository_prefix))
+                images.append(tag.removeprefix(self.session.podman_repository))
         images.sort()
         return images
 
@@ -85,7 +78,8 @@ class PodmanImages(BootstrappingImages):
         image.logger.info("pulling from %s:%s", repository, tag)
         podman_image = podman.images.pull(repository, tag)
         assert isinstance(podman_image, podman_.domain.images.Image)
-        podman_image.tag(self.session.podman_repository_prefix + image.name, "latest")
+        dest_repository, dest_tag = self.podman_name(image.name)
+        podman_image.tag(dest_repository, dest_tag)
 
         res = self.image(image.name)
         res.update()

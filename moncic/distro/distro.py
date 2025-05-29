@@ -161,6 +161,8 @@ class Distro(abc.ABC):
     Common base class for bootstrapping distributions
     """
 
+    SHORTCUTS: dict[str, str]
+
     def __init__(self, name: str) -> None:
         self.name = name
 
