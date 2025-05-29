@@ -1,3 +1,7 @@
+# Version UNRELEASED
+
+* Added an initial suite of integration tests
+
 # Version 0.21
 
 * Use check-update instead of updateinfo for yum and dnf (#116)
