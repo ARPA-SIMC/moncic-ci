@@ -1,22 +1,78 @@
-#!/bin/sh
+#!/usr/bin/python3
 
-set -ue
+import argparse
+import os
+import sys
+from pathlib import Path
 
-ARGS=""
-export PYTHONDEVMODE=1
+from rich.console import Console
 
-if [ "$#" -gt 0 ] && [ "$1" = "-v" ]
-then
-	shift
-	ARGS="-v"
-fi
 
-if [ "$#" -eq 0 ]
-then
-	python3 -m unittest discover "$ARGS"
-else
-	for name in "$@"
-	do
-		python3 -m unittest discover "$ARGS" -k $name
-	done
-fi
+console = Console()
+top_srcdir = Path(sys.argv[0]).parent.parent.absolute()
+
+
+class Fail(Exception):
+    """There was an error in the script."""
+
+
+def main() -> None:
+    """Run unit or integration testing."""
+    parser = argparse.ArgumentParser(description="Run unit or integration testing.")
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose output",
+    )
+    parser.add_argument("-i", "--integration", action="store_true", help="run integration tests")
+    parser.add_argument(
+        "-f",
+        "--failfast",
+        action="store_true",
+        help="stop running the test suite after first failed test",
+    )
+    parser.add_argument(
+        "-k",
+        dest="patterns",
+        action="append",
+        type=str,
+        help=(
+            "Only run test methods and classes"
+            " that match the pattern or substring."
+            " Can be used multiple times. Same as unittest -k option."
+        ),
+    )
+    args = parser.parse_args()
+
+    env = dict(os.environ)
+    env["PYTHONDEVMODE"] = "1"
+
+    cmd = [sys.executable, "-m", "unittest", "discover"]
+    verbose = args.verbose
+    if args.failfast:
+        cmd += ["--failfast"]
+    if args.integration:
+        cmd += ["-s", "itests"]
+        verbose = True
+    else:
+        cmd += ["-s", "tests"]
+    if verbose:
+        cmd += ["--verbose"]
+    cmd += ["-t", top_srcdir.as_posix()]
+    if args.patterns:
+        for pattern in args.patterns:
+            cmd += ["-k", pattern]
+
+    os.execve(sys.executable, cmd, env=env)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Fail as e:
+        console.print(e, style="bold red")
+        sys.exit(1)
+    except Exception:
+        console.print_exception()
+        sys.exit(2)

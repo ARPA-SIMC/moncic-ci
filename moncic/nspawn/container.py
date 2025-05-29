@@ -1,4 +1,3 @@
-import copy
 import errno
 import logging
 import os

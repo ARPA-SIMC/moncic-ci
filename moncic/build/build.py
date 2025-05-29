@@ -18,7 +18,6 @@ from moncic.source.distro import DistroSource
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from moncic.image import RunnableImage
 
 
 log = logging.getLogger(__name__)
