@@ -5,6 +5,7 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable, Generator
 from pathlib import Path
@@ -184,3 +185,10 @@ class MoncicTestCase(TestCase):
         if moncic is None:
             moncic = self.moncic()
         return MockSession(moncic, MockRunLog(self), images_class=images_class)
+
+
+def add_testcase(module_name: str, test_case: type[MoncicTestCase]) -> None:
+    """Add a test case class to the named test module."""
+    this_module = sys.modules[module_name]
+    test_case.__module__ = module_name
+    setattr(this_module, test_case.__name__, test_case)

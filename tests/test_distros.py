@@ -1,37 +1,92 @@
 import abc
 import re
 import shlex
-import unittest
+import tempfile
 from pathlib import Path
 from typing import Any, ClassVar, override
+from unittest import mock
 
 from moncic.distro import Distro, DistroFamily
 from moncic.image import RunnableImage
-from moncic.provision.image import DistroImage
-from moncic.provision.images import DistroImages
+from moncic.mock.session import MockSession
 from moncic.unittest import MockRunLog, MoncicTestCase
 
 
-class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
-    NAME: ClassVar[str]
+class DistroFamilyTestsBase(MoncicTestCase):
+    family: ClassVar[DistroFamily]
+
+    def test_lookup_family(self) -> None:
+        family = DistroFamily.lookup_family(self.family.name)
+        self.assertIs(family, self.family)
+
+    def test_str(self) -> None:
+        self.assertEqual(str(self.family), self.family.name)
+
+    def test_lookup_distro(self) -> None:
+        for distro in self.family.distros:
+            self.assertIs(self.family.lookup_distro(distro.full_name), distro)
+            for alias in distro.aliases:
+                self.assertIs(self.family.lookup_distro(alias), distro)
+
+    def test_from_osrelease(self) -> None:
+        for distro in self.family.distros:
+            if distro.name == "testing":
+                continue
+            with self.subTest(distro=distro.name):
+                parsed = {"ID": self.family.name}
+                if distro.version is not None:
+                    parsed["VERSION_ID"] = distro.version
+
+                self.assertIs(DistroFamily.from_osrelease(parsed, "invalid"), distro)
+
+                with tempfile.TemporaryDirectory() as root_str:
+                    root = Path(root_str)
+                    path = root / "etc" / "os-release"
+                    path.parent.mkdir(parents=True)
+                    with path.open("wt") as fd:
+                        print(f"ID={shlex.quote(parsed['ID'])}", file=fd)
+                        if version_id := parsed.get("VERSION_ID"):
+                            print(f"VERSION_ID={shlex.quote(version_id)}", file=fd)
+
+                    self.assertIs(DistroFamily.from_path(root), distro)
+
+
+class DebianDistroFamilyTests(DistroFamilyTestsBase):
+    family = DistroFamily.lookup_family("debian")
+
+
+class UbuntuDistroFamilyTests(DistroFamilyTestsBase):
+    family = DistroFamily.lookup_family("ubuntu")
+
+
+class FedoraDistroFamilyTests(DistroFamilyTestsBase):
+    family = DistroFamily.lookup_family("fedora")
+
+
+class RockyDistroFamilyTests(DistroFamilyTestsBase):
+    family = DistroFamily.lookup_family("rocky")
+
+
+class CentosDistroFamilyTests(DistroFamilyTestsBase):
+    family = DistroFamily.lookup_family("centos")
+
+
+del DistroFamilyTestsBase
+
+
+class DistroTestsBase(MoncicTestCase, abc.ABC):
+    name: ClassVar[str]
     distro: ClassVar[Distro]
 
     @override
-    def __init_subclass__(cls, name: str, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        cls.NAME = name
-        cls.distro = DistroFamily.lookup_distro(cls.NAME)
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.distro = DistroFamily.lookup_distro(cls.name)
 
-    @override
-    def setUp(self) -> None:
-        super().setUp()
+    def session(self) -> MockSession:
         mconfig = self.config()
-        self.session = self.enterContext(self.mock_session(self.moncic(mconfig)))
-        images = DistroImages(self.session)
-        self.distro_image = DistroImage(images=images, name=self.NAME, distro=self.distro)
-        image = self.session.images.image(self.NAME)
-        assert isinstance(image, RunnableImage)
-        self.image = image
+        return self.enterContext(self.mock_session(self.moncic(mconfig)))
 
     @abc.abstractmethod
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None: ...
@@ -51,26 +106,98 @@ class DistroTests(MoncicTestCase, unittest.TestCase, abc.ABC):
             ],
         )
 
+    def test_get_podman_name(self) -> None:
+        # Just call it and see it doesn't explode
+        repo, tag = self.distro.get_podman_name()
+        self.assertIsInstance(repo, str)
+        self.assertIsInstance(tag, str)
+
     def test_bootstrap(self) -> None:
-        path = self.tempdir()
-        self.distro.bootstrap(self.session.bootstrapper, path)
-        self.assertBootstrapCommands(self.session.run_log, path)
+        session = self.session()
+        path = self.workdir()
+        self.distro.bootstrap(session.bootstrapper, path)
+        self.assertBootstrapCommands(session.run_log, path)
+        session.run_log.assertLogEmpty()
 
     def test_update(self) -> None:
-        self.image.update()
-        self.session.run_log.assertPopFirst(f"{self.NAME}: container start")
-        self.assertUpdateCommands(self.session.run_log, Path("/test"))
-        self.session.run_log.assertPopFirst(f"{self.NAME}: container stop")
-        self.session.run_log.assertLogEmpty()
+        session = self.session()
+        image = session.images.image(self.distro.full_name)
+        assert isinstance(image, RunnableImage)
+
+        image.update()
+        session.run_log.assertPopFirst(f"{self.distro.full_name}: container start")
+        self.assertUpdateCommands(session.run_log, Path("/test"))
+        session.run_log.assertPopFirst(f"{self.distro.full_name}: container stop")
+        session.run_log.assertLogEmpty()
 
 
-class TestBullseye(DistroTests, name="bullseye"):
+class TestCentos7(DistroTestsBase):
+    name = "centos7"
+
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
         run_log.assertPopFirst(
             re.compile(
+                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf" --installroot={path} --releasever=7 install bash dbus iproute rootfiles yum"
+            )
+        )
+        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+
+    @override
+    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
+        script = run_log.assertPopScript("Upgrade container")
+        self.assertEqual(
+            script.lines,
+            [
+                "/usr/bin/yum check-update -q -y",
+                "/usr/bin/yum upgrade -q -y",
+                "/usr/bin/yum install -q -y bash dbus iproute rootfiles yum",
+            ],
+        )
+
+
+class TestCentos8(DistroTestsBase):
+    name = "centos8"
+
+    @override
+    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
+        run_log.assertPopFirst(
+            re.compile(
+                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf" --installroot={path} --releasever=8 install bash dbus dnf iproute rootfiles"
+            )
+        )
+        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+
+    @override
+    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+
+
+class DebianDistroTestsBase(DistroTestsBase):
+    mirror = "http://deb.debian.org/debian"
+    custom_keyring = False
+
+    @override
+    def setUp(self) -> None:
+        super().setUp()
+        if self.custom_keyring:
+            mock_response = mock.Mock()
+            mock_response.content = b""
+            self.enterContext(mock.patch("moncic.distro.debian.requests.get", return_value=mock_response))
+            self.enterContext(mock.patch("moncic.distro.debian.subprocess.run"))
+
+    @override
+    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
+        if self.custom_keyring:
+            custom_keyring = r" --keyring=[^\.]+\.gpg"
+        else:
+            custom_keyring = ""
+        run_log.assertPopFirst(
+            re.compile(
                 rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
-                rf" --variant=minbase bullseye {path} http://deb.debian.org/debian"
+                rf" --variant=minbase{custom_keyring} {self.distro.name} {path} {self.mirror}"
             )
         )
         run_log.assertLogEmpty()
@@ -90,16 +217,159 @@ class TestBullseye(DistroTests, name="bullseye"):
         )
 
 
-class TestCentos7(DistroTests, name="centos7"):
+class TestJessie(DebianDistroTestsBase):
+    mirror = "http://archive.debian.org/debian/"
+    name = "jessie"
+    custom_keyring = True
+
+
+class TestStretch(DebianDistroTestsBase):
+    mirror = "http://archive.debian.org/debian/"
+    name = "stretch"
+    custom_keyring = True
+
+
+class TestBuster(DebianDistroTestsBase):
+    name = "buster"
+
+
+class TestBullseye(DebianDistroTestsBase):
+    name = "bullseye"
+
+
+class TestBookworm(DebianDistroTestsBase):
+    name = "bookworm"
+
+
+class TestTrixie(DebianDistroTestsBase):
+    name = "trixie"
+
+
+class TestTesting(DebianDistroTestsBase):
+    name = "testing"
+
+
+class TestSid(DebianDistroTestsBase):
+    name = "sid"
+
+
+class FedoraDistroTestsBase(DistroTestsBase):
+    version: ClassVar[int]
+    packages: list[str] = ["bash", "dbus", "dnf", "iproute", "rootfiles"]
+
+    @override
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.name = f"fedora{cls.version}"
+
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
         run_log.assertPopFirst(
             re.compile(
                 rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=7 install bash dbus rootfiles iproute yum"
+                rf" --installroot={path} --releasever={self.version} install {' '.join(self.packages)}"
             )
         )
         run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+
+    @override
+    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
+        self.assertUpdateScriptRPM(run_log, self.packages)
+
+
+class TestFedora32(FedoraDistroTestsBase):
+    version = 32
+
+
+class TestFedora33(FedoraDistroTestsBase):
+    version = 33
+
+
+class TestFedora34(FedoraDistroTestsBase):
+    version = 34
+
+
+class TestFedora35(FedoraDistroTestsBase):
+    version = 35
+
+
+class TestFedora36(FedoraDistroTestsBase):
+    version = 36
+
+
+class TestFedora37(FedoraDistroTestsBase):
+    version = 37
+
+
+class TestFedora38(FedoraDistroTestsBase):
+    version = 38
+
+
+class TestFedora39(FedoraDistroTestsBase):
+    version = 39
+
+
+class TestFedora40(FedoraDistroTestsBase):
+    version = 40
+
+
+class TestFedora41(FedoraDistroTestsBase):
+    version = 41
+
+
+class TestFedora42(FedoraDistroTestsBase):
+    version = 42
+    packages = FedoraDistroTestsBase.packages + ["systemd"]
+
+
+class TestRocky8(DistroTestsBase):
+    name = "rocky8"
+
+    @override
+    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
+        run_log.assertPopFirst(
+            re.compile(
+                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf" --installroot={path} --releasever=8 install bash dbus dnf iproute rootfiles"
+            )
+        )
+        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+
+    @override
+    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+
+
+class TestRocky9(DistroTestsBase):
+    name = "rocky9"
+
+    @override
+    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
+        run_log.assertPopFirst(
+            re.compile(
+                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf" --installroot={path} --releasever=9 install bash dbus dnf iproute rootfiles"
+            )
+        )
+        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+
+    @override
+    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
+        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+
+
+class UbuntuDistroTestsBase(DistroTestsBase):
+    mirror = "http://archive.ubuntu.com/ubuntu/"
+
+    @override
+    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
+        run_log.assertPopFirst(
+            re.compile(
+                rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
+                rf" --variant=minbase {self.distro.name} {path} {self.mirror}"
+            )
+        )
+        run_log.assertLogEmpty()
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -107,162 +377,56 @@ class TestCentos7(DistroTests, name="centos7"):
         self.assertEqual(
             script.lines,
             [
-                "/usr/bin/yum check-update -q -y",
-                "/usr/bin/yum upgrade -q -y",
-                "/usr/bin/yum install -q -y bash dbus iproute rootfiles yum",
+                "/usr/bin/apt-get update",
+                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+                " full-upgrade",
+                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+                " satisfy apt-utils bash dbus eatmydata iproute2 systemd",
             ],
         )
 
 
-class TestCentos8(DistroTests, name="centos8"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=8 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestXenial(UbuntuDistroTestsBase):
+    name = "xenial"
 
 
-class TestFedora32(DistroTests, name="fedora32"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=32 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestBionic(UbuntuDistroTestsBase):
+    name = "bionic"
 
 
-class TestFedora34(DistroTests, name="fedora34"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=34 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestFocal(UbuntuDistroTestsBase):
+    name = "focal"
 
 
-class TestFedora36(DistroTests, name="fedora36"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=36 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestHirsute(UbuntuDistroTestsBase):
+    name = "hirsute"
 
 
-class TestFedora38(DistroTests, name="fedora38"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=38 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestImpish(UbuntuDistroTestsBase):
+    name = "impish"
 
 
-class TestFedora40(DistroTests, name="fedora40"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=40 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestJammy(UbuntuDistroTestsBase):
+    name = "jammy"
 
 
-class TestFedora42(DistroTests, name="fedora42"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=42 install bash dbus rootfiles iproute dnf systemd"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles", "systemd"])
+class TestKinetic(UbuntuDistroTestsBase):
+    name = "kinetic"
 
 
-class TestRocky8(DistroTests, name="rocky8"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=8 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestLunar(UbuntuDistroTestsBase):
+    name = "lunar"
 
 
-class TestRocky9(DistroTests, name="rocky9"):
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirstOptional(f"btrfs -q subvolume create {path}.new")
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=9 install bash dbus rootfiles iproute dnf"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+class TestMantic(UbuntuDistroTestsBase):
+    name = "mantic"
 
 
-del DistroTests
+class TestNoble(UbuntuDistroTestsBase):
+    name = "noble"
+
+
+del UbuntuDistroTestsBase
+del DebianDistroTestsBase
+del FedoraDistroTestsBase
+del DistroTestsBase

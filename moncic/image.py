@@ -6,10 +6,10 @@ from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from moncic.distro import Distro
 from moncic.utils.script import Script
 
 if TYPE_CHECKING:
+    from moncic.distro import Distro
     from moncic.provision.config import ContainerInfo
 
     from .container import Container, ContainerConfig, MaintenanceContainer
@@ -31,7 +31,7 @@ class Image(abc.ABC):
     Identify an image from which systems can be started.
     """
 
-    def __init__(self, *, images: "Images", name: str, distro: Distro, bootstrapped: bool = False) -> None:
+    def __init__(self, *, images: "Images", name: str, distro: "Distro", bootstrapped: bool = False) -> None:
         #: Moncic-CI session
         self.session = images.session
         #: Containing Images instance
@@ -39,7 +39,7 @@ class Image(abc.ABC):
         #: Image name
         self.name: str = name
         #: Image distribution
-        self.distro: Distro = distro
+        self.distro: "Distro" = distro
         #: True if the image is bootstrapped
         self.bootstrapped: bool = bootstrapped
 
@@ -113,7 +113,7 @@ class BootstrappableImage(Image, abc.ABC):
 
 
 class RunnableImage(Image, abc.ABC):
-    def __init__(self, *, images: "Images", image_type: ImageType, name: str, distro: Distro) -> None:
+    def __init__(self, *, images: "Images", image_type: ImageType, name: str, distro: "Distro") -> None:
         super().__init__(images=images, name=name, distro=distro, bootstrapped=True)
         #: Container type
         self.image_type: ImageType = image_type

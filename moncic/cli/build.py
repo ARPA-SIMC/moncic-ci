@@ -6,12 +6,15 @@ import sys
 from pathlib import Path
 from typing import Any, override
 
-from ..build import Build
-from ..distro import Distro
-from ..operations import build as ops_build
-from ..operations import query as ops_query
-from ..source import Source
-from ..source.lint import host_lint
+from moncic.build import Build
+from moncic.distro import Distro
+from moncic.exceptions import Fail
+from moncic.image import RunnableImage
+from moncic.operations import build as ops_build
+from moncic.operations import query as ops_query
+from moncic.source import Source
+from moncic.source.lint import host_lint
+
 from .moncic import SourceCommand, main_command
 from .utils import BuildOptionAction, set_build_option_action
 
@@ -83,6 +86,8 @@ class CI(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             image = images.image(self.args.image)
+            if not isinstance(image, RunnableImage):
+                raise Fail(f"image {image.name} has not been bootstrapped")
             with self.source(image.distro) as source:
                 log.info("Source type: %s", source.__class__)
 
@@ -199,6 +204,8 @@ class QuerySource(SourceCommand):
         with self.moncic.session() as session:
             images = session.images
             image = images.image(self.args.image)
+            if not isinstance(image, RunnableImage):
+                raise Fail(f"image {image.name} has not been bootstrapped")
             with self.source(image.distro) as source:
                 operation = ops_query.Query(image, source)
                 result = operation.host_main()

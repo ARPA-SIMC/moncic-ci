@@ -1,4 +1,8 @@
 import abc
+import io
+
+from moncic.distro import DistroFamily
+from moncic.utils.osrelease import parse_osrelase_contents
 
 from .base import IntegrationTestsBase, NspawnIntegrationTestsBase, PodmanIntegrationTestsBase, setup_distro_tests
 
@@ -9,17 +13,23 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
 
     def test_update(self) -> None:
         rimage = self.get_bootstrapped()
-        rimage.update()
+        with self.verbose_logging():
+            rimage.update()
 
     def test_run(self) -> None:
-        # TODO: run cat /etc/os-release, use it to lookup a distro and verify it's the same as self.distro
-        pass
+        rimage = self.get_bootstrapped()
+        with rimage.container() as container:
+            res = container.run(["cat", "/etc/os-release"])
+        with io.StringIO(res.stdout.decode()) as fd:
+            osr = parse_osrelase_contents(fd, "/etc/os-release")
+        distro = DistroFamily.from_osrelease(osr, "test")
+        self.assertEqual(distro, self.distro)
 
     # def test_remove(self) -> None:
     #     TODO: make a pretend image for nspawn
     #     raise NotImplementedError()
 
-    # On another integration test, making images persist across TestCases
+    # Move to another set integration test
     # def test_build(self) -> None:
     #     raise NotImplementedError()
 

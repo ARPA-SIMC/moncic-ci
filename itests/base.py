@@ -2,7 +2,6 @@ import abc
 import contextlib
 import logging
 import os
-import sys
 from collections.abc import Generator
 from pathlib import Path
 from typing import ClassVar, override
@@ -17,7 +16,7 @@ from moncic.nspawn.images import BtrfsImages, NspawnImages, PlainImages
 from moncic.podman.images import PodmanImages
 from moncic.provision.images import DistroImages
 from moncic.session import Session
-from moncic.unittest import MoncicTestCase
+from moncic.unittest import MoncicTestCase, add_testcase
 from moncic.utils.btrfs import is_btrfs
 
 
@@ -60,7 +59,7 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
     def get_bootstrapped(cls) -> RunnableImage:
         if not cls.bootstrapped:
             with cls.verbose_logging():
-                bimage = cls.distro_images.image(cls.distro.name)
+                bimage = cls.distro_images.image(cls.distro.full_name)
                 cls.bootstrapped = cls.images.bootstrap(bimage)
         return cls.bootstrapped
 
@@ -108,14 +107,11 @@ class PodmanIntegrationTestsBase(IntegrationTestsBase, abc.ABC):
 
 
 def setup_distro_tests(module_name: str, bases: dict[str, type[IntegrationTestsBase]], suffix: str) -> None:
-    this_module = sys.modules[module_name]
     for distro_family in DistroFamily.list_families():
-        for distro_name in sorted({di.name for di in distro_family.list_distros()}):
-            distro = DistroFamily.lookup_distro(distro_name)
+        for distro in distro_family.distros:
             for tech in "nspawn", "podman":
                 base = bases[tech]
                 name = "".join(n.capitalize() for n in distro.name.split(":"))
                 cls_name = name + tech.capitalize() + suffix
                 test_case = type(cls_name, (base,), {"distro": distro})
-                test_case.__module__ = __name__
-                setattr(this_module, cls_name, test_case)
+                add_testcase(module_name, test_case)

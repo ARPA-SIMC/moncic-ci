@@ -20,56 +20,11 @@ if TYPE_CHECKING:
     from moncic.images import Images
 
 
-@DistroFamily.register
-class Fedora(DistroFamily):
-    VERSIONS = (32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42)
-    SHORTCUTS = {f"fedora{version}": f"fedora:{version}" for version in VERSIONS}
-
-    @override
-    def create_distro(self, version: str) -> Distro:
-        intver = int(version)
-        if intver in self.VERSIONS:
-            return FedoraDistro(f"fedora:{intver}", intver)
-        else:
-            raise KeyError(f"Fedora version {version!r} is not (yet) supported")
-
-
-@DistroFamily.register
-class Rocky(DistroFamily):
-    VERSIONS = (8, 9)
-    SHORTCUTS = {f"rocky{version}": f"rocky:{version}" for version in VERSIONS}
-
-    @override
-    def create_distro(self, version: str) -> Distro:
-        major = int(version.split(".")[0])
-        if major in self.VERSIONS:
-            return RockyDistro(f"rocky:{major}", major)
-        else:
-            raise KeyError(f"Rocky version {version!r} is not (yet) supported")
-
-
-@DistroFamily.register
-class Centos(DistroFamily):
-    VERSIONS = (7, 8)
-    SHORTCUTS = {f"centos{version}": f"centos:{version}" for version in VERSIONS}
-
-    @override
-    def create_distro(self, version: str) -> Distro:
-        intver = int(version)
-        if intver == 7:
-            return Centos7(f"centos:{intver}")
-        elif intver == 8:
-            return Centos8(f"centos:{intver}")
-        else:
-            raise KeyError(f"Centos version {version!r} is not (yet) supported")
-
-
 class RpmDistro(Distro):
     """
     Common implementation for rpm-based distributions
     """
 
-    version: int
     baseurl: str
     mirror: str
 
@@ -114,7 +69,7 @@ class RpmDistro(Distro):
                 f"--installroot={installroot}",
                 f"--releasever={self.version}",
                 "install",
-            ] + self.get_base_packages()
+            ] + sorted(self.get_base_packages())
 
             # If eatmydata is available, we can use it to make boostrap significantly faster
             #
@@ -224,7 +179,9 @@ json.dump(res, sys.stdout)
 class Centos7(YumDistro):
     mirror = "http://mirror.centos.org"
     baseurl = "{mirror}/centos/7/os/$basearch"
-    version = 7
+
+    def __init__(self, family: DistroFamily) -> None:
+        super().__init__(family, "7", "7")
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -243,7 +200,9 @@ class Centos7(YumDistro):
 class Centos8(DnfDistro):
     mirror = "https://vault.centos.org"
     baseurl = "{mirror}/centos/8/BaseOS//$basearch/os/"
-    version = 8
+
+    def __init__(self, family: DistroFamily) -> None:
+        super().__init__(family, "8", "8")
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -271,21 +230,20 @@ class Centos8(DnfDistro):
 
 class FedoraDistro(DnfDistro):
     mirror = "http://download.fedoraproject.org"
+    version: str
 
-    def __init__(self, name: str, version: int):
-        super().__init__(name)
-        self.version = version
+    def __init__(self, family: DistroFamily, version: int):
+        super().__init__(family, str(version), str(version))
         self.baseurl = f"{self.mirror}/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
-        distro, suite = self.name.split(":")
-        return ("registry.fedoraproject.org/fedora", suite)
+        return ("registry.fedoraproject.org/fedora", self.name)
 
     @override
     def get_base_packages(self) -> list[str]:
         res = super().get_base_packages()
-        if self.version >= 42:
+        if int(self.version) >= 42:
             res += ["systemd"]
         return res
 
@@ -293,12 +251,40 @@ class FedoraDistro(DnfDistro):
 class RockyDistro(DnfDistro):
     mirror = "http://dl.rockylinux.org"
 
-    def __init__(self, name: str, version: int):
-        super().__init__(name)
-        self.version = version
+    def __init__(self, family: DistroFamily, version: int) -> None:
+        super().__init__(family, str(version), str(version))
         self.baseurl = f"{self.mirror}/pub/rocky/{version}/BaseOS/$basearch/os/"
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
-        distro, suite = self.name.split(":")
-        return ("quay.io/rockylinux/rockylinux", suite)
+        return ("quay.io/rockylinux/rockylinux", self.name)
+
+
+class Fedora(DistroFamily):
+    @override
+    def init(self) -> None:
+        self.add_distro(FedoraDistro(self, 32))
+        self.add_distro(FedoraDistro(self, 33))
+        self.add_distro(FedoraDistro(self, 34))
+        self.add_distro(FedoraDistro(self, 35))
+        self.add_distro(FedoraDistro(self, 36))
+        self.add_distro(FedoraDistro(self, 37))
+        self.add_distro(FedoraDistro(self, 38))
+        self.add_distro(FedoraDistro(self, 39))
+        self.add_distro(FedoraDistro(self, 40))
+        self.add_distro(FedoraDistro(self, 41))
+        self.add_distro(FedoraDistro(self, 42))
+
+
+class Rocky(DistroFamily):
+    @override
+    def init(self) -> None:
+        self.add_distro(RockyDistro(self, 8))
+        self.add_distro(RockyDistro(self, 9))
+
+
+class Centos(DistroFamily):
+    @override
+    def init(self) -> None:
+        self.add_distro(Centos7(self))
+        self.add_distro(Centos8(self))

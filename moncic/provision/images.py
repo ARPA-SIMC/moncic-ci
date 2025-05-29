@@ -74,8 +74,8 @@ class DistroImages(Images):
     def list_images(self) -> list[str]:
         images: list[str] = []
         for family in DistroFamily.list_families():
-            for distro_info in family.list_distros():
-                images.append(distro_info.name)
+            for distro in family.distros:
+                images.append(distro.name)
         images.sort()
         return images
 

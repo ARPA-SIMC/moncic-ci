@@ -4,7 +4,7 @@ import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, override
+from typing import TYPE_CHECKING, Any, ClassVar, override
 
 from moncic.utils.osrelease import parse_osrelase
 from moncic.utils.script import Script
@@ -17,51 +17,59 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class DistroInfo(NamedTuple):
-    """
-    Information about a distribution
-    """
-
-    # Canonical name
-    name: str
-    shortcuts: list[str]
-
-
-class DistroFamily:
+class DistroFamily(abc.ABC):
     """
     Base class for handling a family of distributions
     """
 
     # Registry of known families
-    families: dict[str, "DistroFamily"] = {}
+    families: ClassVar[dict[str, "DistroFamily"]] = {}
+    # Index distros by lookup names
+    distro_lookup: ClassVar[dict[str, "Distro"]] = {}
 
     # Registry mapping known shortcut names to the corresponding full
     # ``family:version`` name
     SHORTCUTS: dict[str, str] = {}
 
-    @classmethod
-    def register(cls, family_cls: type["DistroFamily"]) -> type["DistroFamily"]:
-        name = getattr(family_cls, "NAME", None)
-        if name is None:
-            name = family_cls.__name__.lower()
-        cls.families[name] = family_cls()
-        return family_cls
+    @override
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Register subclasses."""
+        super().__init_subclass__(**kwargs)
+        name: str | None
+        if (name := getattr(cls, "NAME", None)) is None:
+            name = cls.__name__.lower()
+        cls.families[name] = cls(name)
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.distros: list["Distro"] = []
+        self.init()
+
+    @abc.abstractmethod
+    def init(self) -> None:
+        """Populate self.distros via add_distro."""
 
     @classmethod
-    def populate(cls) -> None:
-        """
-        Ensure modules that register DistroFamily instances get loaded
-        """
-        from . import debian, rpm  # noqa
+    def add_distro_lookup(cls, distro: "Distro") -> None:
+        cls.distro_lookup[distro.full_name] = distro
+        for alias in distro.aliases:
+            cls.distro_lookup[alias] = distro
+
+    def add_distro(self, distro: "Distro") -> None:
+        """Add a distro to this family."""
+        self.distros.append(distro)
+        self.add_distro_lookup(distro)
+
+    @override
+    def __str__(self) -> str:
+        return self.name
 
     @classmethod
     def list_families(cls) -> Iterable["DistroFamily"]:
-        cls.populate()
         return cls.families.values()
 
     @classmethod
     def lookup_family(cls, name: str) -> "DistroFamily":
-        cls.populate()
         return cls.families[name]
 
     @classmethod
@@ -72,21 +80,8 @@ class DistroFamily:
         If the name contains a ``:``, it is taken as a full ``family:version``
         name. Otherwise, it is looked up among distribution shortcut names.
         """
-        cls.populate()
-        if ":" in name:
-            family, version = name.split(":", 1)
-            return cls.lookup_family(family).create_distro(version)
-        else:
-            return cls._lookup_shortcut(name)
-
-    @classmethod
-    def _lookup_shortcut(cls, name: str) -> "Distro":
-        """
-        Lookup a Distro object by shortcut
-        """
-        for family in cls.families.values():
-            if (fullname := family.SHORTCUTS.get(name)) is not None:
-                return cls.lookup_distro(fullname)
+        if res := cls.distro_lookup.get(name):
+            return res
         raise KeyError(f"Distro {name!r} not found")
 
     @classmethod
@@ -94,7 +89,6 @@ class DistroFamily:
         """
         Instantiate a Distro from an existing filesystem tree
         """
-        cls.populate()
         # For os-release format documentation, see
         # https://www.freedesktop.org/software/systemd/man/os-release.html
 
@@ -125,35 +119,10 @@ class DistroFamily:
         if os_version is None:
             return cls.lookup_distro(fallback_name)
 
-        family = cls.lookup_family(os_id)
-        return family.create_distro(os_version)
-
-    @property
-    def name(self) -> str:
-        """
-        Name for this distribution
-        """
-        name = getattr(self, "NAME", None)
-        if name is None:
-            name = self.__class__.__name__.lower()
-        return name
-
-    @override
-    def __str__(self) -> str:
-        return self.name
-
-    def create_distro(self, version: str) -> "Distro":
-        """
-        Create a Distro object for a distribution in this family, given its
-        version
-        """
-        raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
-
-    def list_distros(self) -> list[DistroInfo]:
-        """
-        Return a list of distros available in this family
-        """
-        return [DistroInfo(name, [shortcut]) for shortcut, name in self.SHORTCUTS.items()]
+        name = f"{os_id}:{os_version}"
+        if res := cls.distro_lookup.get(name):
+            return res
+        raise KeyError(f"Distro {name!r} not found")
 
 
 class Distro(abc.ABC):
@@ -163,12 +132,35 @@ class Distro(abc.ABC):
 
     SHORTCUTS: dict[str, str]
 
-    def __init__(self, name: str) -> None:
+    def __init__(
+        self, family: DistroFamily, name: str, version: str | None, other_names: list[str] | None = None
+    ) -> None:
+        self.family = family
         self.name = name
+        self.version = version
+        self.other_names = other_names or []
 
     @override
     def __str__(self) -> str:
         return self.name
+
+    @property
+    def full_name(self) -> str:
+        return self.family.name + ":" + self.name
+
+    @property
+    def aliases(self) -> list[str]:
+        res: list[str] = []
+        if not self.name[0].isdigit():
+            res.append(self.name)
+        if self.version is not None:
+            if self.name != self.version:
+                res.append(f"{self.family.name}:{self.version}")
+            res.append(f"{self.family.name}{self.version}")
+        for other_name in self.other_names:
+            res.append(f"{other_name}")
+            res.append(f"{self.family.name}:{other_name}")
+        return res
 
     def get_base_packages(self) -> list[str]:
         """

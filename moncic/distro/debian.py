@@ -14,91 +14,11 @@ import requests
 from moncic.container import BindConfig, BindType, ContainerConfig
 from moncic.utils.script import Script
 
-from .distro import Distro, DistroFamily, DistroInfo
+from .distro import Distro, DistroFamily
 
 if TYPE_CHECKING:
     from moncic.image import Image
     from moncic.images import Images
-
-
-@DistroFamily.register
-class Debian(DistroFamily):
-    VERSION_IDS = {
-        "8": "jessie",
-        "9": "stretch",
-        "10": "buster",
-        "11": "bullseye",
-        "12": "bookworm",
-        "13": "trixie",
-    }
-    EXTRA_SUITES = ("oldstable", "stable", "testing", "unstable")
-    SHORTCUTS = {suite: f"debian:{suite}" for suite in list(VERSION_IDS.values()) + ["sid"]}
-
-    @override
-    def create_distro(self, version: str) -> Distro:
-        # Map version numbers to release codenames
-        suite = self.VERSION_IDS.get(version, version)
-
-        if suite in self.SHORTCUTS or suite in self.EXTRA_SUITES:
-            return DebianDistro(f"debian:{version}", suite)
-        else:
-            raise KeyError(f"Debian version {version!r} is not (yet) supported")
-
-    @override
-    def list_distros(self) -> list[DistroInfo]:
-        """
-        Return a list of distros available in this family
-        """
-        by_name = defaultdict(list)
-        for suite, name in self.SHORTCUTS.items():
-            by_name[name].append(suite)
-        for vid, suite in self.VERSION_IDS.items():
-            by_name[f"debian:{suite}"].append(f"debian:{vid}")
-        for alias in self.EXTRA_SUITES:
-            by_name[f"debian:{alias}"]
-
-        return [DistroInfo(name, shortcuts) for name, shortcuts in by_name.items()]
-
-
-@DistroFamily.register
-class Ubuntu(DistroFamily):
-    VERSION_IDS = {
-        "16.04": "xenial",
-        "18.04": "bionic",
-        "20.04": "focal",
-        "21.04": "hirsute",
-        "21.10": "impish",
-        "22.04": "jammy",
-        "22.10": "kinetic",
-        "23.04": "lunar",
-        "23.10": "mantic",
-        "24.04": "noble",
-    }
-    SHORTCUTS = {suite: f"ubuntu:{suite}" for suite in VERSION_IDS.values()}
-    LEGACY = ("xenial",)
-
-    @override
-    def create_distro(self, version: str) -> Distro:
-        # Map version numbers to release codenames
-        suite = self.VERSION_IDS.get(version, version)
-
-        if suite in self.SHORTCUTS:
-            return UbuntuDistro(f"ubuntu:{version}", suite)
-        else:
-            raise KeyError(f"Ubuntu version {version!r} is not (yet) supported")
-
-    @override
-    def list_distros(self) -> list[DistroInfo]:
-        """
-        Return a list of distros available in this family
-        """
-        by_name = defaultdict(list)
-        for suite, name in self.SHORTCUTS.items():
-            by_name[name].append(suite)
-        for vid, suite in self.VERSION_IDS.items():
-            by_name[f"ubuntu:{suite}"].append(f"ubuntu:{vid}")
-
-        return [DistroInfo(name, shortcuts) for name, shortcuts in by_name.items()]
 
 
 class DebianDistro(Distro):
@@ -116,15 +36,22 @@ class DebianDistro(Distro):
         '-o Dpkg::Options::="--force-confnew"',
     ]
 
-    def __init__(self, name: str, suite: str, mirror: str = "http://deb.debian.org/debian"):
-        super().__init__(name)
+    def __init__(
+        self,
+        family: DistroFamily,
+        name: str,
+        version: str | None,
+        other_names: list[str] | None = None,
+        mirror: str = "http://deb.debian.org/debian",
+        key_url: str | None = None,
+    ):
+        super().__init__(family, name, version, other_names)
         self.mirror = mirror
-        self.suite = suite
+        self.key_url = key_url
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
-        distro, suite = self.name.split(":")
-        return ("docker.io/library/debian", suite)
+        return ("docker.io/library/debian", self.name)
 
     @override
     def container_config_hook(self, image: Image, config: ContainerConfig) -> None:
@@ -148,10 +75,10 @@ class DebianDistro(Distro):
         Return the default git-buildpackage debian-branch name for this
         distribution
         """
-        if self.suite in ("unstable", "sid"):
+        if self.name in ("unstable", "sid"):
             return ["debian/unstable", "debian/sid", "debian/latest"]
         else:
-            return ["debian/" + self.suite, "debian/latest"]
+            return ["debian/" + self.name, "debian/latest"]
 
     @override
     def bootstrap(self, images: Images, path: Path) -> None:
@@ -159,11 +86,9 @@ class DebianDistro(Distro):
             installroot = path.absolute()
             cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
 
-            # TODO: use version to fetch the key, to make this generic
-            # TODO: add requests and gpg to dependencies
-            if self.suite == "jessie":
+            if self.key_url is not None:
                 tmpfile = stack.enter_context(tempfile.NamedTemporaryFile(suffix=".gpg"))
-                res = requests.get("https://ftp-master.debian.org/keys/release-8.asc")
+                res = requests.get(self.key_url)
                 res.raise_for_status()
                 subprocess.run(
                     ["gpg", "--import", "--no-default-keyring", "--keyring", tmpfile.name],
@@ -172,7 +97,7 @@ class DebianDistro(Distro):
                 )
                 cmd.append(f"--keyring={tmpfile.name}")
 
-            cmd += [self.suite, installroot.as_posix(), self.mirror]
+            cmd += [self.name, installroot.as_posix(), self.mirror]
             # If eatmydata is available, we can use it to make deboostrap significantly faster
             eatmydata = shutil.which("eatmydata")
             if eatmydata is not None:
@@ -242,13 +167,14 @@ class UbuntuDistro(DebianDistro):
     Common implementation for Ubuntu-based distributions
     """
 
-    def __init__(self, name: str, suite: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"):
-        super().__init__(name, suite, mirror=mirror)
+    def __init__(
+        self, family: DistroFamily, name: str, version: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"
+    ):
+        super().__init__(family, name, version, mirror=mirror)
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
-        distro, suite = self.name.split(":")
-        return ("docker.io/library/ubuntu", suite)
+        return ("docker.io/library/ubuntu", self.name)
 
     @override
     def get_gbp_branches(self) -> list[str]:
@@ -256,4 +182,48 @@ class UbuntuDistro(DebianDistro):
         Return the default git-buildpackage debian-branch name for this
         distribution
         """
-        return ["ubuntu/" + self.suite, "ubuntu/latest", "debian/latest"]
+        return ["ubuntu/" + self.name, "ubuntu/latest", "debian/latest"]
+
+
+class Debian(DistroFamily):
+    @override
+    def init(self) -> None:
+        self.add_distro(
+            DebianDistro(
+                self,
+                "jessie",
+                "8",
+                mirror="http://archive.debian.org/debian/",
+                key_url="https://ftp-master.debian.org/keys/release-8.asc",
+            )
+        )
+        self.add_distro(
+            DebianDistro(
+                self,
+                "stretch",
+                "9",
+                mirror="http://archive.debian.org/debian/",
+                key_url="https://ftp-master.debian.org/keys/release-9.asc",
+            )
+        )
+        self.add_distro(DebianDistro(self, "buster", "10", ["oldoldstable"]))
+        self.add_distro(DebianDistro(self, "bullseye", "11", ["oldstable"]))
+        self.add_distro(DebianDistro(self, "bookworm", "12", ["stable"]))
+        self.add_distro(DebianDistro(self, "trixie", "13"))
+        self.add_distro(DebianDistro(self, "testing", None))
+        self.add_distro(DebianDistro(self, "sid", None, ["unstable"]))
+
+
+class Ubuntu(DistroFamily):
+    @override
+    def init(self) -> None:
+        self.add_distro(UbuntuDistro(self, "xenial", "16.04"))
+        self.add_distro(UbuntuDistro(self, "bionic", "18.04"))
+        self.add_distro(UbuntuDistro(self, "focal", "20.04"))
+        self.add_distro(UbuntuDistro(self, "hirsute", "21.04"))
+        self.add_distro(UbuntuDistro(self, "impish", "21.10"))
+        self.add_distro(UbuntuDistro(self, "jammy", "22.04"))
+        self.add_distro(UbuntuDistro(self, "kinetic", "22.10"))
+        self.add_distro(UbuntuDistro(self, "lunar", "23.04"))
+        self.add_distro(UbuntuDistro(self, "mantic", "23.10"))
+        self.add_distro(UbuntuDistro(self, "noble", "24.04"))

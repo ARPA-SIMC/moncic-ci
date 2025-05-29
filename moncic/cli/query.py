@@ -130,6 +130,6 @@ class Distros(MoncicCommand):
             output = TableOutput(sys.stdout, TextColumn("Name"), TextColumn("Shortcuts"))
 
         for family in sorted(DistroFamily.list_families(), key=lambda x: x.name):
-            for info in family.list_distros():
-                output.add_row((info.name, ", ".join(info.shortcuts)))
+            for distro in family.distros:
+                output.add_row((distro.full_name, ", ".join(distro.aliases)))
         output.flush()
