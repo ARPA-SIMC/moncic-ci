@@ -62,6 +62,12 @@ def main() -> None:
         help="run integration tests from itests/ instead of unit tests from tests/",
     )
     parser.add_argument(
+        "-c",
+        "--coverage",
+        action="store_true",
+        help="collect test coverage for unit tests",
+    )
+    parser.add_argument(
         "-f",
         "--failfast",
         action="store_true",
@@ -101,7 +107,7 @@ def main() -> None:
         clear_nspawn(args.integration_tests_workdir)
         clear_podman()
 
-    cmd = [sys.executable, "-m", "unittest", "discover"]
+    cmd = ["-m", "unittest", "discover"]
     verbose = args.verbose
     if args.failfast:
         cmd += ["--failfast"]
@@ -118,9 +124,21 @@ def main() -> None:
             cmd += ["-k", pattern]
 
     if args.integration:
+        if args.coverage:
+            raise Fail("--coverage does not work with --integration tests")
         privs.regain()
 
-    os.execve(sys.executable, cmd, env=env)
+    if args.coverage:
+        runner = [sys.executable, "-m", "coverage"]
+        subprocess.run(runner + ["run"] + cmd, check=True, cwd=top_srcdir.as_posix())
+        # subprocess.run(runner + ["combine"], check=True, cwd=top_srcdir.as_posix())
+        report_args = ["--precision=2", "--include", "monci,moncic/*,tests/*"]
+        subprocess.run(runner + ["html"] + report_args, check=True)
+        subprocess.run(runner + ["report", "--skip-covered", "--show-missing"] + report_args, check=True)
+    else:
+        os.chdir(top_srcdir.as_posix())
+        cmd = [sys.executable] + cmd
+        os.execve(sys.executable, cmd, env=env)
 
 
 if __name__ == "__main__":
