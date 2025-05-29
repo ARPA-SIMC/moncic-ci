@@ -243,7 +243,7 @@ class FedoraDistro(DnfDistro):
     @override
     def get_base_packages(self) -> list[str]:
         res = super().get_base_packages()
-        if int(self.version) >= 42:
+        if int(self.version) >= 41:
             res += ["systemd"]
         return res
 

@@ -315,6 +315,7 @@ class TestFedora40(FedoraDistroTestsBase):
 
 class TestFedora41(FedoraDistroTestsBase):
     version = 41
+    packages = FedoraDistroTestsBase.packages + ["systemd"]
 
 
 class TestFedora42(FedoraDistroTestsBase):

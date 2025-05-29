@@ -23,7 +23,7 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         with io.StringIO(res.stdout.decode()) as fd:
             osr = parse_osrelase_contents(fd, "/etc/os-release")
         distro = DistroFamily.from_osrelease(osr, "test")
-        self.assertEqual(distro, self.distro)
+        self.assertIs(distro, self.distro)
 
     # def test_remove(self) -> None:
     #     TODO: make a pretend image for nspawn

@@ -119,10 +119,17 @@ class DistroFamily(abc.ABC):
         if os_version is None:
             return cls.lookup_distro(fallback_name)
 
-        name = f"{os_id}:{os_version}"
-        if res := cls.distro_lookup.get(name):
-            return res
-        raise KeyError(f"Distro {name!r} not found")
+        names: list[str] = [f"{os_id}:{os_version}"]
+        if "." in os_version:
+            names.append(f"{os_id}:{os_version.split(".")[0]}")
+
+        for name in names:
+            if res := cls.distro_lookup.get(name):
+                return res
+
+        raise KeyError(
+            f"Distro ID={os_id!r}, VERSION_ID={os_version!r} not found. Tried: {', '.join(repr(name) for name in names)} "
+        )
 
 
 class Distro(abc.ABC):
