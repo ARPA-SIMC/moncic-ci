@@ -111,7 +111,7 @@ def setup_distro_tests(module_name: str, bases: dict[str, type[IntegrationTestsB
         for distro in distro_family.distros:
             for tech in "nspawn", "podman":
                 base = bases[tech]
-                name = "".join(n.capitalize() for n in distro.name.split(":"))
+                name = "".join(n.capitalize() for n in distro.full_name.split(":"))
                 cls_name = name + tech.capitalize() + suffix
                 test_case = type(cls_name, (base,), {"distro": distro})
                 add_testcase(module_name, test_case)

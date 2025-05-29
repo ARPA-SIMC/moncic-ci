@@ -2,13 +2,16 @@
 
 import argparse
 import os
+import subprocess
 import sys
-import shutil
 from pathlib import Path
 
 from rich.console import Console
 
+from moncic.utils.privs import ProcessPrivs
 
+privs = ProcessPrivs()
+privs.drop()
 console = Console()
 top_srcdir = Path(sys.argv[0]).parent.parent.absolute()
 integration_tests_podman_repo = "localhost/moncic-ci-integration-tests"
@@ -24,9 +27,8 @@ def clear_nspawn(path: Path) -> None:
     if os.getuid() == 0:
         cmd += ["sudo"]
     cmd += ["rm", "-rf", path.as_posix()]
-    argv0 = shutil.which(cmd[0])
-    assert argv0 is not None
-    os.execve(argv0, cmd, os.environ)
+    with privs.root():
+        subprocess.run(cmd, check=True)
 
 
 def clear_podman() -> None:
@@ -114,6 +116,9 @@ def main() -> None:
     if args.patterns:
         for pattern in args.patterns:
             cmd += ["-k", pattern]
+
+    if args.integration:
+        privs.regain()
 
     os.execve(sys.executable, cmd, env=env)
 

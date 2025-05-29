@@ -5,22 +5,23 @@ check: flake8 mypy
 format: pyupgrade autoflake isort black
 
 pyupgrade:
-	pyupgrade --exit-zero-even-if-changed --py312-plus monci $(shell find moncic tests itests -name "*.py")
+	pyupgrade --exit-zero-even-if-changed --py312-plus monci $(shell find moncic tests itests -name "*.py") test
 
 black:
-	black monci moncic tests
+	black monci moncic tests test
 
 autoflake:
-	autoflake --in-place --recursive monci moncic tests itests
+	autoflake --in-place --recursive monci moncic tests itests test
 
 isort:
-	isort monci moncic tests itests
+	isort monci moncic tests itests test
 
 flake8:
-	flake8 monci moncic tests itests
+	flake8 monci moncic tests itests test
 
 mypy:
 	mypy monci moncic tests itests
+	mypy test
 
 unittest:
 	$(PYTHON_ENVIRONMENT) nose2-3

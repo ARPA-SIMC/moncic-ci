@@ -19,7 +19,7 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
     def test_run(self) -> None:
         rimage = self.get_bootstrapped()
         with rimage.container() as container:
-            res = container.run(["cat", "/etc/os-release"])
+            res = container.run(["/bin/cat", "/etc/os-release"])
         with io.StringIO(res.stdout.decode()) as fd:
             osr = parse_osrelase_contents(fd, "/etc/os-release")
         distro = DistroFamily.from_osrelease(osr, "test")
