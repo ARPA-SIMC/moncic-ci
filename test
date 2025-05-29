@@ -3,7 +3,7 @@
 import argparse
 import os
 import sys
-import unittest
+import shutil
 from pathlib import Path
 
 from rich.console import Console
@@ -11,10 +11,37 @@ from rich.console import Console
 
 console = Console()
 top_srcdir = Path(sys.argv[0]).parent.parent.absolute()
+integration_tests_podman_repo = "localhost/moncic-ci-integration-tests"
 
 
 class Fail(Exception):
     """There was an error in the script."""
+
+
+def clear_nspawn(path: Path) -> None:
+    """Remove all images in the given path."""
+    cmd = []
+    if os.getuid() == 0:
+        cmd += ["sudo"]
+    cmd += ["rm", "-rf", path.as_posix()]
+    argv0 = shutil.which(cmd[0])
+    assert argv0 is not None
+    os.execve(argv0, cmd, os.environ)
+
+
+def clear_podman() -> None:
+    """Remove all images in the integration_tests_podman_repo repository."""
+    try:
+        import podman
+    except ModuleNotFoundError:
+        return
+
+    uri = f"unix:///run/user/{os.getuid()}/podman/podman.sock"
+    with podman.PodmanClient(base_url=uri) as client:
+        for image in client.images.list(all=True):
+            for tag in image.tags:
+                if tag.startswith(integration_tests_podman_repo):
+                    client.images.remove(tag)
 
 
 def main() -> None:
@@ -26,7 +53,12 @@ def main() -> None:
         action="store_true",
         help="Verbose output",
     )
-    parser.add_argument("-i", "--integration", action="store_true", help="run integration tests")
+    parser.add_argument(
+        "-i",
+        "--integration",
+        action="store_true",
+        help="run integration tests from itests/ instead of unit tests from tests/",
+    )
     parser.add_argument(
         "-f",
         "--failfast",
@@ -44,10 +76,28 @@ def main() -> None:
             " Can be used multiple times. Same as unittest -k option."
         ),
     )
+    parser.add_argument(
+        "--integration-tests-workdir",
+        type=Path,
+        action="store",
+        default=top_srcdir / "integration-tests-workdir",
+        help="working directory for integration test nspawn images",
+    )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Clear persistent integration test artifacts",
+    )
     args = parser.parse_args()
 
     env = dict(os.environ)
     env["PYTHONDEVMODE"] = "1"
+    env["MONCIC_ITESTS_WORKDIR"] = args.integration_tests_workdir.as_posix()
+    env["MONCIC_ITESTS_PODMAN_REPO"] = integration_tests_podman_repo
+
+    if args.clear:
+        clear_nspawn(args.integration_tests_workdir)
+        clear_podman()
 
     cmd = [sys.executable, "-m", "unittest", "discover"]
     verbose = args.verbose
