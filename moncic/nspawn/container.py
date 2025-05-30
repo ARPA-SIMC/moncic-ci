@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, NoReturn, override
 
 from moncic import context
-from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
+from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result, ContainerCannotStart
 from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
 from moncic.utils.nspawn import escape_bind_ro
 
@@ -41,6 +41,19 @@ class NspawnContainer(Container):
     @override
     def binds(self) -> Iterator[BindConfig]:
         yield from self.config.binds
+
+    def _check_host_system(self) -> None:
+        """Check if the container can be started in this host system."""
+        # Check if we are trying to run a cgroup v1 guest on a cgroup v2 host
+        # See https://github.com/lxc/lxc/issues/4072
+        if self.image.distro.cgroup_v1:
+            kernel_cmdline = Path("/proc/cmdline").read_text().split()
+            if "systemd.unified_cgroup_hierarchy=0" not in kernel_cmdline:
+                raise ContainerCannotStart(
+                    "Container requires guest cgroup v1, not available on host with cgroup v2."
+                    " You can try with the podman backend, or work around it by adding"
+                    " 'systemd.unified_cgroup_hierarchy=0` to your host kernel commandline"
+                )
 
     def _run_nspawn(self, cmd: list[str]) -> None:
         """
@@ -113,6 +126,7 @@ class NspawnContainer(Container):
     @override
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
+        self._check_host_system()
         with self._container_in_path(self.image.path):
             yield None
 
@@ -190,6 +204,8 @@ class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
         from moncic.provision.image import ConfiguredImage
+
+        self._check_host_system()
 
         match self.image.bootstrap_from:
             case ConfiguredImage():
