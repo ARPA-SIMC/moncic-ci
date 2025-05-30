@@ -157,8 +157,8 @@ class TestCentos7(DistroTestsBase):
         )
 
 
-class DebianDistroTestsBase(DistroTestsBase):
-    mirror = "http://deb.debian.org/debian"
+class DebDistroTestsBase(DistroTestsBase):
+    mirror: str
     custom_keyring = False
 
     @override
@@ -178,7 +178,7 @@ class DebianDistroTestsBase(DistroTestsBase):
             custom_keyring = ""
         run_log.assertPopFirst(
             re.compile(
-                rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
+                rf"(/usr/bin/eatmydata )?/usr/bin/(?:mmdebstrap|debootstrap) --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
                 rf" --variant=minbase{custom_keyring} {self.distro.name} {path} {self.mirror}"
             )
         )
@@ -197,6 +197,10 @@ class DebianDistroTestsBase(DistroTestsBase):
                 " satisfy apt-utils bash dbus eatmydata iproute2 systemd",
             ],
         )
+
+
+class DebianDistroTestsBase(DebDistroTestsBase):
+    mirror = "http://deb.debian.org/debian"
 
 
 class TestJessie(DebianDistroTestsBase):
@@ -341,32 +345,8 @@ class TestRocky9(DistroTestsBase):
         self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
-class UbuntuDistroTestsBase(DistroTestsBase):
+class UbuntuDistroTestsBase(DebDistroTestsBase):
     mirror = "https://archive.ubuntu.com/ubuntu/"
-
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
-            re.compile(
-                rf"(/usr/bin/eatmydata )?debootstrap --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
-                rf" --variant=minbase {self.distro.name} {path} {self.mirror}"
-            )
-        )
-        run_log.assertLogEmpty()
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        script = run_log.assertPopScript("Upgrade container")
-        self.assertEqual(
-            script.lines,
-            [
-                "/usr/bin/apt-get update",
-                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " full-upgrade",
-                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " satisfy apt-utils bash dbus eatmydata iproute2 systemd",
-            ],
-        )
 
 
 class TestXenial(UbuntuDistroTestsBase):
@@ -424,5 +404,6 @@ class TestPlucky(UbuntuDistroTestsBase):
 
 del UbuntuDistroTestsBase
 del DebianDistroTestsBase
+del DebDistroTestsBase
 del FedoraDistroTestsBase
 del DistroTestsBase
