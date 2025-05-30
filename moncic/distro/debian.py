@@ -83,9 +83,15 @@ class DebianDistro(Distro):
 
     @override
     def bootstrap(self, images: Images, path: Path) -> None:
+        bootstrappers = ("mmdebstrap", "debootstrap")
+        for name in bootstrappers:
+            if bootstrapper := shutil.which(name):
+                break
+        else:
+            raise RuntimeError("No debian bootstrapper found. Tried: {', '.join(bootstrappers)}")
         with contextlib.ExitStack() as stack:
             installroot = path.absolute()
-            cmd = ["debootstrap", "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
+            cmd = [bootstrapper, "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
 
             if self.key_url is not None:
                 tmpfile = stack.enter_context(tempfile.NamedTemporaryFile(suffix=".gpg"))
