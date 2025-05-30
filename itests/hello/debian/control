@@ -1,0 +1,15 @@
+Source: hello
+Section: misc
+Priority: optional
+Maintainer: Enrico Zini <enrico@enricozini.org>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+Standards-Version: 4.7.2
+
+Package: hello
+Architecture: all
+Depends:
+ ${misc:Depends},
+Description: Minimal buildable package
+ This is used for Moncic-CI integration testing
