@@ -36,6 +36,10 @@ machine_name_generator = libbanana.Codec(
 ).encode
 
 
+class ContainerCannotStart(Exception):
+    """Exception raised when a container cannot be started."""
+
+
 class Container(abc.ABC):
     """
     An instance of an Image in execution as a container

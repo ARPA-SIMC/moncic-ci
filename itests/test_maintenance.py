@@ -4,18 +4,27 @@ import io
 from moncic.distro import DistroFamily
 from moncic.utils.osrelease import parse_osrelase_contents
 
-from .base import IntegrationTestsBase, NspawnIntegrationTestsBase, PodmanIntegrationTestsBase, setup_distro_tests
+from .base import (
+    IntegrationTestsBase,
+    NspawnIntegrationTestsBase,
+    PodmanIntegrationTestsBase,
+    setup_distro_tests,
+    skip_if_container_cannot_start,
+)
 
 
 class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
+    @skip_if_container_cannot_start()
     def test_bootstrap(self) -> None:
         self.get_bootstrapped()
 
+    @skip_if_container_cannot_start()
     def test_update(self) -> None:
         rimage = self.get_bootstrapped()
         with self.verbose_logging():
             rimage.update()
 
+    @skip_if_container_cannot_start()
     def test_run(self) -> None:
         rimage = self.get_bootstrapped()
         with rimage.container() as container:

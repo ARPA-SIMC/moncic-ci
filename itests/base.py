@@ -2,12 +2,14 @@ import abc
 import contextlib
 import logging
 import os
+from unittest import SkipTest
 from collections.abc import Generator
 from pathlib import Path
 from typing import ClassVar, override
 
 from rich.logging import RichHandler
 
+from moncic.container import ContainerCannotStart
 from moncic.distro import Distro, DistroFamily
 from moncic.image import RunnableImage
 from moncic.images import BootstrappingImages
@@ -18,6 +20,14 @@ from moncic.provision.images import DistroImages
 from moncic.session import Session
 from moncic.unittest import MoncicTestCase, add_testcase
 from moncic.utils.btrfs import is_btrfs
+
+
+@contextlib.contextmanager
+def skip_if_container_cannot_start() -> Generator[None, None, None]:
+    try:
+        yield None
+    except ContainerCannotStart as exc:
+        raise SkipTest(f"Container cannot start: {exc}")
 
 
 class IntegrationTestsBase(MoncicTestCase, abc.ABC):

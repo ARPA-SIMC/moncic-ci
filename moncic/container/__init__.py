@@ -1,5 +1,13 @@
 from .binds import BindConfig, BindType
 from .config import ContainerConfig
-from .container import Container, MaintenanceContainer, Result
+from .container import Container, MaintenanceContainer, Result, ContainerCannotStart
 
-__all__ = ["BindType", "BindConfig", "ContainerConfig", "Container", "Result", "MaintenanceContainer"]
+__all__ = [
+    "BindConfig",
+    "BindType",
+    "Container",
+    "ContainerCannotStart",
+    "ContainerConfig",
+    "MaintenanceContainer",
+    "Result",
+]
