@@ -37,7 +37,7 @@ class DistroImagesTests(MoncicTestCase):
         self.assertFalse(self.images.has_image("does-not-exist"))
 
     def test_list_images(self) -> None:
-        self.assertCountEqual(self.images.list_images(), [d.name for d in self.all_distros()])
+        self.assertCountEqual(self.images.list_images(), [d.full_name for d in self.all_distros()])
 
     def test_image(self) -> None:
         for distro in self.all_distros():
