@@ -1,6 +1,12 @@
 # Version UNRELEASED
 
 * Added an initial suite of integration tests
+* Fixed bootstrap for supported distributions
+* Removed support for Centos 8. Centos 7 is still supported.
+* Added support for Almalinux.
+* Added support for newer Ubuntu
+* Detect when a container for an old distribution cannot be started due to
+  group v1 guest on v2 host (see https://github.com/lxc/lxc/issues/4072)
 
 # Version 0.21
 

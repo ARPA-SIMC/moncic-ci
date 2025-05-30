@@ -44,8 +44,9 @@ class DebianDistro(Distro):
         other_names: list[str] | None = None,
         mirror: str = "http://deb.debian.org/debian",
         key_url: str | None = None,
+        cgroup_v1: bool = False,
     ):
-        super().__init__(family, name, version, other_names)
+        super().__init__(family, name, version, other_names, cgroup_v1=cgroup_v1)
         self.mirror = mirror
         self.key_url = key_url
 
@@ -167,10 +168,12 @@ class UbuntuDistro(DebianDistro):
     Common implementation for Ubuntu-based distributions
     """
 
-    def __init__(
-        self, family: DistroFamily, name: str, version: str, mirror: str = "http://archive.ubuntu.com/ubuntu/"
-    ):
-        super().__init__(family, name, version, mirror=mirror)
+    def __init__(self, family: DistroFamily, name: str, version: str, archived: bool = False, cgroup_v1: bool = False):
+        if archived:
+            mirror = "https://old-releases.ubuntu.com/ubuntu/"
+        else:
+            mirror = "https://archive.ubuntu.com/ubuntu/"
+        super().__init__(family, name, version, mirror=mirror, cgroup_v1=cgroup_v1)
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -195,6 +198,7 @@ class Debian(DistroFamily):
                 "8",
                 mirror="http://archive.debian.org/debian/",
                 key_url="https://ftp-master.debian.org/keys/release-8.asc",
+                cgroup_v1=True,
             )
         )
         self.add_distro(
@@ -217,13 +221,15 @@ class Debian(DistroFamily):
 class Ubuntu(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(UbuntuDistro(self, "xenial", "16.04"))
+        self.add_distro(UbuntuDistro(self, "xenial", "16.04", cgroup_v1=True))
         self.add_distro(UbuntuDistro(self, "bionic", "18.04"))
         self.add_distro(UbuntuDistro(self, "focal", "20.04"))
-        self.add_distro(UbuntuDistro(self, "hirsute", "21.04"))
-        self.add_distro(UbuntuDistro(self, "impish", "21.10"))
+        self.add_distro(UbuntuDistro(self, "hirsute", "21.04", archived=True))
+        self.add_distro(UbuntuDistro(self, "impish", "21.10", archived=True))
         self.add_distro(UbuntuDistro(self, "jammy", "22.04"))
-        self.add_distro(UbuntuDistro(self, "kinetic", "22.10"))
-        self.add_distro(UbuntuDistro(self, "lunar", "23.04"))
-        self.add_distro(UbuntuDistro(self, "mantic", "23.10"))
+        self.add_distro(UbuntuDistro(self, "kinetic", "22.10", archived=True))
+        self.add_distro(UbuntuDistro(self, "lunar", "23.04", archived=True))
+        self.add_distro(UbuntuDistro(self, "mantic", "23.10", archived=True))
         self.add_distro(UbuntuDistro(self, "noble", "24.04"))
+        self.add_distro(UbuntuDistro(self, "oracular", "24.10"))
+        self.add_distro(UbuntuDistro(self, "plucky", "25.04"))

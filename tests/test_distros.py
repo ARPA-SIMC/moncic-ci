@@ -142,7 +142,7 @@ class TestCentos7(DistroTestsBase):
                 rf" --installroot={path} --releasever=7 install bash dbus iproute rootfiles yum"
             )
         )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -155,24 +155,6 @@ class TestCentos7(DistroTestsBase):
                 "/usr/bin/yum install -q -y bash dbus iproute rootfiles yum",
             ],
         )
-
-
-class TestCentos8(DistroTestsBase):
-    name = "centos8"
-
-    @override
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
-            re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                rf" --installroot={path} --releasever=8 install bash dbus dnf iproute rootfiles"
-            )
-        )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
-
-    @override
-    def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
 
 
 class DebianDistroTestsBase(DistroTestsBase):
@@ -270,7 +252,7 @@ class FedoraDistroTestsBase(DistroTestsBase):
                 rf" --installroot={path} --releasever={self.version} install {' '.join(self.packages)}"
             )
         )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -334,7 +316,7 @@ class TestRocky8(DistroTestsBase):
                 rf" --installroot={path} --releasever=8 install bash dbus dnf iproute rootfiles"
             )
         )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -352,7 +334,7 @@ class TestRocky9(DistroTestsBase):
                 rf" --installroot={path} --releasever=9 install bash dbus dnf iproute rootfiles"
             )
         )
-        run_log.assertPopFirst(f"chroot {path} /usr/bin/rpmdb --rebuilddb")
+        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -360,7 +342,7 @@ class TestRocky9(DistroTestsBase):
 
 
 class UbuntuDistroTestsBase(DistroTestsBase):
-    mirror = "http://archive.ubuntu.com/ubuntu/"
+    mirror = "https://archive.ubuntu.com/ubuntu/"
 
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -400,10 +382,12 @@ class TestFocal(UbuntuDistroTestsBase):
 
 
 class TestHirsute(UbuntuDistroTestsBase):
+    mirror = "https://old-releases.ubuntu.com/ubuntu/"
     name = "hirsute"
 
 
 class TestImpish(UbuntuDistroTestsBase):
+    mirror = "https://old-releases.ubuntu.com/ubuntu/"
     name = "impish"
 
 
@@ -412,19 +396,30 @@ class TestJammy(UbuntuDistroTestsBase):
 
 
 class TestKinetic(UbuntuDistroTestsBase):
+    mirror = "https://old-releases.ubuntu.com/ubuntu/"
     name = "kinetic"
 
 
 class TestLunar(UbuntuDistroTestsBase):
+    mirror = "https://old-releases.ubuntu.com/ubuntu/"
     name = "lunar"
 
 
 class TestMantic(UbuntuDistroTestsBase):
+    mirror = "https://old-releases.ubuntu.com/ubuntu/"
     name = "mantic"
 
 
 class TestNoble(UbuntuDistroTestsBase):
     name = "noble"
+
+
+class TestOracular(UbuntuDistroTestsBase):
+    name = "oracular"
+
+
+class TestPlucky(UbuntuDistroTestsBase):
+    name = "plucky"
 
 
 del UbuntuDistroTestsBase

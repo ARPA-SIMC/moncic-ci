@@ -95,7 +95,7 @@ class RpmDistro(Distro):
                         )
                 shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-            images.host_run(["chroot", installroot.as_posix(), "/usr/bin/rpmdb", "--rebuilddb"])
+            images.host_run(["systemd-nspawn", "-D", installroot.as_posix(), "/usr/bin/rpmdb", "--rebuilddb"])
 
 
 class YumDistro(RpmDistro):
@@ -177,11 +177,11 @@ json.dump(res, sys.stdout)
 
 
 class Centos7(YumDistro):
-    mirror = "http://mirror.centos.org"
+    mirror = "https://vault.centos.org"
     baseurl = "{mirror}/centos/7/os/$basearch"
 
     def __init__(self, family: DistroFamily) -> None:
-        super().__init__(family, "7", "7")
+        super().__init__(family, "7", "7", cgroup_v1=True)
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -197,44 +197,17 @@ class Centos7(YumDistro):
             print("7", file=fd)
 
 
-class Centos8(DnfDistro):
-    mirror = "https://vault.centos.org"
-    baseurl = "{mirror}/centos/8/BaseOS//$basearch/os/"
-
-    def __init__(self, family: DistroFamily) -> None:
-        super().__init__(family, "8", "8")
-
-    @override
-    def get_podman_name(self) -> tuple[str, str]:
-        return ("quay.io/centos/centos", "centos8")
-
-    @override
-    def bootstrap(self, images: Images, path: Path) -> None:
-        super().bootstrap(images, path)
-        # self.system.local_run(["tar", "-C", self.system.path, "-zxf", "images/centos8.tar.gz"])
-        # Fixup repository information to point at the vault
-        for p in (path / "etc/yum.repos.d/").glob("CentOS-*"):
-            images.logger.info("Updating %s to point mirrors to the Vault", p)
-            with p.open() as fd:
-                st = os.stat(fd.fileno())
-                with atomic_writer(p, mode="wt", chmod=stat.S_IMODE(st.st_mode)) as tf:
-                    for line in fd:
-                        if line.startswith("mirrorlist="):
-                            print(f"#{line}", file=tf)
-                        elif line.startswith("#baseurl=http://mirror.centos.org"):
-                            print(f"baseurl=http://vault.centos.org{line[33:]}", file=tf)
-                        else:
-                            print(line, file=tf)
-                    tf.flush()
-
-
 class FedoraDistro(DnfDistro):
-    mirror = "http://download.fedoraproject.org"
     version: str
 
-    def __init__(self, family: DistroFamily, version: int):
+    def __init__(self, family: DistroFamily, version: int, archived: bool = False):
         super().__init__(family, str(version), str(version))
-        self.baseurl = f"{self.mirror}/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
+        if archived:
+            self.mirror = "https://archives.fedoraproject.org"
+            self.baseurl = f"{self.mirror}/pub/archive/fedora/linux/releases/{version}/Everything/$basearch/os/"
+        else:
+            self.mirror = "https://download.fedoraproject.org"
+            self.baseurl = f"{self.mirror}/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -246,6 +219,18 @@ class FedoraDistro(DnfDistro):
         if int(self.version) >= 41:
             res += ["systemd"]
         return res
+
+
+class AlmaDistro(DnfDistro):
+    mirror = "http://repo.almalinux.org"
+
+    def __init__(self, family: DistroFamily, version: int) -> None:
+        super().__init__(family, str(version), str(version))
+        self.baseurl = f"{self.mirror}/almalinux/{version}/BaseOS/$basearch/os/"
+
+    @override
+    def get_podman_name(self) -> tuple[str, str]:
+        return ("docker.io/library/almalinux", self.name)
 
 
 class RockyDistro(DnfDistro):
@@ -263,17 +248,24 @@ class RockyDistro(DnfDistro):
 class Fedora(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(FedoraDistro(self, 32))
-        self.add_distro(FedoraDistro(self, 33))
-        self.add_distro(FedoraDistro(self, 34))
-        self.add_distro(FedoraDistro(self, 35))
-        self.add_distro(FedoraDistro(self, 36))
+        self.add_distro(FedoraDistro(self, 32, archived=True))
+        self.add_distro(FedoraDistro(self, 33, archived=True))
+        self.add_distro(FedoraDistro(self, 34, archived=True))
+        self.add_distro(FedoraDistro(self, 35, archived=True))
+        self.add_distro(FedoraDistro(self, 36, archived=True))
         self.add_distro(FedoraDistro(self, 37))
         self.add_distro(FedoraDistro(self, 38))
         self.add_distro(FedoraDistro(self, 39))
         self.add_distro(FedoraDistro(self, 40))
         self.add_distro(FedoraDistro(self, 41))
         self.add_distro(FedoraDistro(self, 42))
+
+
+class Almalinux(DistroFamily):
+    @override
+    def init(self) -> None:
+        self.add_distro(AlmaDistro(self, 8))
+        self.add_distro(AlmaDistro(self, 9))
 
 
 class Rocky(DistroFamily):
@@ -287,4 +279,3 @@ class Centos(DistroFamily):
     @override
     def init(self) -> None:
         self.add_distro(Centos7(self))
-        self.add_distro(Centos8(self))

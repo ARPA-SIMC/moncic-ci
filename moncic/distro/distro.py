@@ -128,7 +128,8 @@ class DistroFamily(abc.ABC):
                 return res
 
         raise KeyError(
-            f"Distro ID={os_id!r}, VERSION_ID={os_version!r} not found. Tried: {', '.join(repr(name) for name in names)} "
+            f"Distro ID={os_id!r}, VERSION_ID={os_version!r} not found."
+            f" Tried: {', '.join(repr(name) for name in names)} "
         )
 
 
@@ -140,12 +141,18 @@ class Distro(abc.ABC):
     SHORTCUTS: dict[str, str]
 
     def __init__(
-        self, family: DistroFamily, name: str, version: str | None, other_names: list[str] | None = None
+        self,
+        family: DistroFamily,
+        name: str,
+        version: str | None,
+        other_names: list[str] | None = None,
+        cgroup_v1: bool = False,
     ) -> None:
         self.family = family
         self.name = name
         self.version = version
         self.other_names = other_names or []
+        self.cgroup_v1 = cgroup_v1
 
     @override
     def __str__(self) -> str:
@@ -182,23 +189,19 @@ class Distro(abc.ABC):
         """
         # Do nothing by default
 
-    def bootstrap(self, images: "Images", path: Path) -> None:
-        """
-        Boostrap a fresh system inside the given directory
-        """
+    def _bootstrap_mkosi(self, images: "Images", path: Path) -> None:
         # At least on Debian, mkosi does not seem able to install working
         # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
-        distro, release = self.name.split(":", 1)
         installroot = path.absolute()
         base_packages = ",".join(self.get_base_packages())
         with tempfile.TemporaryDirectory() as workdir:
             cmd = [
                 "/usr/bin/mkosi",
-                f"--distribution={distro}",
-                f"--release={release}",
+                f"--distribution={self.family.name}",
+                f"--release={self.name}",
                 "--format=directory",
-                f"--output={installroot}",
-                "--base-packages=true",
+                f"--output-directory={installroot.parent}",
+                f"--output={installroot.name}",
                 f"--package={base_packages}",
                 f"--directory={workdir}",
                 "--force",
@@ -211,6 +214,12 @@ class Distro(abc.ABC):
             os.unlink(f"{installroot}.manifest")
         except FileNotFoundError:
             pass
+
+    def bootstrap(self, images: "Images", path: Path) -> None:
+        """
+        Boostrap a fresh system inside the given directory
+        """
+        self._bootstrap_mkosi(images, path)
 
     def get_setup_network_script(self, script: Script) -> None:
         """Add commands to use to setup networking."""
