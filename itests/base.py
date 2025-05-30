@@ -1,7 +1,9 @@
 import abc
 import contextlib
 import logging
+import shutil
 import os
+import subprocess
 from unittest import SkipTest
 from collections.abc import Generator
 from pathlib import Path
@@ -30,7 +32,39 @@ def skip_if_container_cannot_start() -> Generator[None, None, None]:
         raise SkipTest(f"Container cannot start: {exc}")
 
 
+class Package:
+    """Test package from the integration test data."""
+
+    def __init__(self, path: Path) -> None:
+        self.name = path.name
+        self.path = path
+
+    def files(self) -> list[Path]:
+        """Return the list of files (as relative paths) in this package."""
+        res = subprocess.run(["git", "ls-files"], cwd=self.path.as_posix(), text=True, capture_output=True, check=True)
+        return [Path(f) for f in res.stdout.splitlines()]
+
+    def as_git(self, path: Path) -> None:
+        """Build a git repository of this package in the given path."""
+        path.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+        for file in self.files():
+            src = self.path / file
+            dest = path / file
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dest)
+        subprocess.run(["git", "add", "."], cwd=path, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "initial commit"], cwd=path, capture_output=True, check=True)
+
+    # If we need a source tarball:
+    # with tarfile.open("hello_1.0.orig.tar.gz", "w:gz") as tar:
+    #     for file in files:
+    #         tar.add(file)
+
+
 class IntegrationTestsBase(MoncicTestCase, abc.ABC):
+    """Base test case class for integration tests."""
+
     distro: ClassVar[Distro]
     session: ClassVar[Session]
     distro_images: ClassVar[DistroImages]
@@ -43,6 +77,12 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
         if (value := os.environ.get(f"MONCIC_ITESTS_{name.upper()}", None)) is None:
             raise RuntimeError("integration tests need to be run using `./test -i`")
         return value
+
+    @classmethod
+    def get_package(cls, name: str = "hello") -> Package:
+        """Return a Package object from the integration test data."""
+        packages_dir = Path(cls.get_config("top_srcdir")) / "itests"
+        return Package(packages_dir / name)
 
     @override
     @classmethod
@@ -117,6 +157,7 @@ class PodmanIntegrationTestsBase(IntegrationTestsBase, abc.ABC):
 
 
 def setup_distro_tests(module_name: str, bases: dict[str, type[IntegrationTestsBase]], suffix: str) -> None:
+    """Generate one test per supported distribution and container technologies."""
     for distro_family in DistroFamily.list_families():
         for distro in distro_family.distros:
             for tech in "nspawn", "podman":
