@@ -1,0 +1,15 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: hello
+Upstream-Contact: Enrico Zini <enrico@enricozini.org>
+
+Files:
+ *
+Copyright:
+ 2025  Enrico Zini <enrico@enricozini.org>
+License: GPL-3
+
+Files:
+ debian/*
+Copyright:
+ 2025 Enrico Zini <enrico@enricozini.org>
+License: GPL-3
