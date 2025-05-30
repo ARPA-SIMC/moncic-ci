@@ -55,12 +55,13 @@ class PodmanImages(BootstrappingImages):
         """
         List the names of images found in image directories
         """
+        prefix = self.session.podman_repository + ":"
         images: list[str] = []
-        for image in self.session.podman.images.list(name=self.session.podman_repository + "*"):
+        for image in self.session.podman.images.list(name=prefix + "*"):
             for tag in image.tags:
-                if not tag.startswith(self.session.podman_repository):
+                if not tag.startswith(prefix):
                     continue
-                images.append(tag.removeprefix(self.session.podman_repository))
+                images.append(tag.removeprefix(prefix))
         images.sort()
         return images
 
