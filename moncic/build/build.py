@@ -167,6 +167,7 @@ class Build(abc.ABC):
             script = Script("Update container packages before build", cwd=Path("/"), root=True)
             self.distro.get_update_pkgdb_script(script)
             self.distro.get_upgrade_system_script(script)
+            self.distro.get_prepare_build_script(script)
             config.add_guest_scripts(setup=script)
         yield None
 

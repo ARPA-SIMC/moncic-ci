@@ -7,6 +7,7 @@ Name:           hello
 Version:        1.0
 Release:        %{releaseno}%{dist}
 Summary:        Minimal package used for Moncic-CI integration tests
+Source0:        https://github.com/ARPA-SIMC/%{name}/archive/v%{version}-%{releaseno}.tar.gz#/%{srcarchivename}.tar.gz
 
 License:        GPLv3
 BuildArch:      noarch
@@ -17,16 +18,13 @@ Minimal package used for integration tests
 %global debug_package %{nil}
 
 %prep
-
-%build
+%autosetup -n %{srcarchivename}
 
 %install
-[ "%{buildroot}" != / ] && rm -rf "%{buildroot}"
-mkdir -p "%{buildroot}/%{_bindir}"
+mkdir -p "%{buildroot}/%{_bindir}/"
 cp hello "%{buildroot}/%{_bindir}/"
 
 %clean
-[ "%{buildroot}" != / ] && rm -rf "%{buildroot}"
 
 %files
 %{_bindir}/hello
