@@ -233,6 +233,9 @@ class Distro(abc.ABC):
     def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
         """Add commands to use to install packages."""
 
+    def get_prepare_build_script(self, script: Script) -> None:
+        """Add commands to use to prepare a build system."""
+
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
         """
         Get the installed versions of packages described in the given list

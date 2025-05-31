@@ -118,6 +118,11 @@ class YumDistro(RpmDistro):
         super().get_install_packages_script(script, packages)
         script.run(["/usr/bin/yum", "install", "-q", "-y"] + packages)
 
+    @override
+    def get_prepare_build_script(self, script: Script) -> None:
+        super().get_prepare_build_script(script)
+        script.run(["/usr/bin/yum", "install", "-q", "-y", "@buildsys-build", "git", "rpmdevtools"])
+
 
 class DnfDistro(RpmDistro):
     @override
@@ -143,6 +148,11 @@ class DnfDistro(RpmDistro):
     def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
         super().get_install_packages_script(script, packages)
         script.run(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
+
+    @override
+    def get_prepare_build_script(self, script: Script) -> None:
+        super().get_prepare_build_script(script)
+        script.run(["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(builddep)", "git", "rpmdevtools"])
 
     @override
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
