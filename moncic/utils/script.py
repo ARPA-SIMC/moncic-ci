@@ -35,7 +35,13 @@ class Script:
         self.add_line(command)
 
     def run(
-        self, command: list[str], *, description: str | None = None, output: Path | None = None, cwd: Path | None = None
+        self,
+        command: list[str],
+        *,
+        description: str | None = None,
+        output: Path | None = None,
+        cwd: Path | None = None,
+        check: bool = True,
     ) -> None:
         """Append a command to the script."""
         if description:
@@ -45,6 +51,8 @@ class Script:
             cmd += f" > {shlex.quote(output.as_posix())}"
         if cwd:
             cmd = "(cd {shlex.quote(cwd.as_posix())} && {cmd})"
+        if not check:
+            cmd += " || true"
         self.add_line(cmd)
 
     @contextmanager
