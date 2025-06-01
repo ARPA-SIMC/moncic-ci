@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class BuildConfig(abc.ABC):
+class BuildConfig:
     """Configuration for a build."""
 
     #: Set to True for faster builds, that assume that the container is already
@@ -133,6 +133,16 @@ class BuildConfig(abc.ABC):
                 yield f.name, inspect.cleandoc(doc)
 
 
+@dataclass
+class BuildResults:
+    #: True if the build was successful
+    success: bool = False
+    #: List of container paths for artifacts
+    artifacts: list[str] = field(default_factory=list)
+    #: Commands that can be used to recreate this build
+    trace_log: list[str] = field(default_factory=list)
+
+
 class Build(abc.ABC):
     """
     Build source packages
@@ -148,17 +158,14 @@ class Build(abc.ABC):
     name: str
     #: Build configuration
     config: BuildConfig
-    #: True if the build was successful
-    success: bool = False
-    #: List of container paths for artifacts
-    artifacts: list[str] = field(default_factory=list)
-    #: Commands that can be used to recreate this build
-    trace_log: list[str] = field(default_factory=list)
+    #: Build results
+    results: BuildResults
 
     def __init__(self, source: DistroSource, distro: Distro, **kwargs: Any):
         self.source = source
         self.distro = distro
         self.config = self.build_config_class(**kwargs)
+        self.results = BuildResults()
 
     @classmethod
     def get_build_class(cls, source: DistroSource) -> type["Build"]:
@@ -180,7 +187,7 @@ class Build(abc.ABC):
         """
         Add a command to the trace log
         """
-        self.trace_log.append(shlex.join(args))
+        self.results.trace_log.append(shlex.join(args))
 
     def trace_run(self, cmd: Sequence[str], check: bool = True, **kwargs: Any) -> subprocess.CompletedProcess:
         """

@@ -24,7 +24,7 @@ class Builder(ContainerSourceOperation):
     """
 
     def __init__(self, image: "RunnableImage", build: Build) -> None:
-        super().__init__(image=image, source=build.source, artifacts_dir=build.artifacts_dir)
+        super().__init__(image=image, source=build.source, artifacts_dir=build.config.artifacts_dir)
         # Build object that is being built
         self.build: Build = build
         self.plugins.append(self.build.operation_plugin)
@@ -49,13 +49,13 @@ class Builder(ContainerSourceOperation):
         Run configured commands after the build ended
         """
         super()._after_build(container)
-        if self.build.success:
-            for cmd in self.build.on_success:
+        if self.build.results.success:
+            for cmd in self.build.config.on_success:
                 self._run_command(container, cmd)
         else:
-            for cmd in self.build.on_fail:
+            for cmd in self.build.config.on_fail:
                 self._run_command(container, cmd)
-        for cmd in self.build.on_end:
+        for cmd in self.build.config.on_end:
             self._run_command(container, cmd)
 
     @host_only
@@ -77,12 +77,14 @@ class Builder(ContainerSourceOperation):
                 log.error("%r: unsupported post-build command", cmd)
         else:
             env = dict(os.environ)
-            env["MONCIC_ARTIFACTS_DIR"] = self.build.artifacts_dir.as_posix() if self.build.artifacts_dir else ""
+            env["MONCIC_ARTIFACTS_DIR"] = (
+                self.build.config.artifacts_dir.as_posix() if self.build.config.artifacts_dir else ""
+            )
             env["MONCIC_CONTAINER_NAME"] = container.instance_name
             env["MONCIC_IMAGE"] = self.image.name
             env["MONCIC_CONTAINER_ROOT"] = container.get_root().as_posix()
             env["MONCIC_PACKAGE_NAME"] = self.build.name or ""
-            env["MONCIC_RESULT"] = "success" if self.build.success else "fail"
+            env["MONCIC_RESULT"] = "success" if self.build.results.success else "fail"
             env["MONCIC_SOURCE"] = self.build.source.name
             run(["/bin/sh", "-c", cmd], env=env)
 
@@ -121,5 +123,5 @@ class Builder(ContainerSourceOperation):
     @host_only
     def harvest_artifacts(self, transfer_dir: Path) -> None:
         for path in transfer_dir.iterdir():
-            self.build.artifacts.append(path.name)
+            self.build.results.artifacts.append(path.name)
         super().harvest_artifacts(transfer_dir)
