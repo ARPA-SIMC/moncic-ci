@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import git
 
-from ..build.utils import link_or_copy
+from ..utils.link_or_copy import link_or_copy
 from ..distro.debian import DebianDistro
 from ..exceptions import Fail
 from ..utils.guest import host_only
@@ -750,7 +750,7 @@ class DebianGBPTestDebian(DebianGBP, style="debian-gbp-test"):
 # def get_build_deps(self) -> list[str]:
 #     with self.container() as container:
 #         # Inject a perl script that uses libdpkg-perl to compute the dependency list
-#         with importlib.resources.open_binary("moncic.build", "debian-dpkg-listbuilddeps") as fdin:
+#         with importlib.resources.open_binary("moncic.source", "debian-dpkg-listbuilddeps") as fdin:
 #             with open(
 #                     os.path.join(container.get_root(), "srv", "moncic-ci", "dpkg-listbuilddeps"), "wb") as fdout:
 #                 shutil.copyfileobj(fdin, fdout)

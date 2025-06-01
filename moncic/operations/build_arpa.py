@@ -11,13 +11,13 @@ from moncic.context import privs
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from .build import Build
+from .build import Builder
 from moncic.source.rpm import RPMSource
 
 log = logging.getLogger(__name__)
 
 
-class RPM(Build):
+class RPMBuilder(Builder):
     """
     Build RPM packages
     """
@@ -28,13 +28,13 @@ class RPM(Build):
         super().__init__(*args, **kwargs)
         from ..distro.rpm import DnfDistro, YumDistro
 
-        if isinstance(self.distro, YumDistro):
+        if isinstance(self.image.distro, YumDistro):
             self.builddep = ["yum-builddep"]
-        elif isinstance(self.distro, DnfDistro):
+        elif isinstance(self.image.distro, DnfDistro):
             self.builddep = ["dnf", "builddep"]
         else:
-            raise RuntimeError(f"Unsupported distro: {self.distro.name}")
-        self.name = self.source.specfile_path.name.removesuffix(".spec")
+            raise RuntimeError(f"Unsupported distro: {self.image.distro.name}")
+        self.results.name = self.source.specfile_path.name.removesuffix(".spec")
 
     # @host_only
     # def get_build_deps(self) -> list[str]:
@@ -58,7 +58,7 @@ class RPM(Build):
         return packages
 
 
-class ARPA(RPM):
+class ARPABuilder(RPMBuilder):
     """
     ARPA/SIMC builder, building RPM packages using the logic previously
     configured for travis
@@ -89,17 +89,23 @@ class ARPA(RPM):
                 for root, dirs, fnames in os.walk(fedora_sources_dir):
                     for fn in fnames:
                         shutil.copy(os.path.join(root, fn), rpmbuild_sources)
-            source_tar = rpmbuild_sources / f"{self.name}.tar"
+            source_tar = rpmbuild_sources / f"{self.results.name}.tar"
             with source_tar.open("wb") as fd:
                 with privs.user():
-                    self.trace_run(["git", "archive", f"--prefix={self.name}/", "--format=tar", "HEAD"], stdout=fd)
+                    self.trace_run(
+                        ["git", "archive", f"--prefix={self.results.name}/", "--format=tar", "HEAD"], stdout=fd
+                    )
             self.trace_run(["gzip", source_tar.as_posix()])
-            self.trace_run(["spectool", "-g", "-R", "--define", f"srcarchivename {self.name}", specfile.as_posix()])
+            self.trace_run(
+                ["spectool", "-g", "-R", "--define", f"srcarchivename {self.results.name}", specfile.as_posix()]
+            )
             if self.config.source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"
-            self.trace_run(["rpmbuild", build_arg, "--define", f"srcarchivename {self.name}", specfile.as_posix()])
+            self.trace_run(
+                ["rpmbuild", build_arg, "--define", f"srcarchivename {self.results.name}", specfile.as_posix()]
+            )
         else:
             # Convenzione SIMC per i repo con solo rpm
             for f in glob.glob("*.patch"):
@@ -111,7 +117,8 @@ class ARPA(RPM):
 
     @override
     @host_only
-    def collect_artifacts(self, script: Script) -> None:
+    def collect_artifacts_script(self) -> Script:
+        script = super().collect_artifacts_script()
         dest = Path("/srv/moncic-ci/artifacts")
         patterns = (
             "RPMS/*/*.rpm",
@@ -120,3 +127,4 @@ class ARPA(RPM):
         basedir = Path("/root/rpmbuild")
         for pattern in patterns:
             script.run_unquoted(f"cp --reflink=auto {basedir}/{pattern} {shlex.quote(dest.as_posix())}")
+        return script

@@ -1,6 +1,5 @@
 import abc
 
-from moncic.build import Build
 from moncic.operations import build as ops_build
 from moncic.source import Source
 from moncic.source.distro import DistroSource
@@ -27,10 +26,10 @@ class BuildTests(IntegrationTestsBase, abc.ABC):
         with self.verbose_logging(), Source.create_local(source=source_path) as local_source:
             source = DistroSource.create_from_local(local_source, distro=rimage.distro)
             # Create a Build object with system-configured defaults
-            build_class = Build.get_build_class(source)
-            build = build_class(source=source, distro=rimage.distro)
-            # build.artifacts_dir.mkdir(parents=True, exist_ok=True)
-            builder = ops_build.Builder(rimage, build)
+            builder_class = ops_build.Builder.get_builder_class(source)
+            # Fill in the build configuration
+            config = builder_class.build_config_class()
+            builder = builder_class(source, rimage, config)
             builder.host_main()
 
             # TODO: verify build results

@@ -9,7 +9,7 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, ContextManager
 
-from moncic.build.utils import link_or_copy
+from moncic.utils.link_or_copy import link_or_copy
 from moncic.container import BindType, ContainerConfig
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource

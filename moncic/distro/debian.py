@@ -129,6 +129,13 @@ class DebianDistro(Distro):
         script.run(self.APT_INSTALL_CMD + ["satisfy"] + packages)
 
     @override
+    def get_prepare_build_script(self, script: Script) -> None:
+        super().get_prepare_build_script(script)
+        self.get_install_packages_script(
+            script, ["build-essential", "dpkg-dev", "fakeroot", "eatmydata", "git-buildpackage"]
+        )
+
+    @override
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
         re_inst = re.compile(r"^Inst (\S+) \((\S+)")
         cmd_prefix = [

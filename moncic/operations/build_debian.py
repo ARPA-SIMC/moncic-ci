@@ -16,7 +16,7 @@ from moncic.utils.fs import cd
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from .build import Build, BuildConfig
+from .build import Builder, BuildConfig
 
 
 log = logging.getLogger(__name__)
@@ -48,7 +48,6 @@ def get_file_list(path: str) -> list[str]:
 
 @dataclass
 class DebianBuildConfig(BuildConfig):
-
     build_profile: str = field(
         default="",
         metadata={
@@ -63,7 +62,7 @@ class DebianBuildConfig(BuildConfig):
     )
 
 
-class Debian(Build):
+class DebianBuilder(Builder):
     """
     Build Debian packages
     """
@@ -105,7 +104,7 @@ class Debian(Build):
         with privs.user():
             dsc_path = self.source.build_source_package()
 
-        self.name = self.source.source_info.name
+        self.results.name = self.source.source_info.name
 
         if not self.config.source_only:
             self.build_binary(dsc_path)
@@ -184,8 +183,10 @@ class Debian(Build):
 
     @override
     @host_only
-    def collect_artifacts(self, script: Script) -> None:
+    def collect_artifacts_script(self) -> Script:
+        script = super().collect_artifacts_script()
         dest = Path("/srv/moncic-ci/artifacts")
         for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
             with script.for_("f", f"$(find {shlex.quote(path)} -maxdepth 1 -type f)"):
                 script.run_unquoted(f'mv "$f" {shlex.quote(dest.as_posix())}')
+        return script

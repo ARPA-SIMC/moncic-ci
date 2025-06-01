@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, override
 from ..exceptions import Fail, Success
 
 if TYPE_CHECKING:
-    from moncic.build import Build
+    from moncic.operations.build import BuildConfig
 
 
 def get_doc_wrapper(lead_width: int) -> textwrap.TextWrapper:
@@ -110,25 +110,25 @@ class BuildOptionAction(argparse._AppendAction):
             setattr(namespace, self.dest, {k: v})
 
 
-def set_build_option_action(build: Build, key: str, val: Any) -> None:
+def set_build_option_action(config: "BuildConfig", key: str, val: Any) -> None:
     """
-    Set a build option action in a builder instance
+    Set a build option action in a BuildConfig instance
     """
-    for field in fields(build.config):
+    for field in fields(config):
         if field.name == key:
             break
     else:
-        raise Fail(f"cannot set option {key!r} on build of type {type(build).__name__}")
+        raise Fail(f"cannot set option {key!r} on build config of type {type(config).__name__}")
 
     if field.type == "bool":
         if isinstance(val, bool):
-            setattr(build, key, val)
+            setattr(config, key, val)
         elif isinstance(val, str):
             bool_value = configparser.ConfigParser.BOOLEAN_STATES.get(val)
             if bool_value is None:
                 raise Fail(f"cannot parse value of {key}={val!r} as a boolean")
-            setattr(build, key, bool_value)
+            setattr(config, key, bool_value)
         else:
             raise TypeError(f"trying to set {key} (of type bool) to {val!r}")
     else:
-        setattr(build, key, val)
+        setattr(config, key, val)
