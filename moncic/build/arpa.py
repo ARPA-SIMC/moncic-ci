@@ -4,7 +4,6 @@ import shlex
 import os
 import shutil
 import subprocess
-from dataclasses import dataclass
 from pathlib import Path
 from typing import override
 
@@ -18,7 +17,6 @@ from moncic.source.rpm import RPMSource
 log = logging.getLogger(__name__)
 
 
-@dataclass
 class RPM(Build):
     """
     Build RPM packages
@@ -59,7 +57,6 @@ class RPM(Build):
         return packages
 
 
-@dataclass
 class ARPA(RPM):
     """
     ARPA/SIMC builder, building RPM packages using the logic previously
@@ -97,7 +94,7 @@ class ARPA(RPM):
                     self.trace_run(["git", "archive", f"--prefix={self.name}/", "--format=tar", "HEAD"], stdout=fd)
             self.trace_run(["gzip", source_tar.as_posix()])
             self.trace_run(["spectool", "-g", "-R", "--define", f"srcarchivename {self.name}", specfile.as_posix()])
-            if self.source_only:
+            if self.config.source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"

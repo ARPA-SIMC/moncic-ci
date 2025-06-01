@@ -16,7 +16,7 @@ from moncic.utils.fs import cd
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from .build import Build
+from .build import Build, BuildConfig
 
 
 log = logging.getLogger(__name__)
@@ -47,10 +47,7 @@ def get_file_list(path: str) -> list[str]:
 
 
 @dataclass
-class Debian(Build):
-    """
-    Build Debian packages
-    """
+class DebianBuildConfig(BuildConfig):
 
     build_profile: str = field(
         default="",
@@ -64,6 +61,16 @@ class Debian(Build):
         default=False,
         metadata={"doc": "Always include sources in upload (run `dpkg-buildpackage -sa`)"},
     )
+
+
+class Debian(Build):
+    """
+    Build Debian packages
+    """
+
+    build_config_class = DebianBuildConfig
+
+    config: DebianBuildConfig
 
     @guest_only
     def get_build_deps_in_container(self) -> list[str]:
@@ -100,7 +107,7 @@ class Debian(Build):
 
         self.name = self.source.source_info.name
 
-        if not self.source_only:
+        if not self.config.source_only:
             self.build_binary(dsc_path)
 
         self.success = True
@@ -110,10 +117,10 @@ class Debian(Build):
         """
         Build binary packages
         """
-        if self.build_profile:
+        if self.config.build_profile:
             profiles: list[str] = []
             options: list[str] = []
-            for entry in self.build_profile.split():
+            for entry in self.config.build_profile.split():
                 if entry in ("nocheck", "nodoc"):
                     profiles.append(entry)
                     options.append(entry)
@@ -171,7 +178,7 @@ class Debian(Build):
 
                 # Build
                 cmd = ["dpkg-buildpackage", "--no-sign"]
-                if self.include_source:
+                if self.config.include_source:
                     cmd.append("-sa")
                 self.trace_run(cmd, env=env)
 

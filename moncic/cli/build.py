@@ -97,21 +97,21 @@ class CI(SourceCommand):
 
                 # Load YAML configuration for the build
                 if self.args.build_config:
-                    build.load_yaml(self.args.build_config)
+                    build.config.load_yaml(self.args.build_config)
 
                 # Update values with command line arguments
                 for k, v in build_kwargs_cmd.items():
                     set_build_option_action(build, k, v)
 
-                if build.artifacts_dir:
-                    build.artifacts_dir.mkdir(parents=True, exist_ok=True)
+                if build.config.artifacts_dir:
+                    build.config.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
                 builder = ops_build.Builder(image, build)
 
                 if self.args.linger:
-                    build.on_end.append("@linger")
+                    build.config.on_end.append("@linger")
                 if self.args.shell:
-                    build.on_end.append("@shell")
+                    build.config.on_end.append("@shell")
 
                 try:
                     builder.host_main()
@@ -131,7 +131,8 @@ class CI(SourceCommand):
                             else:
                                 return super().default(obj)
 
-                    info = dataclasses.asdict(builder.build)
+                    info: dict[str, Any] = {}
+                    info["config"] = dataclasses.asdict(builder.build.config)
                     info["source_history"] = builder.build.source.info_history()
                     json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
                     sys.stdout.write("\n")
