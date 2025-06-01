@@ -163,6 +163,7 @@ class TestCentos7(DistroTestsBase):
 class DebDistroTestsBase(DistroTestsBase):
     mirror: str
     custom_keyring = False
+    install_verb: str = "satisfy"
 
     @override
     def setUp(self) -> None:
@@ -197,7 +198,7 @@ class DebDistroTestsBase(DistroTestsBase):
                 "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
                 " full-upgrade",
                 "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " satisfy apt-utils bash dbus eatmydata iproute2 systemd",
+                f" {self.install_verb} apt-utils bash dbus eatmydata iproute2 systemd",
             ],
         )
 
@@ -209,6 +210,7 @@ class DebianDistroTestsBase(DebDistroTestsBase):
 class TestJessie(DebianDistroTestsBase):
     mirror = "http://archive.debian.org/debian/"
     name = "jessie"
+    install_verb = "install"
     custom_keyring = True
 
 
@@ -216,10 +218,12 @@ class TestStretch(DebianDistroTestsBase):
     mirror = "http://archive.debian.org/debian/"
     name = "stretch"
     custom_keyring = True
+    install_verb = "install"
 
 
 class TestBuster(DebianDistroTestsBase):
     name = "buster"
+    install_verb = "install"
 
 
 class TestBullseye(DebianDistroTestsBase):
