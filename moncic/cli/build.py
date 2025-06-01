@@ -6,7 +6,6 @@ import sys
 from pathlib import Path
 from typing import Any, override
 
-from moncic.build import Build
 from moncic.distro import Distro
 from moncic.exceptions import Fail
 from moncic.image import RunnableImage
@@ -91,27 +90,29 @@ class CI(SourceCommand):
             with self.source(image.distro) as source:
                 log.info("Source type: %s", source.__class__)
 
-                # Create a Build object with system-configured defaults
-                build_class = Build.get_build_class(source)
-                build = build_class(source=source, distro=image.distro, **build_kwargs_system)
+                # Get the builder class to use
+                builder_class = ops_build.Builder.get_builder_class(source)
+
+                # Fill in the build configuration
+                config = builder_class.build_config_class(**build_kwargs_system)
 
                 # Load YAML configuration for the build
                 if self.args.build_config:
-                    build.config.load_yaml(self.args.build_config)
+                    config.load_yaml(self.args.build_config)
 
                 # Update values with command line arguments
                 for k, v in build_kwargs_cmd.items():
-                    set_build_option_action(build, k, v)
-
-                if build.config.artifacts_dir:
-                    build.config.artifacts_dir.mkdir(parents=True, exist_ok=True)
-
-                builder = ops_build.Builder(image, build)
+                    set_build_option_action(config, k, v)
 
                 if self.args.linger:
-                    build.config.on_end.append("@linger")
+                    config.on_end.append("@linger")
                 if self.args.shell:
-                    build.config.on_end.append("@shell")
+                    config.on_end.append("@shell")
+
+                if config.artifacts_dir:
+                    config.artifacts_dir.mkdir(parents=True, exist_ok=True)
+
+                builder = builder_class(source, image, config)
 
                 try:
                     builder.host_main()
@@ -132,8 +133,9 @@ class CI(SourceCommand):
                                 return super().default(obj)
 
                     info: dict[str, Any] = {}
-                    info["config"] = dataclasses.asdict(builder.build.config)
-                    info["source_history"] = builder.build.source.info_history()
+                    info["config"] = dataclasses.asdict(builder.config)
+                    info["source_history"] = builder.source.info_history()
+                    info["result"] = dataclasses.asdict(builder.results)
                     json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
                     sys.stdout.write("\n")
 
