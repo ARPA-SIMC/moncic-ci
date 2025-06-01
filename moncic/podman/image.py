@@ -47,11 +47,8 @@ class PodmanImage(RunnableImage):
         self.podman_image = podman_image
         self.id = podman_image.id
         self.short_id = podman_image.short_id
-        if ":" in self.name:
-            repository, tag = self.name.split(":")
-        else:
-            repository, tag = self.name, "latest"
-        self.podman_image.tag(self.session.podman_repository + repository, tag)
+        dest_repository, dest_tag = self.images.podman_name(self.name)
+        self.podman_image.tag(dest_repository, dest_tag)
 
     @override
     def get_backend_id(self) -> str:
