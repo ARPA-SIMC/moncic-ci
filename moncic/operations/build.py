@@ -319,7 +319,7 @@ class Builder(ContainerSourceOperation, abc.ABC):
         return cls.__name__.lower().removesuffix("builder")
 
     @classmethod
-    def list_build_classes(cls) -> list[type["Build"]]:
+    def list_build_classes(cls) -> list[type["Builder"]]:
         """
         Return a list of all available build classes, including intermediate
         classes in class hierarchies
