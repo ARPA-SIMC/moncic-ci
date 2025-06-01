@@ -24,27 +24,12 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class Build(abc.ABC):
-    """
-    Build source packages
-    """
+class BuildConfig(abc.ABC):
+    """Configuration for a build."""
 
-    #: Source to be built
-    source: DistroSource
-    #: Distribution on which to build
-    distro: Distro
-    #: Package name (optional when not yet set)
-    name: str | None = None
     #: Set to True for faster builds, that assume that the container is already
     #: up to date
     quick: bool = False
-    #: True if the build was successful
-    success: bool = False
-    #: List of container paths for artifacts
-    artifacts: list[str] = field(default_factory=list)
-    #: Commands that can be used to recreate this build
-    trace_log: list[str] = field(default_factory=list)
-
     artifacts_dir: Path | None = field(
         default=None,
         metadata={
@@ -101,26 +86,11 @@ class Build(abc.ABC):
     )
 
     @classmethod
-    def get_build_class(cls, source: DistroSource) -> type["Build"]:
-        from ..source.debian import DebianSource
-        from ..source.rpm import RPMSource, ARPASource
-        from .debian import Debian
-        from .arpa import RPM, ARPA
-
-        # FIXME: use match from python 3.10+
-        if isinstance(source, DebianSource):
-            return Debian
-        elif isinstance(source, ARPASource):
-            return ARPA
-        elif isinstance(source, RPMSource):
-            return RPM
-        raise Fail(f"Cannot detect build class for {source.__class__.__name__} source")
-
-    def add_trace_log(self, *args: str) -> None:
+    def get_name(cls) -> str:
         """
-        Add a command to the trace log
+        Get the user-facing name for this Build class
         """
-        self.trace_log.append(shlex.join(args))
+        return cls.__name__.lower().removesuffix("buildconfig")
 
     def load_yaml(self, pathname: str) -> None:
         """
@@ -153,6 +123,65 @@ class Build(abc.ABC):
                 else:
                     setattr(self, key, val)
 
+    @classmethod
+    def list_build_options(cls) -> Generator[tuple[str, str]]:
+        """
+        List available build option names and their documentation
+        """
+        for f in fields(cls):
+            if doc := f.metadata.get("doc"):
+                yield f.name, inspect.cleandoc(doc)
+
+
+class Build(abc.ABC):
+    """
+    Build source packages
+    """
+
+    build_config_class: type[BuildConfig] = BuildConfig
+
+    #: Source to be built
+    source: DistroSource
+    #: Distribution on which to build
+    distro: Distro
+    #: Package name
+    name: str
+    #: Build configuration
+    config: BuildConfig
+    #: True if the build was successful
+    success: bool = False
+    #: List of container paths for artifacts
+    artifacts: list[str] = field(default_factory=list)
+    #: Commands that can be used to recreate this build
+    trace_log: list[str] = field(default_factory=list)
+
+    def __init__(self, source: DistroSource, distro: Distro, **kwargs: Any):
+        self.source = source
+        self.distro = distro
+        self.config = self.build_config_class(**kwargs)
+
+    @classmethod
+    def get_build_class(cls, source: DistroSource) -> type["Build"]:
+        from ..source.debian import DebianSource
+        from ..source.rpm import RPMSource, ARPASource
+        from .debian import Debian
+        from .arpa import RPM, ARPA
+
+        # FIXME: use match from python 3.10+
+        if isinstance(source, DebianSource):
+            return Debian
+        elif isinstance(source, ARPASource):
+            return ARPA
+        elif isinstance(source, RPMSource):
+            return RPM
+        raise Fail(f"Cannot detect build class for {source.__class__.__name__} source")
+
+    def add_trace_log(self, *args: str) -> None:
+        """
+        Add a command to the trace log
+        """
+        self.trace_log.append(shlex.join(args))
+
     def trace_run(self, cmd: Sequence[str], check: bool = True, **kwargs: Any) -> subprocess.CompletedProcess:
         """
         Run a command, adding it to trace_log
@@ -163,7 +192,7 @@ class Build(abc.ABC):
     @contextlib.contextmanager
     def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
         """Build-specific container setup."""
-        if not self.quick:
+        if not self.config.quick:
             script = Script("Update container packages before build", cwd=Path("/"), root=True)
             self.distro.get_update_pkgdb_script(script)
             self.distro.get_upgrade_system_script(script)
@@ -206,15 +235,6 @@ class Build(abc.ABC):
             RPM,
             ARPA,
         ]
-
-    @classmethod
-    def list_build_options(cls) -> Generator[tuple[str, str]]:
-        """
-        List available build option names and their documentation
-        """
-        for f in fields(cls):
-            if doc := f.metadata.get("doc"):
-                yield f.name, inspect.cleandoc(doc)
 
     @host_only
     @abc.abstractmethod

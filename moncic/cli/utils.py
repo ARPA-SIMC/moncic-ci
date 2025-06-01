@@ -74,12 +74,14 @@ class BuildOptionAction(argparse._AppendAction):
 
         if values == "list":
             # Compute width for option names
-            name_width = max(len(x) for cls in Build.list_build_classes() for x, doc in cls.list_build_options())
+            name_width = max(
+                len(x) for cls in Build.list_build_classes() for x, doc in cls.build_config_class.list_build_options()
+            )
             help_wrapper = get_doc_wrapper(name_width + 4)
 
             for cls in Build.list_build_classes():
                 print(f"{cls.get_name()}:")
-                for name, doc in cls.list_build_options():
+                for name, doc in cls.build_config_class.list_build_options():
                     for idx, line in enumerate(help_wrapper.wrap(doc)):
                         if idx == 0:
                             print(f"  {name.rjust(name_width)}: {line}")
@@ -96,7 +98,7 @@ class BuildOptionAction(argparse._AppendAction):
 
         allowed_keys: set[str] = set()
         for cls in Build.list_build_classes():
-            for name, doc in cls.list_build_options():
+            for name, doc in cls.build_config_class.list_build_options():
                 allowed_keys.add(name)
 
         if k not in allowed_keys:
@@ -112,7 +114,7 @@ def set_build_option_action(build: Build, key: str, val: Any) -> None:
     """
     Set a build option action in a builder instance
     """
-    for field in fields(build):
+    for field in fields(build.config):
         if field.name == key:
             break
     else:
