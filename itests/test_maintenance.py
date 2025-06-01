@@ -32,7 +32,12 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         with io.StringIO(res.stdout.decode()) as fd:
             osr = parse_osrelase_contents(fd, "/etc/os-release")
         distro = DistroFamily.from_osrelease(osr, "test")
-        self.assertIs(distro, self.distro)
+        # Testing and sid (and sometimes the upcoming stable) are
+        # indistinguishable from os-release contents
+        if self.distro.full_name in ("debian:testing", "debian:sid"):
+            self.assertIs(distro.family, self.distro.family)
+        else:
+            self.assertIs(distro, self.distro)
 
     # def test_remove(self) -> None:
     #     TODO: make a pretend image for nspawn

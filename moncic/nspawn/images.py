@@ -34,6 +34,8 @@ class NspawnImages(BootstrappingImages, abc.ABC):
     Image storage made available as a directory in the file system
     """
 
+    image_class: type[NspawnImage]
+
     def __init__(self, session: Session, imagedir: Path):
         self.session = session
         self.imagedir = imagedir
@@ -48,17 +50,30 @@ class NspawnImages(BootstrappingImages, abc.ABC):
     def get_logger(self) -> logging.Logger:
         return logging.getLogger("images.nspawn")
 
-    @abc.abstractmethod
-    @override
-    def image(self, name: str) -> NspawnImage:
-        """
-        Return the configuration for the named system
-        """
-
     @override
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
         return (self.imagedir / name).is_dir()
+
+    @override
+    def image(self, name: str, variant_of: Image | None = None) -> RunnableImage:
+        path = (self.imagedir / name).absolute()
+        if not path.is_dir():
+            raise KeyError(f"Image {name!r} not found")
+        bootstrapped_from: BootstrappableImage | None = None
+        match variant_of:
+            case None:
+                distro = self._find_distro(path)
+            case BootstrappableImage():
+                distro = variant_of.distro
+                bootstrapped_from = variant_of
+            case RunnableImage():
+                # Reuse the previous found runnable image
+                return variant_of
+            case _:
+                raise NotImplementedError(f"variant_of has unknown image type {variant_of.__class__.__name__}")
+
+        return self.image_class(images=self, name=name, distro=distro, path=path, bootstrapped_from=bootstrapped_from)
 
     @override
     def list_images(self) -> list[str]:
@@ -120,7 +135,7 @@ class NspawnImages(BootstrappingImages, abc.ABC):
 
             path = self.imagedir / image.name
             if path.exists():
-                return self.image(image.name)
+                return self.image(image.name, variant_of=image)
 
             image.logger.info("bootstrapping into %s", path)
 
@@ -136,7 +151,7 @@ class NspawnImages(BootstrappingImages, abc.ABC):
                 case _:
                     raise NotImplementedError
 
-            return self.image(image.name)
+            return self.image(image.name, variant_of=image)
 
 
 class PlainImages(NspawnImages):
@@ -144,18 +159,12 @@ class PlainImages(NspawnImages):
     Images stored in a non-btrfs filesystem
     """
 
+    image_class = NspawnImagePlain
+
     @override
     @classmethod
     def create_machinectl(cls, session: Session) -> NspawnImages:
         return PlainMachinectlImages(session)
-
-    @override
-    def image(self, name: str) -> NspawnImage:
-        path = (self.imagedir / name).absolute()
-        if not path.is_dir():
-            raise KeyError(f"Image {name!r} not found")
-        distro = self._find_distro(path)
-        return NspawnImagePlain(images=self, name=name, distro=distro, path=path)
 
     @override
     @contextlib.contextmanager
@@ -209,19 +218,12 @@ class BtrfsImages(NspawnImages):
     Images stored in a btrfs filesystem
     """
 
+    image_class = NspawnImageBtrfs
+
     @override
     @classmethod
     def create_machinectl(cls, session: Session) -> NspawnImages:
         return BtrfsMachinectlImages(session)
-
-    @override
-    def image(self, name: str) -> NspawnImage:
-        path = (self.imagedir / name).absolute()
-        with context.privs.root():
-            if not path.is_dir():
-                raise KeyError(f"Image {name!r} not found")
-        distro = self._find_distro(path)
-        return NspawnImageBtrfs(images=self, name=name, distro=distro, path=path)
 
     @override
     def deduplicate(self) -> None:

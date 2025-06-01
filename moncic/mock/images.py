@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from moncic.distro import DistroFamily
-from moncic.image import BootstrappableImage, RunnableImage
+from moncic.image import BootstrappableImage, RunnableImage, Image
 from moncic.images import BootstrappingImages
 
 if TYPE_CHECKING:
@@ -39,10 +39,19 @@ class MockImages(BootstrappingImages):
         return True
 
     @override
-    def image(self, name: str) -> "MockImage":
+    def image(self, name: str, variant_of: Image | None = None) -> "MockImage":
         from .image import MockImage
 
-        return MockImage(images=self, name=name, distro=DistroFamily.lookup_distro(name))
+        if variant_of is None:
+            distro = DistroFamily.lookup_distro(name)
+        else:
+            distro = variant_of.distro
+
+        bootstrapped_from: BootstrappableImage | None = None
+        if isinstance(variant_of, BootstrappableImage):
+            bootstrapped_from = variant_of
+
+        return MockImage(images=self, name=name, distro=distro, bootstrapped_from=bootstrapped_from)
 
     @override
     def bootstrap(self, image: BootstrappableImage) -> RunnableImage:

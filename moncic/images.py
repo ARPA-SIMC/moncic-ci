@@ -3,7 +3,7 @@ import logging
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, override, Optional
 
 if TYPE_CHECKING:
     from .image import BootstrappableImage, Image, RunnableImage
@@ -42,7 +42,7 @@ class ImagesBase(abc.ABC):
         """Check if the named image exists."""
 
     @abc.abstractmethod
-    def image(self, name: str) -> "Image":
+    def image(self, name: str, variant_of: Optional["Image"] = None) -> "Image":
         """Return the named Image."""
 
     @abc.abstractmethod
@@ -124,41 +124,20 @@ class ImageRepository(ImagesBase):
         return self.distro_images.image(name)
 
     @override
-    def image(self, name: str) -> "Image":
+    def image(self, name: str, variant_of: Optional["Image"] = None) -> "Image":
         """Instantiate an image by name."""
-        from .image import BootstrappableImage, RunnableImage
-
+        if variant_of is not None:
+            raise NotImplementedError("calling ImageRepository.image with a variant image is not supported")
         result: Image | None = None
         for images in self.images:
             if not images.has_image(name):
                 continue
             if result is None:
+                # We have not seen the image before, start with it
                 result = images.image(name)
-                continue
-
-            match (image := images.image(name)):
-                case BootstrappableImage():
-                    match result:
-                        case BootstrappableImage():
-                            # Replace with a later definition
-                            result = image
-                        case RunnableImage():
-                            raise NotImplementedError()
-                        case _:
-                            raise NotImplementedError()
-                case RunnableImage():
-                    match result:
-                        case BootstrappableImage():
-                            # Replace with the runnable version
-                            image.set_bootstrap_from(result)
-                            result = image
-                        case RunnableImage():
-                            # Keep previously found image
-                            pass
-                        case _:
-                            raise NotImplementedError()
-                case _:
-                    raise NotImplementedError()
+            else:
+                # See if we can combine or choose between the two
+                result = images.image(name, variant_of=result)
 
         if result is None:
             raise KeyError(f"Image {name!r} not found")

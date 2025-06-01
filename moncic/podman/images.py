@@ -1,13 +1,15 @@
+import io
 import logging
 from typing import TYPE_CHECKING, override
 
-from moncic.image import BootstrappableImage, RunnableImage
+from moncic.distro import DistroFamily, Distro
+from moncic.image import BootstrappableImage, RunnableImage, Image
 from moncic.images import BootstrappingImages
+from moncic.utils.osrelease import parse_osrelase_contents
 
 if TYPE_CHECKING:
+    import podman
     from moncic.session import Session
-
-    from .image import PodmanImage
 
 log = logging.getLogger("images")
 
@@ -29,20 +31,44 @@ class PodmanImages(BootstrappingImages):
         return logging.getLogger("images.podman")
 
     @override
-    def image(self, name: str) -> "PodmanImage":
+    def image(self, name: str, variant_of: Image | None = None) -> RunnableImage:
         """
         Return the configuration for the named system
         """
         from .image import PodmanImage
 
+        podman = self.session.podman
         repo, tag = self.podman_name(name)
         full_name = f"{repo}:{tag}"
-        podman = self.session.podman
-        if podman.images.exists(full_name):
-            podman_image = podman.images.get(full_name)
-            return PodmanImage(images=self, name=name, podman_image=podman_image)
-        else:
+        if not podman.images.exists(full_name):
             raise KeyError(f"image {name!r} not found")
+        podman_image = podman.images.get(full_name)
+
+        bootstrapped_from: BootstrappableImage | None = None
+        match variant_of:
+            case None:
+                distro = self._find_distro(name, podman, podman_image)
+            case BootstrappableImage():
+                distro = variant_of.distro
+                bootstrapped_from = variant_of
+            case RunnableImage():
+                # Reuse the previous found runnable image
+                return variant_of
+            case _:
+                raise NotImplementedError(f"variant_of has unknown image type {variant_of.__class__.__name__}")
+
+        return PodmanImage(
+            images=self, name=name, distro=distro, podman_image=podman_image, bootstrapped_from=bootstrapped_from
+        )
+
+    def _find_distro(
+        self, name: str, podman: "podman.client.PodmanClient", podman_image: "podman.domain.images.Image"
+    ) -> Distro:
+        os_release = podman.containers.run(podman_image, ["cat", "/etc/os-release"], remove=True)
+        assert isinstance(os_release, bytes)
+        with io.StringIO(os_release.decode()) as fd:
+            osr = parse_osrelase_contents(fd, f"{name}:/etc/os-release")
+        return DistroFamily.from_osrelease(osr, "test")
 
     @override
     def has_image(self, name: str) -> bool:

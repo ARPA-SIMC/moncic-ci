@@ -113,26 +113,30 @@ class BootstrappableImage(Image, abc.ABC):
 
 
 class RunnableImage(Image, abc.ABC):
-    def __init__(self, *, images: "Images", image_type: ImageType, name: str, distro: "Distro") -> None:
+    def __init__(
+        self,
+        *,
+        images: "Images",
+        image_type: ImageType,
+        name: str,
+        distro: "Distro",
+        bootstrapped_from: BootstrappableImage | None = None,
+    ) -> None:
         super().__init__(images=images, name=name, distro=distro, bootstrapped=True)
         #: Container type
         self.image_type: ImageType = image_type
-        self.bootstrap_from: BootstrappableImage | None = None
+        self.bootstrapped_from = bootstrapped_from
 
     def get_container_info(self) -> "ContainerInfo":
         """Get the ContainerInfo configuration for this image."""
         from moncic.provision.config import ContainerInfo
         from moncic.provision.image import ConfiguredImage
 
-        match self.bootstrap_from:
+        match self.bootstrapped_from:
             case ConfiguredImage():
-                return self.bootstrap_from.config.container_info
+                return self.bootstrapped_from.config.container_info
             case _:
                 return ContainerInfo()
-
-    def set_bootstrap_from(self, image: BootstrappableImage) -> None:
-        """Set the BootstrappableImage that can generate this image."""
-        self.bootstrap_from = image
 
     @abc.abstractmethod
     def get_backend_id(self) -> str:
@@ -144,21 +148,21 @@ class RunnableImage(Image, abc.ABC):
         """
         from moncic.runner import UserConfig
 
-        if self.bootstrap_from is None:
+        if self.bootstrapped_from is None:
             return
 
         # Forward users if needed
-        for u in self.bootstrap_from.forwards_users:
+        for u in self.bootstrapped_from.forwards_users:
             container.forward_user(UserConfig.from_user(u), allow_maint=True)
 
         script = Script("Upgrade container", cwd=Path("/"), root=True)
         self.distro.get_setup_network_script(script)
-        for text in self.bootstrap_from.maintscripts:
+        for text in self.bootstrapped_from.maintscripts:
             for line in text.splitlines():
                 script.run_unquoted(line)
         self.distro.get_update_pkgdb_script(script)
         self.distro.get_upgrade_system_script(script)
-        self.distro.get_install_packages_script(script, sorted(self.bootstrap_from.package_list))
+        self.distro.get_install_packages_script(script, sorted(self.bootstrapped_from.package_list))
         container.run_script(script)
 
     def update(self) -> None:

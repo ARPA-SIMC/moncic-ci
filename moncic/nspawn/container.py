@@ -207,9 +207,9 @@ class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
 
         self._check_host_system()
 
-        match self.image.bootstrap_from:
+        match self.image.bootstrapped_from:
             case ConfiguredImage():
-                compression = self.image.bootstrap_from.config.bootstrap_info.compression
+                compression = self.image.bootstrapped_from.config.bootstrap_info.compression
             case _:
                 compression = self.image.images.session.moncic.config.compression
 

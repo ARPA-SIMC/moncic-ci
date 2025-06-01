@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, override, Optional
 
 from moncic.image import BootstrappableImage
 
@@ -13,10 +13,17 @@ class ConfiguredImage(BootstrappableImage):
 
     images: "ConfiguredImages"
 
-    def __init__(self, *, images: "ConfiguredImages", name: str, config: Config) -> None:
-        super().__init__(images=images, name=name, distro=config.distro, bootstrapped=False)
+    def __init__(
+        self, *, images: "ConfiguredImages", name: str, config: Config, variant_of: Optional["DistroImage"]
+    ) -> None:
+        if variant_of is None:
+            distro = config.distro
+        else:
+            distro = variant_of.distro
+        super().__init__(images=images, name=name, distro=distro, bootstrapped=False)
         self.config = config
         self.config.warn_unsupported_entries(self.logger)
+        self.variant_of = variant_of
 
     @override
     def _forwards_users(self) -> list[str]:
