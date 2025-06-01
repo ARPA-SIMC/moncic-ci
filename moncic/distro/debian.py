@@ -47,11 +47,13 @@ class DebianDistro(Distro):
         key_url: str | None = None,
         cgroup_v1: bool = False,
         bootstrappers: Collection[str] = ("mmdebstrap", "debootstrap"),
+        apt_install_verb: str = "satisfy",
     ):
         super().__init__(family, name, version, other_names, cgroup_v1=cgroup_v1)
         self.mirror = mirror
         self.key_url = key_url
         self.bootstrappers = list(bootstrappers)
+        self.apt_install_verb = apt_install_verb
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -126,7 +128,7 @@ class DebianDistro(Distro):
     @override
     def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
         super().get_install_packages_script(script, packages)
-        script.run(self.APT_INSTALL_CMD + ["satisfy"] + packages)
+        script.run(self.APT_INSTALL_CMD + [self.apt_install_verb] + packages)
 
     @override
     def get_prepare_build_script(self, script: Script) -> None:
@@ -214,6 +216,7 @@ class Debian(DistroFamily):
                 mirror="http://archive.debian.org/debian/",
                 key_url="https://ftp-master.debian.org/keys/release-8.asc",
                 cgroup_v1=True,
+                apt_install_verb="install",
             )
         )
         self.add_distro(
@@ -223,9 +226,10 @@ class Debian(DistroFamily):
                 "9",
                 mirror="http://archive.debian.org/debian/",
                 key_url="https://ftp-master.debian.org/keys/release-9.asc",
+                apt_install_verb="install",
             )
         )
-        self.add_distro(DebianDistro(self, "buster", "10", ["oldoldstable"]))
+        self.add_distro(DebianDistro(self, "buster", "10", ["oldoldstable"], apt_install_verb="install"))
         self.add_distro(DebianDistro(self, "bullseye", "11", ["oldstable"]))
         self.add_distro(DebianDistro(self, "bookworm", "12", ["stable"]))
         self.add_distro(DebianDistro(self, "trixie", "13"))
