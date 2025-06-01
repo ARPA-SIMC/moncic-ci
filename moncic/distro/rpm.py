@@ -137,7 +137,8 @@ class DnfDistro(RpmDistro):
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
-        script.run(["/usr/bin/dnf", "check-update", "-q", "-y"])
+        # check-update returns with code 100 if there are packages to upgrade
+        script.run(["/usr/bin/dnf", "check-update", "-q", "-y"], check=False)
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
