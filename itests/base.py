@@ -108,8 +108,9 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
     @classmethod
     def get_bootstrapped(cls) -> RunnableImage:
         if not cls.bootstrapped:
-            image = cls.images.image(cls.distro.full_name)
-            if isinstance(image, RunnableImage):
+            if cls.images.has_image(cls.distro.full_name):
+                image = cls.images.image(cls.distro.full_name)
+                assert isinstance(image, RunnableImage)
                 cls.bootstrapped = image
                 return image
 
