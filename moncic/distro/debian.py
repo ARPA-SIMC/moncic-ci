@@ -5,9 +5,10 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Collection
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, override, Any
 
 import requests
 
@@ -45,10 +46,12 @@ class DebianDistro(Distro):
         mirror: str = "http://deb.debian.org/debian",
         key_url: str | None = None,
         cgroup_v1: bool = False,
+        bootstrappers: Collection[str] = ("mmdebstrap", "debootstrap"),
     ):
         super().__init__(family, name, version, other_names, cgroup_v1=cgroup_v1)
         self.mirror = mirror
         self.key_url = key_url
+        self.bootstrappers = list(bootstrappers)
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -83,8 +86,7 @@ class DebianDistro(Distro):
 
     @override
     def bootstrap(self, images: Images, path: Path) -> None:
-        bootstrappers = ("mmdebstrap", "debootstrap")
-        for name in bootstrappers:
+        for name in self.bootstrappers:
             if bootstrapper := shutil.which(name):
                 break
         else:
@@ -174,12 +176,12 @@ class UbuntuDistro(DebianDistro):
     Common implementation for Ubuntu-based distributions
     """
 
-    def __init__(self, family: DistroFamily, name: str, version: str, archived: bool = False, cgroup_v1: bool = False):
+    def __init__(self, family: DistroFamily, name: str, version: str, archived: bool = False, **kwargs: Any) -> None:
         if archived:
             mirror = "https://old-releases.ubuntu.com/ubuntu/"
         else:
             mirror = "https://archive.ubuntu.com/ubuntu/"
-        super().__init__(family, name, version, mirror=mirror, cgroup_v1=cgroup_v1)
+        super().__init__(family, name, version, mirror=mirror, **kwargs)
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -220,14 +222,49 @@ class Debian(DistroFamily):
         self.add_distro(DebianDistro(self, "bullseye", "11", ["oldstable"]))
         self.add_distro(DebianDistro(self, "bookworm", "12", ["stable"]))
         self.add_distro(DebianDistro(self, "trixie", "13"))
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1021663
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1077764
         self.add_distro(DebianDistro(self, "testing", None))
         self.add_distro(DebianDistro(self, "sid", None, ["unstable"]))
+
+    @override
+    def distro_from_osrelease(self, info: dict[str, str], fallback_name: str) -> "Distro":
+        # Distinguishing testing from sid is... complicated. See:
+        #
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1021663
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1077764
+
+        # If VERSION_ID is not set, then we can be in testing or sid. As we
+        # cannot tell which without ugly hacks, we assume sid as for a CI that
+        # is the common case.
+
+        # Note that in the few months before a release, Debian's sid and
+        # testing will identify as the coming stable instead.
+
+        # If one needs to target testing or sid explicitly, one can do so by
+        # creating a YAML configuration file for the image
+
+        if (os_version := info.get("VERSION_ID")) is None:
+            os_version = "sid"
+
+        names: list[str] = [f"{self.name}:{os_version}"]
+        if "." in os_version:
+            names.append(f"{self.name}:{os_version.split(".")[0]}")
+
+        for name in names:
+            if res := self.distro_lookup.get(name):
+                return res
+
+        raise KeyError(
+            f"Distro ID={self.name!r}, VERSION_ID={os_version!r} not found."
+            f" Tried: {', '.join(repr(name) for name in names)} "
+        )
 
 
 class Ubuntu(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(UbuntuDistro(self, "xenial", "16.04", cgroup_v1=True))
+        self.add_distro(UbuntuDistro(self, "xenial", "16.04", cgroup_v1=True, bootstrappers=["debootstrap"]))
         self.add_distro(UbuntuDistro(self, "bionic", "18.04"))
         self.add_distro(UbuntuDistro(self, "focal", "20.04"))
         self.add_distro(UbuntuDistro(self, "hirsute", "21.04", archived=True))

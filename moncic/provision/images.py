@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, override
 
 from moncic.distro import DistroFamily
 from moncic.images import Images
+from moncic.image import Image
 
 from .config import Config
 
@@ -53,12 +54,18 @@ class ConfiguredImages(Images):
         return name in self.configs
 
     @override
-    def image(self, name: str) -> BootstrappableImage:
+    def image(self, name: str, variant_of: Image | None = None) -> BootstrappableImage:
         from .image import ConfiguredImage
+
+        if not isinstance(variant_of, DistroImages):
+            raise NotImplementedError(
+                f"Image {name!r} is configured from {variant_of!r} which is a "
+                f" {variant_of.__class__.__name__} instead of DistroImage"
+            )
 
         if path := self.configs.get(name):
             config = Config(self.session, name, path)
-            return ConfiguredImage(images=self, name=name, config=config)
+            return ConfiguredImage(images=self, name=name, config=config, variant_of=variant_of)
 
         raise KeyError(f"Image {name!r} not found")
 
@@ -88,8 +95,11 @@ class DistroImages(Images):
             return False
 
     @override
-    def image(self, name: str) -> BootstrappableImage:
+    def image(self, name: str, variant_of: Image | None = None) -> BootstrappableImage:
         from .image import DistroImage
+
+        if variant_of is not None:
+            raise NotImplementedError("cannot build a DistroImage as an instance of another image")
 
         distro = DistroFamily.lookup_distro(name)
         return DistroImage(images=self, name=name, distro=distro)

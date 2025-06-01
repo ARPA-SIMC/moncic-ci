@@ -1,11 +1,9 @@
-import io
 import logging
 import re
 from typing import TYPE_CHECKING, Optional, override
 
-from moncic.distro import DistroFamily
+from moncic.distro import Distro
 from moncic.image import BootstrappableImage, ImageType, RunnableImage
-from moncic.utils.osrelease import parse_osrelase_contents
 
 if TYPE_CHECKING:
     import podman
@@ -26,15 +24,18 @@ class PodmanImage(RunnableImage):
 
     images: "PodmanImages"
 
-    def __init__(self, *, images: "PodmanImages", name: str, podman_image: "podman.domain.images.Image") -> None:
-        podman = images.session.podman
-        os_release = podman.containers.run(podman_image, ["cat", "/etc/os-release"], remove=True)
-        assert isinstance(os_release, bytes)
-        with io.StringIO(os_release.decode()) as fd:
-            osr = parse_osrelase_contents(fd, f"{name}:/etc/os-release")
-        distro = DistroFamily.from_osrelease(osr, "test")
-
-        super().__init__(images=images, image_type=ImageType.PODMAN, name=name, distro=distro)
+    def __init__(
+        self,
+        *,
+        images: "PodmanImages",
+        name: str,
+        distro: Distro,
+        podman_image: "podman.domain.images.Image",
+        bootstrapped_from: BootstrappableImage | None = None
+    ) -> None:
+        super().__init__(
+            images=images, image_type=ImageType.PODMAN, name=name, distro=distro, bootstrapped_from=bootstrapped_from
+        )
         self.id: str = podman_image.id
         self.short_id: str = podman_image.short_id
         self.podman_image = podman_image
@@ -60,7 +61,7 @@ class PodmanImage(RunnableImage):
     def remove(self) -> BootstrappableImage | None:
         podman = self.session.podman
         podman.images.remove(self.session.podman_repository + self.name)
-        return self.bootstrap_from
+        return self.bootstrapped_from
 
     @override
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":

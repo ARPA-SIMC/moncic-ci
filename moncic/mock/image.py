@@ -15,8 +15,12 @@ class MockImage(RunnableImage):
     session: "MockSession"
     images: "MockImages"
 
-    def __init__(self, *, images: "MockImages", name: str, distro: Distro) -> None:
-        super().__init__(images=images, image_type=ImageType.MOCK, name=name, distro=distro)
+    def __init__(
+        self, *, images: "MockImages", name: str, distro: Distro, bootstrapped_from: BootstrappableImage | None = None
+    ) -> None:
+        super().__init__(
+            images=images, image_type=ImageType.MOCK, name=name, distro=distro, bootstrapped_from=bootstrapped_from
+        )
 
     @override
     def get_backend_id(self) -> str:
@@ -25,7 +29,7 @@ class MockImage(RunnableImage):
     @override
     def remove(self) -> BootstrappableImage | None:
         self.session.run_log.append_action(f"{self.name}: remove")
-        return self.bootstrap_from
+        return self.bootstrapped_from
 
     @override
     def container(self, *, instance_name: str | None = None, config: ContainerConfig | None = None) -> Container:

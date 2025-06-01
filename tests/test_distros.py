@@ -28,28 +28,6 @@ class DistroFamilyTestsBase(MoncicTestCase):
             for alias in distro.aliases:
                 self.assertIs(self.family.lookup_distro(alias), distro)
 
-    def test_from_osrelease(self) -> None:
-        for distro in self.family.distros:
-            if distro.name == "testing":
-                continue
-            with self.subTest(distro=distro.name):
-                parsed = {"ID": self.family.name}
-                if distro.version is not None:
-                    parsed["VERSION_ID"] = distro.version
-
-                self.assertIs(DistroFamily.from_osrelease(parsed, "invalid"), distro)
-
-                with tempfile.TemporaryDirectory() as root_str:
-                    root = Path(root_str)
-                    path = root / "etc" / "os-release"
-                    path.parent.mkdir(parents=True)
-                    with path.open("wt") as fd:
-                        print(f"ID={shlex.quote(parsed['ID'])}", file=fd)
-                        if version_id := parsed.get("VERSION_ID"):
-                            print(f"VERSION_ID={shlex.quote(version_id)}", file=fd)
-
-                    self.assertIs(DistroFamily.from_path(root), distro)
-
 
 class DebianDistroFamilyTests(DistroFamilyTestsBase):
     family = DistroFamily.lookup_family("debian")
@@ -105,6 +83,31 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
                 f"/usr/bin/dnf install -q -y {shlex.join(packages)}",
             ],
         )
+
+    def get_osrelease_samples(self) -> list[dict[str, str]]:
+        """Get sample parsed os-release files (if any) that should detect as this distro."""
+        if self.distro.name == "testing":
+            return []
+        parsed = {"ID": self.distro.family.name}
+        if self.distro.version is not None:
+            parsed["VERSION_ID"] = self.distro.version
+        return [parsed]
+
+    def test_from_osrelease(self) -> None:
+        for parsed in self.get_osrelease_samples():
+            with self.subTest(parsed=parsed):
+                self.assertIs(DistroFamily.from_osrelease(parsed, "invalid"), self.distro)
+
+                with tempfile.TemporaryDirectory() as root_str:
+                    root = Path(root_str)
+                    path = root / "etc" / "os-release"
+                    path.parent.mkdir(parents=True)
+                    with path.open("wt") as fd:
+                        print(f"ID={shlex.quote(parsed['ID'])}", file=fd)
+                        if version_id := parsed.get("VERSION_ID"):
+                            print(f"VERSION_ID={shlex.quote(version_id)}", file=fd)
+
+                    self.assertIs(DistroFamily.from_path(root), self.distro)
 
     def test_get_podman_name(self) -> None:
         # Just call it and see it doesn't explode
@@ -178,7 +181,7 @@ class DebDistroTestsBase(DistroTestsBase):
             custom_keyring = ""
         run_log.assertPopFirst(
             re.compile(
-                rf"(/usr/bin/eatmydata )?/usr/bin/(?:mmdebstrap|debootstrap) --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
+                rf"(/usr/bin/eatmydata )?/usr/s?bin/(?:mmdebstrap|debootstrap) --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
                 rf" --variant=minbase{custom_keyring} {self.distro.name} {path} {self.mirror}"
             )
         )

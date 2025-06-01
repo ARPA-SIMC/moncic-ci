@@ -112,23 +112,29 @@ class DistroFamily(abc.ABC):
         if (os_id := info.get("ID")) is None:
             return cls.lookup_distro(fallback_name)
 
-        os_version = info.get("VERSION_ID")
-        if os_version is None and os_id == "debian":
-            os_version = "sid"
+        family = cls.lookup_family(os_id)
+        return family.distro_from_osrelease(info, fallback_name)
 
-        if os_version is None:
-            return cls.lookup_distro(fallback_name)
+    def distro_from_osrelease(self, info: dict[str, str], fallback_name: str) -> "Distro":
+        """
+        Lookup a distro from parsed /etc/os-release contents.
 
-        names: list[str] = [f"{os_id}:{os_version}"]
+        DistroFamily instances can override this to provide distro-specific
+        behaviour.
+        """
+        if (os_version := info.get("VERSION_ID")) is None:
+            return self.lookup_distro(fallback_name)
+
+        names: list[str] = [f"{self.name}:{os_version}"]
         if "." in os_version:
-            names.append(f"{os_id}:{os_version.split(".")[0]}")
+            names.append(f"{self.name}:{os_version.split(".")[0]}")
 
         for name in names:
-            if res := cls.distro_lookup.get(name):
+            if res := self.distro_lookup.get(name):
                 return res
 
         raise KeyError(
-            f"Distro ID={os_id!r}, VERSION_ID={os_version!r} not found."
+            f"Distro ID={self.name!r}, VERSION_ID={os_version!r} not found."
             f" Tried: {', '.join(repr(name) for name in names)} "
         )
 

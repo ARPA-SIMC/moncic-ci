@@ -30,8 +30,11 @@ class NspawnImage(RunnableImage, abc.ABC):
         name: str,
         distro: Distro,
         path: Path,
+        bootstrapped_from=BootstrappableImage,
     ) -> None:
-        super().__init__(images=images, image_type=ImageType.NSPAWN, name=name, distro=distro)
+        super().__init__(
+            images=images, image_type=ImageType.NSPAWN, name=name, distro=distro, bootstrapped_from=bootstrapped_from
+        )
         #: Image storage for this image
         self.images = images
         #: Path to the image on disk
@@ -65,16 +68,16 @@ class NspawnImage(RunnableImage, abc.ABC):
         Return a dictionary describing facts about the container
         """
         res: dict[str, Any] = super().describe()
-        if self.bootstrap_from is None:
+        if self.bootstrapped_from is None:
             return res
 
         # Forward users if needed
-        if users_forwarded := self.bootstrap_from.forwards_users:
+        if users_forwarded := self.bootstrapped_from.forwards_users:
             res["users_forwarded"] = users_forwarded
 
         # Build list of packages to install, removing duplicates
         packages: set[str] = set()
-        for pkg in self.bootstrap_from.config_package_list:
+        for pkg in self.bootstrapped_from.config_package_list:
             packages.add(pkg)
 
         res["packages_required"] = sorted(packages)
@@ -92,7 +95,7 @@ class NspawnImage(RunnableImage, abc.ABC):
         #     res["packages_installed"] = {}
 
         # Describe maintscripts
-        if scripts := self.bootstrap_from.maintscripts:
+        if scripts := self.bootstrapped_from.maintscripts:
             res["maintscripts"] = scripts
 
         return res
@@ -112,9 +115,9 @@ class NspawnImage(RunnableImage, abc.ABC):
         """
         from moncic.provision.image import ConfiguredImage
 
-        match self.bootstrap_from:
+        match self.bootstrapped_from:
             case ConfiguredImage():
-                backup = self.bootstrap_from.config.bootstrap_info.backup
+                backup = self.bootstrapped_from.config.bootstrap_info.backup
             case _:
                 return
 
@@ -149,7 +152,7 @@ class NspawnImagePlain(NspawnImage):
         with context.privs.root():
             if self.path.exists():
                 shutil.rmtree(self.path)
-        return self.bootstrap_from
+        return self.bootstrapped_from
 
 
 class NspawnImageBtrfs(NspawnImage):
@@ -159,4 +162,4 @@ class NspawnImageBtrfs(NspawnImage):
             if self.path.exists():
                 subvolume = Subvolume(self.session.images.session.moncic.config, self.path, None)
                 subvolume.remove()
-        return self.bootstrap_from
+        return self.bootstrapped_from
