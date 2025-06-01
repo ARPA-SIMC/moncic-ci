@@ -194,6 +194,8 @@ class NspawnContainer(Container):
         runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
         with context.privs.root():
             completed = runner.execute()
+        if run_config.check:
+            completed.check_returncode()
         return completed
 
 
