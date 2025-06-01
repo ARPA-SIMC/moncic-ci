@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import override
+from typing import override, Any
 
 from moncic.context import privs
 from moncic.utils.guest import guest_only, host_only
@@ -24,7 +24,8 @@ class RPM(Build):
 
     source: RPMSource
 
-    def __post_init__(self) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
         from ..distro.rpm import DnfDistro, YumDistro
 
         if isinstance(self.distro, YumDistro):
