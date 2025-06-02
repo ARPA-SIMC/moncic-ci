@@ -69,7 +69,7 @@ as you would run it on your normal system, keeping iteration lags low.
 %py3_install
 
 %check
-%pytest
+./test
 
 %files
 %{_bindir}/monci
