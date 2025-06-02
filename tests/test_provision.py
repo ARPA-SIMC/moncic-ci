@@ -1,4 +1,5 @@
 from typing import override
+from unittest import mock
 
 from moncic.distro import Distro, DistroFamily
 from moncic.moncic import Moncic, MoncicConfig
@@ -15,7 +16,8 @@ class DistroImagesTests(MoncicTestCase):
         config.imageconfdirs = []
         config.auto_sudo = False
         config.deb_cache_dir = None
-        self.session = self.enterContext(Moncic(config).session())
+        with mock.patch("moncic.session.Session._instantiate_images_default"):
+            self.session = self.enterContext(Moncic(config).session())
         self.images = DistroImages(self.session)
 
     def all_distros(self) -> list[Distro]:
