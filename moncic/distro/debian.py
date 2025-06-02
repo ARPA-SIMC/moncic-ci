@@ -134,7 +134,7 @@ class DebianDistro(Distro):
     def get_prepare_build_script(self, script: Script) -> None:
         super().get_prepare_build_script(script)
         self.get_install_packages_script(
-            script, ["build-essential", "dpkg-dev", "fakeroot", "eatmydata", "git-buildpackage"]
+            script, ["build-essential", "dpkg-dev", "fakeroot", "eatmydata", "git-buildpackage", "util-linux"]
         )
 
     @override

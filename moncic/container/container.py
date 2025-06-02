@@ -238,7 +238,10 @@ class Container(abc.ABC):
             script.print(file=tf)
             os.fchmod(tf.fileno(), 0o755)
             tf.close()
-            return self.run([(self.mounted_scriptdir / os.path.basename(tf.name)).as_posix()], run_config)
+            cmd = [(self.mounted_scriptdir / os.path.basename(tf.name)).as_posix()]
+            if script.wrapper:
+                cmd = script.wrapper + cmd
+            return self.run(cmd, run_config)
 
     @abc.abstractmethod
     def run_callable_raw(

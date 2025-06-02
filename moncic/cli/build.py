@@ -135,6 +135,7 @@ class CI(SourceCommand):
                                     "title": obj.title,
                                     "cwd": obj.cwd,
                                     "root": obj.root,
+                                    "wrapper": obj.wrapper,
                                     "shell": obj.shell,
                                     "lines": obj.lines,
                                 }

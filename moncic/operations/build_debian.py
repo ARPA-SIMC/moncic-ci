@@ -113,37 +113,12 @@ class DebianBuilder(Builder):
         guest_dsc_path = self.build_source(container)
         log.info("Source built as %s", guest_dsc_path)
 
-        # TODO: Legacy: build operations performed inside the guest system
+        if self.config.source_only:
+            self.results.success = True
+            return
 
-        # Build run config
-        run_config = container.config.run_config()
-        run_config.user = UserConfig.root()
-        # Log run config
-        for fld in dataclasses.fields(run_config):
-            log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
-
-        self.results = container.run_callable(self.guest_main, run_config, args=(guest_dsc_path,))
-
-    @guest_only
-    def guest_main(self, guest_dsc_path: Path) -> BuildResults:
-        """Run the build inside the guest system."""
-        from ..source.debian import DebianSource
-
-        assert isinstance(self.source, DebianSource)
-
-        self.source = self.source.in_path(self.guest_source_path)
-
-        if not self.config.source_only:
-            self.build_binary(guest_dsc_path)
-
-        self.results.success = True
-        return self.results
-
-    @guest_only
-    def build_binary(self, dsc_path: Path) -> None:
-        """
-        Build binary packages
-        """
+        build_profiles: str = ""
+        build_options: str = ""
         if self.config.build_profile:
             profiles: list[str] = []
             options: list[str] = []
@@ -169,45 +144,44 @@ class DebianBuilder(Builder):
                 else:
                     profiles.append(entry)
 
-            os.environ["DEB_BUILD_PROFILES"] = " ".join(profiles)
-            os.environ["DEB_BUILD_OPTIONS"] = " ".join(options)
+            build_profiles = " ".join(profiles)
+            build_options = " ".join(options)
 
-        # Log DEB_* env variables
-        for k, v in os.environ.items():
-            if k.startswith("DEB_"):
-                log.debug("%s=%r", k, v)
+        guest_build_root = Path("/srv/moncic-ci/build")
 
-        with cd("/srv/moncic-ci/build"):
-            self.trace_run(["dpkg-source", "-x", dsc_path.as_posix()])
+        unpack_script = Script("Unpack sources", cwd=guest_build_root)
+        unpack_script.setenv("DEB_BUILD_PROFILES", build_profiles)
+        unpack_script.setenv("DEB_BUILD_OPTIONS", build_options)
+        unpack_script.run(["dpkg-source", "-x", guest_dsc_path.as_posix()])
+        self.results.scripts.append(unpack_script)
+        container.run_script(unpack_script)
 
-            # Find the newly created build directory
-            with os.scandir(".") as it:
-                for de in it:
-                    if de.is_dir():
-                        builddir = de.path
-                        break
-                else:
-                    raise RuntimeError("build directory not found")
+        builddep_script = Script(
+            "Install build dependencies",
+            root=True,
+            cwd=guest_build_root / f"{self.source.source_info.name}-{self.source.source_info.upstream_version}",
+        )
+        builddep_script.setenv("DEB_BUILD_PROFILES", build_profiles)
+        builddep_script.setenv("DEB_BUILD_OPTIONS", build_options)
+        builddep_script.setenv("DEBIAN_FRONTEND", "noninteractive")
+        builddep_script.run(apt_get_cmd("build-dep", "./"))
+        self.results.scripts.append(builddep_script)
+        container.run_script(builddep_script)
 
-            with cd(builddir):
-                # Install build dependencies
-                env = dict(os.environ)
-                env.update(DEBIAN_FRONTEND="noninteractive")
-                self.trace_run(apt_get_cmd("build-dep", "./"), env=env)
-
-                # Build dependencies are installed, we don't need internet
-                # anymore: Debian packages are required to build without
-                # network access
-                setns.unshare(setns.CLONE_NEWNET)
-
-                # But we do need a working loopback
-                run(["ip", "link", "set", "dev", "lo", "up"])
-
-                # Build
-                cmd = ["dpkg-buildpackage", "--no-sign"]
-                if self.config.include_source:
-                    cmd.append("-sa")
-                self.trace_run(cmd, env=env)
+        # Once build dependencies are installed, we don't need internet
+        # anymore: Debian packages are required to build without network access
+        build_script = Script("Build binary package", wrapper=["/usr/bin/unshare", "--net"], root=True)
+        build_script.setenv("DEB_BUILD_PROFILES", build_profiles)
+        build_script.setenv("DEB_BUILD_OPTIONS", build_options)
+        # But we do need a working loopback
+        build_script.run(["ip", "link", "set", "dev", "lo", "up"])
+        cmd = ["dpkg-buildpackage", "--no-sign"]
+        if self.config.include_source:
+            cmd.append("-sa")
+        build_script.run(cmd)
+        self.results.scripts.append(build_script)
+        container.run_script(build_script)
+        self.results.success = True
 
     @override
     @host_only

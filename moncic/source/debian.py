@@ -44,6 +44,10 @@ class SourceInfo:
     dsc_filename: str
     #: Name of the source tarball, without extension
     tar_stem: str
+    #: True if this is a native package
+    native: bool
+    #: Upstream version
+    upstream_version: str
 
     @classmethod
     def create_from_dir(cls, path: Path) -> "SourceInfo":
@@ -60,17 +64,22 @@ class SourceInfo:
         return cls(**cls._infer_args_from_name_version(name, version))
 
     @classmethod
-    def _infer_args_from_name_version(cls, name: str, version: str, **kwargs: Any) -> dict[str, str]:
-        res: dict[str, str] = {
+    def _infer_args_from_name_version(cls, name: str, version: str, **kwargs: Any) -> dict[str, Any]:
+        version_dsc = version.split(":", 1)[1] if ":" in version else version
+        native = "-" not in version_dsc
+
+        res: dict[str, Any] = {
             "name": name,
             "version": version,
+            "native": native,
         }
-        version_dsc = version.split(":", 1)[1] if ":" in version else version
-        if "-" in version_dsc:
+        if not native:
             upstream_version = version_dsc.split("-", 1)[0]
             res["tar_stem"] = f"{name}_{upstream_version}.orig.tar"
+            res["upstream_version"] = upstream_version
         else:
             res["tar_stem"] = f"{name}_{version_dsc}.tar"
+            res["upstream_version"] = version
         res["dsc_filename"] = f"{name}_{version_dsc}.dsc"
         res.update(kwargs)
         return res

@@ -10,11 +10,14 @@ from moncic import context
 class Script:
     """Incrementally build a shellscript."""
 
-    def __init__(self, title: str, *, cwd: Path | None = None, root: bool = False) -> None:
+    def __init__(
+        self, title: str, *, cwd: Path | None = None, root: bool = False, wrapper: list[str] | None = None
+    ) -> None:
         self.title = title
         self.cwd = cwd
         self.root = root
         self.debug_mode = context.debug.get()
+        self.wrapper = wrapper
         if self.debug_mode:
             self.shell = "/bin/sh -uxe"
         else:
@@ -28,6 +31,10 @@ class Script:
 
     def add_line(self, line: str) -> None:
         self.lines.append(" " * self.indent + line)
+
+    def setenv(self, key: str, value: str) -> None:
+        """Export an environment variable."""
+        self.add_line(f"{key}={shlex.quote(value)}")
 
     def run_unquoted(self, command: str, *, description: str | None = None, cwd: Path | None = None) -> None:
         if description:
@@ -56,6 +63,18 @@ class Script:
         if not check:
             cmd += " || true"
         self.add_line(cmd)
+
+    @contextmanager
+    def cd(self, path: Path) -> Generator[None, None, None]:
+        """Run a part of script in a given directory."""
+        self.add_line("(")
+        self.indent += 4
+        try:
+            self.add_line(f"cd {shlex.quote(path.as_posix())}")
+            yield
+        finally:
+            self.indent -= 4
+            self.add_line(")")
 
     @contextmanager
     def if_(self, condition: str | Iterable[str]) -> Generator[None, None, None]:
