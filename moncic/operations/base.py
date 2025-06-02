@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import abc
 import contextlib
-import dataclasses
 import logging
 import tempfile
 from collections.abc import Callable, Generator
@@ -59,10 +58,20 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         self.guest_source_path = self.guest_root / "source" / self.source.path.name
         #: Modular units of functionality activated on this operation
         self.plugins: list[Callable[[ContainerConfig], ContextManager[None]]] = [
-            self.plugin_container_filesystem,
             self.plugin_mount_source,
+            self.plugin_container_filesystem,
             self.plugin_source_artifacts,
         ]
+
+    @contextlib.contextmanager
+    def plugin_mount_source(self, config: ContainerConfig) -> Generator[None]:
+        """Mount the source path inside the container."""
+        # Mount the source path as /srv/moncic-ci/source/<name>
+        # Set it as the default current directory in the container
+        config.configure_workdir(
+            self.host_source_path, bind_type=BindType.VOLATILE, mountpoint=self.guest_source_path.parent
+        )
+        yield
 
     @contextlib.contextmanager
     def plugin_container_filesystem(self, config: ContainerConfig) -> Generator[None]:
@@ -83,16 +92,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         # TODO
         # log_file = container_root / "srv" / "moncic-ci" / "buildlog"
         # self.log_capture_start(log_file)
-
-    @contextlib.contextmanager
-    def plugin_mount_source(self, config: ContainerConfig) -> Generator[None]:
-        """Mount the source path inside the container."""
-        # Mount the source path as /srv/moncic-ci/source/<name>
-        # Set it as the default current directory in the container
-        config.configure_workdir(
-            self.host_source_path, bind_type=BindType.VOLATILE, mountpoint=self.guest_source_path.parent
-        )
-        yield
 
     @contextlib.contextmanager
     def plugin_source_artifacts(self, config: ContainerConfig) -> Generator[None]:
@@ -200,39 +199,19 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         """
         # Do nothing by default
 
-    @guest_only
-    def get_guest_source(self) -> DistroSource:
-        """
-        Return self.source pointing to its location inside the guest system
-        """
-        assert self.guest_source_path
-        return self.source.in_path(self.guest_source_path)
-
     @host_only
-    def host_main(self) -> Any:
+    def host_main(self) -> None:
         """
         Run the build, store the artifacts in the given directory if requested,
         return the returncode of the build process
         """
         with self.container() as container:
-            # Build run config
-            run_config = container.config.run_config()
-            run_config.user = UserConfig.root()
-            # Log run config
-            for fld in dataclasses.fields(run_config):
-                log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
-
             try:
-                result = container.run_callable(self.guest_main, run_config)
-                self.process_guest_result(result)
+                self.run(container)
             finally:
                 self._after_build(container)
 
-        return result
-
+    @host_only
     @abc.abstractmethod
-    def guest_main(self) -> Any:
-        """
-        Function run on the guest system to perform the operation
-        """
-        ...
+    def run(self, container: Container) -> None:
+        """Run the operation in the container."""

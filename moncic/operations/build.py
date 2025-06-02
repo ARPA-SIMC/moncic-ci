@@ -1,5 +1,6 @@
 import abc
 import contextlib
+import dataclasses
 import inspect
 import subprocess
 import logging
@@ -295,7 +296,14 @@ class Builder(ContainerSourceOperation, abc.ABC):
             env["MONCIC_SOURCE"] = self.source.name
             run(["/bin/sh", "-c", cmd], env=env)
 
-    @override
+    @guest_only
+    def get_guest_source(self) -> DistroSource:
+        """
+        Return self.source pointing to its location inside the guest system
+        """
+        assert self.guest_source_path
+        return self.source.in_path(self.guest_source_path)
+
     @guest_only
     def guest_main(self) -> BuildResults:
         """
@@ -304,6 +312,19 @@ class Builder(ContainerSourceOperation, abc.ABC):
         self.source = self.get_guest_source()
         self.build()
         return self.results
+
+    @override
+    @host_only
+    def run(self, container: Container) -> None:
+        # Build run config
+        run_config = container.config.run_config()
+        run_config.user = UserConfig.root()
+        # Log run config
+        for fld in dataclasses.fields(run_config):
+            log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
+
+        result = container.run_callable(self.guest_main, run_config)
+        self.process_guest_result(result)
 
     @override
     @host_only
