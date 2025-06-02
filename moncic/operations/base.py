@@ -9,7 +9,6 @@ from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, ContextManager
 
-from moncic.utils.link_or_copy import link_or_copy
 from moncic.container import BindType, ContainerConfig
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource
@@ -23,7 +22,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class ContainerSourceOperation(abc.ABC):
+class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
     """
     Base class for operations on sources performed inside a container.
 
@@ -36,31 +35,32 @@ class ContainerSourceOperation(abc.ABC):
     * /srv/moncic-ci/source/{name} (volatile): sources are mounted here
     """
 
-    def __init__(self, image: RunnableImage, source: DistroSource, *, artifacts_dir: Path | None = None) -> None:
+    def __init__(self, image: RunnableImage, source: DistroSource, *, source_artifacts_dir: Path | None = None) -> None:
+        super().__init__()
         #: Image used for container operations
         self.image = image
         #: Source to work on
         self.source = source
-        #: Directory where extra artifacts can be found or stored
-        self.artifacts_dir = artifacts_dir
-        # User to use for the build
+        #: User to use for the build
         self.user = UserConfig.from_sudoer()
-        # Build log file
+        #: Optional extra directory used to look for source artifacts
+        self.source_artifacts_dir = source_artifacts_dir
+        #: Build log file
         self.log_file: IO[str] | None = None
-        # Log handler used to capture build output
+        #: Log handler used to capture build output
         self.log_handler: logging.Handler | None = None
+        #: Host path used as working area
+        self.host_root = Path(self.enter_context(tempfile.TemporaryDirectory()))
         #: Path in the container used as the root of our operation-specific filesystem tree
-        self.operation_root = Path("/srv/moncic-ci/")
+        self.guest_root = Path("/srv/moncic-ci/")
         #: Path inside the guest system where sources are mounted
-        self.guest_source_path = self.operation_root / "source" / self.source.path.name
+        self.guest_source_path = self.guest_root / "source" / self.source.path.name
         #: Modular units of functionality activated on this operation
         self.plugins: list[Callable[[ContainerConfig], ContextManager[None]]] = [
             self.plugin_container_filesystem,
             self.plugin_mount_source,
             self.plugin_source_artifacts,
         ]
-        if self.artifacts_dir:
-            self.plugins.append(self.plugin_build_artifacts)
 
     @contextlib.contextmanager
     def plugin_container_filesystem(self, config: ContainerConfig) -> Generator[None]:
@@ -92,9 +92,9 @@ class ContainerSourceOperation(abc.ABC):
     @contextlib.contextmanager
     def plugin_source_artifacts(self, config: ContainerConfig) -> Generator[None]:
         """Collect source artifacts and make them available in the container."""
-        with tempfile.TemporaryDirectory(dir=self.artifacts_dir) as source_artifacts_dir_str:
+        with tempfile.TemporaryDirectory(dir=self.source_artifacts_dir) as source_artifacts_dir_str:
             source_artifacts_dir = Path(source_artifacts_dir_str)
-            self.source.collect_build_artifacts(source_artifacts_dir, self.artifacts_dir)
+            self.source.collect_build_artifacts(source_artifacts_dir, self.source_artifacts_dir)
 
             has_source_artifacts = False
             for path in source_artifacts_dir.iterdir():
@@ -118,19 +118,6 @@ class ContainerSourceOperation(abc.ABC):
             config.add_guest_scripts(setup=copy_script)
 
             yield None
-
-    @contextlib.contextmanager
-    def plugin_build_artifacts(self, config: ContainerConfig) -> Generator[None]:
-        """Collect artifacts produced by the build."""
-        assert self.artifacts_dir is not None
-        with tempfile.TemporaryDirectory(dir=self.artifacts_dir) as artifacts_transfer_path_str:
-            artifacts_transfer_path = Path(artifacts_transfer_path_str)
-            config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
-            config.add_guest_scripts(teardown=self.collect_artifacts_script())
-            try:
-                yield None
-            finally:
-                self.harvest_artifacts(artifacts_transfer_path)
 
     @host_only
     @contextlib.contextmanager
@@ -171,16 +158,6 @@ class ContainerSourceOperation(abc.ABC):
             log.debug("moncic:%s = %r", key, value)
         # Log container config
         container_config.log_debug(log)
-
-    @host_only
-    def harvest_artifacts(self, transfer_dir: Path) -> None:
-        """Move artifacts from the transfer directory to their final destination."""
-        assert self.artifacts_dir is not None
-        for path in transfer_dir.iterdir():
-            if not path.is_file():
-                continue
-            # TODO: this can be a move instead
-            link_or_copy(path, self.artifacts_dir, filename=path.name)
 
     @host_only
     @contextlib.contextmanager

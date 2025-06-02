@@ -5,6 +5,7 @@ import subprocess
 import logging
 import shlex
 import os
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
 from collections.abc import Generator, Sequence
@@ -12,9 +13,10 @@ from dataclasses import dataclass, field, fields
 
 import yaml
 
+from moncic.utils.link_or_copy import link_or_copy
+from moncic.container import BindType, ContainerConfig, Container
 from moncic.source.distro import DistroSource
 from moncic.exceptions import Fail
-from moncic.container import Container, ContainerConfig
 from moncic.runner import UserConfig
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
@@ -174,12 +176,29 @@ class Builder(ContainerSourceOperation, abc.ABC):
         raise Fail(f"Cannot detect builder class for {source.__class__.__name__} source")
 
     def __init__(self, source: DistroSource, image: "RunnableImage", config: BuildConfig) -> None:
-        super().__init__(image=image, source=source, artifacts_dir=config.artifacts_dir)
+        super().__init__(image=image, source=source, source_artifacts_dir=config.artifacts_dir)
         #: Build configuration
         self.config = config
         #: Build results
         self.results = BuildResults()
+        #: Directory where extra artifacts can be found or stored
+        if self.config.artifacts_dir:
+            self.plugins.append(self.plugin_build_artifacts)
+
         self.plugins.append(self.operation_plugin)
+
+    @contextlib.contextmanager
+    def plugin_build_artifacts(self, config: ContainerConfig) -> Generator[None]:
+        """Collect artifacts produced by the build."""
+        assert self.config.artifacts_dir is not None
+        with tempfile.TemporaryDirectory(dir=self.config.artifacts_dir) as artifacts_transfer_path_str:
+            artifacts_transfer_path = Path(artifacts_transfer_path_str)
+            config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
+            config.add_guest_scripts(teardown=self.collect_artifacts_script())
+            try:
+                yield None
+            finally:
+                self.harvest_artifacts(artifacts_transfer_path)
 
     @contextlib.contextmanager
     def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
@@ -304,12 +323,16 @@ class Builder(ContainerSourceOperation, abc.ABC):
 
         return script
 
-    @override
     @host_only
     def harvest_artifacts(self, transfer_dir: Path) -> None:
+        """Move artifacts from the transfer directory to their final destination."""
+        assert self.artifacts_dir is not None
         for path in transfer_dir.iterdir():
+            if not path.is_file():
+                continue
+            # TODO: this can be a move instead
+            link_or_copy(path, self.artifacts_dir, filename=path.name)
             self.results.artifacts.append(path.name)
-        super().harvest_artifacts(transfer_dir)
 
     @classmethod
     def get_name(cls) -> str:
