@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, override, Optional
+from typing import TYPE_CHECKING, Optional, override
 
 from moncic.image import BootstrappableImage
 

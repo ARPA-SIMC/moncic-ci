@@ -5,10 +5,10 @@ import re
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Collection
 from collections import defaultdict
+from collections.abc import Collection
 from pathlib import Path
-from typing import TYPE_CHECKING, override, Any
+from typing import TYPE_CHECKING, Any, override
 
 import requests
 
@@ -239,7 +239,7 @@ class Debian(DistroFamily):
         self.add_distro(DebianDistro(self, "sid", None, ["unstable"]))
 
     @override
-    def distro_from_osrelease(self, info: dict[str, str], fallback_name: str) -> "Distro":
+    def distro_from_osrelease(self, info: dict[str, str], fallback_name: str) -> Distro:
         # Distinguishing testing from sid is... complicated. See:
         #
         # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1021663

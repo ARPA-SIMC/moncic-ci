@@ -1,10 +1,10 @@
 import subprocess
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, override
+from typing import override
 
-from moncic.container import Container, MaintenanceContainer, Result
+from moncic.container import Container, MaintenanceContainer
 from moncic.container.binds import BindConfig
 from moncic.runner import CompletedCallable, RunConfig
 from moncic.utils.script import Script
@@ -52,30 +52,9 @@ class MockContainer(Container):
         return CompletedCallable(command, 0, b"", b"")
 
     @override
-    def run_script(self, script: Script) -> subprocess.CompletedProcess[bytes]:
+    def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         self.image.session.run_log.append_script(script)
         return CompletedCallable(["script"], 0, b"", b"")
-
-    @override
-    def run_callable_raw(
-        self,
-        func: Callable[..., Result],
-        config: RunConfig | None = None,
-        args: tuple[Any, ...] = (),
-        kwargs: dict[str, Any] | None = None,
-    ) -> CompletedCallable[Result]:
-        raise NotImplementedError()
-        # run_config = self.config.run_config(config)
-        # self.image.images.session.mock_log(
-        #     system=self.image.name,
-        #     action="run callable",
-        #     config=run_config,
-        #     func=func.__name__,
-        #     desc=func.__doc__,
-        #     args=args,
-        #     kwargs=kwargs,
-        # )
-        # return CompletedCallable(args=func.__name__, returncode=0)
 
 
 class MockMaintenanceContainer(MockContainer, MaintenanceContainer):

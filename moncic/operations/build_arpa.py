@@ -1,18 +1,16 @@
-import glob
 import logging
 import shlex
-import os
-import shutil
 from pathlib import Path
-from typing import override, Any
+from typing import Any, override
 
-from moncic.context import privs
 from moncic.container import Container
+from moncic.context import privs
+from moncic.source.rpm import RPMSource
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
+
 from .build import Builder
-from moncic.source.rpm import RPMSource
 
 log = logging.getLogger(__name__)
 

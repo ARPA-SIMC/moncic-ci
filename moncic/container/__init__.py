@@ -1,6 +1,6 @@
 from .binds import BindConfig, BindType
 from .config import ContainerConfig
-from .container import Container, MaintenanceContainer, Result, ContainerCannotStart
+from .container import Container, ContainerCannotStart, MaintenanceContainer
 
 __all__ = [
     "BindConfig",
@@ -9,5 +9,4 @@ __all__ = [
     "ContainerCannotStart",
     "ContainerConfig",
     "MaintenanceContainer",
-    "Result",
 ]

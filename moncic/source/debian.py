@@ -13,11 +13,12 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import git
 
-from moncic.utils.link_or_copy import link_or_copy
 from moncic.distro.debian import DebianDistro
 from moncic.exceptions import Fail
 from moncic.utils.guest import host_only
+from moncic.utils.link_or_copy import link_or_copy
 from moncic.utils.run import log_run, run
+
 from .distro import DistroSource
 from .local import Dir, File, Git
 from .source import CommandLog

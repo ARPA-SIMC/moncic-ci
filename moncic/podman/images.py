@@ -2,13 +2,14 @@ import io
 import logging
 from typing import TYPE_CHECKING, override
 
-from moncic.distro import DistroFamily, Distro
-from moncic.image import BootstrappableImage, RunnableImage, Image
+from moncic.distro import Distro, DistroFamily
+from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
 from moncic.utils.osrelease import parse_osrelase_contents
 
 if TYPE_CHECKING:
     import podman
+
     from moncic.session import Session
 
 log = logging.getLogger("images")

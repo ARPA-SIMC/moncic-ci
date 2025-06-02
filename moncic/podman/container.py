@@ -1,16 +1,15 @@
 import signal
 import subprocess
-import warnings
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, override
 
 import podman
 
-from moncic import context
-from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result
-from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
+from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer
+from moncic.runner import RunConfig, UserConfig
+from moncic.utils.script import Script
 
 from .image import PodmanImage
 
@@ -53,7 +52,7 @@ class PodmanContainer(Container):
                 "Type": "bind",
                 "Readonly": "true",
                 "Source": self.scriptdir.as_posix(),
-                "Target": self.mounted_scriptdir.as_posix(),
+                "Target": self.guest_scriptdir.as_posix(),
             }
         ]
         for bind in self.config.binds:
@@ -94,43 +93,43 @@ class PodmanContainer(Container):
             self.container.wait(condition="stopped")
             self.container = None
 
-    def _run(self, command: list[str], config: RunConfig) -> subprocess.CompletedProcess[bytes]:
-        assert self.container is not None
-        podman_command = ["podman", "exec"]
-        if config.interactive:
-            podman_command += ["--interactive", "--tty"]
-        if config.cwd:
-            podman_command += ["--workdir", config.cwd.as_posix()]
-        if config.user:
-            podman_command += ["--user", config.user.user_name]
-
-        podman_command.append(self.container.id)
-        podman_command += command
-        if config.interactive:
-            res = subprocess.run(podman_command, check=config.check)
-        else:
-            res = self.host_run(podman_command, check=config.check)
-        return res
-
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         assert self.container is not None
         run_config = self.config.run_config(config)
-        return self._run(command, run_config)
+        podman_command = ["podman", "exec"]
+        if run_config.interactive:
+            podman_command += ["--interactive", "--tty"]
+        if run_config.cwd:
+            podman_command += ["--workdir", run_config.cwd.as_posix()]
+        if run_config.user:
+            podman_command += ["--user", run_config.user.user_name]
+        # TODO: script.disable_network is ignored on podman
+        # TODO: is there a way to make it work?
+
+        podman_command.append(self.container.id)
+        podman_command += command
+        if run_config.interactive:
+            res = subprocess.run(podman_command, check=run_config.check)
+        else:
+            res = self.host_run(podman_command, check=run_config.check)
+        return res
 
     @override
-    def run_callable_raw(
-        self,
-        func: Callable[..., Result],
-        config: RunConfig | None = None,
-        args: tuple[Any, ...] = (),
-        kwargs: dict[str, Any] | None = None,
-    ) -> CompletedCallable[Result]:
-        warnings.warn("please migrate away from run_callable which requires root", DeprecationWarning)
-        run_config = self.config.run_config(config)
-        runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
-        with context.privs.root():
-            return runner.execute()
+    def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+        with self.script_in_guest(script) as guest_path:
+            run_config = self.config.run_config()
+            run_config.check = check
+            if script.root:
+                run_config.user = UserConfig.root()
+            if script.cwd is not None:
+                run_config.cwd = script.cwd
+            if script.disable_network:
+                run_config.disable_network = True
+
+            self.image.logger.info("Running script %s", script.title)
+            cmd = [guest_path.as_posix()]
+            return self.run(cmd, run_config)
 
 
 class PodmanMaintenanceContainer(PodmanContainer, MaintenanceContainer):

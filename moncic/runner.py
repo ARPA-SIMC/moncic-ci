@@ -160,6 +160,9 @@ class RunConfig:
     # is an absolute path
     use_path: bool = False
 
+    # Run with networking disabled
+    disable_network: bool = False
+
 
 class CompletedCallable(Generic[Result], subprocess.CompletedProcess[bytes]):
     """
@@ -507,6 +510,10 @@ class SetnsCallableRunner(Generic[Result], Runner):
                 if pid == 0:
                     context.image.set(self.container.image)
                     context.container.set(self.container)
+                    if self.config.disable_network:
+                        setns.unshare(setns.CLONE_NEWNET)
+                        # Set up a working loopback
+                        subprocess.run(["ip", "link", "set", "dev", "lo", "up"])
                     try:
                         guest.in_guest = True
                         if self.kwargs is None:

@@ -11,13 +11,13 @@ class Script:
     """Incrementally build a shellscript."""
 
     def __init__(
-        self, title: str, *, cwd: Path | None = None, root: bool = False, wrapper: list[str] | None = None
+        self, title: str, *, cwd: Path | None = None, root: bool = False, disable_network: bool = False
     ) -> None:
         self.title = title
         self.cwd = cwd
         self.root = root
         self.debug_mode = context.debug.get()
-        self.wrapper = wrapper
+        self.disable_network = disable_network
         if self.debug_mode:
             self.shell = "/bin/sh -uxe"
         else:

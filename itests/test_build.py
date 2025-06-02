@@ -4,13 +4,9 @@ from moncic.operations import build as ops_build
 from moncic.source import Source
 from moncic.source.distro import DistroSource
 
-from .base import (
-    IntegrationTestsBase,
-    NspawnIntegrationTestsBase,
-    PodmanIntegrationTestsBase,
-    setup_distro_tests,
-    skip_if_container_cannot_start,
-)
+from .base import (IntegrationTestsBase, NspawnIntegrationTestsBase,
+                   PodmanIntegrationTestsBase, setup_distro_tests,
+                   skip_if_container_cannot_start)
 
 
 class BuildTests(IntegrationTestsBase, abc.ABC):

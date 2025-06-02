@@ -5,21 +5,19 @@ import shlex
 import subprocess
 import tempfile
 import types
-from collections.abc import Callable, Iterator
-from contextlib import ExitStack
+from collections.abc import Generator, Iterator
+from contextlib import ExitStack, contextmanager
 from functools import cached_property
 from pathlib import Path
-from typing import Any, ContextManager, Self, TypeVar
+from typing import ContextManager, Self
 
 from moncic.image import RunnableImage
-from moncic.runner import CompletedCallable, RunConfig, UserConfig
+from moncic.runner import RunConfig, UserConfig
 from moncic.utils import libbanana
 from moncic.utils.script import Script
 
 from .binds import BindConfig
 from .config import ContainerConfig
-
-Result = TypeVar("Result")
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +61,7 @@ class Container(abc.ABC):
         #: Exchange directory for scripts
         self.scriptdir = self.workdir / "scripts"
         self.scriptdir.mkdir(parents=True, exist_ok=True)
-        self.mounted_scriptdir = Path("/srv/moncic-ci/scripts")
+        self.guest_scriptdir = Path("/srv/moncic-ci/scripts")
 
     @cached_property
     def instance_name(self) -> str:
@@ -218,6 +216,16 @@ class Container(abc.ABC):
         stdout and stderr are logged in real time as the process is running.
         """
 
+    @contextmanager
+    def script_in_guest(self, script: Script) -> Generator[Path, None, None]:
+        """Send the script to the container, returning its guest path."""
+        with tempfile.NamedTemporaryFile("w+t", dir=self.scriptdir, delete_on_close=False) as tf:
+            script.print(file=tf)
+            os.fchmod(tf.fileno(), 0o755)
+            tf.close()
+            yield self.guest_scriptdir / os.path.basename(tf.name)
+
+    @abc.abstractmethod
     def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         """
         Run the given Script or string as a script in the machine.
@@ -226,49 +234,6 @@ class Container(abc.ABC):
 
         Returns the process exit status.
         """
-        run_config = self.config.run_config()
-        run_config.check = check
-        if script.root:
-            run_config.user = UserConfig.root()
-        if script.cwd is not None:
-            run_config.cwd = script.cwd
-
-        with tempfile.NamedTemporaryFile("w+t", dir=self.scriptdir, delete_on_close=False) as tf:
-            self.image.logger.info("Running script %s", script.title)
-            script.print(file=tf)
-            os.fchmod(tf.fileno(), 0o755)
-            tf.close()
-            cmd = [(self.mounted_scriptdir / os.path.basename(tf.name)).as_posix()]
-            if script.wrapper:
-                cmd = script.wrapper + cmd
-            return self.run(cmd, run_config)
-
-    @abc.abstractmethod
-    def run_callable_raw(
-        self,
-        func: Callable[..., Result],
-        config: RunConfig | None = None,
-        args: tuple[Any, ...] = (),
-        kwargs: dict[str, Any] | None = None,
-    ) -> CompletedCallable[Result]:
-        """
-        Run the given callable in a separate process inside the running
-        system. Returns a CompletedCallable describing details of the execution
-        """
-
-    def run_callable(
-        self,
-        func: Callable[..., Result],
-        config: RunConfig | None = None,
-        args: tuple[Any, ...] = (),
-        kwargs: dict[str, Any] | None = None,
-    ) -> Result:
-        """
-        Run the given callable in a separate process inside the running
-        system. Returns the function's result
-        """
-        completed = self.run_callable_raw(func, config, args, kwargs)
-        return completed.result()
 
     def run_shell(self, config: RunConfig | None) -> subprocess.CompletedProcess[bytes]:
         """

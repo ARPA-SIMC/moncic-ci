@@ -4,7 +4,6 @@ import contextlib
 import json
 import os
 import shutil
-import stat
 import subprocess
 import tempfile
 from collections.abc import Generator

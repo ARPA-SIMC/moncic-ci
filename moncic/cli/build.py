@@ -131,14 +131,18 @@ class CI(SourceCommand):
                             elif isinstance(obj, Path):
                                 return str(obj)
                             elif isinstance(obj, Script):
-                                return {
+                                res: dict[str, Any] = {
                                     "title": obj.title,
-                                    "cwd": obj.cwd,
-                                    "root": obj.root,
-                                    "wrapper": obj.wrapper,
-                                    "shell": obj.shell,
-                                    "lines": obj.lines,
                                 }
+                                if obj.cwd:
+                                    res["cwd"] = obj.cwd.as_posix()
+                                if obj.root:
+                                    res["root"] = obj.root
+                                if obj.disable_network:
+                                    res["disable_network"] = obj.disable_network
+                                res["shell"] = obj.shell
+                                res["lines"] = obj.lines
+                                return res
                             else:
                                 return super().default(obj)
 

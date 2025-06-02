@@ -8,14 +8,17 @@ import time
 from collections.abc import Callable, Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, NoReturn, override
+from typing import Any, NoReturn, TypeVar, override
 
 from moncic import context
-from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, Result, ContainerCannotStart
-from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner
+from moncic.container import BindConfig, Container, ContainerCannotStart, ContainerConfig, MaintenanceContainer
+from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
 from moncic.utils.nspawn import escape_bind_ro
+from moncic.utils.script import Script
 
 from .image import NspawnImage
+
+Result = TypeVar("Result")
 
 
 class NspawnContainer(Container):
@@ -99,7 +102,7 @@ class NspawnContainer(Container):
             "--notify-ready=yes",
             "--resolv-conf=replace-host",
         ]
-        cmd.append(f"--bind-ro={escape_bind_ro(self.scriptdir)}:{escape_bind_ro(self.mounted_scriptdir)}")
+        cmd.append(f"--bind-ro={escape_bind_ro(self.scriptdir)}:{escape_bind_ro(self.guest_scriptdir)}")
         for bind_config in self.config.binds:
             cmd.append(bind_config.to_nspawn())
         if self.ephemeral:
@@ -180,9 +183,25 @@ class NspawnContainer(Container):
 
         command_runner.__doc__ = shlex.join(command)
 
+        # TODO: replace with systemd-run --machine
         return self.run_callable_raw(command_runner, run_config)
 
     @override
+    def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+        with self.script_in_guest(script) as guest_path:
+            run_config = self.config.run_config()
+            run_config.check = check
+            if script.root:
+                run_config.user = UserConfig.root()
+            if script.cwd is not None:
+                run_config.cwd = script.cwd
+
+            self.image.logger.info("Running script %s", script.title)
+            cmd = [guest_path.as_posix()]
+            if script.disable_network:
+                run_config.disable_network = True
+            return self.run(cmd, run_config)
+
     def run_callable_raw(
         self,
         func: Callable[..., Result],

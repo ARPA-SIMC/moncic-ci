@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from moncic.distro import DistroFamily
-from moncic.image import BootstrappableImage, RunnableImage, Image
+from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
 
 if TYPE_CHECKING:

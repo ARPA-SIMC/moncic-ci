@@ -3,7 +3,7 @@ import logging
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, override, Optional
+from typing import TYPE_CHECKING, Optional, override
 
 if TYPE_CHECKING:
     from .image import BootstrappableImage, Image, RunnableImage

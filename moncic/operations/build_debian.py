@@ -1,17 +1,16 @@
 import abc
 import contextlib
 import logging
-import dataclasses
 import os
 import os.path
 import shlex
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import override
-from collections.abc import Generator
 
+from moncic.container import Container, ContainerConfig
 from moncic.runner import UserConfig
-from moncic.container import ContainerConfig, Container
 from moncic.source.debian import DebianGBP, DebianSource
 from moncic.utils import setns
 from moncic.utils.deb import apt_get_cmd
@@ -19,8 +18,8 @@ from moncic.utils.fs import cd
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from .build import Builder, BuildConfig, BuildResults
 
+from .build import BuildConfig, Builder, BuildResults
 
 log = logging.getLogger(__name__)
 
@@ -170,11 +169,9 @@ class DebianBuilder(Builder):
 
         # Once build dependencies are installed, we don't need internet
         # anymore: Debian packages are required to build without network access
-        build_script = Script("Build binary package", wrapper=["/usr/bin/unshare", "--net"], root=True)
+        build_script = Script("Build binary package", disable_network=True, root=True)
         build_script.setenv("DEB_BUILD_PROFILES", build_profiles)
         build_script.setenv("DEB_BUILD_OPTIONS", build_options)
-        # But we do need a working loopback
-        build_script.run(["ip", "link", "set", "dev", "lo", "up"])
         cmd = ["dpkg-buildpackage", "--no-sign"]
         if self.config.include_source:
             cmd.append("-sa")
@@ -246,8 +243,8 @@ class DebianBuilderDir(DebianBuildSource):
         # this stage
         script = Script("Build source package")
         script.run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.guest_source_path)
-        container.run_script(script)
         self.results.scripts.append(script)
+        container.run_script(script)
         return self._find_built_dsc(container)
 
 
@@ -258,12 +255,11 @@ class DebianBuilderGBP(DebianBuildSource):
 
     @override
     def build_source(self, container: Container) -> Path:
-        script = Script("Build source package")
+        script = Script("Build source package", cwd=self.guest_source_path)
         script.run(
             ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S", "--no-sign", "--no-pre-clean"]
             + self.source.gbp_args,
-            cwd=self.guest_source_path,
         )
-        container.run_script(script)
         self.results.scripts.append(script)
+        container.run_script(script)
         return self._find_built_dsc(container)

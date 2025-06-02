@@ -6,7 +6,7 @@ import logging
 import tempfile
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, ContextManager
+from typing import IO, TYPE_CHECKING, ContextManager
 
 from moncic.container import BindType, ContainerConfig
 from moncic.runner import UserConfig
@@ -183,7 +183,7 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         """
         Collect artifacts from the guest filesystem before it is shut down
         """
-        return Script(title="Collect artifacts produced inside the container")
+        return Script(title="Collect artifacts produced inside the container", root=True)
 
     @host_only
     def _after_build(self, container: Container) -> None:

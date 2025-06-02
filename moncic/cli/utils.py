@@ -110,7 +110,7 @@ class BuildOptionAction(argparse._AppendAction):
             setattr(namespace, self.dest, {k: v})
 
 
-def set_build_option_action(config: "BuildConfig", key: str, val: Any) -> None:
+def set_build_option_action(config: BuildConfig, key: str, val: Any) -> None:
     """
     Set a build option action in a BuildConfig instance
     """

@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, override
 
 from moncic.distro import DistroFamily
-from moncic.images import Images
 from moncic.image import Image
+from moncic.images import Images
 
 from .config import Config
 

@@ -4,13 +4,9 @@ import io
 from moncic.distro import DistroFamily
 from moncic.utils.osrelease import parse_osrelase_contents
 
-from .base import (
-    IntegrationTestsBase,
-    NspawnIntegrationTestsBase,
-    PodmanIntegrationTestsBase,
-    setup_distro_tests,
-    skip_if_container_cannot_start,
-)
+from .base import (IntegrationTestsBase, NspawnIntegrationTestsBase,
+                   PodmanIntegrationTestsBase, setup_distro_tests,
+                   skip_if_container_cannot_start)
 
 
 class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):

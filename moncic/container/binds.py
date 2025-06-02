@@ -1,17 +1,14 @@
 import abc
 import enum
 import hashlib
-import os
 import re
-import shlex
-import subprocess
-import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypedDict, assert_never, override
+from typing import TYPE_CHECKING, Any, ContextManager, TypedDict, assert_never, override
 
 from moncic.image import ImageType
+from moncic.runner import UserConfig
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.nspawn import escape_bind_ro
 from moncic.utils.script import Script
@@ -201,67 +198,24 @@ class BindConfigVolatile(BindConfig):
 
     def __init__(self, source: Path, destination: Path, cwd: bool = False) -> None:
         super().__init__(bind_type=BindType.VOLATILE, source=source, destination=destination, cwd=cwd)
-        self.overlay: Path | None = None
+        self.destination_readonly = Path(f"{self.destination}-readonly")
+        self.user = UserConfig.from_file(source)
 
     @override
     def to_nspawn(self) -> str:
-        return f"--bind={escape_bind_ro(self.source)}:{escape_bind_ro(self.destination)}-readonly"
+        return f"--bind={escape_bind_ro(self.source)}:{escape_bind_ro(self.destination_readonly)}"
 
     @override
     def to_podman(self) -> dict[str, Any]:
-        assert self.overlay is not None
         return {
             "Type": "bind",
-            "Source": self.overlay.as_posix(),
-            "Target": self.destination.as_posix(),
-            "Readonly": "false",
+            "Source": self.source.as_posix(),
+            "Target": self.destination_readonly.as_posix(),
+            "Readonly": "true",
         }
 
-    @override
-    @contextmanager
-    def host_setup(self, container: "Container") -> Generator[None, None, None]:
-        if container.image.image_type != ImageType.PODMAN:
-            yield None
-            return
-        rundir = Path(f"/var/run/user/{os.getuid()}/moncic-ci")
-        rundir.mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=rundir) as workdir_str:
-            workdir = Path(workdir_str)
-            upper = workdir / "upper"
-            upper.mkdir()
-            work = workdir / "work"
-            work.mkdir()
-            overlay = workdir / "overlay"
-            overlay.mkdir()
-            cmd = [
-                "fuse-overlayfs",
-                "-o",
-                (
-                    f"lowerdir={shlex.quote(self.source.as_posix())},"
-                    f"upperdir={shlex.quote(upper.as_posix())},"
-                    f"workdir={shlex.quote(work.as_posix())}"
-                ),
-                overlay.as_posix(),
-            ]
-            subprocess.run(cmd, check=True)
-            self.overlay = overlay
-            try:
-                yield
-            finally:
-                subprocess.run(
-                    ["umount", overlay.as_posix()],
-                    check=True,
-                )
-                self.overlay = None
-
-    @override
-    @contextmanager
-    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
-        if container.image.image_type != ImageType.NSPAWN:
-            yield None
-            return
+    def guest_setup_nspawn(self, container: "Container") -> None:
         volatile_root = Path("/run/volatile")
-        volatile_readonly_base = Path(f"{self.destination}-readonly")
 
         # Create the overlay workspace on tmpfs in /run
         m = hashlib.sha1()
@@ -274,11 +228,11 @@ class BindConfigVolatile(BindConfig):
 
         overlay_upper = workdir / "upper"
         script.run(["mkdir", "-p", overlay_upper.as_posix()])
-        script.run(["chown", "--reference=" + volatile_readonly_base.as_posix(), overlay_upper.as_posix()])
+        script.run(["chown", "--reference=" + self.destination_readonly.as_posix(), overlay_upper.as_posix()])
 
         overlay_work = workdir / "work"
         script.run(["mkdir", "-p", overlay_work.as_posix()])
-        script.run(["chown", "--reference=" + volatile_readonly_base.as_posix(), overlay_work.as_posix()])
+        script.run(["chown", "--reference=" + self.destination_readonly.as_posix(), overlay_work.as_posix()])
 
         script.run(
             [
@@ -286,12 +240,35 @@ class BindConfigVolatile(BindConfig):
                 "-t",
                 "overlay",
                 "overlay",
-                f"-olowerdir={volatile_readonly_base},upperdir={overlay_upper},workdir={overlay_work}",
+                f"-olowerdir={self.destination_readonly},upperdir={overlay_upper},workdir={overlay_work}",
                 self.destination.as_posix(),
             ]
         )
         self._run_script(script, container)
-        yield None
+        yield
+
+    def guest_setup_podman(self, container: "Container") -> None:
+        script = Script(f"Volatile mount setup for {self.destination} (root side)", cwd=Path("/"), root=True)
+        script.run(["cp", "--reflink=auto", "-a", self.destination_readonly.as_posix(), self.destination.as_posix()])
+        script.run(["chown", "-R", f"{self.user.user_id}:{self.user.group_id}", self.destination.as_posix()])
+        self._run_script(script, container)
+
+    def guest_setup_mock(self, container: "Container") -> None:
+        pass
+
+    @override
+    @contextmanager
+    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
+        match container.image.image_type:
+            case ImageType.PODMAN:
+                self.guest_setup_podman(container)
+            case ImageType.NSPAWN:
+                self.guest_setup_nspawn(container)
+            case ImageType.MOCK:
+                self.guest_setup_mock(container)
+            case _:
+                raise NotImplementedError(f"Unsupported volatile setup on {container.image.image_type} containers")
+        yield
 
 
 class BindConfigAptCache(BindConfig):

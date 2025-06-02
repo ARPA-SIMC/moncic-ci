@@ -1,7 +1,7 @@
 import unittest
 
-from moncic.operations.build_arpa import ARPABuilder, RPMBuilder
 from moncic.operations.build import Builder
+from moncic.operations.build_arpa import ARPABuilder, RPMBuilder
 from moncic.operations.build_debian import DebianBuilder
 
 COMMON_BUILD_PROFILES = ["artifacts_dir", "source_only", "on_success", "on_fail", "on_end"]
