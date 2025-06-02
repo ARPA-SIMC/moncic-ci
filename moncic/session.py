@@ -65,15 +65,17 @@ class Session(contextlib.ExitStack):
             from .podman.images import PodmanImages
 
             podman_images = PodmanImages(self)
-            self.images.add(podman_images)
 
         if privs.can_regain():
             images = self.enter_context(NspawnImageStorage.create(self, MACHINECTL_PATH).images())
             assert isinstance(images, BootstrappingImages)
             self.images.add(images)
+            if podman_images:
+                self.images.add(podman_images)
             self.bootstrapper = images
         elif podman_images:
             self.bootstrapper = podman_images
+            self.images.add(podman_images)
         else:
             raise Fail("neither nspawn nor podman are accessible (try running with sudo?)")
 
