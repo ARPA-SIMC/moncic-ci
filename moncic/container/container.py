@@ -245,7 +245,7 @@ class Container(abc.ABC):
         self,
         func: Callable[..., Result],
         config: RunConfig | None = None,
-        args: tuple[str, ...] = (),
+        args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> CompletedCallable[Result]:
         """
@@ -257,7 +257,7 @@ class Container(abc.ABC):
         self,
         func: Callable[..., Result],
         config: RunConfig | None = None,
-        args: tuple[str, ...] = (),
+        args: tuple[Any, ...] = (),
         kwargs: dict[str, Any] | None = None,
     ) -> Result:
         """

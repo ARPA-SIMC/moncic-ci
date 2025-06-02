@@ -163,14 +163,18 @@ class Builder(ContainerSourceOperation, abc.ABC):
 
     @classmethod
     def get_builder_class(cls, source: DistroSource) -> type["Builder"]:
-        from ..source.debian import DebianSource
+        from ..source.debian import DebianDsc, DebianDir, DebianGBP
         from ..source.rpm import RPMSource, ARPASource
-        from .build_debian import DebianBuilder
+        from .build_debian import DebianBuilderDsc, DebianBuilderDir, DebianBuilderGBP
         from .build_arpa import RPMBuilder, ARPABuilder
 
         match source:
-            case DebianSource():
-                return DebianBuilder
+            case DebianDsc():
+                return DebianBuilderDsc
+            case DebianDir():
+                return DebianBuilderDir
+            case DebianGBP():
+                return DebianBuilderGBP
             case ARPASource():
                 return ARPABuilder
             case RPMSource():
@@ -193,14 +197,14 @@ class Builder(ContainerSourceOperation, abc.ABC):
     def plugin_build_artifacts(self, config: ContainerConfig) -> Generator[None]:
         """Collect artifacts produced by the build."""
         assert self.config.artifacts_dir is not None
-        with tempfile.TemporaryDirectory(dir=self.config.artifacts_dir) as artifacts_transfer_path_str:
-            artifacts_transfer_path = Path(artifacts_transfer_path_str)
-            config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
-            config.add_guest_scripts(teardown=self.collect_artifacts_script())
-            try:
-                yield None
-            finally:
-                self.harvest_artifacts(artifacts_transfer_path)
+        artifacts_transfer_path = self.host_root / "artifacts"
+        artifacts_transfer_path.mkdir()
+        config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
+        config.add_guest_scripts(teardown=self.collect_artifacts_script())
+        try:
+            yield None
+        finally:
+            self.harvest_artifacts(artifacts_transfer_path)
 
     @contextlib.contextmanager
     def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
@@ -232,12 +236,6 @@ class Builder(ContainerSourceOperation, abc.ABC):
         # General builder information
         log.info("Build strategy: %s", self.build.__class__.__name__)
         super().log_execution_info(container_config)
-
-    @override
-    @host_only
-    def process_guest_result(self, results: Any) -> None:
-        assert isinstance(results, BuildResults)
-        self.results = results
 
     @host_only
     def build(self, container: Container) -> None:

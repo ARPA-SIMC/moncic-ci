@@ -1,16 +1,18 @@
+import abc
 import contextlib
 import logging
 import dataclasses
 import os
+import os.path
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import override
 from collections.abc import Generator
 
-from moncic.context import privs
 from moncic.runner import UserConfig
 from moncic.container import ContainerConfig, Container
+from moncic.source.debian import DebianGBP, DebianSource
 from moncic.utils import setns
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.fs import cd
@@ -72,6 +74,8 @@ class DebianBuilder(Builder):
 
     config: DebianBuildConfig
 
+    source: DebianSource
+
     # @guest_only
     # def get_build_deps_in_container(self) -> list[str]:
     #     res = subprocess.run(
@@ -95,37 +99,20 @@ class DebianBuilder(Builder):
             config.add_guest_scripts(setup=script)
             yield
 
+    @abc.abstractmethod
+    def build_source(self, container: Container) -> Path:
+        """
+        Build the source package.
+
+        :returns: the guest path of the .dsc file
+        """
+
     @override
     def build(self, container: Container) -> None:
-        pass
-
-    @guest_only
-    def guest_main(self) -> BuildResults:
-        """Run the build inside the guest system."""
-        self.source = self.source.in_path(self.guest_source_path)
-        self.build_in_guest()
-        return self.results
-
-    @guest_only
-    def build_in_guest(self) -> None:
-        from ..source.debian import DebianSource
-
-        assert isinstance(self.source, DebianSource)
-        # Build source package
-        with privs.user():
-            dsc_path = self.source.build_source_package()
-
         self.results.name = self.source.source_info.name
+        guest_dsc_path = self.build_source(container)
+        log.info("Source built as %s", guest_dsc_path)
 
-        if not self.config.source_only:
-            self.build_binary(dsc_path)
-
-        self.success = True
-
-    @override
-    @host_only
-    def run(self, container: Container) -> None:
-        super().run(container)
         # TODO: Legacy: build operations performed inside the guest system
 
         # Build run config
@@ -135,8 +122,22 @@ class DebianBuilder(Builder):
         for fld in dataclasses.fields(run_config):
             log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
 
-        result = container.run_callable(self.guest_main, run_config)
-        self.process_guest_result(result)
+        self.results = container.run_callable(self.guest_main, run_config, args=(guest_dsc_path,))
+
+    @guest_only
+    def guest_main(self, guest_dsc_path: Path) -> BuildResults:
+        """Run the build inside the guest system."""
+        from ..source.debian import DebianSource
+
+        assert isinstance(self.source, DebianSource)
+
+        self.source = self.source.in_path(self.guest_source_path)
+
+        if not self.config.source_only:
+            self.build_binary(guest_dsc_path)
+
+        self.results.success = True
+        return self.results
 
     @guest_only
     def build_binary(self, dsc_path: Path) -> None:
@@ -217,3 +218,78 @@ class DebianBuilder(Builder):
             with script.for_("f", f"$(find {shlex.quote(path)} -maxdepth 1 -type f)"):
                 script.run_unquoted(f'mv "$f" {shlex.quote(dest.as_posix())}')
         return script
+
+
+class DebianBuilderDsc(DebianBuilder):
+    """Build a package from a DebianDsc source."""
+
+    @override
+    def build_source(self, container: Container) -> Path:
+        return self.guest_source_path
+
+
+class DebianBuildSource(DebianBuilder):
+    def _find_built_dsc(self, container: Container) -> Path:
+        res = container.run(
+            [
+                "/usr/bin/find",
+                self.guest_source_path.parent.as_posix(),
+                "-maxdepth",
+                "1",
+                "-type",
+                "f",
+                "-name",
+                "*.dsc",
+            ],
+        )
+        files = [os.path.basename(f) for f in res.stdout.decode().splitlines()]
+        if self.source.source_info.dsc_filename in files:
+            return self.guest_source_path.parent / self.source.source_info.dsc_filename
+
+        # Something unexpected happened: look harder for a built .dsc file
+        match len(files):
+            case 0:
+                raise RuntimeError("No source .dsc files found after building the source package")
+            case 1:
+                log.warning("found .dsc file %s instead of %s", files[0], self.source.source_info.dsc_filename)
+                return self.guest_source_path.parent / files[0]
+            case _:
+                log.warning(
+                    "found .dsc files %s instead of %s: picking %s",
+                    files,
+                    self.source.source_info.dsc_filename,
+                    files[0],
+                )
+                return self.guest_source_path.parent / files[0]
+
+
+class DebianBuilderDir(DebianBuildSource):
+    """Build a package from a DebianDir source."""
+
+    @override
+    def build_source(self, container: Container) -> Path:
+        # Uses --no-pre-clean to avoid requiring build-deps to be installed at
+        # this stage
+        script = Script("Build source package")
+        script.run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.guest_source_path)
+        container.run_script(script)
+        self.results.scripts.append(script)
+        return self._find_built_dsc(container)
+
+
+class DebianBuilderGBP(DebianBuildSource):
+    """Build a package from a DebianGBP source."""
+
+    source: DebianGBP
+
+    @override
+    def build_source(self, container: Container) -> Path:
+        script = Script("Build source package")
+        script.run(
+            ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S", "--no-sign", "--no-pre-clean"]
+            + self.source.gbp_args,
+            cwd=self.guest_source_path,
+        )
+        container.run_script(script)
+        self.results.scripts.append(script)
+        return self._find_built_dsc(container)

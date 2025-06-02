@@ -96,32 +96,32 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
     @contextlib.contextmanager
     def plugin_source_artifacts(self, config: ContainerConfig) -> Generator[None]:
         """Collect source artifacts and make them available in the container."""
-        with tempfile.TemporaryDirectory(dir=self.source_artifacts_dir) as source_artifacts_dir_str:
-            source_artifacts_dir = Path(source_artifacts_dir_str)
-            self.source.collect_build_artifacts(source_artifacts_dir, self.source_artifacts_dir)
+        source_artifacts_dir = self.host_root / "source-artifacts"
+        source_artifacts_dir.mkdir()
+        self.source.collect_build_artifacts(source_artifacts_dir, self.source_artifacts_dir)
 
-            has_source_artifacts = False
-            for path in source_artifacts_dir.iterdir():
-                log.info("Found source artifact: %s", path)
-                has_source_artifacts = True
+        has_source_artifacts = False
+        for path in source_artifacts_dir.iterdir():
+            log.info("Found source artifact: %s", path)
+            has_source_artifacts = True
 
-            if not has_source_artifacts:
-                yield None
-                return
-
-            guest_source_artifacts_dir = Path("/srv/moncic-ci/source-artifacts")
-            config.add_bind(source_artifacts_dir, guest_source_artifacts_dir, BindType.READONLY)
-
-            log.debug("Sources in: %s:", guest_source_artifacts_dir)
-            for path in source_artifacts_dir.iterdir():
-                log.debug("* %s", path.name)
-
-            # In build, run a script to acquire source artifacts into /srv/moncic-ci/source
-            copy_script = Script("Copy artifacts to build location")
-            copy_script.run_unquoted("cp -r --reflink=auto /srv/moncic-ci/source-artifacts/* /srv/moncic-ci/source/")
-            config.add_guest_scripts(setup=copy_script)
-
+        if not has_source_artifacts:
             yield None
+            return
+
+        guest_source_artifacts_dir = Path("/srv/moncic-ci/source-artifacts")
+        config.add_bind(source_artifacts_dir, guest_source_artifacts_dir, BindType.READONLY)
+
+        log.debug("Sources in: %s:", guest_source_artifacts_dir)
+        for path in source_artifacts_dir.iterdir():
+            log.debug("* %s", path.name)
+
+        # In build, run a script to acquire source artifacts into /srv/moncic-ci/source
+        copy_script = Script("Copy artifacts to build location")
+        copy_script.run_unquoted("cp -r --reflink=auto /srv/moncic-ci/source-artifacts/* /srv/moncic-ci/source/")
+        config.add_guest_scripts(setup=copy_script)
+
+        yield None
 
     @host_only
     @contextlib.contextmanager
@@ -177,13 +177,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
                     yield container
                 finally:
                     self.log_capture_end()
-
-    @host_only
-    def process_guest_result(self, result: Any) -> None:
-        """
-        Handle the result value of the main callable run on the guest system
-        """
-        # Do nothing by default
 
     @host_only
     def collect_artifacts_script(self) -> Script:

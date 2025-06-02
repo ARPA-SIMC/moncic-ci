@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING, Any, Self, override
 
 import git
 
-from ..utils.link_or_copy import link_or_copy
-from ..distro.debian import DebianDistro
-from ..exceptions import Fail
-from ..utils.guest import host_only
-from ..utils.run import log_run, run
+from moncic.utils.link_or_copy import link_or_copy
+from moncic.distro.debian import DebianDistro
+from moncic.exceptions import Fail
+from moncic.utils.guest import host_only
+from moncic.utils.run import log_run, run
 from .distro import DistroSource
 from .local import Dir, File, Git
 from .source import CommandLog
@@ -185,15 +185,6 @@ class DebianSource(DistroSource, abc.ABC):
         super().add_init_args_for_derivation(kwargs)
         kwargs["source_info"] = self.source_info
 
-    def build_source_package(self) -> Path:
-        """
-        Build a source package and return the .dsc file name.
-
-        :param path: the source file or directory in the guest system
-        :return: path to the resulting .dsc file
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.build_source_package not implemented")
-
     @override
     @classmethod
     def create_from_file(cls, parent: File, *, distro: "Distro") -> "DebianSource":
@@ -279,20 +270,6 @@ class DebianSource(DistroSource, abc.ABC):
         log.debug("%s: branch is not tagged, using DebianGBPTestDebian", parent)
         return DebianGBPTestDebian.prepare_from_git(parent, distro=distro, source_info=source_info, gbp_info=gbp_info)
 
-    def _find_built_dsc(self) -> Path:
-        # Try with the expected .dsc name
-        dsc_path = self.path.parent / self.source_info.dsc_filename
-        if dsc_path.exists():
-            return dsc_path
-
-        # Something unexpected happened: look harder for a built .dsc file
-        for sub in self.path.parent.iterdir():
-            if sub.suffix == ".dsc":
-                log.warning("found .dsc file %s instead of %s", sub, dsc_path)
-                return sub
-
-        raise RuntimeError(".dsc file not found after dpkg-buildpackage -S")
-
     @override
     def lint_find_versions(self, allow_exec: bool = False) -> dict[str, str]:
         versions = super().lint_find_versions(allow_exec=allow_exec)
@@ -342,10 +319,6 @@ class DebianDsc(DebianSource, File, style="debian-dsc"):
         file_list += self.source_info.file_list
         for fname in file_list:
             link_or_copy(srcdir / fname, destdir)
-
-    @override
-    def build_source_package(self) -> Path:
-        return self.path
 
 
 class DebianDir(DebianSource, Dir, style="debian-dir"):
@@ -405,14 +378,6 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
             self._on_tarball_not_found(destdir)
         else:
             link_or_copy(tarball, destdir)
-
-    @override
-    def build_source_package(self) -> Path:
-        # Uses --no-pre-clean to avoid requiring build-deps to be installed at
-        # this stage
-        run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.path)
-
-        return self._find_built_dsc()
 
 
 class DebianDirGit(DebianDir, Git):
@@ -507,18 +472,6 @@ class DebianGBP(DebianSource, Git, abc.ABC):
             gbp_info = source_info.parse_gbp(source.path / "debian" / "gbp.conf")
 
         return source_info, gbp_info
-
-    @override
-    def build_source_package(self) -> Path:
-        """
-        Build a source package in /srv/moncic-ci/source returning the name of
-        the main file of the source package fileset
-        """
-        cmd = ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S", "--no-sign", "--no-pre-clean"]
-        cmd += self.gbp_args
-        run(cmd, cwd=self.path)
-
-        return self._find_built_dsc()
 
     @override
     def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
