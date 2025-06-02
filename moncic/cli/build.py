@@ -13,6 +13,7 @@ from moncic.operations import build as ops_build
 from moncic.operations import query as ops_query
 from moncic.source import Source
 from moncic.source.lint import host_lint
+from moncic.utils.script import Script
 
 from .moncic import SourceCommand, main_command
 from .utils import BuildOptionAction, set_build_option_action
@@ -129,6 +130,14 @@ class CI(SourceCommand):
                                 return obj.name
                             elif isinstance(obj, Path):
                                 return str(obj)
+                            elif isinstance(obj, Script):
+                                return {
+                                    "title": obj.title,
+                                    "cwd": obj.cwd,
+                                    "root": obj.root,
+                                    "shell": obj.shell,
+                                    "lines": obj.lines,
+                                }
                             else:
                                 return super().default(obj)
 

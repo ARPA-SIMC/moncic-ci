@@ -29,9 +29,11 @@ class Script:
     def add_line(self, line: str) -> None:
         self.lines.append(" " * self.indent + line)
 
-    def run_unquoted(self, command: str, *, description: str | None = None) -> None:
+    def run_unquoted(self, command: str, *, description: str | None = None, cwd: Path | None = None) -> None:
         if description:
             self.add_line("echo " + shlex.quote(description))
+        if cwd:
+            command = f"(cd {shlex.quote(cwd.as_posix())} && {command})"
         self.add_line(command)
 
     def run(
@@ -50,7 +52,7 @@ class Script:
         if output:
             cmd += f" > {shlex.quote(output.as_posix())}"
         if cwd:
-            cmd = "(cd {shlex.quote(cwd.as_posix())} && {cmd})"
+            cmd = f"(cd {shlex.quote(cwd.as_posix())} && {cmd})"
         if not check:
             cmd += " || true"
         self.add_line(cmd)

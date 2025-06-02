@@ -3,11 +3,11 @@ import logging
 import shlex
 import os
 import shutil
-import subprocess
 from pathlib import Path
 from typing import override, Any
 
 from moncic.context import privs
+from moncic.container import Container
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
@@ -36,6 +36,8 @@ class RPMBuilder(Builder):
             raise RuntimeError(f"Unsupported distro: {self.image.distro.name}")
         self.results.name = self.source.specfile_path.name.removesuffix(".spec")
 
+        self.guest_rpmbuild_path = Path("/root/rpmbuild")
+
     # @host_only
     # def get_build_deps(self) -> list[str]:
     #     with self.container() as container:
@@ -46,16 +48,16 @@ class RPMBuilder(Builder):
     #                 self.get_build_deps_in_container,
     #                 run_config).result()
 
-    @guest_only
-    def get_build_deps_in_container(self) -> list[str]:
-        assert isinstance(self.source, RPMSource)
-        specfile = self.source.path / self.source.specfile_path
-        res = subprocess.run(["/usr/bin/rpmspec", "--parse", specfile], stdout=subprocess.PIPE, text=True, check=True)
-        packages = []
-        for line in res.stdout.splitlines():
-            if line.startswith("BuildRequires: "):
-                packages.append(line[15:].strip())
-        return packages
+    # @guest_only
+    # def get_build_deps_in_container(self) -> list[str]:
+    #     assert isinstance(self.source, RPMSource)
+    #     specfile = self.source.path / self.source.specfile_path
+    #     res = subprocess.run(["/usr/bin/rpmspec", "--parse", specfile], stdout=subprocess.PIPE, text=True, check=True)
+    #     packages = []
+    #     for line in res.stdout.splitlines():
+    #         if line.startswith("BuildRequires: "):
+    #             packages.append(line[15:].strip())
+    #     return packages
 
 
 class ARPABuilder(RPMBuilder):
@@ -65,55 +67,73 @@ class ARPABuilder(RPMBuilder):
     """
 
     @override
-    @guest_only
-    def build(self) -> None:
-        assert isinstance(self.source, RPMSource)
+    def build(self, container: Container) -> None:
+        assert self.results.name is not None
+        script = Script(f"Build {self.source.name}", root=True)
+        script.run(
+            ["mkdir", "-p"]
+            + [
+                (self.guest_rpmbuild_path / name).as_posix()
+                for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS")
+            ],
+            description="Create rpbmuild directory tree",
+        )
+        guest_specfile_path = self.guest_source_path / self.source.specfile_path
+        script.run(self.builddep + ["-y", guest_specfile_path.as_posix()], description="Install build dependencies")
 
-        rpmbuild_path = Path("/root/rpmbuild")
-
-        for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS"):
-            (rpmbuild_path / name).mkdir(parents=True, exist_ok=True)
-
-        rpmbuild_sources = rpmbuild_path / "SOURCES"
-
-        # Absolute path of specfile
-        specfile = self.source.path / self.source.specfile_path
-
-        # Install build dependencies
-        run(self.builddep + ["-y", specfile.as_posix()])
+        guest_rpmbuild_sources_dir = self.guest_rpmbuild_path / "SOURCES"
 
         if self.source.specfile_path.is_relative_to("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
-            fedora_sources_dir = Path("fedora/SOURCES")
-            if fedora_sources_dir.is_dir():
-                for root, dirs, fnames in os.walk(fedora_sources_dir):
-                    for fn in fnames:
-                        shutil.copy(os.path.join(root, fn), rpmbuild_sources)
-            source_tar = rpmbuild_sources / f"{self.results.name}.tar"
-            with source_tar.open("wb") as fd:
-                with privs.user():
-                    self.trace_run(
-                        ["git", "archive", f"--prefix={self.results.name}/", "--format=tar", "HEAD"], stdout=fd
-                    )
-            self.trace_run(["gzip", source_tar.as_posix()])
-            self.trace_run(
-                ["spectool", "-g", "-R", "--define", f"srcarchivename {self.results.name}", specfile.as_posix()]
+            if (self.host_source_path / "fedora" / "SOURCES").is_dir():
+                script.run_unquoted("cp -r * {self.guest_rpmbuild_path / 'SOURCES'}", cwd=guest_rpmbuild_sources_dir)
+
+            script.run(["git", "config", "--global", "--add", "safe.directory", self.guest_source_path.as_posix()])
+            guest_source_tarball = guest_rpmbuild_sources_dir / f"{self.results.name}.tar.gz"
+            script.run(
+                [
+                    "git",
+                    "archive",
+                    f"--prefix={shlex.quote(self.results.name)}/",
+                    "--format=tar.gz",
+                    "-o",
+                    guest_source_tarball.as_posix(),
+                    "HEAD",
+                ],
+                cwd=self.guest_source_path,
+            )
+            script.run(
+                [
+                    "spectool",
+                    "-g",
+                    "-R",
+                    "--define",
+                    f"srcarchivename {self.results.name}",
+                    guest_specfile_path.as_posix(),
+                ]
             )
             if self.config.source_only:
                 build_arg = "-br"
             else:
                 build_arg = "-ba"
-            self.trace_run(
-                ["rpmbuild", build_arg, "--define", f"srcarchivename {self.results.name}", specfile.as_posix()]
+            script.run(
+                [
+                    "rpmbuild",
+                    build_arg,
+                    "--define",
+                    f"srcarchivename {self.results.name}",
+                    guest_specfile_path.as_posix(),
+                ]
             )
         else:
             # Convenzione SIMC per i repo con solo rpm
-            for f in glob.glob("*.patch"):
-                shutil.copy(f, rpmbuild_sources)
-            self.trace_run(["spectool", "-g", "-R", specfile.as_posix()])
-            self.trace_run(["rpmbuild", "-ba", specfile.as_posix()])
+            script.run_unquoted(f"cp *.patch {guest_rpmbuild_sources_dir}/", cwd=guest_rpmbuild_sources_dir)
+            script.run(["spectool", "-g", "-R", guest_specfile_path.as_posix()])
+            script.run(["rpmbuild", "-ba", guest_specfile_path.as_posix()])
 
-        self.success = True
+        self.results.scripts.append(script)
+        container.run_script(script)
+        self.results.success = True
 
     @override
     @host_only

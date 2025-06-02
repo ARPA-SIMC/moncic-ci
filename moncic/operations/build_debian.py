@@ -1,22 +1,23 @@
 import contextlib
 import logging
+import dataclasses
 import os
 import shlex
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import override
 from collections.abc import Generator
 
 from moncic.context import privs
-from moncic.container import ContainerConfig
+from moncic.runner import UserConfig
+from moncic.container import ContainerConfig, Container
 from moncic.utils import setns
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.fs import cd
 from moncic.utils.guest import guest_only, host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
-from .build import Builder, BuildConfig
+from .build import Builder, BuildConfig, BuildResults
 
 
 log = logging.getLogger(__name__)
@@ -71,16 +72,16 @@ class DebianBuilder(Builder):
 
     config: DebianBuildConfig
 
-    @guest_only
-    def get_build_deps_in_container(self) -> list[str]:
-        res = subprocess.run(
-            ["/srv/moncic-ci/dpkg-listbuilddeps"],
-            stdout=subprocess.PIPE,
-            text=True,
-            check=True,
-            cwd=self.source.path.as_posix(),
-        )
-        return [name.strip() for name in res.stdout.strip().splitlines()]
+    # @guest_only
+    # def get_build_deps_in_container(self) -> list[str]:
+    #     res = subprocess.run(
+    #         ["/srv/moncic-ci/dpkg-listbuilddeps"],
+    #         stdout=subprocess.PIPE,
+    #         text=True,
+    #         check=True,
+    #         cwd=self.source.path.as_posix(),
+    #     )
+    #     return [name.strip() for name in res.stdout.strip().splitlines()]
 
     @override
     @contextlib.contextmanager
@@ -95,8 +96,18 @@ class DebianBuilder(Builder):
             yield
 
     @override
+    def build(self, container: Container) -> None:
+        pass
+
     @guest_only
-    def build(self) -> None:
+    def guest_main(self) -> BuildResults:
+        """Run the build inside the guest system."""
+        self.source = self.source.in_path(self.guest_source_path)
+        self.build_in_guest()
+        return self.results
+
+    @guest_only
+    def build_in_guest(self) -> None:
         from ..source.debian import DebianSource
 
         assert isinstance(self.source, DebianSource)
@@ -110,6 +121,22 @@ class DebianBuilder(Builder):
             self.build_binary(dsc_path)
 
         self.success = True
+
+    @override
+    @host_only
+    def run(self, container: Container) -> None:
+        super().run(container)
+        # TODO: Legacy: build operations performed inside the guest system
+
+        # Build run config
+        run_config = container.config.run_config()
+        run_config.user = UserConfig.root()
+        # Log run config
+        for fld in dataclasses.fields(run_config):
+            log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
+
+        result = container.run_callable(self.guest_main, run_config)
+        self.process_guest_result(result)
 
     @guest_only
     def build_binary(self, dsc_path: Path) -> None:

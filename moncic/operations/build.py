@@ -1,6 +1,5 @@
 import abc
 import contextlib
-import dataclasses
 import inspect
 import subprocess
 import logging
@@ -19,7 +18,7 @@ from moncic.container import BindType, ContainerConfig, Container
 from moncic.source.distro import DistroSource
 from moncic.exceptions import Fail
 from moncic.runner import UserConfig
-from moncic.utils.guest import guest_only, host_only
+from moncic.utils.guest import host_only
 from moncic.utils.run import run
 from moncic.utils.script import Script
 
@@ -151,6 +150,8 @@ class BuildResults:
     artifacts: list[str] = field(default_factory=list)
     #: Commands that can be used to recreate this build
     trace_log: list[str] = field(default_factory=list)
+    #: Scripts run to build
+    scripts: list[Script] = field(default_factory=list)
 
 
 class Builder(ContainerSourceOperation, abc.ABC):
@@ -238,19 +239,9 @@ class Builder(ContainerSourceOperation, abc.ABC):
         assert isinstance(results, BuildResults)
         self.results = results
 
-    @guest_only
-    @abc.abstractmethod
-    def build(self) -> None:
-        """
-        Run the build.
-
-        The function will be called inside the running system.
-
-        The current directory will be set to the source directory in /srv/moncic-ci/source/<name>.
-
-        Standard output and standard error are logged.
-        """
-        raise NotImplementedError(f"{self.__class__.__name__}.build is not implemented")
+    @host_only
+    def build(self, container: Container) -> None:
+        """Run the build."""
 
     @override
     @host_only
@@ -296,35 +287,10 @@ class Builder(ContainerSourceOperation, abc.ABC):
             env["MONCIC_SOURCE"] = self.source.name
             run(["/bin/sh", "-c", cmd], env=env)
 
-    @guest_only
-    def get_guest_source(self) -> DistroSource:
-        """
-        Return self.source pointing to its location inside the guest system
-        """
-        assert self.guest_source_path
-        return self.source.in_path(self.guest_source_path)
-
-    @guest_only
-    def guest_main(self) -> BuildResults:
-        """
-        Run the build
-        """
-        self.source = self.get_guest_source()
-        self.build()
-        return self.results
-
     @override
     @host_only
     def run(self, container: Container) -> None:
-        # Build run config
-        run_config = container.config.run_config()
-        run_config.user = UserConfig.root()
-        # Log run config
-        for fld in dataclasses.fields(run_config):
-            log.debug("run:%s = %r", fld.name, getattr(run_config, fld.name))
-
-        result = container.run_callable(self.guest_main, run_config)
-        self.process_guest_result(result)
+        self.build(container)
 
     @override
     @host_only
@@ -347,12 +313,12 @@ class Builder(ContainerSourceOperation, abc.ABC):
     @host_only
     def harvest_artifacts(self, transfer_dir: Path) -> None:
         """Move artifacts from the transfer directory to their final destination."""
-        assert self.artifacts_dir is not None
+        assert self.config.artifacts_dir is not None
         for path in transfer_dir.iterdir():
             if not path.is_file():
                 continue
             # TODO: this can be a move instead
-            link_or_copy(path, self.artifacts_dir, filename=path.name)
+            link_or_copy(path, self.config.artifacts_dir, filename=path.name)
             self.results.artifacts.append(path.name)
 
     @classmethod
