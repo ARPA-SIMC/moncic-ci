@@ -78,7 +78,7 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
             script.lines,
             [
                 "/usr/bin/systemctl mask --now systemd-resolved",
-                "/usr/bin/dnf check-update -q -y",
+                "/usr/bin/dnf check-update -q -y || true",
                 "/usr/bin/dnf upgrade -q -y",
                 f"/usr/bin/dnf install -q -y {shlex.join(packages)}",
             ],
@@ -153,7 +153,7 @@ class TestCentos7(DistroTestsBase):
         self.assertEqual(
             script.lines,
             [
-                "/usr/bin/yum check-update -q -y",
+                "/usr/bin/yum check-update -q -y || true",
                 "/usr/bin/yum upgrade -q -y",
                 "/usr/bin/yum install -q -y bash dbus iproute rootfiles yum",
             ],

@@ -55,9 +55,9 @@ class ConfiguredImages(Images):
 
     @override
     def image(self, name: str, variant_of: Image | None = None) -> BootstrappableImage:
-        from .image import ConfiguredImage
+        from .image import ConfiguredImage, DistroImage
 
-        if not isinstance(variant_of, DistroImages):
+        if variant_of is not None and not isinstance(variant_of, DistroImage):
             raise NotImplementedError(
                 f"Image {name!r} is configured from {variant_of!r} which is a "
                 f" {variant_of.__class__.__name__} instead of DistroImage"

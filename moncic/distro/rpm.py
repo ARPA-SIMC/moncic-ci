@@ -106,7 +106,7 @@ class YumDistro(RpmDistro):
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
-        script.run(["/usr/bin/yum", "check-update", "-q", "-y"])
+        script.run(["/usr/bin/yum", "check-update", "-q", "-y"], check=False)
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:

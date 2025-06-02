@@ -58,8 +58,9 @@ class NspawnImages(BootstrappingImages, abc.ABC):
     @override
     def image(self, name: str, variant_of: Image | None = None) -> RunnableImage:
         path = (self.imagedir / name).absolute()
-        if not path.is_dir():
-            raise KeyError(f"Image {name!r} not found")
+        with context.privs.root():
+            if not path.is_dir():
+                raise KeyError(f"Image {name!r} not found")
         bootstrapped_from: BootstrappableImage | None = None
         match variant_of:
             case None:
