@@ -24,6 +24,7 @@ BuildRequires:  python3-GitPython
 # for tests
 BuildRequires:  python3-pytest
 BuildRequires:  python3-requests
+BuildRequires:  python3-rich
 BuildRequires:  systemd-container
 BuildRequires:  btrfs-progs
 BuildRequires:  dnf
@@ -38,6 +39,7 @@ Requires:       python3-GitPython
 # not strictly necessary, for formatting
 Requires:       python3-texttable
 Requires:       python3-coloredlogs
+Requires:       python3-rich
 
 %description
 Moncic CI manages lightweight containers for use with Continuous Integration
