@@ -28,6 +28,7 @@ BuildRequires:  python3-rich
 BuildRequires:  systemd-container
 BuildRequires:  btrfs-progs
 BuildRequires:  dnf
+BuildRequires:  debootstrap
 
 Requires:       python3
 Requires:       python3-yaml
