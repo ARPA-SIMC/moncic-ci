@@ -8,6 +8,7 @@
 * Detect when a container for an old distribution cannot be started due to
   group v1 guest on v2 host (see https://github.com/lxc/lxc/issues/4072)
 * Use mmdebstrap to bootstrap Debian, if available
+* `moncic ci` can now use podman containers
 
 # Version 0.21
 

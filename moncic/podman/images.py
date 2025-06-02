@@ -74,7 +74,8 @@ class PodmanImages(BootstrappingImages):
     def has_image(self, name: str) -> bool:
         """Check if the named image exists."""
         repo, tag = self.podman_name(name)
-        return self.session.podman.images.exists(repo + tag)
+        full_name = f"{repo}:{tag}"
+        return self.session.podman.images.exists(full_name)
 
     @override
     def list_images(self) -> list[str]:
