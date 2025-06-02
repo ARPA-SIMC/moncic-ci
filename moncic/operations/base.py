@@ -53,6 +53,8 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         self.host_root = Path(self.enter_context(tempfile.TemporaryDirectory()))
         #: Path in the container used as the root of our operation-specific filesystem tree
         self.guest_root = Path("/srv/moncic-ci/")
+        #: Host path of sources to build
+        self.host_source_path = self.source.path
         #: Path inside the guest system where sources are mounted
         self.guest_source_path = self.guest_root / "source" / self.source.path.name
         #: Modular units of functionality activated on this operation
@@ -66,10 +68,14 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
     def plugin_container_filesystem(self, config: ContainerConfig) -> Generator[None]:
         """Set up the container before starting the build."""
         script = Script("Set up the container filesystem", cwd=Path("/"), root=True)
-        script.run(["mkdir", "-p", "/srv/moncic-ci/source"])
-        script.run(["chown", str(self.user.user_id), "/srv/moncic-ci/source"])
-        script.run(["mkdir", "-p", "/srv/moncic-ci/build"])
-        script.run(["chown", str(self.user.user_id), "/srv/moncic-ci/build"])
+        script.run(
+            ["chown", str(self.user.user_id), "/srv/moncic-ci/source"],
+            description="Make source directory user-writable",
+        )
+        script.run(
+            ["/usr/bin/install", "-d", "-o", str(self.user.user_id), "/srv/moncic-ci/build"],
+            description="Create directory where the build is run",
+        )
         config.add_guest_scripts(setup=script)
         yield
 
@@ -83,9 +89,8 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         """Mount the source path inside the container."""
         # Mount the source path as /srv/moncic-ci/source/<name>
         # Set it as the default current directory in the container
-        # Mounted volatile to prevent changes to it
         config.configure_workdir(
-            self.source.path, bind_type=BindType.VOLATILE, mountpoint=self.guest_source_path.parent
+            self.host_source_path, bind_type=BindType.VOLATILE, mountpoint=self.guest_source_path.parent
         )
         yield
 
