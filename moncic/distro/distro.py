@@ -153,12 +153,17 @@ class Distro(abc.ABC):
         version: str | None,
         other_names: list[str] | None = None,
         cgroup_v1: bool = False,
+        systemd_version: int | None = None,
     ) -> None:
+        """
+        :param systemd_version: known systemd version. If missing it is assumed to be undefined, but recent
+        """
         self.family = family
         self.name = name
         self.version = version
         self.other_names = other_names or []
         self.cgroup_v1 = cgroup_v1
+        self.systemd_version = systemd_version
 
     @override
     def __str__(self) -> str:
@@ -253,6 +258,10 @@ class Distro(abc.ABC):
         raise NotImplementedError(
             f"getting installed versions for package requirements is not implemented for {self.name}"
         )
+
+    def get_systemd_boot_mask_units(self) -> list[str]:
+        """Return a list of unit names to mask at container boot."""
+        return []
 
     @abc.abstractmethod
     def get_podman_name(self) -> tuple[str, str]:

@@ -48,8 +48,9 @@ class DebianDistro(Distro):
         cgroup_v1: bool = False,
         bootstrappers: Collection[str] = ("mmdebstrap", "debootstrap"),
         apt_install_verb: str = "satisfy",
+        **kwargs: Any,
     ):
-        super().__init__(family, name, version, other_names, cgroup_v1=cgroup_v1)
+        super().__init__(family, name, version, other_names, cgroup_v1=cgroup_v1, **kwargs)
         self.mirror = mirror
         self.key_url = key_url
         self.bootstrappers = list(bootstrappers)
@@ -204,6 +205,16 @@ class UbuntuDistro(DebianDistro):
         """
         return ["ubuntu/" + self.name, "ubuntu/latest", "debian/latest"]
 
+    @override
+    def get_systemd_boot_mask_units(self) -> list[str]:
+        res = super().get_systemd_boot_mask_units()
+        res += [
+            "apt-daily.service",
+            "apt-daily-upgrade.service",
+            "fstrim.service",
+        ]
+        return res
+
 
 class Debian(DistroFamily):
     @override
@@ -217,6 +228,7 @@ class Debian(DistroFamily):
                 key_url="https://ftp-master.debian.org/keys/release-8.asc",
                 cgroup_v1=True,
                 apt_install_verb="install",
+                systemd_version=215,
             )
         )
         self.add_distro(
@@ -227,9 +239,12 @@ class Debian(DistroFamily):
                 mirror="http://archive.debian.org/debian/",
                 key_url="https://ftp-master.debian.org/keys/release-9.asc",
                 apt_install_verb="install",
+                systemd_version=232,
             )
         )
-        self.add_distro(DebianDistro(self, "buster", "10", ["oldoldstable"], apt_install_verb="install"))
+        self.add_distro(
+            DebianDistro(self, "buster", "10", ["oldoldstable"], apt_install_verb="install", systemd_version=241)
+        )
         self.add_distro(DebianDistro(self, "bullseye", "11", ["oldstable"]))
         self.add_distro(DebianDistro(self, "bookworm", "12", ["stable"]))
         self.add_distro(DebianDistro(self, "trixie", "13"))
@@ -275,9 +290,11 @@ class Debian(DistroFamily):
 class Ubuntu(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(UbuntuDistro(self, "xenial", "16.04", cgroup_v1=True, bootstrappers=["debootstrap"]))
-        self.add_distro(UbuntuDistro(self, "bionic", "18.04"))
-        self.add_distro(UbuntuDistro(self, "focal", "20.04"))
+        self.add_distro(
+            UbuntuDistro(self, "xenial", "16.04", cgroup_v1=True, bootstrappers=["debootstrap"], systemd_version=229)
+        )
+        self.add_distro(UbuntuDistro(self, "bionic", "18.04", systemd_version=237))
+        self.add_distro(UbuntuDistro(self, "focal", "20.04", systemd_version=245))
         self.add_distro(UbuntuDistro(self, "hirsute", "21.04", archived=True))
         self.add_distro(UbuntuDistro(self, "impish", "21.10", archived=True))
         self.add_distro(UbuntuDistro(self, "jammy", "22.04"))

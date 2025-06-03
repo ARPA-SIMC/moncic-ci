@@ -123,6 +123,8 @@ class NspawnContainer(Container):
         if self.image.images.session.moncic.systemd_version >= 250:
             cmd.append("--suppress-sync=yes")
         cmd.append(f"systemd.hostname={self.instance_name}")
+        for name in self.image.distro.get_systemd_boot_mask_units():
+            cmd.append(f"systemd.mask={name}")
         return cmd
 
     @override
@@ -165,6 +167,7 @@ class NspawnContainer(Container):
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         run_config = self.config.run_config(config)
+        systemd_version = self.image.distro.systemd_version
 
         capture_output: bool = True
 
@@ -172,10 +175,12 @@ class NspawnContainer(Container):
             "/usr/bin/systemd-run",
             f"--machine={self.instance_name}",
             "--wait",
-            "--collect",
-            "--service-type=exec",
             "--quiet",
         ]
+        if systemd_version is not None and systemd_version > 232:
+            cmd.append("--collect")
+        if systemd_version is not None and systemd_version > 237:
+            cmd.append("--service-type=exec")
         if run_config.cwd is not None:
             cmd.append(f"--working-directory={run_config.cwd}")
         if run_config.interactive:
@@ -188,6 +193,8 @@ class NspawnContainer(Container):
         if run_config.disable_network:
             # This is ignored, probably because the container has already been started
             cmd += ["--property=PrivateNetwork=true"]
+        if not command[0].startswith("/") and systemd_version is not None and systemd_version <= 245:
+            command = ["/usr/bin/env"] + command
 
         cmd += command
         with context.privs.root():

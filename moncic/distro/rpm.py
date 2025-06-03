@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import json
 import os
@@ -8,9 +6,8 @@ import subprocess
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, cast, override
+from typing import TYPE_CHECKING, cast, override, Any
 
-from moncic.utils.fs import atomic_writer
 from moncic.utils.script import Script
 
 from .distro import Distro, DistroFamily
@@ -47,7 +44,7 @@ class RpmDistro(Distro):
             yield fd.name
 
     @override
-    def bootstrap(self, images: Images, path: Path) -> None:
+    def bootstrap(self, images: "Images", path: Path) -> None:
         installer = shutil.which("dnf")
         if installer is None:
             installer = shutil.which("yum")
@@ -190,15 +187,15 @@ class Centos7(YumDistro):
     mirror = "https://vault.centos.org"
     baseurl = "{mirror}/centos/7/os/$basearch"
 
-    def __init__(self, family: DistroFamily) -> None:
-        super().__init__(family, "7", "7", cgroup_v1=True)
+    def __init__(self, family: DistroFamily, **kwargs: Any) -> None:
+        super().__init__(family, "7", "7", cgroup_v1=True, **kwargs)
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
         return ("quay.io/centos/centos", "centos7")
 
     @override
-    def bootstrap(self, images: Images, path: Path) -> None:
+    def bootstrap(self, images: "Images", path: Path) -> None:
         super().bootstrap(images, path)
         installroot = path.absolute()
         varsdir = installroot / "etc" / "yum" / "vars"
@@ -234,8 +231,8 @@ class FedoraDistro(DnfDistro):
 class AlmaDistro(DnfDistro):
     mirror = "http://repo.almalinux.org"
 
-    def __init__(self, family: DistroFamily, version: int) -> None:
-        super().__init__(family, str(version), str(version))
+    def __init__(self, family: DistroFamily, version: int, **kwargs: Any) -> None:
+        super().__init__(family, str(version), str(version), **kwargs)
         self.baseurl = f"{self.mirror}/almalinux/{version}/BaseOS/$basearch/os/"
 
     @override
@@ -246,8 +243,8 @@ class AlmaDistro(DnfDistro):
 class RockyDistro(DnfDistro):
     mirror = "http://dl.rockylinux.org"
 
-    def __init__(self, family: DistroFamily, version: int) -> None:
-        super().__init__(family, str(version), str(version))
+    def __init__(self, family: DistroFamily, version: int, **kwargs: Any) -> None:
+        super().__init__(family, str(version), str(version), **kwargs)
         self.baseurl = f"{self.mirror}/pub/rocky/{version}/BaseOS/$basearch/os/"
 
     @override
@@ -274,18 +271,18 @@ class Fedora(DistroFamily):
 class Almalinux(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(AlmaDistro(self, 8))
+        self.add_distro(AlmaDistro(self, 8, systemd_version=239))
         self.add_distro(AlmaDistro(self, 9))
 
 
 class Rocky(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(RockyDistro(self, 8))
+        self.add_distro(RockyDistro(self, 8, systemd_version=239))
         self.add_distro(RockyDistro(self, 9))
 
 
 class Centos(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(Centos7(self))
+        self.add_distro(Centos7(self, systemd_version=219))

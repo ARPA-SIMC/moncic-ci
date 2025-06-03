@@ -31,6 +31,16 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
             rimage.update()
 
     @skip_if_container_cannot_start()
+    def test_systemd_version(self) -> None:
+        rimage = self.get_bootstrapped()
+        if (systemd_version := rimage.distro.systemd_version) is None:
+            return
+        with rimage.container() as container:
+            res = container.run(["/bin/systemctl", "--version"])
+        self.assertEqual(int(res.stdout.decode().splitlines()[0].split()[1]), systemd_version)
+        self.assertEqual(res.stderr, b"")
+
+    @skip_if_container_cannot_start()
     def test_run(self) -> None:
         rimage = self.get_bootstrapped()
         with rimage.container() as container:
@@ -49,8 +59,16 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
     def test_run_cwd(self) -> None:
         rimage = self.get_bootstrapped()
         with rimage.container() as container:
-            res = container.run(["/usr/bin/pwd"], config=RunConfig(cwd=Path("/tmp")))
+            res = container.run(["/bin/pwd"], config=RunConfig(cwd=Path("/tmp")))
         self.assertEqual(res.stdout.decode().strip(), "/tmp")
+        self.assertEqual(res.stderr, b"")
+
+    @skip_if_container_cannot_start()
+    def test_run_no_absolute_path(self) -> None:
+        rimage = self.get_bootstrapped()
+        with rimage.container() as container:
+            res = container.run(["true"])
+        self.assertEqual(res.stdout, b"")
         self.assertEqual(res.stderr, b"")
 
     @skip_if_container_cannot_start()
@@ -72,7 +90,7 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
     def test_run_result(self) -> None:
         rimage = self.get_bootstrapped()
         with rimage.container() as container:
-            res = container.run(["/usr/bin/false"], config=RunConfig(check=False))
+            res = container.run(["/bin/false"], config=RunConfig(check=False))
         self.assertEqual(res.stdout, b"")
         self.assertEqual(res.stderr, b"")
         self.assertEqual(res.returncode, 1)
@@ -82,7 +100,7 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         rimage = self.get_bootstrapped()
         with rimage.container() as container:
             with self.assertRaisesRegex(CalledProcessError, r"returned non-zero exit status 1."):
-                container.run(["/usr/bin/false"], config=RunConfig(check=True))
+                container.run(["/bin/false"], config=RunConfig(check=True))
 
     @skip_if_container_cannot_start()
     def test_run_disable_network(self) -> None:
