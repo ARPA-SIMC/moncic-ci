@@ -2,6 +2,9 @@ import argparse
 import logging
 from typing import Any, override
 
+from moncic.container import RunConfig
+from moncic.runner import UserConfig
+
 from .moncic import ImageActionCommand, main_command
 
 log = logging.getLogger(__name__)
@@ -14,10 +17,11 @@ class Shell(ImageActionCommand):
     """
 
     def run(self) -> int:
-        run_config = self.get_run_config()
-        run_config.check = False
-        run_config.interactive = True
-
+        run_config = RunConfig()
+        if self.args.root:
+            run_config.user = UserConfig.root()
+        elif self.args.user:
+            run_config.user = UserConfig.from_sudoer()
         with self.container() as container:
             res = container.run_shell(config=run_config)
         return res.returncode
@@ -37,7 +41,11 @@ class Run(ImageActionCommand):
         return parser
 
     def run(self) -> int:
-        run_config = self.get_run_config()
+        run_config = RunConfig()
+        if self.args.root:
+            run_config.user = UserConfig.root()
+        elif self.args.user:
+            run_config.user = UserConfig.from_sudoer()
         run_config.check = False
 
         with self.container() as container:

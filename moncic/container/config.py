@@ -1,10 +1,11 @@
 import contextlib
+import dataclasses
 import logging
 from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, ContextManager
 
-from moncic.runner import RunConfig, UserConfig
+from moncic.runner import UserConfig
 from moncic.utils.script import Script
 
 from .binds import BindConfig, BindType
@@ -105,29 +106,42 @@ class ContainerConfig:
         )
         self.forward_user = UserConfig.from_file(workdir)
 
-    def run_config(self, run_config: RunConfig | None = None) -> RunConfig:
-        if run_config is None:
-            res = RunConfig()
-        else:
-            res = run_config
-
+    def get_default_cwd(self) -> Path | None:
+        """Get the default working directory for this container."""
         # Check if there is a bind with cwd=True
         for bind in self.binds:
             if bind.cwd:
-                home_bind = bind
-                break
-        else:
-            home_bind = None
+                return bind.destination
+        return None
 
-        if res.cwd is None:
-            if home_bind:
-                res.cwd = home_bind.destination
-            elif res.user is not None and res.user.user_id != 0:
-                res.cwd = Path(f"/home/{res.user.user_name}")
-            else:
-                res.cwd = Path("/root")
+    def get_default_user(self) -> UserConfig | None:
+        """Get the default user for this container."""
+        for bind in self.binds:
+            if bind.cwd:
+                return UserConfig.from_file(bind.source)
+        return None
 
-        if res.user is None and home_bind:
-            res.user = UserConfig.from_file(home_bind.source)
 
-        return res
+@dataclasses.dataclass
+class RunConfig:
+    """
+    Configuration needed to customize running actions in a container
+    """
+
+    # Set to True to raise CalledProcessError if the process exits with a
+    # non-zero exit status
+    check: bool = True
+
+    # Run in this working directory. Defaults to ContainerConfig.workdir, if
+    # set. Else, to the user's home directory
+    cwd: Path | None = None
+
+    # Run as the given user. Defaults to the owner of ContainerConfig.workdir,
+    # if not set
+    user: UserConfig | None = None
+
+    # Set to true to connect to the running terminal instead of logging output
+    interactive: bool = False
+
+    # Run with networking disabled
+    disable_network: bool = False

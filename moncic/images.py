@@ -50,12 +50,13 @@ class ImagesBase(abc.ABC):
         """Deduplicate storage of common files (if supported)."""
 
     def host_run(
-        self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
+        self, cmd: list[str], check: bool = True, cwd: Path | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         """Run a command in the host system."""
-        from .runner import LocalRunner
+        from .runner import Runner
 
-        return LocalRunner.run(self.logger, cmd, check=check, cwd=cwd, interactive=interactive)
+        runner = Runner(self.logger, cmd, check=check, cwd=cwd)
+        return runner.run()
 
 
 class Images(ImagesBase, abc.ABC):

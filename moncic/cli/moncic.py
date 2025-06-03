@@ -16,7 +16,7 @@ from moncic.distro import Distro
 from moncic.exceptions import Fail
 from moncic.image import RunnableImage
 from moncic.moncic import Moncic, MoncicConfig, expand_path
-from moncic.runner import RunConfig, UserConfig
+from moncic.runner import UserConfig
 from moncic.source import Source
 from moncic.source.distro import DistroSource
 from moncic.source.local import LocalSource
@@ -193,14 +193,6 @@ class ImageActionCommand(MoncicCommand):
         )
 
         return parser
-
-    def get_run_config(self) -> RunConfig:
-        run_config = RunConfig(interactive=True)
-        if self.args.root:
-            run_config.user = UserConfig.root()
-        elif self.args.user:
-            run_config.user = UserConfig.from_sudoer()
-        return run_config
 
     @contextlib.contextmanager
     def container(self) -> Generator[Container, None, None]:

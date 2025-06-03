@@ -5,19 +5,15 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from typing import override
 
-from moncic.container import ContainerConfig
+from moncic.container import ContainerConfig, RunConfig
 from moncic.distro import DistroFamily
-from moncic.runner import RunConfig, UserConfig
+from moncic.runner import UserConfig
 from moncic.utils.osrelease import parse_osrelase_contents
 from moncic.utils.script import Script
 
-from .base import (
-    IntegrationTestsBase,
-    NspawnIntegrationTestsBase,
-    PodmanIntegrationTestsBase,
-    setup_distro_tests,
-    skip_if_container_cannot_start,
-)
+from .base import (IntegrationTestsBase, NspawnIntegrationTestsBase,
+                   PodmanIntegrationTestsBase, setup_distro_tests,
+                   skip_if_container_cannot_start)
 
 
 class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
@@ -135,11 +131,11 @@ class PodmanDistroMaintenanceTests(DistroMaintenanceTests, PodmanIntegrationTest
             self.assertTrue(self.session.podman.images.exists(name))
 
 
-class NspawnDistroContainerTests(DistroMaintenanceTests, NspawnIntegrationTestsBase, abc.ABC):
+class NspawnDistroContainerTests(DistroContainerTests, NspawnIntegrationTestsBase, abc.ABC):
     pass
 
 
-class PodmanDistroContainerTests(DistroMaintenanceTests, PodmanIntegrationTestsBase, abc.ABC):
+class PodmanDistroContainerTests(DistroContainerTests, PodmanIntegrationTestsBase, abc.ABC):
     pass
 
 

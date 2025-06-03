@@ -7,8 +7,8 @@ from typing import Any, override
 
 import podman
 
-from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer
-from moncic.runner import RunConfig, UserConfig
+from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, RunConfig
+from moncic.runner import UserConfig
 from moncic.utils.script import Script
 
 from .image import PodmanImage
@@ -96,40 +96,58 @@ class PodmanContainer(Container):
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         assert self.container is not None
-        run_config = self.config.run_config(config)
+
+        if config is None:
+            config = RunConfig()
+        if config.cwd is None:
+            config.cwd = self.config.get_default_cwd()
+        if config.user is None:
+            config.user = self.config.get_default_user()
+
         podman_command = ["podman", "exec"]
-        if run_config.interactive:
+        if config.interactive:
             podman_command += ["--interactive", "--tty"]
-        if run_config.cwd:
-            podman_command += ["--workdir", run_config.cwd.as_posix()]
-        if run_config.user:
-            podman_command += ["--user", run_config.user.user_name]
+        if config.cwd:
+            podman_command += ["--workdir", config.cwd.as_posix()]
+        if config.user:
+            podman_command += ["--user", config.user.user_name]
         # TODO: script.disable_network is ignored on podman
         # TODO: is there a way to make it work?
 
+        # if home_bind:
+        #     return home_bind.destination
+        # elif res.user is not None and res.user.user_id != 0:
+        #     return Path(f"/home/{res.user.user_name}")
+        # else:
+        #     return Path("/root")
+
         podman_command.append(self.container.id)
         podman_command += command
-        if run_config.interactive:
-            res = subprocess.run(podman_command, check=run_config.check)
+        if config.interactive:
+            res = subprocess.run(podman_command, check=config.check)
         else:
-            res = self.host_run(podman_command, check=run_config.check)
+            res = self.host_run(podman_command, check=config.check)
         return res
 
     @override
     def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         with self.script_in_guest(script) as guest_path:
-            run_config = self.config.run_config()
-            run_config.check = check
+            config = RunConfig()
+            config.check = check
             if script.root:
-                run_config.user = UserConfig.root()
+                config.user = UserConfig.root()
+            else:
+                config.user = self.config.get_default_user()
             if script.cwd is not None:
-                run_config.cwd = script.cwd
+                config.cwd = script.cwd
+            else:
+                config.cwd = self.config.get_default_cwd()
             if script.disable_network:
-                run_config.disable_network = True
+                config.disable_network = True
 
             self.image.logger.info("Running script %s", script.title)
             cmd = [guest_path.as_posix()]
-            return self.run(cmd, run_config)
+            return self.run(cmd, config)
 
 
 class PodmanMaintenanceContainer(PodmanContainer, MaintenanceContainer):

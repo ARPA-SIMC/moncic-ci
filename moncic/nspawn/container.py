@@ -10,8 +10,15 @@ from pathlib import Path
 from typing import TypeVar, override
 
 from moncic import context
-from moncic.container import BindConfig, Container, ContainerCannotStart, ContainerConfig, MaintenanceContainer
-from moncic.runner import RunConfig, UserConfig
+from moncic.container import (
+    BindConfig,
+    Container,
+    ContainerCannotStart,
+    ContainerConfig,
+    MaintenanceContainer,
+    RunConfig,
+)
+from moncic.runner import Runner, UserConfig
 from moncic.utils.nspawn import escape_bind_ro
 from moncic.utils.script import Script
 
@@ -166,10 +173,14 @@ class NspawnContainer(Container):
 
     @override
     def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
-        run_config = self.config.run_config(config)
-        systemd_version = self.image.distro.systemd_version
+        if config is None:
+            config = RunConfig()
+        if config.cwd is None:
+            config.cwd = self.config.get_default_cwd()
+        if config.user is None:
+            config.user = self.config.get_default_user()
 
-        capture_output: bool = True
+        systemd_version = self.image.distro.systemd_version
 
         cmd = [
             "/usr/bin/systemd-run",
@@ -181,45 +192,56 @@ class NspawnContainer(Container):
             cmd.append("--collect")
         if systemd_version is not None and systemd_version > 237:
             cmd.append("--service-type=exec")
-        if run_config.cwd is not None:
-            cmd.append(f"--working-directory={run_config.cwd}")
-        if run_config.interactive:
+        if config.cwd is not None:
+            cmd.append(f"--working-directory={config.cwd}")
+        if config.interactive:
             cmd.append("--tty")
-            capture_output = False
         else:
             cmd.append("--pipe")
-        if run_config.user is not None:
-            cmd += [f"--uid={run_config.user.user_id}", f"--gid={run_config.user.group_id}"]
-        if run_config.disable_network:
+        if config.user is not None:
+            cmd += [f"--uid={config.user.user_id}", f"--gid={config.user.group_id}"]
+        if config.disable_network:
             # This is ignored, probably because the container has already been started
             cmd += ["--property=PrivateNetwork=true"]
         if not command[0].startswith("/") and systemd_version is not None and systemd_version <= 245:
             command = ["/usr/bin/env"] + command
 
+        # if home_bind:
+        #     return home_bind.destination
+        # elif res.user is not None and res.user.user_id != 0:
+        #     return Path(f"/home/{res.user.user_name}")
+        # else:
+        #     return Path("/root")
+
         cmd += command
         with context.privs.root():
-            res = subprocess.run(cmd, capture_output=capture_output)
-
-        if run_config.check:
-            res.check_returncode()
+            if config.interactive:
+                res = subprocess.run(cmd, check=config.check)
+            else:
+                runner = Runner(self.logger, cmd, check=config.check)
+                res = runner.run()
 
         return res
 
     @override
     def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         with self.script_in_guest(script) as guest_path:
-            run_config = self.config.run_config()
-            run_config.check = check
+            config = RunConfig()
+            config.check = check
             if script.root:
-                run_config.user = UserConfig.root()
+                config.user = UserConfig.root()
+            else:
+                config.user = self.config.get_default_user()
             if script.cwd is not None:
-                run_config.cwd = script.cwd
+                config.cwd = script.cwd
+            else:
+                config.cwd = self.config.get_default_cwd()
+            if script.disable_network:
+                config.disable_network = True
 
             self.image.logger.info("Running script %s", script.title)
             cmd = [guest_path.as_posix()]
-            if script.disable_network:
-                run_config.disable_network = True
-            return self.run(cmd, run_config)
+            return self.run(cmd, config)
 
 
 class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):

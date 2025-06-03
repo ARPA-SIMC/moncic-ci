@@ -2,12 +2,11 @@ import subprocess
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import override
 from subprocess import CompletedProcess
+from typing import override
 
-from moncic.container import Container, MaintenanceContainer
+from moncic.container import Container, MaintenanceContainer, RunConfig
 from moncic.container.binds import BindConfig
-from moncic.runner import RunConfig
 from moncic.utils.script import Script
 
 from .image import MockImage

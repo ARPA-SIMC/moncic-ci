@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Any, override
 
 from moncic import context
-from moncic.container import BindConfig, Container, ContainerConfig
+from moncic.container import BindConfig, Container, ContainerConfig, RunConfig
 from moncic.nspawn.image import NspawnImage
 from moncic.nspawn.images import PlainImages
-from moncic.runner import RunConfig, UserConfig
+from moncic.runner import UserConfig
 from moncic.unittest import MoncicTestCase
 
 

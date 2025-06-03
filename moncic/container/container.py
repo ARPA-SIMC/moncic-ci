@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import ContextManager, Self
 
 from moncic.image import RunnableImage
-from moncic.runner import RunConfig, UserConfig
+from moncic.runner import UserConfig
 from moncic.utils import libbanana
 from moncic.utils.script import Script
 
 from .binds import BindConfig
-from .config import ContainerConfig
+from .config import ContainerConfig, RunConfig
 
 log = logging.getLogger(__name__)
 
@@ -81,12 +81,13 @@ class Container(abc.ABC):
         return logging.getLogger(f"container.{self.instance_name}")
 
     def host_run(
-        self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
+        self, cmd: list[str], check: bool = True, cwd: Path | None = None
     ) -> subprocess.CompletedProcess[bytes]:
         """Run a command in the host system."""
-        from moncic.runner import LocalRunner
+        from moncic.runner import Runner
 
-        return LocalRunner.run(self.logger, cmd, check=check, cwd=cwd, interactive=interactive)
+        runner = Runner(self.logger, cmd, cwd=cwd, check=check)
+        return runner.run()
 
     def get_instance_name(self) -> str:
         """Compute an instance name when none was provided in constructor."""
@@ -239,6 +240,15 @@ class Container(abc.ABC):
         """
         Open a shell in the container
         """
+        if config is None:
+            config = RunConfig()
+        config.interactive = True
+        config.check = False
+        if config.cwd is None:
+            config.cwd = self.config.get_default_cwd()
+        if config.user is None:
+            config.user = self.config.get_default_user()
+
         shell_candidates = []
         if "SHELL" in os.environ:
             shell_candidates.append(os.environ["SHELL"])
