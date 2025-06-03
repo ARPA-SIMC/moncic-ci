@@ -3,6 +3,7 @@ import io
 import json
 from pathlib import Path
 from subprocess import CalledProcessError
+from typing import override
 
 from moncic.container import ContainerConfig
 from moncic.distro import DistroFamily
@@ -30,21 +31,27 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         with self.verbose_logging():
             rimage.update()
 
+
+class DistroContainerTests(IntegrationTestsBase, abc.ABC):
+    @override
     @skip_if_container_cannot_start()
+    def setUp(self) -> None:
+        super().setUp()
+        self.rimage = self.get_bootstrapped()
+        self.sudoer = UserConfig.from_sudoer()
+        config = ContainerConfig()
+        config.forward_user = self.sudoer
+        self.container = self.enterContext(self.rimage.container(config=config))
+
     def test_systemd_version(self) -> None:
-        rimage = self.get_bootstrapped()
-        if (systemd_version := rimage.distro.systemd_version) is None:
+        if (systemd_version := self.rimage.distro.systemd_version) is None:
             return
-        with rimage.container() as container:
-            res = container.run(["/bin/systemctl", "--version"])
+        res = self.container.run(["/bin/systemctl", "--version"])
         self.assertEqual(int(res.stdout.decode().splitlines()[0].split()[1]), systemd_version)
         self.assertEqual(res.stderr, b"")
 
-    @skip_if_container_cannot_start()
-    def test_run(self) -> None:
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            res = container.run(["/bin/cat", "/etc/os-release"])
+    def test_run_osrelease(self) -> None:
+        res = self.container.run(["/bin/cat", "/etc/os-release"])
         with io.StringIO(res.stdout.decode()) as fd:
             osr = parse_osrelase_contents(fd, "/etc/os-release")
         distro = DistroFamily.from_osrelease(osr, "test")
@@ -55,74 +62,56 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         else:
             self.assertIs(distro, self.distro)
 
-    @skip_if_container_cannot_start()
     def test_run_cwd(self) -> None:
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            res = container.run(["/bin/pwd"], config=RunConfig(cwd=Path("/tmp")))
+        res = self.container.run(["/bin/pwd"], config=RunConfig(cwd=Path("/tmp")))
         self.assertEqual(res.stdout.decode().strip(), "/tmp")
         self.assertEqual(res.stderr, b"")
 
     @skip_if_container_cannot_start()
     def test_run_no_absolute_path(self) -> None:
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            res = container.run(["true"])
+        res = self.container.run(["true"])
         self.assertEqual(res.stdout, b"")
         self.assertEqual(res.stderr, b"")
 
     @skip_if_container_cannot_start()
     def test_run_user(self) -> None:
-        rimage = self.get_bootstrapped()
-        sudoer = UserConfig.from_sudoer()
-        config = ContainerConfig()
-        config.forward_user = sudoer
-        with rimage.container(config=config) as container:
-            res = container.run(["/usr/bin/id", "-u"], config=RunConfig(user=UserConfig.root(), cwd=Path("/")))
-            self.assertEqual(res.stdout.decode().strip(), "0")
-            self.assertEqual(res.stderr, b"")
+        res = self.container.run(["/usr/bin/id", "-u"], config=RunConfig(user=UserConfig.root(), cwd=Path("/")))
+        self.assertEqual(res.stdout.decode().strip(), "0")
+        self.assertEqual(res.stderr, b"")
 
-            res = container.run(["/usr/bin/id", "-u"], config=RunConfig(user=sudoer, cwd=Path("/")))
-            self.assertEqual(res.stdout.decode().strip(), str(sudoer.user_id))
-            self.assertEqual(res.stderr, b"")
+        res = self.container.run(["/usr/bin/id", "-u"], config=RunConfig(user=self.sudoer, cwd=Path("/")))
+        self.assertEqual(res.stdout.decode().strip(), str(self.sudoer.user_id))
+        self.assertEqual(res.stderr, b"")
 
     @skip_if_container_cannot_start()
     def test_run_result(self) -> None:
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            res = container.run(["/bin/false"], config=RunConfig(check=False))
+        res = self.container.run(["/bin/false"], config=RunConfig(check=False))
         self.assertEqual(res.stdout, b"")
         self.assertEqual(res.stderr, b"")
         self.assertEqual(res.returncode, 1)
 
     @skip_if_container_cannot_start()
     def test_run_check(self) -> None:
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            with self.assertRaisesRegex(CalledProcessError, r"returned non-zero exit status 1."):
-                container.run(["/bin/false"], config=RunConfig(check=True))
+        with self.assertRaisesRegex(CalledProcessError, r"returned non-zero exit status 1."):
+            self.container.run(["/bin/false"], config=RunConfig(check=True))
 
     @skip_if_container_cannot_start()
     def test_run_disable_network(self) -> None:
         self.skipTest("TODO: find a way to implement this in podman and nspawn once the container has started")
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            res = container.run(["/usr/sbin/ip", "-json", "link", "show"], config=RunConfig(disable_network=True))
-            self.assertEqual(res.stderr, b"")
-            self.assertEqual(res.returncode, 0)
-            parsed = json.loads(res.stdout)
-            self.assertEqual([x["ifname"] for x in parsed], ["lo"])
+        res = self.container.run(["/usr/sbin/ip", "-json", "link", "show"], config=RunConfig(disable_network=True))
+        self.assertEqual(res.stderr, b"")
+        self.assertEqual(res.returncode, 0)
+        parsed = json.loads(res.stdout)
+        self.assertEqual([x["ifname"] for x in parsed], ["lo"])
 
     @skip_if_container_cannot_start()
     def test_run_script_path(self) -> None:
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            script = Script("Check path")
-            script.run_unquoted("echo $PATH")
-            res = container.run_script(script)
-            self.assertIn("/usr/bin", res.stdout.decode().strip())
-            self.assertEqual(res.stderr, b"")
-            self.assertEqual(res.returncode, 0)
+        script = Script("Check path")
+        script.run_unquoted("echo $PATH")
+        res = self.container.run_script(script)
+        self.assertIn("/usr/bin", res.stdout.decode().strip())
+        self.assertEqual(res.stderr, b"")
+        self.assertEqual(res.returncode, 0)
 
     # def test_remove(self) -> None:
     #     TODO: make a pretend image for nspawn
@@ -146,14 +135,36 @@ class PodmanDistroMaintenanceTests(DistroMaintenanceTests, PodmanIntegrationTest
             self.assertTrue(self.session.podman.images.exists(name))
 
 
-bases: dict[str, type[IntegrationTestsBase]] = {
-    "nspawn": NspawnDistroMaintenanceTests,
-    "podman": PodmanDistroMaintenanceTests,
-}
+class NspawnDistroContainerTests(DistroMaintenanceTests, NspawnIntegrationTestsBase, abc.ABC):
+    pass
 
 
-setup_distro_tests(__name__, bases, "DistroMaintenanceTests")
+class PodmanDistroContainerTests(DistroMaintenanceTests, PodmanIntegrationTestsBase, abc.ABC):
+    pass
 
+
+setup_distro_tests(
+    __name__,
+    {
+        "nspawn": NspawnDistroMaintenanceTests,
+        "podman": PodmanDistroMaintenanceTests,
+    },
+    "ImageBackendTests",
+)
+
+setup_distro_tests(
+    __name__,
+    {
+        "nspawn": NspawnDistroContainerTests,
+        "podman": PodmanDistroContainerTests,
+    },
+    "ContainerBackendTests",
+)
+
+
+del NspawnDistroContainerTests
+del PodmanDistroContainerTests
+del DistroContainerTests
 del NspawnDistroMaintenanceTests
 del PodmanDistroMaintenanceTests
 del DistroMaintenanceTests
