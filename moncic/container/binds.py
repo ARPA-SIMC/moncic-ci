@@ -5,7 +5,7 @@ import re
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ContextManager, TypedDict, assert_never, override
+from typing import TYPE_CHECKING, Any, TypedDict, assert_never, override
 
 from moncic.image import ImageType
 from moncic.runner import UserConfig

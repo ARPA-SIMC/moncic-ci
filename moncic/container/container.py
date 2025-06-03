@@ -245,7 +245,7 @@ class Container(abc.ABC):
             shell_candidates.append(os.path.basename(os.environ["SHELL"]))
         shell_candidates.extend(("bash", "sh"))
 
-        script = Script("Find a usable shel")
+        script = Script("Find a usable shell")
         with script.for_("candidate", shell_candidates):
             script.run_unquoted('command -v "$candidate" && break')
 

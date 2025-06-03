@@ -1,18 +1,17 @@
 import errno
-import logging
 import os
 import shlex
 import signal
 import subprocess
 import time
-from collections.abc import Callable, Generator, Iterator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, NoReturn, TypeVar, override
+from typing import TypeVar, override
 
 from moncic import context
 from moncic.container import BindConfig, Container, ContainerCannotStart, ContainerConfig, MaintenanceContainer
-from moncic.runner import CompletedCallable, RunConfig, SetnsCallableRunner, UserConfig
+from moncic.runner import RunConfig, UserConfig
 from moncic.utils.nspawn import escape_bind_ro
 from moncic.utils.script import Script
 
@@ -167,30 +166,48 @@ class NspawnContainer(Container):
     def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
         run_config = self.config.run_config(config)
 
-        exec_func: Callable[[str, list[str]], NoReturn]
-        if run_config.use_path:
-            exec_func = os.execvp
+        capture_output: bool = True
+
+        cmd = [
+            "/usr/bin/systemd-run",
+            f"--machine={self.instance_name}",
+            "--wait",
+            "--collect",
+            "--service-type=exec",
+            "--quiet",
+        ]
+        if run_config.cwd is not None:
+            cmd.append(f"--working-directory={run_config.cwd}")
+        if run_config.interactive:
+            cmd.append("--tty")
+            capture_output = False
         else:
-            exec_func = os.execv
+            cmd.append("--pipe")
+        if not run_config.use_path:
+            cmd.append("--property=ExecSearchPath=/dev/null")
+            # systemd-run will exit with 203 if the command was not found
+            # See https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Process%20Exit%20Codes
+        if run_config.user is not None:
+            cmd += [f"--uid={run_config.user.user_id}", f"--gid={run_config.user.group_id}"]
+        if run_config.disable_network:
+            # This is ignored, probably because the container has already been started
+            cmd += ["--property=PrivateNetwork=true"]
 
-        def command_runner() -> int:
-            try:
-                exec_func(command[0], command)
-            except FileNotFoundError:
-                logging.error("%r: command not found", command[0])
-                # Same return code as the shell for a command not found
-                return 127
+        cmd += command
+        with context.privs.root():
+            res = subprocess.run(cmd, capture_output=capture_output)
 
-        command_runner.__doc__ = shlex.join(command)
+        if run_config.check:
+            res.check_returncode()
 
-        # TODO: replace with systemd-run --machine
-        return self.run_callable_raw(command_runner, run_config)
+        return res
 
     @override
     def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         with self.script_in_guest(script) as guest_path:
             run_config = self.config.run_config()
             run_config.check = check
+            run_config.use_path = True
             if script.root:
                 run_config.user = UserConfig.root()
             if script.cwd is not None:
@@ -201,21 +218,6 @@ class NspawnContainer(Container):
             if script.disable_network:
                 run_config.disable_network = True
             return self.run(cmd, run_config)
-
-    def run_callable_raw(
-        self,
-        func: Callable[..., Result],
-        config: RunConfig | None = None,
-        args: tuple[Any, ...] = (),
-        kwargs: dict[str, Any] | None = None,
-    ) -> CompletedCallable[Result]:
-        run_config = self.config.run_config(config)
-        runner = SetnsCallableRunner(self, run_config, func, args, kwargs)
-        with context.privs.root():
-            completed = runner.execute()
-        if run_config.check:
-            completed.check_returncode()
-        return completed
 
 
 class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):

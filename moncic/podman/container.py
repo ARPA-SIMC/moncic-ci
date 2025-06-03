@@ -104,6 +104,8 @@ class PodmanContainer(Container):
             podman_command += ["--workdir", run_config.cwd.as_posix()]
         if run_config.user:
             podman_command += ["--user", run_config.user.user_name]
+        if not run_config.use_path:
+            podman_command += ["--env", "PATH=/dev/null"]
         # TODO: script.disable_network is ignored on podman
         # TODO: is there a way to make it work?
 
@@ -120,6 +122,7 @@ class PodmanContainer(Container):
         with self.script_in_guest(script) as guest_path:
             run_config = self.config.run_config()
             run_config.check = check
+            run_config.use_path = True
             if script.root:
                 run_config.user = UserConfig.root()
             if script.cwd is not None:
