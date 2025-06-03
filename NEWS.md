@@ -9,6 +9,9 @@
   group v1 guest on v2 host (see https://github.com/lxc/lxc/issues/4072)
 * Use mmdebstrap to bootstrap Debian, if available
 * `moncic ci` can now use podman containers
+* Fine tuned distribution support, driven by new integration tests. Reported
+  results in README.md
+* Removed support for Debian Jessie
 
 # Version 0.21
 

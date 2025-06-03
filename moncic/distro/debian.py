@@ -239,22 +239,6 @@ class Debian(DistroFamily):
         self.add_distro(
             DebianDistro(
                 self,
-                "jessie",
-                "8",
-                mirror="http://archive.debian.org/debian/",
-                key_url="https://ftp-master.debian.org/keys/release-8.asc",
-                podman_repository="docker.io/debian/eol",
-                cgroup_v1=True,
-                apt_install_verb="install",
-                apt_full_upgrade_verb="dist-upgrade",
-                systemd_version=215,
-                dpkg_dev_no_sign=["-us", "-uc"],
-                dpkg_dev_no_pre_clean=["-nc"],
-            )
-        )
-        self.add_distro(
-            DebianDistro(
-                self,
                 "stretch",
                 "9",
                 mirror="http://archive.debian.org/debian/",

@@ -215,14 +215,6 @@ class DebianDistroTestsBase(DebDistroTestsBase):
     mirror = "http://deb.debian.org/debian"
 
 
-class TestJessie(DebianDistroTestsBase):
-    mirror = "http://archive.debian.org/debian/"
-    name = "jessie"
-    install_verb = "install"
-    upgrade_verb: str = "dist-upgrade"
-    custom_keyring = True
-
-
 class TestStretch(DebianDistroTestsBase):
     mirror = "http://archive.debian.org/debian/"
     name = "stretch"

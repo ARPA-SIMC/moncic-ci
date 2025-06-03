@@ -82,7 +82,7 @@ distros`. Currently supported, on nspawn and podman containers:
 
 * Almalinux: 8 and 9
 * Centos: 7
-* Debian: jessie to trixie and testing/sid
+* Debian: stretch to trixie and testing/sid
 * Fedora: 32 to 42
 * Rocky: 8 and 9
 * Ubuntu: xenial to plucky
@@ -91,9 +91,6 @@ Caveats from the last integration test run:
 
 * Fedora 32 on nspawn: dnf cannot fetch from configured mirrors
 * Fedora 38 on nspawn: build hangs, reason to be investigated
-* Debian Jessie on nspawn: systemd in container needs cgroups v1 support
-* Debian Jessie on podman: build fails: `apt-get builddep ./` does not seem
-  to be supported
 * Ubuntu Xenial on nspawn: systemd in container needs cgroups v1 support
 * Ubuntu Hirsute on podman: apt sources do not update
 * Ubuntu Impish on podman: apt sources do not update
