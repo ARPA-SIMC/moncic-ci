@@ -203,7 +203,7 @@ class NspawnContainer(Container):
         if config.disable_network:
             # This is ignored, probably because the container has already been started
             cmd += ["--property=PrivateNetwork=true"]
-        if not command[0].startswith("/") and systemd_version is not None and systemd_version <= 245:
+        if not command[0].startswith("/") and systemd_version is not None and systemd_version <= 246:
             command = ["/usr/bin/env"] + command
 
         # if home_bind:

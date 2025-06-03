@@ -207,8 +207,8 @@ class Centos7(YumDistro):
 class FedoraDistro(DnfDistro):
     version: str
 
-    def __init__(self, family: DistroFamily, version: int, archived: bool = False):
-        super().__init__(family, str(version), str(version))
+    def __init__(self, family: DistroFamily, version: int, archived: bool = False, **kwargs: Any):
+        super().__init__(family, str(version), str(version), **kwargs)
         if archived:
             self.mirror = "https://archives.fedoraproject.org"
             self.baseurl = f"{self.mirror}/pub/archive/fedora/linux/releases/{version}/Everything/$basearch/os/"
@@ -255,11 +255,11 @@ class RockyDistro(DnfDistro):
 class Fedora(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(FedoraDistro(self, 32, archived=True))
-        self.add_distro(FedoraDistro(self, 33, archived=True))
-        self.add_distro(FedoraDistro(self, 34, archived=True))
-        self.add_distro(FedoraDistro(self, 35, archived=True))
-        self.add_distro(FedoraDistro(self, 36, archived=True))
+        self.add_distro(FedoraDistro(self, 32, archived=True, systemd_version=245))
+        self.add_distro(FedoraDistro(self, 33, archived=True, systemd_version=246))
+        self.add_distro(FedoraDistro(self, 34, archived=True, systemd_version=248))
+        self.add_distro(FedoraDistro(self, 35, archived=True, systemd_version=249))
+        self.add_distro(FedoraDistro(self, 36, archived=True, systemd_version=250))
         self.add_distro(FedoraDistro(self, 37))
         self.add_distro(FedoraDistro(self, 38))
         self.add_distro(FedoraDistro(self, 39))
