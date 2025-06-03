@@ -183,10 +183,6 @@ class NspawnContainer(Container):
             capture_output = False
         else:
             cmd.append("--pipe")
-        if not run_config.use_path:
-            cmd.append("--property=ExecSearchPath=/dev/null")
-            # systemd-run will exit with 203 if the command was not found
-            # See https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html#Process%20Exit%20Codes
         if run_config.user is not None:
             cmd += [f"--uid={run_config.user.user_id}", f"--gid={run_config.user.group_id}"]
         if run_config.disable_network:
@@ -207,7 +203,6 @@ class NspawnContainer(Container):
         with self.script_in_guest(script) as guest_path:
             run_config = self.config.run_config()
             run_config.check = check
-            run_config.use_path = True
             if script.root:
                 run_config.user = UserConfig.root()
             if script.cwd is not None:

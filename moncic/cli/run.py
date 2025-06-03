@@ -17,7 +17,6 @@ class Shell(ImageActionCommand):
         run_config = self.get_run_config()
         run_config.check = False
         run_config.interactive = True
-        run_config.use_path = True
 
         with self.container() as container:
             res = container.run_shell(config=run_config)
@@ -39,7 +38,6 @@ class Run(ImageActionCommand):
 
     def run(self) -> int:
         run_config = self.get_run_config()
-        run_config.use_path = True
         run_config.check = False
 
         with self.container() as container:

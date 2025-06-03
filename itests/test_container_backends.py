@@ -10,9 +10,13 @@ from moncic.runner import RunConfig, UserConfig
 from moncic.utils.osrelease import parse_osrelase_contents
 from moncic.utils.script import Script
 
-from .base import (IntegrationTestsBase, NspawnIntegrationTestsBase,
-                   PodmanIntegrationTestsBase, setup_distro_tests,
-                   skip_if_container_cannot_start)
+from .base import (
+    IntegrationTestsBase,
+    NspawnIntegrationTestsBase,
+    PodmanIntegrationTestsBase,
+    setup_distro_tests,
+    skip_if_container_cannot_start,
+)
 
 
 class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
@@ -72,24 +76,6 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         self.assertEqual(res.stdout, b"")
         self.assertEqual(res.stderr, b"")
         self.assertEqual(res.returncode, 1)
-
-    @skip_if_container_cannot_start()
-    def test_run_use_path(self) -> None:
-        rimage = self.get_bootstrapped()
-        with rimage.container() as container:
-            res = container.run(["true"], config=RunConfig(use_path=True))
-            self.assertEqual(res.stdout, b"")
-            self.assertEqual(res.stderr, b"")
-            self.assertEqual(res.returncode, 0)
-
-            res = container.run(["true"], config=RunConfig(use_path=False, check=False))
-            self.assertEqual(res.stdout, b"")
-            self.assertNotEqual(res.returncode, 0)
-
-            res = container.run(["/usr/bin/true"], config=RunConfig(use_path=False))
-            self.assertEqual(res.stdout, b"")
-            self.assertEqual(res.stderr, b"")
-            self.assertEqual(res.returncode, 0)
 
     @skip_if_container_cannot_start()
     def test_run_check(self) -> None:

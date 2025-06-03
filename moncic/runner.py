@@ -145,10 +145,6 @@ class RunConfig:
     # Set to true to connect to the running terminal instead of logging output
     interactive: bool = False
 
-    # Set to true to lookup the executable in the path instead of assuming it
-    # is an absolute path
-    use_path: bool = False
-
     # Run with networking disabled
     disable_network: bool = False
 
@@ -275,10 +271,10 @@ class LocalRunner(AsyncioRunner):
         if self.config.cwd is not None:
             kwargs["cwd"] = self.config.cwd
 
-        if self.config.use_path:
-            executable = shutil.which(self.cmd[0])
-            if executable is None:
-                executable = self.cmd[0]
+        if self.cmd[0].startswith("/"):
+            executable = self.cmd[0]
+        elif found := shutil.which(self.cmd[0]):
+            executable = found
         else:
             executable = self.cmd[0]
 
@@ -295,9 +291,8 @@ class LocalRunner(AsyncioRunner):
         check: bool = True,
         cwd: Path | None = None,
         interactive: bool = False,
-        use_path: bool = False,
     ) -> subprocess.CompletedProcess[bytes]:
         """Run a command in the host system."""
-        config = RunConfig(check=check, cwd=cwd, interactive=interactive, use_path=use_path)
+        config = RunConfig(check=check, cwd=cwd, interactive=interactive)
         runner = LocalRunner(logger, config, cmd)
         return runner.execute()
