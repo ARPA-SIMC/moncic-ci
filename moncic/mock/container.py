@@ -3,10 +3,11 @@ from collections.abc import Generator, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import override
+from subprocess import CompletedProcess
 
 from moncic.container import Container, MaintenanceContainer
 from moncic.container.binds import BindConfig
-from moncic.runner import CompletedCallable, RunConfig
+from moncic.runner import RunConfig
 from moncic.utils.script import Script
 
 from .image import MockImage
@@ -49,12 +50,12 @@ class MockContainer(Container):
         # run_config = self.config.run_config(config)
         # self.image.images.session.mock_log(system=self.image.name, action="run", config=run_config, cmd=command)
         # return self.image.images.session.get_process_result(args=command)
-        return CompletedCallable(command, 0, b"", b"")
+        return CompletedProcess(command, 0, b"", b"")
 
     @override
     def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         self.image.session.run_log.append_script(script)
-        return CompletedCallable(["script"], 0, b"", b"")
+        return CompletedProcess(["script"], 0, b"", b"")
 
 
 class MockMaintenanceContainer(MockContainer, MaintenanceContainer):

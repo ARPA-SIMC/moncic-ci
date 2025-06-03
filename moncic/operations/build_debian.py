@@ -10,16 +10,11 @@ from pathlib import Path
 from typing import override
 
 from moncic.container import Container, ContainerConfig
-from moncic.runner import UserConfig
 from moncic.source.debian import DebianGBP, DebianSource
-from moncic.utils import setns
 from moncic.utils.deb import apt_get_cmd
-from moncic.utils.fs import cd
-from moncic.utils.guest import guest_only, host_only
-from moncic.utils.run import run
 from moncic.utils.script import Script
 
-from .build import BuildConfig, Builder, BuildResults
+from .build import BuildConfig, Builder
 
 log = logging.getLogger(__name__)
 
@@ -181,7 +176,6 @@ class DebianBuilder(Builder):
         self.results.success = True
 
     @override
-    @host_only
     def collect_artifacts_script(self) -> Script:
         script = super().collect_artifacts_script()
         dest = Path("/srv/moncic-ci/artifacts")

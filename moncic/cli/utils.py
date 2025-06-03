@@ -68,18 +68,18 @@ class BuildOptionAction(argparse._AppendAction):
         values: str | Sequence[Any] | None,
         option_string: str | None = None,
     ) -> None:
-        from moncic.build import Build
+        from moncic.operations.build import Builder
 
         assert isinstance(values, str)
 
         if values == "list":
             # Compute width for option names
             name_width = max(
-                len(x) for cls in Build.list_build_classes() for x, doc in cls.build_config_class.list_build_options()
+                len(x) for cls in Builder.list_build_classes() for x, doc in cls.build_config_class.list_build_options()
             )
             help_wrapper = get_doc_wrapper(name_width + 4)
 
-            for cls in Build.list_build_classes():
+            for cls in Builder.list_build_classes():
                 print(f"{cls.get_name()}:")
                 for name, doc in cls.build_config_class.list_build_options():
                     for idx, line in enumerate(help_wrapper.wrap(doc)):
@@ -97,7 +97,7 @@ class BuildOptionAction(argparse._AppendAction):
             raise ValueError(f"option --option={values!r} must have an non-empty key")
 
         allowed_keys: set[str] = set()
-        for cls in Build.list_build_classes():
+        for cls in Builder.list_build_classes():
             for name, doc in cls.build_config_class.list_build_options():
                 allowed_keys.add(name)
 

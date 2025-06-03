@@ -4,10 +4,7 @@ from pathlib import Path
 from typing import Any, override
 
 from moncic.container import Container
-from moncic.context import privs
 from moncic.source.rpm import RPMSource
-from moncic.utils.guest import guest_only, host_only
-from moncic.utils.run import run
 from moncic.utils.script import Script
 
 from .build import Builder
@@ -134,7 +131,6 @@ class ARPABuilder(RPMBuilder):
         self.results.success = True
 
     @override
-    @host_only
     def collect_artifacts_script(self) -> Script:
         script = super().collect_artifacts_script()
         dest = Path("/srv/moncic-ci/artifacts")

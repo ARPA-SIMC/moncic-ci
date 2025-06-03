@@ -11,7 +11,6 @@ from typing import IO, TYPE_CHECKING, ContextManager
 from moncic.container import BindType, ContainerConfig
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource
-from moncic.utils.guest import guest_only, host_only
 from moncic.utils.script import Script
 
 if TYPE_CHECKING:
@@ -123,7 +122,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
 
         yield None
 
-    @host_only
     @contextlib.contextmanager
     def container_config(self) -> Generator[ContainerConfig]:
         """Build the container configuration for this operation."""
@@ -134,7 +132,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
                 stack.enter_context(plugin(config))
             yield config
 
-    @host_only
     def log_capture_start(self, log_file: Path) -> None:
         self.log_file = log_file.open("wt")
         self.log_handler = logging.StreamHandler(self.log_file)
@@ -143,7 +140,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         logging.getLogger().addHandler(self.log_handler)
         logging.getLogger().setLevel(logging.DEBUG)
 
-    @host_only
     def log_capture_end(self) -> None:
         if self.log_handler is not None:
             logging.getLogger().removeHandler(self.log_handler)
@@ -151,7 +147,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
             self.log_file.close()
             self.log_file = None
 
-    @host_only
     def log_execution_info(self, container_config: ContainerConfig) -> None:
         """
         Log all available information about how the task is executed in the container
@@ -163,7 +158,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         # Log container config
         container_config.log_debug(log)
 
-    @host_only
     @contextlib.contextmanager
     def container(self) -> Generator[Container]:
         """
@@ -178,21 +172,18 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
                 finally:
                     self.log_capture_end()
 
-    @host_only
     def collect_artifacts_script(self) -> Script:
         """
         Collect artifacts from the guest filesystem before it is shut down
         """
         return Script(title="Collect artifacts produced inside the container", root=True)
 
-    @host_only
     def _after_build(self, container: Container) -> None:
         """
         Hook to run commands on the container after the main operation ended
         """
         # Do nothing by default
 
-    @host_only
     def host_main(self) -> None:
         """
         Run the build, store the artifacts in the given directory if requested,
@@ -204,7 +195,6 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
             finally:
                 self._after_build(container)
 
-    @host_only
     @abc.abstractmethod
     def run(self, container: Container) -> None:
         """Run the operation in the container."""

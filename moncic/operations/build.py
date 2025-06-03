@@ -16,7 +16,6 @@ from moncic.container import BindType, Container, ContainerConfig
 from moncic.exceptions import Fail
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource
-from moncic.utils.guest import host_only
 from moncic.utils.link_or_copy import link_or_copy
 from moncic.utils.run import run
 from moncic.utils.script import Script
@@ -230,18 +229,15 @@ class Builder(ContainerSourceOperation, abc.ABC):
         return run(cmd, check=check, **kwargs)
 
     @override
-    @host_only
     def log_execution_info(self, container_config: "ContainerConfig") -> None:
         # General builder information
         log.info("Build strategy: %s", self.build.__class__.__name__)
         super().log_execution_info(container_config)
 
-    @host_only
     def build(self, container: Container) -> None:
         """Run the build."""
 
     @override
-    @host_only
     def _after_build(self, container: "Container") -> None:
         """
         Run configured commands after the build ended
@@ -256,7 +252,6 @@ class Builder(ContainerSourceOperation, abc.ABC):
         for cmd in self.config.on_end:
             self._run_command(container, cmd)
 
-    @host_only
     def _run_command(self, container: "Container", cmd: str) -> None:
         """
         Run a command after a build
@@ -285,12 +280,10 @@ class Builder(ContainerSourceOperation, abc.ABC):
             run(["/bin/sh", "-c", cmd], env=env)
 
     @override
-    @host_only
     def run(self, container: Container) -> None:
         self.build(container)
 
     @override
-    @host_only
     def collect_artifacts_script(self) -> Script:
         script = super().collect_artifacts_script()
 
@@ -307,7 +300,6 @@ class Builder(ContainerSourceOperation, abc.ABC):
 
         return script
 
-    @host_only
     def harvest_artifacts(self, transfer_dir: Path) -> None:
         """Move artifacts from the transfer directory to their final destination."""
         assert self.config.artifacts_dir is not None

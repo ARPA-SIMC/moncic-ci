@@ -15,9 +15,8 @@ import git
 
 from moncic.distro.debian import DebianDistro
 from moncic.exceptions import Fail
-from moncic.utils.guest import host_only
 from moncic.utils.link_or_copy import link_or_copy
-from moncic.utils.run import log_run, run
+from moncic.utils.run import log_run
 
 from .distro import DistroSource
 from .local import Dir, File, Git
@@ -320,7 +319,6 @@ class DebianDsc(DebianSource, File, style="debian-dsc"):
         return cls(parent=parent, path=parent.path, distro=distro, source_info=source_info)
 
     @override
-    @host_only
     def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
         super().collect_build_artifacts(destdir, artifact_dir)
         # Copy .dsc and its assets to the container
@@ -380,7 +378,6 @@ class DebianDir(DebianSource, Dir, style="debian-dir"):
         raise Fail(f"Tarball {self.source_info.tar_stem}.* not found")
 
     @override
-    @host_only
     def collect_build_artifacts(self, destdir: Path, artifact_dir: Path | None = None) -> None:
         super().collect_build_artifacts(destdir, artifact_dir)
         tarball = self._find_tarball(artifact_dir)
