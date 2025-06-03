@@ -78,9 +78,9 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
             script.lines,
             [
                 "/usr/bin/systemctl mask --now systemd-resolved",
-                "/usr/bin/dnf check-update -q -y || true",
-                "/usr/bin/dnf upgrade -q -y",
-                f"/usr/bin/dnf install -q -y {shlex.join(packages)}",
+                "/usr/bin/dnf check-update -y -q || true",
+                "/usr/bin/dnf upgrade -y -q",
+                f"/usr/bin/dnf install -y -q {shlex.join(packages)}",
             ],
         )
 
@@ -153,9 +153,9 @@ class TestCentos7(DistroTestsBase):
         self.assertEqual(
             script.lines,
             [
-                "/usr/bin/yum check-update -q -y || true",
-                "/usr/bin/yum upgrade -q -y",
-                "/usr/bin/yum install -q -y bash dbus iproute rootfiles yum",
+                "/usr/bin/yum check-update -y -q || true",
+                "/usr/bin/yum upgrade -y -q",
+                "/usr/bin/yum install -y -q bash dbus iproute rootfiles yum",
             ],
         )
 
@@ -164,6 +164,8 @@ class DebDistroTestsBase(DistroTestsBase):
     mirror: str
     custom_keyring = False
     install_verb: str = "satisfy"
+    upgrade_verb: str = "full-upgrade"
+    components: str | None = None
 
     @override
     def setUp(self) -> None:
@@ -176,29 +178,35 @@ class DebDistroTestsBase(DistroTestsBase):
 
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
+        match: list[str] = [
+            r"(/usr/bin/eatmydata )?/usr/s?bin/(?:mmdebstrap|debootstrap)",
+            re.escape("--include=apt-utils,bash,ca-certificates,dbus,eatmydata,iproute2,systemd"),
+            re.escape(f"--variant=minbase"),
+        ]
         if self.custom_keyring:
-            custom_keyring = r" --keyring=[^\.]+\.gpg"
-        else:
-            custom_keyring = ""
-        run_log.assertPopFirst(
-            re.compile(
-                rf"(/usr/bin/eatmydata )?/usr/s?bin/(?:mmdebstrap|debootstrap) --include=bash,dbus,systemd,apt-utils,eatmydata,iproute2"
-                rf" --variant=minbase{custom_keyring} {self.distro.name} {path} {self.mirror}"
-            )
-        )
+            match.append(r"--keyring=[^\.]+\.gpg")
+        if self.components:
+            match.append(re.escape(f"--components={shlex.quote(self.components)}"))
+        match += [
+            re.escape(f"{self.distro.name} {path} {self.mirror}"),
+        ]
+        run_log.assertPopFirst(re.compile(" ".join(match)))
         run_log.assertLogEmpty()
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
         script = run_log.assertPopScript("Upgrade container")
+        self.maxDiff = None
         self.assertEqual(
             script.lines,
             [
                 "/usr/bin/apt-get update",
+                "export DEBIAN_FRONTEND=noninteractive",
                 "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                " full-upgrade",
+                f" {self.upgrade_verb}",
+                "export DEBIAN_FRONTEND=noninteractive",
                 "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                f" {self.install_verb} apt-utils bash dbus eatmydata iproute2 systemd",
+                f" {self.install_verb} apt-utils bash ca-certificates dbus eatmydata iproute2 systemd",
             ],
         )
 
@@ -211,6 +219,7 @@ class TestJessie(DebianDistroTestsBase):
     mirror = "http://archive.debian.org/debian/"
     name = "jessie"
     install_verb = "install"
+    upgrade_verb: str = "dist-upgrade"
     custom_keyring = True
 
 
@@ -354,14 +363,17 @@ class TestRocky9(DistroTestsBase):
 
 class UbuntuDistroTestsBase(DebDistroTestsBase):
     mirror = "https://archive.ubuntu.com/ubuntu/"
+    components = "main,restricted,universe"
 
 
 class TestXenial(UbuntuDistroTestsBase):
     name = "xenial"
+    install_verb = "install"
 
 
 class TestBionic(UbuntuDistroTestsBase):
     name = "bionic"
+    install_verb = "install"
 
 
 class TestFocal(UbuntuDistroTestsBase):

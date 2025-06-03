@@ -48,6 +48,10 @@ class DebianDistro(Distro):
         cgroup_v1: bool = False,
         bootstrappers: Collection[str] = ("mmdebstrap", "debootstrap"),
         apt_install_verb: str = "satisfy",
+        apt_full_upgrade_verb: str = "full-upgrade",
+        dpkg_dev_no_sign: Collection[str] = ("--no-sign",),
+        dpkg_dev_no_pre_clean: Collection[str] = ("--no-pre-clean",),
+        podman_repository: str = "docker.io/library/debian",
         **kwargs: Any,
     ):
         super().__init__(family, name, version, other_names, cgroup_v1=cgroup_v1, **kwargs)
@@ -55,10 +59,14 @@ class DebianDistro(Distro):
         self.key_url = key_url
         self.bootstrappers = list(bootstrappers)
         self.apt_install_verb = apt_install_verb
+        self.apt_full_upgrade_verb = apt_full_upgrade_verb
+        self.dpkg_dev_no_sign = list(dpkg_dev_no_sign)
+        self.dpkg_dev_no_pre_clean = list(dpkg_dev_no_pre_clean)
+        self.podman_repository = podman_repository
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
-        return ("docker.io/library/debian", self.name)
+        return (self.podman_repository, self.name)
 
     @override
     def container_config_hook(self, image: Image, config: ContainerConfig) -> None:
@@ -74,7 +82,7 @@ class DebianDistro(Distro):
     @override
     def get_base_packages(self) -> list[str]:
         res = super().get_base_packages()
-        res += ["systemd", "apt-utils", "eatmydata", "iproute2"]
+        res += ["systemd", "apt-utils", "eatmydata", "iproute2", "ca-certificates"]
         return res
 
     def get_gbp_branches(self) -> list[str]:
@@ -87,6 +95,9 @@ class DebianDistro(Distro):
         else:
             return ["debian/" + self.name, "debian/latest"]
 
+    def get_bootstrap_args(self) -> list[str]:
+        return ["--variant=minbase"]
+
     @override
     def bootstrap(self, images: Images, path: Path) -> None:
         for name in self.bootstrappers:
@@ -96,7 +107,7 @@ class DebianDistro(Distro):
             raise RuntimeError("No debian bootstrapper found. Tried: {', '.join(bootstrappers)}")
         with contextlib.ExitStack() as stack:
             installroot = path.absolute()
-            cmd = [bootstrapper, "--include=" + ",".join(self.get_base_packages()), "--variant=minbase"]
+            cmd = [bootstrapper, "--include=" + ",".join(sorted(self.get_base_packages()))] + self.get_bootstrap_args()
 
             if self.key_url is not None:
                 tmpfile = stack.enter_context(tempfile.NamedTemporaryFile(suffix=".gpg"))
@@ -124,11 +135,13 @@ class DebianDistro(Distro):
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
         super().get_upgrade_system_script(script)
-        script.run(self.APT_INSTALL_CMD + ["full-upgrade"])
+        script.setenv("DEBIAN_FRONTEND", "noninteractive")
+        script.run(self.APT_INSTALL_CMD + [self.apt_full_upgrade_verb])
 
     @override
     def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
         super().get_install_packages_script(script, packages)
+        script.setenv("DEBIAN_FRONTEND", "noninteractive")
         script.run(self.APT_INSTALL_CMD + [self.apt_install_verb] + packages)
 
     @override
@@ -194,6 +207,10 @@ class UbuntuDistro(DebianDistro):
         super().__init__(family, name, version, mirror=mirror, **kwargs)
 
     @override
+    def get_bootstrap_args(self) -> list[str]:
+        return ["--variant=minbase", "--components=main,restricted,universe"]
+
+    @override
     def get_podman_name(self) -> tuple[str, str]:
         return ("docker.io/library/ubuntu", self.name)
 
@@ -226,9 +243,13 @@ class Debian(DistroFamily):
                 "8",
                 mirror="http://archive.debian.org/debian/",
                 key_url="https://ftp-master.debian.org/keys/release-8.asc",
+                podman_repository="docker.io/debian/eol",
                 cgroup_v1=True,
                 apt_install_verb="install",
+                apt_full_upgrade_verb="dist-upgrade",
                 systemd_version=215,
+                dpkg_dev_no_sign=["-us", "-uc"],
+                dpkg_dev_no_pre_clean=["-nc"],
             )
         )
         self.add_distro(
@@ -237,6 +258,7 @@ class Debian(DistroFamily):
                 "stretch",
                 "9",
                 mirror="http://archive.debian.org/debian/",
+                podman_repository="docker.io/debian/eol",
                 key_url="https://ftp-master.debian.org/keys/release-9.asc",
                 apt_install_verb="install",
                 systemd_version=232,
@@ -291,9 +313,19 @@ class Ubuntu(DistroFamily):
     @override
     def init(self) -> None:
         self.add_distro(
-            UbuntuDistro(self, "xenial", "16.04", cgroup_v1=True, bootstrappers=["debootstrap"], systemd_version=229)
+            UbuntuDistro(
+                self,
+                "xenial",
+                "16.04",
+                apt_install_verb="install",
+                cgroup_v1=True,
+                bootstrappers=["debootstrap"],
+                systemd_version=229,
+                dpkg_dev_no_sign=["-us", "-uc"],
+                dpkg_dev_no_pre_clean=["-nc"],
+            )
         )
-        self.add_distro(UbuntuDistro(self, "bionic", "18.04", systemd_version=237))
+        self.add_distro(UbuntuDistro(self, "bionic", "18.04", apt_install_verb="install", systemd_version=237))
         self.add_distro(UbuntuDistro(self, "focal", "20.04", systemd_version=245))
         self.add_distro(UbuntuDistro(self, "hirsute", "21.04", archived=True))
         self.add_distro(UbuntuDistro(self, "impish", "21.10", archived=True))

@@ -56,7 +56,7 @@ class Script:
 
     def setenv(self, key: str, value: str) -> None:
         """Export an environment variable."""
-        self.add_line(f"{key}={shlex.quote(value)}")
+        self.add_line(f"export {key}={shlex.quote(value)}")
 
     def run_unquoted(self, command: str, *, description: str | None = None, cwd: Path | None = None) -> None:
         if description:

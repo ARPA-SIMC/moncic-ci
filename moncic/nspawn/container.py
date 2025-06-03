@@ -107,6 +107,7 @@ class NspawnContainer(Container):
             "--boot",
             "--notify-ready=yes",
             "--resolv-conf=replace-host",
+            "--timezone=copy",
         ]
         cmd.append(f"--bind-ro={escape_bind_ro(self.scriptdir)}:{escape_bind_ro(self.guest_scriptdir)}")
         for bind_config in self.config.binds:

@@ -8,6 +8,7 @@ from collections.abc import Generator
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
 
+from moncic import context
 from moncic.utils.script import Script
 
 from .distro import Distro, DistroFamily
@@ -43,6 +44,13 @@ class RpmDistro(Distro):
             fd.flush()
             yield fd.name
 
+    def dnf_noninteractive_options(self) -> list[str]:
+        """Return options to make dnf/yum noninteractive."""
+        cmd = ["-y"]
+        if not context.debug.get():
+            cmd.append("-q")
+        return cmd
+
     @override
     def bootstrap(self, images: "Images", path: Path) -> None:
         installer = shutil.which("dnf")
@@ -53,12 +61,8 @@ class RpmDistro(Distro):
 
         with self.chroot_config() as dnf_config:
             installroot = path.absolute()
-            cmd = [
-                installer,
-                "-c",
-                dnf_config,
-                "-y",
-                "-q",
+            cmd = [installer, "-c", dnf_config] + self.dnf_noninteractive_options()
+            cmd += [
                 "--disablerepo=*",
                 "--enablerepo=chroot-base",
                 "--disableplugin=*",
@@ -102,22 +106,22 @@ class YumDistro(RpmDistro):
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
-        script.run(["/usr/bin/yum", "check-update", "-q", "-y"], check=False)
+        script.run(["/usr/bin/yum", "check-update"] + self.dnf_noninteractive_options(), check=False)
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
         super().get_upgrade_system_script(script)
-        script.run(["/usr/bin/yum", "upgrade", "-q", "-y"])
+        script.run(["/usr/bin/yum", "upgrade"] + self.dnf_noninteractive_options())
 
     @override
     def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
         super().get_install_packages_script(script, packages)
-        script.run(["/usr/bin/yum", "install", "-q", "-y"] + packages)
+        script.run(["/usr/bin/yum", "install"] + self.dnf_noninteractive_options() + packages)
 
     @override
     def get_prepare_build_script(self, script: Script) -> None:
         super().get_prepare_build_script(script)
-        script.run(["/usr/bin/yum", "install", "-q", "-y", "@buildsys-build", "git", "rpmdevtools"])
+        self.get_install_packages_script(script, ["@buildsys-build", "git", "rpmdevtools"])
 
 
 class DnfDistro(RpmDistro):
@@ -134,22 +138,26 @@ class DnfDistro(RpmDistro):
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
         # check-update returns with code 100 if there are packages to upgrade
-        script.run(["/usr/bin/dnf", "check-update", "-q", "-y"], check=False)
+        script.run(["/usr/bin/dnf", "check-update"] + self.dnf_noninteractive_options(), check=False)
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
         super().get_upgrade_system_script(script)
-        script.run(["/usr/bin/dnf", "upgrade", "-q", "-y"])
+        script.run(["/usr/bin/dnf", "upgrade"] + self.dnf_noninteractive_options())
 
     @override
     def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
         super().get_install_packages_script(script, packages)
-        script.run(["/usr/bin/dnf", "install", "-q", "-y"] + packages)
+        script.run(["/usr/bin/dnf", "install"] + self.dnf_noninteractive_options() + packages)
+
+    def _build_env_packages(self) -> list[str]:
+        """Get a list of packages used in build environments."""
+        return ["dnf-command(builddep)", "git", "rpmdevtools"]
 
     @override
     def get_prepare_build_script(self, script: Script) -> None:
         super().get_prepare_build_script(script)
-        script.run(["/usr/bin/dnf", "install", "-q", "-y", "dnf-command(builddep)", "git", "rpmdevtools"])
+        self.get_install_packages_script(script, self._build_env_packages())
 
     @override
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
@@ -225,6 +233,13 @@ class FedoraDistro(DnfDistro):
         res = super().get_base_packages()
         if int(self.version) >= 41:
             res += ["systemd"]
+        return res
+
+    @override
+    def _build_env_packages(self) -> list[str]:
+        res = super()._build_env_packages()
+        if int(self.version) >= 41:
+            res += ["dnf5-plugins"]
         return res
 
 

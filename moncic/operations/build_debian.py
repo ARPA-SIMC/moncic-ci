@@ -11,6 +11,7 @@ from typing import override
 
 from moncic.container import Container, ContainerConfig
 from moncic.runner import UserConfig
+from moncic.distro.debian import DebianDistro
 from moncic.source.debian import DebianGBP, DebianSource
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.script import Script
@@ -168,7 +169,8 @@ class DebianBuilder(Builder):
         build_script = Script("Build binary package", disable_network=True, user=UserConfig.root())
         build_script.setenv("DEB_BUILD_PROFILES", build_profiles)
         build_script.setenv("DEB_BUILD_OPTIONS", build_options)
-        cmd = ["dpkg-buildpackage", "--no-sign"]
+        assert isinstance(self.image.distro, DebianDistro)
+        cmd = ["dpkg-buildpackage"] + self.image.distro.dpkg_dev_no_sign
         if self.config.include_source:
             cmd.append("-sa")
         build_script.run(cmd)
@@ -237,7 +239,11 @@ class DebianBuilderDir(DebianBuildSource):
         # Uses --no-pre-clean to avoid requiring build-deps to be installed at
         # this stage
         script = Script("Build source package")
-        script.run(["dpkg-buildpackage", "-S", "--no-sign", "--no-pre-clean"], cwd=self.guest_source_path)
+        assert isinstance(self.image.distro, DebianDistro)
+        script.run(
+            ["dpkg-buildpackage", "-S"] + self.image.distro.dpkg_dev_no_pre_clean + self.image.distro.dpkg_dev_no_sign,
+            cwd=self.guest_source_path,
+        )
         self.results.scripts.append(script)
         container.run_script(script)
         return self._find_built_dsc(container)
@@ -251,8 +257,11 @@ class DebianBuilderGBP(DebianBuildSource):
     @override
     def build_source(self, container: Container) -> Path:
         script = Script("Build source package", cwd=self.guest_source_path)
+        assert isinstance(self.image.distro, DebianDistro)
         script.run(
-            ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S", "--no-sign", "--no-pre-clean"]
+            ["gbp", "buildpackage", "--git-ignore-new", "-d", "-S"]
+            + self.image.distro.dpkg_dev_no_pre_clean
+            + self.image.distro.dpkg_dev_no_sign
             + self.source.gbp_args,
         )
         self.results.scripts.append(script)
