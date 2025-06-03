@@ -156,7 +156,7 @@ class RunnableImage(Image, abc.ABC):
         for u in self.bootstrapped_from.forwards_users:
             container.forward_user(UserConfig.from_user(u), allow_maint=True)
 
-        script = Script("Upgrade container", cwd=Path("/"), root=True)
+        script = Script("Upgrade container", cwd=Path("/"), user=UserConfig.root())
         self.distro.get_setup_network_script(script)
         for text in self.bootstrapped_from.maintscripts:
             for line in text.splitlines():

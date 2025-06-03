@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, override
 
 from moncic.container import Container
+from moncic.runner import UserConfig
 from moncic.source.rpm import RPMSource
 from moncic.utils.script import Script
 
@@ -64,7 +65,7 @@ class ARPABuilder(RPMBuilder):
     @override
     def build(self, container: Container) -> None:
         assert self.results.name is not None
-        script = Script(f"Build {self.source.name}", root=True)
+        script = Script(f"Build {self.source.name}", user=UserConfig.root())
         script.run(
             ["mkdir", "-p"]
             + [

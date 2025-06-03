@@ -2,20 +2,21 @@ import shlex
 from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import IO
+from typing import IO, override
 
 from moncic import context
+from moncic.runner import UserConfig
 
 
 class Script:
     """Incrementally build a shellscript."""
 
     def __init__(
-        self, title: str, *, cwd: Path | None = None, root: bool = False, disable_network: bool = False
+        self, title: str, *, cwd: Path | None = None, user: UserConfig | None = None, disable_network: bool = False
     ) -> None:
         self.title = title
         self.cwd = cwd
-        self.root = root
+        self.user = user
         self.debug_mode = context.debug.get()
         self.disable_network = disable_network
         if self.debug_mode:
@@ -28,6 +29,27 @@ class Script:
     def __bool__(self) -> bool:
         """Check if the script contains any command."""
         return bool(self.lines)
+
+    @override
+    def __str__(self) -> str:
+        return self.title
+
+    @override
+    def __repr__(self) -> str:
+        res: list[str] = ["Script("]
+        res.append(repr(self.title))
+        if self.cwd is not None:
+            res.append(f",cwd={self.cwd.as_posix()!r}")
+        if self.user is not None:
+            res.append(",user={self.user!r}")
+        if self.debug_mode:
+            res.append(",debug_mode=True")
+        if self.disable_network:
+            res.append(",disable_network=True")
+        res.append(f",shell={self.shell!r}")
+        res.append(f",lines={self.lines!r}")
+        res.append(")")
+        return "".join(res)
 
     def add_line(self, line: str) -> None:
         self.lines.append(" " * self.indent + line)
@@ -135,3 +157,12 @@ class Script:
         print(file=file)
         for line in self.lines:
             print(line, file=file)
+
+    def debug_print(self, file: IO[str] | None = None) -> None:
+        """Write the script to a file."""
+        print(f"#!{self.shell}", file=file)
+        print(file=file)
+        print(f"# {self.title}", file=file)
+        print(file=file)
+        for lineno, line in enumerate(self.lines, start=1):
+            print(f"{lineno:03d} {line}", file=file)

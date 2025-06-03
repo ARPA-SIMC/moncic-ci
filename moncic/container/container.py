@@ -138,13 +138,21 @@ class Container(abc.ABC):
         """
         Ensure the system has a matching user and group
         """
-        check_script = Script("Check user IDs in container", cwd=Path("/"), root=True)
+        check_script = Script("Check user IDs in container", cwd=Path("/"), user=UserConfig.root())
         check_script.run_unquoted(f"USER_ID=$(id -u {user.user_id} 2>/dev/null || true)")
         check_script.run_unquoted(f"GROUP_ID=$(id -g {user.user_id} 2>/dev/null || true)")
-        check_script.run_unquoted('echo "$USER_ID:$GROUP_ID"')
+        check_script.run_unquoted(f"USER_NAME=$(id -un {user.user_id} 2>/dev/null || true)")
+        check_script.run_unquoted(f"GROUP_NAME=$(id -gn {user.user_id} 2>/dev/null || true)")
+        check_script.run_unquoted(
+            f"""HAS_USER=$(test -n "$(getent passwd {shlex.quote(user.user_name)})" && echo 'yes' || echo 'no')"""
+        )
+        check_script.run_unquoted(
+            f"""HAS_GROUP=$(test -n "$(getent group {shlex.quote(user.group_name)})" && echo 'yes' || echo 'no')"""
+        )
+        check_script.run_unquoted('echo "$USER_ID:$GROUP_ID:$USER_NAME:$GROUP_NAME:$HAS_USER:$HAS_GROUP"')
 
         res = self.run_script(check_script)
-        uid, gid = res.stdout.strip().decode().split(":")
+        uid, gid, user_name, group_name, user_in_db, group_in_db = res.stdout.strip().decode().split(":")
 
         has_user = uid and int(uid) == user.user_id
         if not has_user and not allow_maint and not self.ephemeral:
@@ -154,9 +162,18 @@ class Container(abc.ABC):
         if not has_group and not allow_maint and not self.ephemeral:
             raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
 
-        if not has_user and not has_group:
-            setup_script = Script("Set up local user", cwd=Path("/"), root=True)
+        setup_script = Script("Set up local user", cwd=Path("/"), user=UserConfig.root())
+
+        create_user = not has_user or user_in_db == "no"
+        create_group = not has_group or group_in_db == "no"
+        if (user_name and user_name != user.user_name) or (group_name and group_name != user.group_name):
+            setup_script.run(["userdel", user_name])
+            setup_script.run(["groupdel", group_name], check=False)
+            create_user = True
+            create_group = True
+        if create_group:
             setup_script.run(["groupadd", "--gid", str(user.group_id), user.group_name])
+        if create_user:
             setup_script.run(
                 [
                     "useradd",
@@ -168,25 +185,22 @@ class Container(abc.ABC):
                     user.user_name,
                 ],
             )
+        if setup_script:
             self.run_script(setup_script)
-        else:
-            script = Script("Validate user database", cwd=Path("/"), root=True)
-            with script.if_("[ $(id -u) -eq 0 ] && [ $(id -g) -eq 0 ]"):
-                script.run(["exit", "0"])
 
-            script.run_unquoted(f'UNAME="$(id -un {user.user_id})"')
-            with script.if_('[ "$UNAME" != {shlex.quote(user.user_name)} ]'):
-                script.fail(
-                    f"user {user.user_id} in container is named $UNAME but outside it is named {user.user_name}"
-                )
+        script = Script("Validate user database", cwd=Path("/"), user=user)
+        with script.if_("[ $(id -u) -eq 0 ] && [ $(id -g) -eq 0 ]"):
+            script.run(["exit", "0"])
 
-            script.run_unquoted('''GNAME="$(getent group {user.group_id} | sed -r 's/:.+//')"''')
-            with script.if_('[ "$GNAME" != {shlex.quote(user.group_name)} ]'):
-                script.fail(
-                    f"group {user.group_id} in container is named $GNAME but outside it is named {user.group_name}"
-                )
+        script.run_unquoted(f'UNAME="$(id -un {user.user_id})"')
+        with script.if_(f'[ "$UNAME" != {shlex.quote(user.user_name)} ]'):
+            script.fail(f"user {user.user_id} in container is named $UNAME but outside it is named {user.user_name}")
 
-            self.run_script(script)
+        script.run_unquoted(f'''GNAME="$(getent group {user.group_id} | sed -r 's/:.+//')"''')
+        with script.if_(f'[ "$GNAME" != {shlex.quote(user.group_name)} ]'):
+            script.fail(f"group {user.group_id} in container is named $GNAME but outside it is named {user.group_name}")
+
+        self.run_script(script)
 
     @abc.abstractmethod
     def get_root(self) -> Path:

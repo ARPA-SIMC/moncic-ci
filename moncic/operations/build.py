@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, override
 
 import yaml
 
-from moncic.container import BindType, Container, ContainerConfig
+from moncic.container import BindType, Container, ContainerConfig, RunConfig
 from moncic.exceptions import Fail
 from moncic.runner import UserConfig
 from moncic.source.distro import DistroSource
@@ -208,7 +208,7 @@ class Builder(ContainerSourceOperation, abc.ABC):
     def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
         """Build-specific container setup."""
         if not self.config.quick:
-            script = Script("Update container packages before build", cwd=Path("/"), root=True)
+            script = Script("Update container packages before build", cwd=Path("/"), user=UserConfig.root())
             self.image.distro.get_update_pkgdb_script(script)
             self.image.distro.get_upgrade_system_script(script)
             self.image.distro.get_prepare_build_script(script)
@@ -258,9 +258,7 @@ class Builder(ContainerSourceOperation, abc.ABC):
         """
         if cmd.startswith("@"):
             if cmd == "@shell":
-                run_config = container.config.run_config()
-                run_config.interactive = True
-                run_config.check = False
+                run_config = RunConfig()
                 run_config.user = UserConfig.root()
                 run_config.cwd = Path("/srv/moncic-ci/build")
                 container.run_shell(config=run_config)

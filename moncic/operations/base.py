@@ -75,7 +75,7 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
     @contextlib.contextmanager
     def plugin_container_filesystem(self, config: ContainerConfig) -> Generator[None]:
         """Set up the container before starting the build."""
-        script = Script("Set up the container filesystem", cwd=Path("/"), root=True)
+        script = Script("Set up the container filesystem", cwd=Path("/"), user=UserConfig.root())
         script.run(
             ["chown", str(self.user.user_id), "/srv/moncic-ci/source"],
             description="Make source directory user-writable",
@@ -176,7 +176,7 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         """
         Collect artifacts from the guest filesystem before it is shut down
         """
-        return Script(title="Collect artifacts produced inside the container", root=True)
+        return Script(title="Collect artifacts produced inside the container", user=UserConfig.root())
 
     def _after_build(self, container: Container) -> None:
         """

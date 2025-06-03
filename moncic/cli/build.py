@@ -136,8 +136,8 @@ class CI(SourceCommand):
                                 }
                                 if obj.cwd:
                                     res["cwd"] = obj.cwd.as_posix()
-                                if obj.root:
-                                    res["root"] = obj.root
+                                if obj.user:
+                                    res["user"] = obj.user.user_name
                                 if obj.disable_network:
                                     res["disable_network"] = obj.disable_network
                                 res["shell"] = obj.shell

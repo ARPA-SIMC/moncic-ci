@@ -30,7 +30,7 @@ class NspawnImage(RunnableImage, abc.ABC):
         name: str,
         distro: Distro,
         path: Path,
-        bootstrapped_from=BootstrappableImage,
+        bootstrapped_from: BootstrappableImage | None,
     ) -> None:
         super().__init__(
             images=images, image_type=ImageType.NSPAWN, name=name, distro=distro, bootstrapped_from=bootstrapped_from

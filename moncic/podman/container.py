@@ -134,8 +134,8 @@ class PodmanContainer(Container):
         with self.script_in_guest(script) as guest_path:
             config = RunConfig()
             config.check = check
-            if script.root:
-                config.user = UserConfig.root()
+            if script.user is not None:
+                config.user = script.user
             else:
                 config.user = self.config.get_default_user()
             if script.cwd is not None:

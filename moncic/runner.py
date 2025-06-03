@@ -125,7 +125,7 @@ class Runner:
 
     def __init__(self, logger: logging.Logger, cmd: list[str], cwd: Path | None = None, check: bool = True):
         super().__init__()
-        self.log = logger
+        self.logger = logger
         self.cmd = cmd
         self.cwd = cwd
         self.check = check
@@ -148,7 +148,7 @@ class Runner:
             if not line:
                 break
             self.stdout.append(line)
-            self.log.info("stdout: %s", line.decode(errors="replace").rstrip())
+            self.logger.info("stdout: %s", line.decode(errors="replace").rstrip())
 
     async def read_stderr(self, reader: asyncio.StreamReader) -> None:
         while True:
@@ -156,10 +156,10 @@ class Runner:
             if not line:
                 break
             self.stderr.append(line)
-            self.log.info("stderr: %s", line.decode(errors="replace").rstrip())
+            self.logger.info("stderr: %s", line.decode(errors="replace").rstrip())
 
     async def start_process(self) -> asyncio.subprocess.Process:
-        self.log.info("Running %s", self.name)
+        self.logger.info("Running %s", self.name)
 
         kwargs: dict[str, Any] = {}
         if self.cwd is not None:
@@ -192,6 +192,7 @@ class Runner:
         stderr = b"".join(self.stderr)
 
         if self.check and proc.returncode != 0:
+            self.logger.error("%s: exited with status %d", self.name, proc.returncode)
             raise subprocess.CalledProcessError(proc.returncode, self.cmd, stdout, stderr)
 
         return subprocess.CompletedProcess(self.cmd, proc.returncode, stdout, stderr)

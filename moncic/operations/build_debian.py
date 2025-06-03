@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import override
 
 from moncic.container import Container, ContainerConfig
+from moncic.runner import UserConfig
 from moncic.source.debian import DebianGBP, DebianSource
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.script import Script
@@ -84,7 +85,7 @@ class DebianBuilder(Builder):
     @override
     @contextlib.contextmanager
     def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
-        script = Script("Prepare Debian system for build", cwd=Path("/"), root=True)
+        script = Script("Prepare Debian system for build", cwd=Path("/"), user=UserConfig.root())
         script.run_unquoted(
             "echo man-db man-db/auto-update boolean false | debconf-set-selections",
             description="Disable reindexing of manpages during installation of build-dependencies",
@@ -152,7 +153,7 @@ class DebianBuilder(Builder):
 
         builddep_script = Script(
             "Install build dependencies",
-            root=True,
+            user=UserConfig.root(),
             cwd=guest_build_root / f"{self.source.source_info.name}-{self.source.source_info.upstream_version}",
         )
         builddep_script.setenv("DEB_BUILD_PROFILES", build_profiles)
@@ -164,7 +165,7 @@ class DebianBuilder(Builder):
 
         # Once build dependencies are installed, we don't need internet
         # anymore: Debian packages are required to build without network access
-        build_script = Script("Build binary package", disable_network=True, root=True)
+        build_script = Script("Build binary package", disable_network=True, user=UserConfig.root())
         build_script.setenv("DEB_BUILD_PROFILES", build_profiles)
         build_script.setenv("DEB_BUILD_OPTIONS", build_options)
         cmd = ["dpkg-buildpackage", "--no-sign"]

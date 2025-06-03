@@ -11,9 +11,13 @@ from moncic.runner import UserConfig
 from moncic.utils.osrelease import parse_osrelase_contents
 from moncic.utils.script import Script
 
-from .base import (IntegrationTestsBase, NspawnIntegrationTestsBase,
-                   PodmanIntegrationTestsBase, setup_distro_tests,
-                   skip_if_container_cannot_start)
+from .base import (
+    IntegrationTestsBase,
+    NspawnIntegrationTestsBase,
+    PodmanIntegrationTestsBase,
+    setup_distro_tests,
+    skip_if_container_cannot_start,
+)
 
 
 class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
@@ -38,13 +42,6 @@ class DistroContainerTests(IntegrationTestsBase, abc.ABC):
         config = ContainerConfig()
         config.forward_user = self.sudoer
         self.container = self.enterContext(self.rimage.container(config=config))
-
-    def test_systemd_version(self) -> None:
-        if (systemd_version := self.rimage.distro.systemd_version) is None:
-            return
-        res = self.container.run(["/bin/systemctl", "--version"])
-        self.assertEqual(int(res.stdout.decode().splitlines()[0].split()[1]), systemd_version)
-        self.assertEqual(res.stderr, b"")
 
     def test_run_osrelease(self) -> None:
         res = self.container.run(["/bin/cat", "/etc/os-release"])
@@ -132,7 +129,12 @@ class PodmanDistroMaintenanceTests(DistroMaintenanceTests, PodmanIntegrationTest
 
 
 class NspawnDistroContainerTests(DistroContainerTests, NspawnIntegrationTestsBase, abc.ABC):
-    pass
+    def test_systemd_version(self) -> None:
+        if (systemd_version := self.rimage.distro.systemd_version) is None:
+            return
+        res = self.container.run(["/bin/systemctl", "--version"])
+        self.assertEqual(int(res.stdout.decode().splitlines()[0].split()[1]), systemd_version)
+        self.assertEqual(res.stderr, b"")
 
 
 class PodmanDistroContainerTests(DistroContainerTests, PodmanIntegrationTestsBase, abc.ABC):
