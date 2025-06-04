@@ -372,33 +372,8 @@ class TestFocal(UbuntuDistroTestsBase):
     name = "focal"
 
 
-class TestHirsute(UbuntuDistroTestsBase):
-    mirror = "https://old-releases.ubuntu.com/ubuntu/"
-    name = "hirsute"
-
-
-class TestImpish(UbuntuDistroTestsBase):
-    mirror = "https://old-releases.ubuntu.com/ubuntu/"
-    name = "impish"
-
-
 class TestJammy(UbuntuDistroTestsBase):
     name = "jammy"
-
-
-class TestKinetic(UbuntuDistroTestsBase):
-    mirror = "https://old-releases.ubuntu.com/ubuntu/"
-    name = "kinetic"
-
-
-class TestLunar(UbuntuDistroTestsBase):
-    mirror = "https://old-releases.ubuntu.com/ubuntu/"
-    name = "lunar"
-
-
-class TestMantic(UbuntuDistroTestsBase):
-    mirror = "https://old-releases.ubuntu.com/ubuntu/"
-    name = "mantic"
 
 
 class TestNoble(UbuntuDistroTestsBase):

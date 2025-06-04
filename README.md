@@ -85,17 +85,13 @@ distros`. Currently supported, on nspawn and podman containers:
 * Debian: stretch to trixie and testing/sid
 * Fedora: 32 to 42
 * Rocky: 8 and 9
-* Ubuntu: xenial to plucky
+* Ubuntu: xenial, bionic, focal, jammy, noble, oracular, plucky
 
 Caveats from the last integration test run:
 
 * Fedora 32 on nspawn: dnf cannot fetch from configured mirrors
 * Fedora 38 on nspawn: build hangs, reason to be investigated
 * Ubuntu Xenial on nspawn: systemd in container needs cgroups v1 support
-* Ubuntu Hirsute on podman: apt sources do not update
-* Ubuntu Impish on podman: apt sources do not update
-* Ubuntu Kinetic on podman: apt sources do not update
-* Ubuntu Mantic on podman: apt sources do not update
 
 All other systems appear to work on both nspawn and podman containers.
 

@@ -4,7 +4,7 @@
 * Fixed bootstrap for supported distributions
 * Removed support for Centos 8. Centos 7 is still supported.
 * Added support for Almalinux.
-* Added support for newer Ubuntu
+* Added support for newer Ubuntu, removed support for EOL Ubuntus.
 * Detect when a container for an old distribution cannot be started due to
   group v1 guest on v2 host (see https://github.com/lxc/lxc/issues/4072)
 * Use mmdebstrap to bootstrap Debian, if available
