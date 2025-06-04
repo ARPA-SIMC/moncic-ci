@@ -12,6 +12,7 @@
 * Fine tuned distribution support, driven by new integration tests. Reported
   results in README.md
 * Removed support for Debian Jessie
+* Removed support for Fedora <= 38
 
 # Version 0.21
 

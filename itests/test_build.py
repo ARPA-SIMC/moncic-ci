@@ -19,6 +19,10 @@ class BuildTests(IntegrationTestsBase, abc.ABC):
 
         rimage = self.get_bootstrapped()
 
+        from moncic import context
+
+        context.debug.set(True)
+
         with self.verbose_logging(), Source.create_local(source=source_path) as local_source:
             source = DistroSource.create_from_local(local_source, distro=rimage.distro)
             # Create a Build object with system-configured defaults

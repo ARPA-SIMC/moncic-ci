@@ -271,34 +271,6 @@ class FedoraDistroTestsBase(DistroTestsBase):
         self.assertUpdateScriptRPM(run_log, self.packages)
 
 
-class TestFedora32(FedoraDistroTestsBase):
-    version = 32
-
-
-class TestFedora33(FedoraDistroTestsBase):
-    version = 33
-
-
-class TestFedora34(FedoraDistroTestsBase):
-    version = 34
-
-
-class TestFedora35(FedoraDistroTestsBase):
-    version = 35
-
-
-class TestFedora36(FedoraDistroTestsBase):
-    version = 36
-
-
-class TestFedora37(FedoraDistroTestsBase):
-    version = 37
-
-
-class TestFedora38(FedoraDistroTestsBase):
-    version = 38
-
-
 class TestFedora39(FedoraDistroTestsBase):
     version = 39
 

@@ -270,13 +270,6 @@ class RockyDistro(DnfDistro):
 class Fedora(DistroFamily):
     @override
     def init(self) -> None:
-        self.add_distro(FedoraDistro(self, 32, archived=True, systemd_version=245))
-        self.add_distro(FedoraDistro(self, 33, archived=True, systemd_version=246))
-        self.add_distro(FedoraDistro(self, 34, archived=True, systemd_version=248))
-        self.add_distro(FedoraDistro(self, 35, archived=True, systemd_version=249))
-        self.add_distro(FedoraDistro(self, 36, archived=True, systemd_version=250))
-        self.add_distro(FedoraDistro(self, 37))
-        self.add_distro(FedoraDistro(self, 38))
         self.add_distro(FedoraDistro(self, 39))
         self.add_distro(FedoraDistro(self, 40))
         self.add_distro(FedoraDistro(self, 41))
