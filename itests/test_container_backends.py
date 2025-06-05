@@ -31,6 +31,23 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         with self.verbose_logging():
             rimage.update()
 
+    @skip_if_container_cannot_start()
+    def test_bind_workdir(self) -> None:
+        rimage = self.get_bootstrapped()
+        sudoer = UserConfig.from_sudoer()
+        workdir = self.workdir()
+        guest_workdir = Path("/media") / workdir.name
+        config = ContainerConfig()
+        config.forward_user = sudoer
+        config.configure_workdir(workdir)
+        with rimage.container(config=config) as container:
+            res = container.run(["/usr/bin/stat", "--format=%u:%g", guest_workdir.as_posix()])
+            self.assertEqual(res.stdout.decode().strip(), f"{sudoer.user_id}:{sudoer.group_id}")
+
+            (workdir / "testfile").write_text("test")
+            res = container.run(["/bin/cat", (guest_workdir / "testfile").as_posix()])
+            self.assertEqual(res.stdout.decode().strip(), "test")
+
 
 class DistroContainerTests(IntegrationTestsBase, abc.ABC):
     @override

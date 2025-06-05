@@ -1,7 +1,7 @@
 import signal
 import subprocess
-from collections.abc import Generator, Iterator
-from contextlib import contextmanager
+from collections.abc import Generator, Iterator, MutableMapping
+from contextlib import contextmanager, ExitStack
 from pathlib import Path
 from typing import Any, override
 
@@ -45,6 +45,10 @@ class PodmanContainer(Container):
     def _container(self) -> Generator[None, None, None]:
         if self.container is not None:
             raise RuntimeError("Container already started")
+
+        # For the Python API, see https://podman-py.readthedocs.io/en/latest/podman.domain.containers_create.html
+        # For the mount structure, see https://docs.podman.io/en/latest/_static/api.html#tag/containers/operation/ContainerCreateLibpod
+
         # TODO: self.config.ephemeral
         # TODO: self.config.tmpfs
         mounts: list[dict[str, Any]] = [
@@ -77,9 +81,35 @@ class PodmanContainer(Container):
 
         self.image.logger.debug("Starting container %r", container_kwargs)
 
-        self.container = self.image.session.podman.containers.create(
-            self.image.podman_image, ["sleep", "inf"], **container_kwargs
-        )
+        with ExitStack() as stack:
+            if (user := self.config.forward_user) is not None:
+                userns_mode = {
+                    "nsmode": "keep-id",
+                    "value": f"uid={user.user_id},gid={user.group_id}",
+                }
+
+                container_kwargs["userns_mode"] = userns_mode
+
+                # FIXME: remove this hack when we can use a podman library with this
+                # fix: https://github.com/containers/podman-py/commit/1510ab7921dfbcdf929144730102be8e97bd7295
+                if not hasattr(podman.domain.containers_create, "normalize_nsmode"):
+                    del container_kwargs["userns_mode"]
+                    orig_render_payload = podman.domain.containers_create.CreateMixin._render_payload
+
+                    def tweak(_: Any, kwargs: MutableMapping[str, Any]) -> dict[str, Any]:
+                        res = orig_render_payload(kwargs)
+                        res["userns"] = userns_mode
+                        return res
+
+                    from unittest import mock
+
+                    stack.enter_context(
+                        mock.patch("podman.domain.containers_create.CreateMixin._render_payload", tweak)
+                    )
+
+            self.container = self.image.session.podman.containers.create(
+                self.image.podman_image, ["sleep", "inf"], **container_kwargs
+            )
         self.container.start()
         self.container.wait(condition="running")
 
