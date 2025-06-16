@@ -64,8 +64,12 @@ class ConfiguredImages(Images):
             )
 
         if path := self.configs.get(name):
-            config = Config(self.session, name, path)
-            return ConfiguredImage(images=self, name=name, config=config, variant_of=variant_of)
+            try:
+                config = Config(self.session, name, path)
+                return ConfiguredImage(images=self, name=name, config=config, variant_of=variant_of)
+            except Exception as e:
+                e.add_note(f"image name: {name}")
+                raise
 
         raise KeyError(f"Image {name!r} not found")
 
