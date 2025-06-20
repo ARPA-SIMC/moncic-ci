@@ -1,4 +1,4 @@
-# Version UNRELEASED
+# Version 0.22
 
 * Added an initial suite of integration tests
 * Fixed bootstrap for supported distributions
@@ -13,6 +13,7 @@
   results in README.md
 * Removed support for Debian Jessie
 * Removed support for Fedora <= 38
+* Deal with dnf being both in sbin and bin in F42 (#117)
 
 # Version 0.21
 

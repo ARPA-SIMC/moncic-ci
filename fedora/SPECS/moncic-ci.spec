@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.21
+Version:        0.22
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -77,6 +77,22 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Fri Jun 20 2025 Daniele Branchini <dbranchini@arpae.it> - 0.22-1
+- Added an initial suite of integration tests
+- Fixed bootstrap for supported distributions
+- Removed support for Centos 8. Centos 7 is still supported.
+- Added support for Almalinux.
+- Added support for newer Ubuntu, removed support for EOL Ubuntus.
+- Detect when a container for an old distribution cannot be started due to
+  group v1 guest on v2 host (see https://github.com/lxc/lxc/issues/4072)
+- Use mmdebstrap to bootstrap Debian, if available
+- `moncic ci` can now use podman containers
+- Fine tuned distribution support, driven by new integration tests. Reported
+  results in README.md
+- Removed support for Debian Jessie
+- Removed support for Fedora <= 38
+- Deal with dnf being both in sbin and bin in F42 (#117)
+
 * Tue May 27 2025 Daniele Branchini <dbranchini@arpae.it> - 0.21-1
 - Use check-update instead of updateinfo for yum and dnf (#116)
 - Update distro tests to deal with running scripts instead of command sequences (#115)
