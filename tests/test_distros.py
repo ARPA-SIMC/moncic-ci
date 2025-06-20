@@ -141,7 +141,7 @@ class TestCentos7(DistroTestsBase):
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
         run_log.assertPopFirst(
             re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever=7 install bash dbus iproute rootfiles yum"
             )
         )
@@ -260,7 +260,7 @@ class FedoraDistroTestsBase(DistroTestsBase):
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
         run_log.assertPopFirst(
             re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever={self.version} install {' '.join(self.packages)}"
             )
         )
@@ -296,7 +296,7 @@ class TestRocky8(DistroTestsBase):
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
         run_log.assertPopFirst(
             re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever=8 install bash dbus dnf iproute rootfiles"
             )
         )
@@ -314,7 +314,7 @@ class TestRocky9(DistroTestsBase):
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
         run_log.assertPopFirst(
             re.compile(
-                rf"/usr/bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
+                rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever=9 install bash dbus dnf iproute rootfiles"
             )
         )
