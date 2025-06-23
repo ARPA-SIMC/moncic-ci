@@ -285,7 +285,6 @@ class BtrfsImages(NspawnImages):
                     else:
                         work_path.rename(path)
             else:
-                subvolume = Subvolume(self.session.moncic.config, work_path, compression)
                 # Create work_path as a snapshot of path
                 subvolume.snapshot(path)
                 try:

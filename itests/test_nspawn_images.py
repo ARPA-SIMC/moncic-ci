@@ -23,7 +23,7 @@ class NspawnImagesTests(MoncicTestCase):
         assert self.mconfig.imagedir is not None
         self.imagedir: Path = self.mconfig.imagedir
         self.image_yaml = self.imageconfdir / "test.yaml"
-        self.image_yaml.write_text("distro: fedora34\n")
+        self.image_yaml.write_text("distro: fedora40\n")
         self.session = self.enterContext(self.mock_session(self.moncic(self.mconfig), images_class=self.images_class))
         self.images = self.session.images.images[-1]
 
@@ -67,6 +67,7 @@ VERSION_ID=34
             bootstrapped = image.bootstrap()
         distro_bootstrap.assert_called_with(self.images, Path(f"{image_path}.new"))
         self.assertIsInstance(bootstrapped, NspawnImage)
+        assert isinstance(bootstrapped, NspawnImage)
         self.assertEqual(bootstrapped.path, image_path)
 
     def test_bootstrap_tarball(self) -> None:
@@ -87,9 +88,28 @@ VERSION_ID=34
 
         bootstrapped = image.bootstrap()
         self.assertIsInstance(bootstrapped, NspawnImage)
+        assert isinstance(bootstrapped, NspawnImage)
         self.assertEqual(bootstrapped.path, image_path)
 
         self.assertTrue((self.imagedir / "test" / "etc" / "os-release").exists())
+
+    def test_bootstrap_tempdir_exists(self) -> None:
+        self.session.images.reload()
+        image = self.session.images.image("test")
+        assert isinstance(image, BootstrappableImage)
+        self.assertIsInstance(image, BootstrappableImage)
+
+        image_path = self.imagedir / "test"
+        # The work directory already exists, leftover from a previous run
+        (self.imagedir / "test.new").mkdir(parents=True)
+        with mock.patch(
+            "moncic.distro.rpm.FedoraDistro.bootstrap", side_effect=lambda images, path: self.mock_bootstrap(path)
+        ) as distro_bootstrap:
+            bootstrapped = image.bootstrap()
+        distro_bootstrap.assert_called_with(self.images, Path(f"{image_path}.new"))
+        self.assertIsInstance(bootstrapped, NspawnImage)
+        assert isinstance(bootstrapped, NspawnImage)
+        self.assertEqual(bootstrapped.path, image_path)
 
 
 class BtrfsNspawnImagesTests(NspawnImagesTests):
