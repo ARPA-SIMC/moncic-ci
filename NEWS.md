@@ -1,3 +1,7 @@
+# Version UNRELEASED
+
+* Remove work directories left around from previous runs (#119)
+
 # Version 0.22
 
 * Added an initial suite of integration tests
