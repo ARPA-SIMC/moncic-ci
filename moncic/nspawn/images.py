@@ -175,6 +175,9 @@ class PlainImages(NspawnImages):
             yield path
         else:
             work_path = path.parent / f"{path.name}.new"
+            if work_path.exists():
+                # Remove an old work path left around
+                shutil.rmtree(work_path)
             try:
                 yield work_path
             except BaseException:
@@ -272,8 +275,11 @@ class BtrfsImages(NspawnImages):
     @contextlib.contextmanager
     def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path]:
         work_path = path.parent / f"{path.name}.new"
-        subvolume = Subvolume(self.session.moncic.config, work_path, compression)
         with context.privs.root():
+            subvolume = Subvolume(self.session.moncic.config, work_path, compression)
+            if work_path.exists():
+                subvolume.remove()
+                shutil.rmtree(work_path)
             if not path.exists():
                 with subvolume.create():
                     try:
