@@ -1,4 +1,4 @@
-# Version UNRELEASED
+# Version 0.23
 
 * Remove work directories left around from previous runs (#119)
 

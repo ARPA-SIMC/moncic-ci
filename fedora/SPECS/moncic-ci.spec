@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.22
+Version:        0.23
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -77,6 +77,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Wed Jun 25 2025 Daniele Branchini <dbranchini@arpae.it> - 0.23-1
+- Remove work directories left around from previous runs (#119)
+
 * Fri Jun 20 2025 Daniele Branchini <dbranchini@arpae.it> - 0.22-1
 - Added an initial suite of integration tests
 - Fixed bootstrap for supported distributions
