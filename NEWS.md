@@ -1,3 +1,7 @@
+# Version UNRELEASED
+
+* Fixed `--extra-packages-dir` that was broken by the previous refactoring
+
 # Version 0.23
 
 * Remove work directories left around from previous runs (#119)

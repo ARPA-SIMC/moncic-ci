@@ -62,18 +62,14 @@ class PodmanImage(RunnableImage):
 
     @override
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
-        from moncic.container import ContainerConfig
-
         from .container import PodmanContainer
 
-        return PodmanContainer(self, config=config or ContainerConfig())
+        return PodmanContainer(self, config=self._make_container_config(config))
 
     @override
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
     ) -> "MaintenanceContainer":
-        from moncic.container import ContainerConfig
-
         from .container import PodmanMaintenanceContainer
 
-        return PodmanMaintenanceContainer(self, config=config or ContainerConfig())
+        return PodmanMaintenanceContainer(self, config=self._make_container_config(config))

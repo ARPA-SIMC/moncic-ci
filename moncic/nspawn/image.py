@@ -42,21 +42,17 @@ class NspawnImage(RunnableImage, abc.ABC):
 
     @override
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
-        from moncic.container import ContainerConfig
-
         from .container import NspawnContainer
 
-        return NspawnContainer(self, config=config or ContainerConfig(), instance_name=instance_name)
+        return NspawnContainer(self, config=self._make_container_config(config), instance_name=instance_name)
 
     @override
     def maintenance_container(
         self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
     ) -> "MaintenanceContainer":
-        from moncic.container import ContainerConfig
-
         from .container import NspawnMaintenanceContainer
 
-        return NspawnMaintenanceContainer(self, config=config or ContainerConfig(), instance_name=instance_name)
+        return NspawnMaintenanceContainer(self, config=self._make_container_config(config), instance_name=instance_name)
 
     @override
     def get_backend_id(self) -> str:

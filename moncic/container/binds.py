@@ -357,7 +357,7 @@ class BindConfigAptPackages(BindConfig):
         packages_file = mirror_dir / "Packages"
 
         setup_script = Script(f"apt packages mount setup for {self.destination}", cwd=Path("/"), user=UserConfig.root())
-        setup_script.run(["apt-ftparchive", "packages", mirror_dir.name], output=packages_file, cwd=mirror_dir)
+        setup_script.run(["apt-ftparchive", "packages", "."], output=packages_file, cwd=mirror_dir)
         setup_script.write(
             Path("/etc/apt/sources.list.d/tmp-moncic-ci.list"), f"deb [trusted=yes] file://{mirror_dir} ./"
         )

@@ -1,4 +1,5 @@
 import abc
+import copy
 import enum
 import logging
 import subprocess
@@ -178,6 +179,15 @@ class RunnableImage(Image, abc.ABC):
     def describe(self) -> dict[str, Any]:
         """Return a dictionary describing facts about the image."""
         return {}
+
+    def _make_container_config(self, config: Optional["ContainerConfig"]) -> "ContainerConfig":
+        """Create the final container config."""
+        if config is None:
+            config = ContainerConfig()
+        else:
+            config = copy.deepcopy(config)
+        self.distro.container_config_hook(self, config)
+        return config
 
     @abc.abstractmethod
     def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
