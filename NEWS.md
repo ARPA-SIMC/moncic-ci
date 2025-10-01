@@ -1,4 +1,4 @@
-# Version UNRELEASED
+# Version 0.24
 
 * Fixed `--extra-packages-dir` that was broken by the previous refactoring
 * Fixed `monci image {name} {extends|distro} {name}` command (#121)

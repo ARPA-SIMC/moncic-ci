@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.23
+Version:        0.24
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -77,6 +77,10 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Wed Oct 01 2025 Daniele Branchini <dbranchini@arpae.it> - 0.24-1
+- Fixed `--extra-packages-dir` that was broken by the previous refactoring
+- Fixed `monci image {name} {extends|distro} {name}` command (#121)
+
 * Wed Jun 25 2025 Daniele Branchini <dbranchini@arpae.it> - 0.23-1
 - Remove work directories left around from previous runs (#119)
 
