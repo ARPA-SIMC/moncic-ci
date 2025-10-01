@@ -1,0 +1,51 @@
+import logging
+import sys
+from typing import Protocol
+
+import moncic
+from moncic import cli, exceptions
+from moncic.utils import argparse
+
+log = logging.getLogger(__name__)
+
+cli.FAIL_EXCEPTIONS.append(exceptions.Fail)
+cli.SUCCESS_EXCEPTIONS.append(exceptions.Success)
+
+
+class Handler(Protocol):
+    def run(self) -> int | None: ...
+
+
+def main() -> int | None:
+    parser = argparse.ArgumentParser(description="CI tool")
+    parser.add_argument("--version", action="version", version=moncic.__version__)
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="verbose output",
+        shared=True,
+    ),
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="debugging output",
+        shared=True,
+    ),
+    subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
+
+    for cls in cli.MAIN_COMMANDS:
+        cls.make_subparser(subparsers)
+
+    try:
+        args = parser.parse_args()
+    except Exception as e:
+        print(str(e), file=sys.stderr)
+        return 1
+
+    handler: Handler = args.handler(args)
+    return handler.run()
+
+
+if __name__ == "__main__":
+    cli.run_main(main)
