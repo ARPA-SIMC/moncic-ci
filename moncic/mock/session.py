@@ -5,16 +5,43 @@ import sys
 from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, override
+from collections.abc import Callable
 
 from moncic.images import BootstrappingImages, Images
 from moncic.session import Session
 from moncic.utils.deb import DebCache
+from moncic.utils.script import Script
+from moncic.runner import UserConfig
 
 if TYPE_CHECKING:
     import podman as _podman
 
     from moncic.moncic import Moncic
-    from moncic.unittest import MockRunLog
+
+
+class MockRunLog:
+    """Collect a trace of all mock operations run."""
+
+    def __init__(self) -> None:
+        self.log: list[tuple[str, dict[str, Any]]] = []
+
+    def append_action(self, action: str) -> None:
+        self.log.append((action, {}))
+
+    def append(self, cmd: list[str], kwargs: dict[str, Any]) -> None:
+        self.log.append((shlex.join(cmd), kwargs))
+
+    def append_script(self, script: Script) -> None:
+        self.log.append((script.title, {"script": script}))
+
+    def append_callable(self, func: Callable[[], int | None]) -> None:
+        self.log.append((f"callable:{func.__name__}", {}))
+
+    def append_forward_user(self, user: UserConfig) -> None:
+        self.log.append((f"forward_user:{user.user_name},{user.user_id},{user.group_name},{user.group_id}", {}))
+
+    def append_cachedir(self) -> None:
+        self.log.append(("cachedir_tag:", {}))
 
 
 class MockSession(Session):
@@ -22,13 +49,13 @@ class MockSession(Session):
     Mock session used for tests
     """
 
-    def __init__(self, moncic: "Moncic", run_log: "MockRunLog", images_class: type[Images] | None = None) -> None:
+    def __init__(self, moncic: "Moncic", images_class: type[Images] | None = None) -> None:
         from .images import MockImages
 
         self.images_class = images_class or MockImages
 
         super().__init__(moncic)
-        self.run_log = run_log
+        self.run_log = MockRunLog()
         self.log: list[dict[str, Any]] = []
         self.process_result_queue: dict[str, subprocess.CompletedProcess] = {}
 

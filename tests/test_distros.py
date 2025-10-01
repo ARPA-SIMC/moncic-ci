@@ -8,8 +8,8 @@ from unittest import mock
 
 from moncic.distro import Distro, DistroFamily
 from moncic.image import RunnableImage
-from moncic.mock.session import MockSession
-from moncic.unittest import MockRunLog, MoncicTestCase
+from moncic.mock.session import MockSession, MockRunLog
+from moncic.unittest import MoncicTestCase
 
 
 class DistroFamilyTestsBase(MoncicTestCase):
@@ -73,7 +73,7 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None: ...
 
     def assertUpdateScriptRPM(self, run_log: MockRunLog, packages: list[str]) -> None:
-        script = run_log.assertPopScript("Upgrade container")
+        script = self.assertRunLogPopScript(run_log, "Upgrade container")
         self.assertEqual(
             script.lines,
             [
@@ -120,7 +120,7 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
         path = self.workdir()
         self.distro.bootstrap(session.bootstrapper, path)
         self.assertBootstrapCommands(session.run_log, path)
-        session.run_log.assertLogEmpty()
+        self.assertRunLogEmpty(session.run_log)
 
     def test_update(self) -> None:
         session = self.session()
@@ -128,10 +128,10 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
         assert isinstance(image, RunnableImage)
 
         image.update()
-        session.run_log.assertPopFirst(f"{self.distro.full_name}: container start")
+        self.assertRunLogPopFirst(session.run_log, f"{self.distro.full_name}: container start")
         self.assertUpdateCommands(session.run_log, Path("/test"))
-        session.run_log.assertPopFirst(f"{self.distro.full_name}: container stop")
-        session.run_log.assertLogEmpty()
+        self.assertRunLogPopFirst(session.run_log, f"{self.distro.full_name}: container stop")
+        self.assertRunLogEmpty(session.run_log)
 
 
 class TestCentos7(DistroTestsBase):
@@ -139,17 +139,18 @@ class TestCentos7(DistroTestsBase):
 
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
+        self.assertRunLogPopFirst(
+            run_log,
             re.compile(
                 rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever=7 install bash dbus iproute rootfiles yum"
-            )
+            ),
         )
-        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+        self.assertRunLogPopFirst(run_log, f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        script = run_log.assertPopScript("Upgrade container")
+        script = self.assertRunLogPopScript(run_log, "Upgrade container")
         self.assertEqual(
             script.lines,
             [
@@ -181,7 +182,7 @@ class DebDistroTestsBase(DistroTestsBase):
         match: list[str] = [
             r"(/usr/bin/eatmydata )?/usr/s?bin/(?:mmdebstrap|debootstrap)",
             re.escape("--include=apt-utils,bash,ca-certificates,dbus,eatmydata,iproute2,systemd"),
-            re.escape(f"--variant=minbase"),
+            re.escape("--variant=minbase"),
         ]
         if self.custom_keyring:
             match.append(r"--keyring=[^\.]+\.gpg")
@@ -190,13 +191,12 @@ class DebDistroTestsBase(DistroTestsBase):
         match += [
             re.escape(f"{self.distro.name} {path} {self.mirror}"),
         ]
-        run_log.assertPopFirst(re.compile(" ".join(match)))
-        run_log.assertLogEmpty()
+        self.assertRunLogPopFirst(run_log, re.compile(" ".join(match)))
+        self.assertRunLogEmpty(run_log)
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
-        script = run_log.assertPopScript("Upgrade container")
-        self.maxDiff = None
+        script = self.assertRunLogPopScript(run_log, "Upgrade container")
         self.assertEqual(
             script.lines,
             [
@@ -258,13 +258,14 @@ class FedoraDistroTestsBase(DistroTestsBase):
 
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
+        self.assertRunLogPopFirst(
+            run_log,
             re.compile(
                 rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever={self.version} install {' '.join(self.packages)}"
-            )
+            ),
         )
-        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+        self.assertRunLogPopFirst(run_log, f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -294,13 +295,14 @@ class TestRocky8(DistroTestsBase):
 
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
+        self.assertRunLogPopFirst(
+            run_log,
             re.compile(
                 rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever=8 install bash dbus dnf iproute rootfiles"
-            )
+            ),
         )
-        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+        self.assertRunLogPopFirst(run_log, f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
@@ -312,13 +314,14 @@ class TestRocky9(DistroTestsBase):
 
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
-        run_log.assertPopFirst(
+        self.assertRunLogPopFirst(
+            run_log,
             re.compile(
                 rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
                 rf" --installroot={path} --releasever=9 install bash dbus dnf iproute rootfiles"
-            )
+            ),
         )
-        run_log.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+        self.assertRunLogPopFirst(run_log, f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
 
     @override
     def assertUpdateCommands(self, run_log: MockRunLog, path: Path) -> None:
