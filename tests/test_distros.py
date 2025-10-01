@@ -7,7 +7,7 @@ from typing import Any, ClassVar, override
 from unittest import mock
 
 from moncic.distro import Distro, DistroFamily
-from moncic.image import RunnableImage
+from moncic.image import BootstrappableImage, RunnableImage
 from moncic.mock.session import MockSession, MockRunLog
 from moncic.unittest import MoncicTestCase
 
@@ -125,9 +125,12 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
     def test_update(self) -> None:
         session = self.session()
         image = session.images.image(self.distro.full_name)
-        assert isinstance(image, RunnableImage)
+        assert isinstance(image, BootstrappableImage)
+        with session.run_log.pause():
+            bootstrapped = image.bootstrap()
+        assert isinstance(bootstrapped, RunnableImage)
 
-        image.update()
+        bootstrapped.update()
         self.assertRunLogPopFirst(session.run_log, f"{self.distro.full_name}: container start")
         self.assertUpdateCommands(session.run_log, Path("/test"))
         self.assertRunLogPopFirst(session.run_log, f"{self.distro.full_name}: container stop")

@@ -18,6 +18,7 @@ from moncic.distro import Distro, DistroFamily
 from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
 from moncic.utils.btrfs import Subvolume, do_dedupe
+from moncic.provision.image import ConfiguredImage, DistroImage
 
 from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
 
@@ -118,41 +119,16 @@ class NspawnImages(BootstrappingImages, abc.ABC):
                 return DistroFamily.from_path(path)
 
     @abc.abstractmethod
-    def transactional_workdir(self, path: Path, compression: str | None) -> ContextManager[Path]:
+    def transactional_workdir(self, image: BootstrappableImage) -> ContextManager[Path]:
         """Create a working directory for transactional maintenance of the image at path."""
 
-    @abc.abstractmethod
-    def _extend_parent(self, image: Image, path: Path, compression: str | None) -> None:
-        """Initialize self.path with a clone of the parent image."""
-
-    @abc.abstractmethod
-    def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
-        """Bootstrap a new OS image from scratch."""
-
-    @override
-    def bootstrap(self, image: BootstrappableImage) -> RunnableImage:
-        with context.privs.root():
-            from moncic.provision.image import ConfiguredImage, DistroImage
-
-            path = self.imagedir / image.name
-            if path.exists():
-                return self.image(image.name, variant_of=image)
-
-            image.logger.info("bootstrapping into %s", path)
-
-            match image:
-                case ConfiguredImage():
-                    compression = image.config.bootstrap_info.compression
-                    with self.transactional_workdir(path, compression=compression) as work_path:
-                        self._extend_parent(image.config.parent, work_path, compression=compression)
-                case DistroImage():
-                    compression = self.session.moncic.config.compression
-                    with self.transactional_workdir(path, compression=compression) as work_path:
-                        self._bootstrap_new(image.distro, work_path, compression=compression)
-                case _:
-                    raise NotImplementedError
-
-            return self.image(image.name, variant_of=image)
+    def wants_compression(self, image: BootstrappableImage) -> str | None:
+        """Check if the image should be created with compression."""
+        match image:
+            case ConfiguredImage():
+                return image.config.bootstrap_info.compression
+            case _:
+                return self.session.moncic.config.compression
 
 
 class PlainImages(NspawnImages):
@@ -169,7 +145,9 @@ class PlainImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path]:
+    def transactional_workdir(self, image: BootstrappableImage) -> Generator[Path, None, None]:
+        path = self.imagedir / image.name
+
         if path.exists():
             logging.info("%s: transactional updates on non-btrfs nspawn images are not supported", path)
             yield path
@@ -189,32 +167,34 @@ class PlainImages(NspawnImages):
                     work_path.rename(path)
 
     @override
-    def _extend_parent(self, image: Image, path: Path, compression: str | None) -> None:
-        from moncic.provision.image import ConfiguredImage, DistroImage
+    def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
+        with context.privs.root():
+            path = self.imagedir / image.name
+            if path.exists():
+                return self.image(image.name, variant_of=image)
 
-        match image:
-            case DistroImage():
-                return self._bootstrap_new(image.distro, path, compression)
-            case ConfiguredImage():
-                image = image.bootstrap()
-            case NspawnImage():
-                pass
-            case _:
-                raise NotImplementedError(f"Cannot extend image of type {image.__class__}")
-        assert isinstance(image, NspawnImage)
-        image.host_run(["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
+        tarball_path = self.get_distro_tarball(image.distro)
+        with self.transactional_workdir(image) as work_path:
+            if tarball_path is not None:
+                with context.privs.root():
+                    # Shortcut in case we have a chroot in a tarball
+                    self.host_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path.as_posix()])
+            else:
+                with context.privs.root():
+                    image.distro.bootstrap(self, work_path)
+
+        return self.image(image.name, variant_of=image)
 
     @override
-    def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
-        tarball_path = self.get_distro_tarball(distro)
-        if tarball_path is not None:
-            with context.privs.root():
-                # Shortcut in case we have a chroot in a tarball
-                path.mkdir()
-                self.host_run(["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
-        else:
-            with context.privs.root():
-                distro.bootstrap(self, path)
+    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+        with context.privs.root():
+            path = self.imagedir / image.name
+            if path.exists():
+                return self.image(image.name, variant_of=image)
+
+        assert isinstance(image, NspawnImage)
+        image.host_run(["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
+        return self.image(image.name, variant_of=image)
 
 
 class BtrfsImages(NspawnImages):
@@ -273,7 +253,10 @@ class BtrfsImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, path: Path, compression: str | None) -> Generator[Path]:
+    def transactional_workdir(self, image: BootstrappableImage) -> Generator[Path, None, None]:
+        path = self.imagedir / image.name
+        compression = self.wants_compression(image)
+
         work_path = path.parent / f"{path.name}.new"
         with context.privs.root():
             subvolume = Subvolume(self.session.moncic.config, work_path, compression)
@@ -303,32 +286,36 @@ class BtrfsImages(NspawnImages):
                     subvolume.replace_subvolume(path)
 
     @override
-    def _extend_parent(self, image: Image, path: Path, compression: str | None) -> None:
-        from moncic.provision.image import ConfiguredImage, DistroImage
+    def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
+        with context.privs.root():
+            path = self.imagedir / image.name
+            if path.exists():
+                return self.image(image.name, variant_of=image)
 
-        match image:
-            case DistroImage():
-                return self._bootstrap_new(image.distro, path, compression)
-            case ConfiguredImage():
-                image = image.bootstrap()
-            case NspawnImage():
-                pass
-            case _:
-                raise NotImplementedError(f"Cannot extend image of type {image.__class__}")
-        assert isinstance(image, NspawnImage)
-        subvolume = Subvolume(self.session.moncic.config, path, compression)
-        subvolume.snapshot(image.path)
+        tarball_path = self.get_distro_tarball(image.distro)
+        with self.transactional_workdir(image) as work_path:
+            if tarball_path is not None:
+                # Shortcut in case we have a chroot in a tarball
+                with context.privs.root():
+                    self.host_run(cmd=["tar", "-C", work_path.as_posix(), "-axf", tarball_path.as_posix()])
+            else:
+                with context.privs.root():
+                    image.distro.bootstrap(self, work_path)
+
+        return self.image(image.name, variant_of=image)
 
     @override
-    def _bootstrap_new(self, distro: Distro, path: Path, compression: str | None) -> None:
-        tarball_path = self.get_distro_tarball(distro)
-        if tarball_path is not None:
-            # Shortcut in case we have a chroot in a tarball
-            with context.privs.root():
-                self.host_run(cmd=["tar", "-C", path.as_posix(), "-axf", tarball_path.as_posix()])
-        else:
-            with context.privs.root():
-                distro.bootstrap(self, path)
+    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+        with context.privs.root():
+            path = self.imagedir / image.name
+            if path.exists():
+                return self.image(image.name, variant_of=image)
+
+        assert isinstance(parent, NspawnImage)
+        compression = self.wants_compression(image)
+        subvolume = Subvolume(self.session.moncic.config, path, compression)
+        subvolume.snapshot(parent.path)
+        return self.image(image.name, variant_of=image)
 
 
 class MachinectlImages(NspawnImages):

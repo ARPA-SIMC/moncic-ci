@@ -9,11 +9,12 @@ import tempfile
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any, ClassVar, override
-from unittest import SkipTest, TestCase
+import unittest
+from unittest import SkipTest, mock
 
 from . import context
 from .images import Images
-from .mock.session import MockSession, MockRunLog
+from .mock.session import MockSession, MockRunLog, MockMoncic
 from .moncic import Moncic, MoncicConfig
 from .utils.btrfs import is_btrfs
 from .utils.privs import ProcessPrivs
@@ -27,6 +28,88 @@ class SudoTestSuite(ProcessPrivs):
     def needs_sudo(self) -> None:
         if not self.have_sudo:
             raise SkipTest("Tests need to be run under sudo")
+
+
+class TestCase(unittest.TestCase):
+    """TestCase extended with moncic-ci specific assertions."""
+
+    def assertRunLogPopFirstOptional(self, run_log: MockRunLog, cmd: str | re.Pattern[str], **kwargs: Any) -> None:
+        actual_cmd, actual_kwargs = run_log.log[0]
+
+        skip = False
+        if isinstance(cmd, str):
+            if not actual_cmd.startswith(cmd.split()[0]):
+                skip = True
+            else:
+                self.assertEqual(actual_cmd, cmd)
+        else:
+            if not cmd.search(actual_cmd):
+                skip = True
+            else:
+                self.assertRegex(actual_cmd, cmd)
+
+        if not skip:
+            run_log.log.pop(0)
+            self.assertEqual(actual_kwargs, kwargs)
+
+    def assertRunLogPopFirst(self, run_log: MockRunLog, cmd: str | re.Pattern[str], **kwargs: Any) -> None:
+        actual_cmd, actual_kwargs = run_log.log.pop(0)
+
+        if isinstance(cmd, str):
+            self.assertEqual(actual_cmd, cmd)
+        else:
+            self.assertRegex(actual_cmd, cmd)
+
+        self.assertEqual(actual_kwargs, kwargs)
+
+    def assertRunLogPopUntil(self, run_log: MockRunLog, cmd: str | re.Pattern[str], **kwargs: Any) -> None:
+        matched = False
+        while run_log.log:
+            actual_cmd, actual_kwargs = run_log.log.pop(0)
+            if isinstance(cmd, str):
+                matched = actual_cmd == cmd
+            else:
+                matched = bool(cmd.search(actual_cmd))
+            matched = matched and actual_kwargs == kwargs
+
+            if matched:
+                break
+
+        if not matched:
+            self.fail(f"{cmd} not found in run log")
+
+    def assertRunLogPopScript(self, run_log: MockRunLog, title: str) -> Script:
+        actual_cmd, actual_kwargs = run_log.log.pop(0)
+        self.assertEqual(actual_cmd, title)
+        script = actual_kwargs["script"]
+        assert isinstance(script, Script)
+        return script
+
+    def assertRunLogEmpty(self, run_log: MockRunLog) -> None:
+        self.assertEqual(run_log.log, [])
+
+
+class MockMoncicTestCase(TestCase):
+    """Test case instantiating a MockMoncic per test."""
+
+    @override
+    def setUp(self) -> None:
+        """Set up a MockMoncic for this test case."""
+        super().setUp()
+        self.imageconfdir = self.get_imageconfdir()
+        self.config = self.make_moncic_config()
+        self.moncic = MockMoncic(self.config)
+
+    def get_imageconfdir(self) -> Path | None:
+        """Return the imageconfdir to use for this test case."""
+        return None
+
+    def make_moncic_config(self) -> MoncicConfig:
+        """Return the Moncic config to use for this test case."""
+        config = MoncicConfig()
+        config.imageconfdirs = [self.imageconfdir] if self.imageconfdir else []
+        config.deb_cache_dir = None
+        return config
 
 
 class MoncicTestCase(TestCase):
@@ -119,46 +202,7 @@ class MoncicTestCase(TestCase):
     def mock_session(self, moncic: Moncic | None = None, images_class: type[Images] | None = None) -> MockSession:
         if moncic is None:
             moncic = self.moncic()
-        return MockSession(moncic, images_class=images_class)
-
-    def assertRunLogPopFirstOptional(self, run_log: MockRunLog, cmd: str | re.Pattern[str], **kwargs: Any) -> None:
-        actual_cmd, actual_kwargs = run_log.log[0]
-
-        skip = False
-        if isinstance(cmd, str):
-            if not actual_cmd.startswith(cmd.split()[0]):
-                skip = True
-            else:
-                self.assertEqual(actual_cmd, cmd)
-        else:
-            if not cmd.search(actual_cmd):
-                skip = True
-            else:
-                self.assertRegex(actual_cmd, cmd)
-
-        if not skip:
-            run_log.log.pop(0)
-            self.assertEqual(actual_kwargs, kwargs)
-
-    def assertRunLogPopFirst(self, run_log: MockRunLog, cmd: str | re.Pattern[str], **kwargs: Any) -> None:
-        actual_cmd, actual_kwargs = run_log.log.pop(0)
-
-        if isinstance(cmd, str):
-            self.assertEqual(actual_cmd, cmd)
-        else:
-            self.assertRegex(actual_cmd, cmd)
-
-        self.assertEqual(actual_kwargs, kwargs)
-
-    def assertRunLogPopScript(self, run_log: MockRunLog, title: str) -> Script:
-        actual_cmd, actual_kwargs = run_log.log.pop(0)
-        self.assertEqual(actual_cmd, title)
-        script = actual_kwargs["script"]
-        assert isinstance(script, Script)
-        return script
-
-    def assertRunLogEmpty(self, run_log: MockRunLog) -> None:
-        self.assertEqual(run_log.log, [])
+        return MockSession(moncic, bootstrapper_cls=images_class)
 
 
 def add_testcase(module_name: str, test_case: type[MoncicTestCase]) -> None:
