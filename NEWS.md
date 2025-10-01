@@ -1,6 +1,7 @@
 # Version UNRELEASED
 
 * Fixed `--extra-packages-dir` that was broken by the previous refactoring
+* Fixed `monci image {name} {extends|distro} {name}` command (#121)
 
 # Version 0.23
 
