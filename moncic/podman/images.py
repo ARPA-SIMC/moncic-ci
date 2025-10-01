@@ -94,7 +94,7 @@ class PodmanImages(BootstrappingImages):
         return images
 
     @override
-    def bootstrap(self, image: BootstrappableImage) -> RunnableImage:
+    def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
         import podman as podman_
 
         if self.has_image(image.name):
@@ -113,3 +113,7 @@ class PodmanImages(BootstrappingImages):
         res = self.image(image.name)
         res.update()
         return res
+
+    @override
+    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+        raise NotImplementedError("Extending podman images is not yet implemented")

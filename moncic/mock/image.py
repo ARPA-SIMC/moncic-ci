@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .session import MockSession
 
 
-class MockImage(RunnableImage):
+class MockRunnableImage(RunnableImage):
     session: "MockSession"
     images: "MockImages"
 

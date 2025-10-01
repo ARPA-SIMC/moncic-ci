@@ -5,19 +5,20 @@ from moncic.distro import Distro, DistroFamily
 from moncic.moncic import Moncic, MoncicConfig
 from moncic.provision.image import DistroImage
 from moncic.provision.images import DistroImages
-from moncic.unittest import MoncicTestCase
+from moncic.unittest import MockMoncicTestCase
 
 
-class DistroImagesTests(MoncicTestCase):
+class DistroImagesTests(MockMoncicTestCase):
+    @override
+    def make_moncic_config(self) -> MoncicConfig:
+        config = super().make_moncic_config()
+        config.auto_sudo = False
+        return config
+
     @override
     def setUp(self) -> None:
         super().setUp()
-        config = MoncicConfig()
-        config.imageconfdirs = []
-        config.auto_sudo = False
-        config.deb_cache_dir = None
-        with mock.patch("moncic.session.Session._instantiate_images_default"):
-            self.session = self.enterContext(Moncic(config).session())
+        self.session = self.enterContext(self.moncic.session())
         self.images = DistroImages(self.session)
 
     def all_distros(self) -> list[Distro]:

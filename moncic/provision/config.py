@@ -116,8 +116,8 @@ class Config:
         with self.path.open() as fd:
             self.conf = yaml.load(fd, Loader=yaml.CLoader)
 
-        distro_name = self.conf.pop("distro", None)
-        extends_name = self.conf.pop("extends", None)
+        distro_name = self.conf.get("distro", None)
+        extends_name = self.conf.get("extends", None)
         if distro_name and extends_name:
             raise RuntimeError(f"{self.path}: both 'distro' and 'extends' have been specified")
         elif not distro_name and not extends_name:

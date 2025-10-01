@@ -9,13 +9,13 @@ from moncic.container import Container, MaintenanceContainer, RunConfig
 from moncic.container.binds import BindConfig
 from moncic.utils.script import Script
 
-from .image import MockImage
+from .image import MockRunnableImage
 
 
 class MockContainer(Container):
     """Mock container used for tests."""
 
-    image: MockImage
+    image: MockRunnableImage
 
     @override
     def host_run(

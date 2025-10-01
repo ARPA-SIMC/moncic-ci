@@ -74,9 +74,35 @@ class Images(ImagesBase, abc.ABC):
 class BootstrappingImages(Images, abc.ABC):
     """Image repository that can bootstrap images."""
 
-    @abc.abstractmethod
     def bootstrap(self, image: "BootstrappableImage") -> "RunnableImage":
         """Bootstrap an image, returning its runnable version."""
+        from moncic.provision.image import ConfiguredImage, DistroImage
+        from .image import BootstrappableImage, RunnableImage
+
+        match image:
+            case ConfiguredImage():
+                if parent_name := image.config.bootstrap_info.extends:
+                    if not self.session.images.has_image(parent_name):
+                        raise RuntimeError(f"{image.name} extends {parent_name} which does not exist in {self}")
+                    parent = self.session.images.image(parent_name)
+                    if isinstance(parent, BootstrappableImage):
+                        parent = parent.bootstrap()
+                    assert isinstance(parent, RunnableImage)
+                    return self.bootstrap_extend(image, parent)
+                else:
+                    return self.bootstrap_new(image)
+            case DistroImage():
+                return self.bootstrap_new(image)
+            case _:
+                raise NotImplementedError
+
+    @abc.abstractmethod
+    def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
+        """Bootstrap an image from scratch."""
+
+    @abc.abstractmethod
+    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+        """Bootstrap an image extending an existing one."""
 
 
 class ImageRepository(ImagesBase):
@@ -119,7 +145,6 @@ class ImageRepository(ImagesBase):
 
     def parent_image(self, name: str, parent_of: str) -> "BootstrappableImage":
         """Return the parent image for a named image."""
-        # TODO: change this once podman can generate BoostrappableImage images
         if name != parent_of and self.configured_images.has_image(name):
             return self.configured_images.image(name)
         return self.distro_images.image(name)

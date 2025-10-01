@@ -1,14 +1,14 @@
 import logging
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, override
 
-from moncic.distro import DistroFamily
 from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
 
 if TYPE_CHECKING:
-    from .image import MockImage
+    from .image import MockRunnableImage
     from .session import MockSession
 
 
@@ -18,6 +18,11 @@ class MockImages(BootstrappingImages):
     """
 
     session: "MockSession"
+
+    def __init__(self, session: "MockSession") -> None:
+        super().__init__(session)
+        self.bootstrapped: dict[str, "MockRunnableImage"] = {}
+        self.bootstrap_path = Path(self.session.enter_context(tempfile.TemporaryDirectory()))
 
     @override
     def get_logger(self) -> logging.Logger:
@@ -36,33 +41,28 @@ class MockImages(BootstrappingImages):
 
     @override
     def has_image(self, name: str) -> bool:
-        return True
+        return name in self.bootstrapped
 
     @override
-    def image(self, name: str, variant_of: Image | None = None) -> "MockImage":
-        from .image import MockImage
-
-        if variant_of is None:
-            distro = DistroFamily.lookup_distro(name)
-        else:
-            distro = variant_of.distro
-
-        bootstrapped_from: BootstrappableImage | None = None
-        if isinstance(variant_of, BootstrappableImage):
-            bootstrapped_from = variant_of
-
-        return MockImage(images=self, name=name, distro=distro, bootstrapped_from=bootstrapped_from)
+    def image(self, name: str, variant_of: Image | None = None) -> "MockRunnableImage":
+        return self.bootstrapped[name]
 
     @override
-    def bootstrap(self, image: BootstrappableImage) -> RunnableImage:
-        from moncic.provision.image import ConfiguredImage, DistroImage
+    def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
+        from .image import MockRunnableImage
 
-        path = Path("/test")
-        match image:
-            case ConfiguredImage():
-                self.session.run_log.append_action(f"{image.name}: extend parent")
-            case DistroImage():
-                image.distro.bootstrap(self, path)
-            case _:
-                raise NotImplementedError
-        return self.image(image.name)
+        self.session.run_log.append_action(f"{image.name}: bootstrap")
+        path = self.bootstrap_path
+        image.distro.bootstrap(self, path)
+        bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
+        self.bootstrapped[image.name] = bootstrapped
+        return bootstrapped
+
+    @override
+    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+        from .image import MockRunnableImage
+
+        self.session.run_log.append_action(f"{image.name}: extend {parent.name}")
+        bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
+        self.bootstrapped[image.name] = bootstrapped
+        return bootstrapped
