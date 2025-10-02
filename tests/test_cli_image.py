@@ -1,8 +1,8 @@
 from unittest import mock
 
 from moncic.exceptions import Fail
-from moncic.unittest import CLITestCase
 from moncic.provision.image import ConfiguredImage
+from moncic.unittest import CLITestCase
 
 
 class CliImageTests(CLITestCase):

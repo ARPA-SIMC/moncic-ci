@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import override
 
 from moncic.container import Container, ContainerConfig
-from moncic.runner import UserConfig
 from moncic.distro.debian import DebianDistro
+from moncic.runner import UserConfig
 from moncic.source.debian import DebianGBP, DebianSource
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.script import Script

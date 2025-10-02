@@ -8,7 +8,7 @@ from unittest import mock
 
 from moncic.distro import Distro, DistroFamily
 from moncic.image import BootstrappableImage, RunnableImage
-from moncic.mock.session import MockSession, MockRunLog, RunLogEntry
+from moncic.mock.session import MockRunLog, MockSession, RunLogEntry
 from moncic.unittest import MoncicTestCase
 
 

@@ -1,5 +1,4 @@
 from typing import override
-from unittest import mock
 
 from moncic.distro import Distro, DistroFamily
 from moncic.moncic import Moncic, MoncicConfig

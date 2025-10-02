@@ -1,7 +1,7 @@
 import signal
 import subprocess
 from collections.abc import Generator, Iterator, MutableMapping
-from contextlib import contextmanager, ExitStack
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any, override
 

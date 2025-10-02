@@ -17,8 +17,8 @@ from moncic import context
 from moncic.distro import Distro, DistroFamily
 from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
-from moncic.utils.btrfs import Subvolume, do_dedupe
 from moncic.provision.image import ConfiguredImage, DistroImage
+from moncic.utils.btrfs import Subvolume, do_dedupe
 
 from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
 
@@ -151,7 +151,7 @@ class PlainImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, image: Image) -> Generator[Path, None, None]:
+    def transactional_workdir(self, image: Image) -> Generator[Path]:
         path = self.imagedir / image.name
 
         if path.exists():
@@ -173,7 +173,7 @@ class PlainImages(NspawnImages):
                     work_path.rename(path)
 
     @override
-    def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
+    def bootstrap_new(self, image: BootstrappableImage) -> RunnableImage:
         with context.privs.root():
             path = self.imagedir / image.name
             if path.exists():
@@ -192,7 +192,7 @@ class PlainImages(NspawnImages):
         return self.image(image.name, variant_of=image)
 
     @override
-    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+    def bootstrap_extend(self, image: BootstrappableImage, parent: RunnableImage) -> RunnableImage:
         if not isinstance(parent, NspawnImage):
             raise NotImplementedError(
                 f"cannot create a nspawn image extending from a {parent.__class__.__name__} image"
@@ -264,7 +264,7 @@ class BtrfsImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, image: Image) -> Generator[Path, None, None]:
+    def transactional_workdir(self, image: Image) -> Generator[Path]:
         path = self.imagedir / image.name
         compression = self.wants_compression(image)
 
@@ -297,7 +297,7 @@ class BtrfsImages(NspawnImages):
                     subvolume.replace_subvolume(path)
 
     @override
-    def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
+    def bootstrap_new(self, image: BootstrappableImage) -> RunnableImage:
         with context.privs.root():
             path = self.imagedir / image.name
             if path.exists():
@@ -316,7 +316,7 @@ class BtrfsImages(NspawnImages):
         return self.image(image.name, variant_of=image)
 
     @override
-    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+    def bootstrap_extend(self, image: BootstrappableImage, parent: RunnableImage) -> RunnableImage:
         if not isinstance(parent, NspawnImage):
             raise NotImplementedError(
                 f"cannot create a nspawn image extending from a {parent.__class__.__name__} image"

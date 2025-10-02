@@ -2,19 +2,19 @@ import re
 import shlex
 import subprocess
 import sys
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, override, IO
-from collections.abc import Callable, Generator
+from typing import IO, TYPE_CHECKING, Any, override
 
+from moncic.image import BootstrappableImage, RunnableImage
 from moncic.images import Images
-from moncic.image import RunnableImage, BootstrappableImage
+from moncic.moncic import Moncic, MoncicConfig
+from moncic.provision.config import write_yaml
+from moncic.runner import UserConfig
 from moncic.session import Session
 from moncic.utils.deb import DebCache
 from moncic.utils.script import Script
-from moncic.runner import UserConfig
-from moncic.moncic import Moncic, MoncicConfig
-from moncic.provision.config import write_yaml
 
 if TYPE_CHECKING:
     import podman as _podman

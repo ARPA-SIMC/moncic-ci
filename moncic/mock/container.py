@@ -7,8 +7,8 @@ from typing import override
 
 from moncic.container import Container, MaintenanceContainer, RunConfig
 from moncic.container.binds import BindConfig
-from moncic.utils.script import Script
 from moncic.runner import UserConfig
+from moncic.utils.script import Script
 
 from .image import MockRunnableImage
 

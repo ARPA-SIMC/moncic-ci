@@ -1,6 +1,6 @@
 from moncic.exceptions import Fail
-from moncic.unittest import CLITestCase
 from moncic.runner import UserConfig
+from moncic.unittest import CLITestCase
 
 
 class CliMaintTests(CLITestCase):

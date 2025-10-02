@@ -77,6 +77,7 @@ class BootstrappingImages(Images, abc.ABC):
     def bootstrap(self, image: "BootstrappableImage") -> "RunnableImage":
         """Bootstrap an image, returning its runnable version."""
         from moncic.provision.image import ConfiguredImage, DistroImage
+
         from .image import BootstrappableImage, RunnableImage
 
         match image:

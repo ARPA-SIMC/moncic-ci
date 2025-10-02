@@ -8,7 +8,7 @@ from typing import Any, Self, overload
 import yaml
 
 from .context import privs
-from .session import Session, RealSession
+from .session import RealSession, Session
 from .utils.privs import ProcessPrivs
 
 log = logging.getLogger(__name__)

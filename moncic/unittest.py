@@ -7,15 +7,15 @@ import re
 import subprocess
 import sys
 import tempfile
+import unittest
 from collections.abc import Generator
 from pathlib import Path
 from typing import Any, ClassVar, override
-import unittest
 from unittest import SkipTest, mock
 
 from moncic import context
 from moncic.images import Images
-from moncic.mock.session import MockSession, MockRunLog, MockMoncic, RunLogEntry
+from moncic.mock.session import MockMoncic, MockRunLog, MockSession, RunLogEntry
 from moncic.moncic import Moncic, MoncicConfig
 from moncic.utils.btrfs import is_btrfs
 from moncic.utils.privs import ProcessPrivs

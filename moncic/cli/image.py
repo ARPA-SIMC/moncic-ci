@@ -14,16 +14,15 @@ from typing import Any, override
 
 import ruamel.yaml
 
-from moncic.image import RunnableImage
-
 from moncic.exceptions import Fail
+from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.operations import query as ops_query
+from moncic.provision.config import write_yaml
+from moncic.session import Session
 from moncic.utils.edit import edit_yaml
 from moncic.utils.fs import atomic_writer
+
 from .moncic import MoncicCommand, SourceCommand, main_command
-from moncic.image import Image, BootstrappableImage
-from moncic.session import Session
-from moncic.provision.config import write_yaml
 
 log = logging.getLogger(__name__)
 
