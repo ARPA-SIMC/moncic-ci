@@ -41,7 +41,7 @@ class Script:
         if self.cwd is not None:
             res.append(f",cwd={self.cwd.as_posix()!r}")
         if self.user is not None:
-            res.append(",user={self.user!r}")
+            res.append(f",user={self.user!r}")
         if self.debug_mode:
             res.append(",debug_mode=True")
         if self.disable_network:

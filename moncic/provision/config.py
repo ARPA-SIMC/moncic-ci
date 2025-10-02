@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, Self
+from typing import TYPE_CHECKING, Any, NamedTuple, Self, IO
 
 import yaml
 
@@ -134,3 +134,16 @@ class Config:
         """Warn about config entries that are still unparsed."""
         for key in self.conf.keys():
             logger.debug("%s: ignoring unsupported configuration: %r", self.path, key)
+
+
+def write_yaml(contents: dict[str, Any], file: IO[str]) -> None:
+    """Write configuration contents to a YAML file."""
+    yaml.dump(
+        contents,
+        stream=file,
+        default_flow_style=False,
+        allow_unicode=True,
+        explicit_start=True,
+        sort_keys=False,
+        Dumper=yaml.CDumper,
+    )

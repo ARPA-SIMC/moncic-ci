@@ -8,6 +8,7 @@ from typing import override
 from moncic.container import Container, MaintenanceContainer, RunConfig
 from moncic.container.binds import BindConfig
 from moncic.utils.script import Script
+from moncic.runner import UserConfig
 
 from .image import MockRunnableImage
 
@@ -27,8 +28,8 @@ class MockContainer(Container):
     @override
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
-        self.image.session.run_log.append_action(f"{self.image.name}: container start")
-        yield None
+        with self.image.session.run_log.push(f"{self.image.name}: container start"):
+            yield None
         self.image.session.run_log.append_action(f"{self.image.name}: container stop")
 
     @override
@@ -55,6 +56,10 @@ class MockContainer(Container):
     def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
         self.image.session.run_log.append_script(script)
         return CompletedProcess(["script"], 0, b"", b"")
+
+    @override
+    def forward_user(self, user: UserConfig, allow_maint: bool = False) -> None:
+        self.image.session.run_log.append_forward_user(user)
 
 
 class MockMaintenanceContainer(MockContainer, MaintenanceContainer):

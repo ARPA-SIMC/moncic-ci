@@ -9,10 +9,9 @@ import shutil
 import stat
 import sys
 from collections.abc import Generator
-from typing import TYPE_CHECKING, Any, override
+from typing import Any, override
 
 import ruamel.yaml
-import yaml
 
 from moncic.image import RunnableImage
 
@@ -23,6 +22,7 @@ from ..utils.fs import atomic_writer
 from .moncic import MoncicCommand, SourceCommand, main_command
 from moncic.image import Image, BootstrappableImage
 from moncic.session import Session
+from moncic.provision.config import write_yaml
 
 log = logging.getLogger(__name__)
 
@@ -43,15 +43,7 @@ class CreateCommand(MoncicCommand, abc.ABC):
             raise Fail(f"{self.args.name}: configuration already exists in {conf_path}")
 
         with atomic_writer(conf_path, "wt", use_umask=True) as fd:
-            yaml.dump(
-                contents,
-                stream=fd,
-                default_flow_style=False,
-                allow_unicode=True,
-                explicit_start=True,
-                sort_keys=False,
-                Dumper=yaml.CDumper,
-            )
+            write_yaml(contents, fd)
 
         log.info("%s: bootstrapping image", self.args.name)
         try:
