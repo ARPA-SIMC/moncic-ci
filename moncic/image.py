@@ -182,6 +182,8 @@ class RunnableImage(Image, abc.ABC):
 
     def _make_container_config(self, config: Optional["ContainerConfig"]) -> "ContainerConfig":
         """Create the final container config."""
+        from .container import ContainerConfig
+
         if config is None:
             config = ContainerConfig()
         else:

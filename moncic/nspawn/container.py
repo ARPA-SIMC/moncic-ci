@@ -255,12 +255,6 @@ class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
 
         self._check_host_system()
 
-        match self.image.bootstrapped_from:
-            case ConfiguredImage():
-                compression = self.image.bootstrapped_from.config.bootstrap_info.compression
-            case _:
-                compression = self.image.images.session.moncic.config.compression
-
-        with self.image.images.transactional_workdir(self.image.path, compression) as work_path:
+        with self.image.images.transactional_workdir(self.image) as work_path:
             with self._container_in_path(work_path):
                 yield None

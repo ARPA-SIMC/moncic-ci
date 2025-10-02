@@ -119,14 +119,20 @@ class NspawnImages(BootstrappingImages, abc.ABC):
                 return DistroFamily.from_path(path)
 
     @abc.abstractmethod
-    def transactional_workdir(self, image: BootstrappableImage) -> ContextManager[Path]:
+    def transactional_workdir(self, image: Image) -> ContextManager[Path]:
         """Create a working directory for transactional maintenance of the image at path."""
 
-    def wants_compression(self, image: BootstrappableImage) -> str | None:
+    def wants_compression(self, image: Image) -> str | None:
         """Check if the image should be created with compression."""
         match image:
             case ConfiguredImage():
                 return image.config.bootstrap_info.compression
+            case RunnableImage():
+                match image.bootstrapped_from:
+                    case ConfiguredImage():
+                        return image.bootstrapped_from.config.bootstrap_info.compression
+                    case _:
+                        return self.session.moncic.config.compression
             case _:
                 return self.session.moncic.config.compression
 
@@ -145,7 +151,7 @@ class PlainImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, image: BootstrappableImage) -> Generator[Path, None, None]:
+    def transactional_workdir(self, image: Image) -> Generator[Path, None, None]:
         path = self.imagedir / image.name
 
         if path.exists():
@@ -258,7 +264,7 @@ class BtrfsImages(NspawnImages):
 
     @override
     @contextlib.contextmanager
-    def transactional_workdir(self, image: BootstrappableImage) -> Generator[Path, None, None]:
+    def transactional_workdir(self, image: Image) -> Generator[Path, None, None]:
         path = self.imagedir / image.name
         compression = self.wants_compression(image)
 
