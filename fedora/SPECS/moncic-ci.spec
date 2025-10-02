@@ -29,6 +29,7 @@ BuildRequires:  systemd-container
 BuildRequires:  btrfs-progs
 BuildRequires:  dnf
 BuildRequires:  debootstrap
+BuildRequires:  python3-texttable
 
 Requires:       python3
 Requires:       python3-yaml
