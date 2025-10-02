@@ -22,7 +22,7 @@ class MockImages(BootstrappingImages):
     def __init__(self, session: "MockSession") -> None:
         super().__init__(session)
         self.bootstrapped: dict[str, "MockRunnableImage"] = {}
-        self.bootstrap_path = Path(self.session.enter_context(tempfile.TemporaryDirectory()))
+        self.bootstrap_path = Path(self.session.enter_context(tempfile.TemporaryDirectory(suffix="mockimages")))
 
     @override
     def get_logger(self) -> logging.Logger:
@@ -51,18 +51,18 @@ class MockImages(BootstrappingImages):
     def bootstrap_new(self, image: "BootstrappableImage") -> "RunnableImage":
         from .image import MockRunnableImage
 
-        self.session.run_log.append_action(f"{image.name}: bootstrap")
-        path = self.bootstrap_path
-        image.distro.bootstrap(self, path)
-        bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
-        self.bootstrapped[image.name] = bootstrapped
-        return bootstrapped
+        with self.session.run_log.push(f"{image.name}: bootstrap"):
+            path = self.bootstrap_path
+            image.distro.bootstrap(self, path)
+            bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
+            self.bootstrapped[image.name] = bootstrapped
+            return bootstrapped
 
     @override
     def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
         from .image import MockRunnableImage
 
-        self.session.run_log.append_action(f"{image.name}: extend {parent.name}")
-        bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
-        self.bootstrapped[image.name] = bootstrapped
-        return bootstrapped
+        with self.session.run_log.push(f"{image.name}: extend {parent.name}"):
+            bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
+            self.bootstrapped[image.name] = bootstrapped
+            return bootstrapped

@@ -11,14 +11,12 @@ class CliBuildTests(CLITestCase):
         res = self.call("monci", "ci", "test")
         self.assertNoStderr(res)
         with self.match_run_log(self.session.run_log) as m:
-            container_log = m.assertPopFirst("test: container start")
+            container_log = m.assertPopFirst("test: run container")
             with self.match_run_log(container_log) as cm:
                 cm.assertPopFirst("forward_user", **UserConfig.from_current()._asdict())
                 cm.assertPopScript("Set up the container filesystem")
                 cm.assertPopScript("Update container packages before build")
                 cm.assertPopScript("Build .")
-            m.assertPopFirst("test: container stop")
-            m.assertEmpty()
 
         output = json.loads(res.stdout)
         self.assertEqual(

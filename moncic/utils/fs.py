@@ -102,7 +102,7 @@ def extra_packages_dir(path: Path) -> Generator[Path]:
     Create a temporary directory where all packages found in path are
     hardlinked
     """
-    with tempfile.TemporaryDirectory(dir=path) as mirrordir_str:
+    with tempfile.TemporaryDirectory(dir=path, suffix="extra-packages-dir") as mirrordir_str:
         mirrordir = Path(mirrordir_str)
         # Hard link all .deb files into the temporary mirror directory
         with dirfd(path) as src_dir_fd:

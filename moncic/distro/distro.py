@@ -209,7 +209,7 @@ class Distro(abc.ABC):
         # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
         installroot = path.absolute()
         base_packages = ",".join(self.get_base_packages())
-        with tempfile.TemporaryDirectory() as workdir:
+        with tempfile.TemporaryDirectory(suffix="distro-mkosi") as workdir:
             cmd = [
                 "/usr/bin/mkosi",
                 f"--distribution={self.family.name}",

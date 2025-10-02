@@ -1,3 +1,7 @@
+# Version UNRELEASED
+
+* Increased test coverage and fixed some `monci image {name} {command}` issues
+
 # Version 0.24
 
 * Fixed `--extra-packages-dir` that was broken by the previous refactoring

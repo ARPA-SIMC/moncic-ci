@@ -113,45 +113,44 @@ class CI(SourceCommand):
                 if config.artifacts_dir:
                     config.artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-                builder = builder_class(source, image, config)
+                with builder_class(source, image, config) as builder:
+                    try:
+                        builder.host_main()
+                    finally:
 
-                try:
-                    builder.host_main()
-                finally:
+                        class ResultEncoder(json.JSONEncoder):
+                            @override
+                            def default(self, obj: Any) -> Any:
+                                if dataclasses.is_dataclass(obj):
+                                    return dataclasses.asdict(obj)
+                                elif isinstance(obj, Source):
+                                    return obj.name
+                                elif isinstance(obj, Distro):
+                                    return obj.name
+                                elif isinstance(obj, Path):
+                                    return str(obj)
+                                elif isinstance(obj, Script):
+                                    res: dict[str, Any] = {
+                                        "title": obj.title,
+                                    }
+                                    if obj.cwd:
+                                        res["cwd"] = obj.cwd.as_posix()
+                                    if obj.user:
+                                        res["user"] = obj.user.user_name
+                                    if obj.disable_network:
+                                        res["disable_network"] = obj.disable_network
+                                    res["shell"] = obj.shell
+                                    res["lines"] = obj.lines
+                                    return res
+                                else:
+                                    return super().default(obj)
 
-                    class ResultEncoder(json.JSONEncoder):
-                        @override
-                        def default(self, obj: Any) -> Any:
-                            if dataclasses.is_dataclass(obj):
-                                return dataclasses.asdict(obj)
-                            elif isinstance(obj, Source):
-                                return obj.name
-                            elif isinstance(obj, Distro):
-                                return obj.name
-                            elif isinstance(obj, Path):
-                                return str(obj)
-                            elif isinstance(obj, Script):
-                                res: dict[str, Any] = {
-                                    "title": obj.title,
-                                }
-                                if obj.cwd:
-                                    res["cwd"] = obj.cwd.as_posix()
-                                if obj.user:
-                                    res["user"] = obj.user.user_name
-                                if obj.disable_network:
-                                    res["disable_network"] = obj.disable_network
-                                res["shell"] = obj.shell
-                                res["lines"] = obj.lines
-                                return res
-                            else:
-                                return super().default(obj)
-
-                    info: dict[str, Any] = {}
-                    info["config"] = dataclasses.asdict(builder.config)
-                    info["source_history"] = builder.source.info_history()
-                    info["result"] = dataclasses.asdict(builder.results)
-                    json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
-                    sys.stdout.write("\n")
+                        info: dict[str, Any] = {}
+                        info["config"] = dataclasses.asdict(builder.config)
+                        info["source_history"] = builder.source.info_history()
+                        info["result"] = dataclasses.asdict(builder.results)
+                        json.dump(info, sys.stdout, indent=1, cls=ResultEncoder)
+                        sys.stdout.write("\n")
 
 
 @main_command

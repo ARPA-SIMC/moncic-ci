@@ -85,7 +85,7 @@ class DebCache:
         """
         Create a directory that can be bind mounted as /apt/cache/apt/archives
         """
-        with tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir_str:
+        with tempfile.TemporaryDirectory(dir=self.cache_dir, suffix="aptdir") as aptdir_str:
             aptdir = Path(aptdir_str)
             with dirfd(aptdir) as dst_dir_fd:
                 self._debs_to_aptdir(dst_dir_fd)

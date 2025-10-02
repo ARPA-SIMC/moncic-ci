@@ -405,11 +405,11 @@ class DebianDirGit(DebianDir, Git):
             log.info("%s: building tarball from source directory", self)
             cmd = ["git", "archive", "HEAD", ".", ":(exclude)debian"]
             log_run(cmd, cwd=self.path)
-            proc = subprocess.Popen(cmd, cwd=self.path, stdout=subprocess.PIPE)
-            assert proc.stdout
-            shutil.copyfileobj(proc.stdout, out)
-            if proc.wait() != 0:
-                raise RuntimeError(f"git archive exited with error code {proc.returncode}")
+            with subprocess.Popen(cmd, cwd=self.path, stdout=subprocess.PIPE) as proc:
+                assert proc.stdout
+                shutil.copyfileobj(proc.stdout, out)
+                if proc.wait() != 0:
+                    raise RuntimeError(f"git archive exited with error code {proc.returncode}")
         os.chown(dest_tarball, source_stat.st_uid, source_stat.st_gid)
 
 

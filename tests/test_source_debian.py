@@ -284,7 +284,7 @@ Files:
 
     def test_collect_build_artifacts(self) -> None:
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts") as destdir_str:
                 destdir = Path(destdir_str)
                 src.collect_build_artifacts(destdir)
 
@@ -357,7 +357,7 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
     def test_collect_build_artifacts_gz(self) -> None:
         self.create_tar("moncic-ci_0.1.0.orig.tar.gz")
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts_gz") as destdir_str:
                 destdir = Path(destdir_str)
                 src.collect_build_artifacts(destdir)
 
@@ -369,7 +369,7 @@ class TestDebianLegacy(WorkdirFixture, abc.ABC):
     def test_collect_build_artifacts_xz(self) -> None:
         self.create_tar("moncic-ci_0.1.0.orig.tar.xz")
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts_xz") as destdir_str:
                 destdir = Path(destdir_str)
                 src.collect_build_artifacts(destdir)
 
@@ -448,7 +448,7 @@ class TestDebianDir(TestDebianLegacy):
 
     def test_collect_build_artifacts_missing_tar(self) -> None:
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts_missing_tar") as destdir_str:
                 destdir = Path(destdir_str)
                 with self.assertRaisesRegex(Fail, r"Tarball \S* not found"):
                     src.collect_build_artifacts(destdir)
@@ -507,7 +507,7 @@ class TestDebianDirGit(TestDebianLegacy, GitFixture):
 
     def test_collect_build_artifacts_missing_tar(self) -> None:
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts_missing_tar") as destdir_str:
                 destdir = Path(destdir_str)
                 src.collect_build_artifacts(destdir)
 
@@ -611,7 +611,7 @@ class TestDebianGBPTestUpstream(GitFixture):
 
     def test_collect_build_artifacts(self) -> None:
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts") as destdir_str:
                 destdir = Path(destdir_str)
                 src.collect_build_artifacts(destdir)
 
@@ -755,7 +755,7 @@ debian-branch=debian/unstable
 
     def test_collect_build_artifacts(self) -> None:
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts") as destdir_str:
                 destdir = Path(destdir_str)
                 src.collect_build_artifacts(destdir)
 
@@ -883,7 +883,7 @@ debian-branch=debian/unstable
 
     def test_collect_build_artifacts(self) -> None:
         with self.source() as src:
-            with tempfile.TemporaryDirectory() as destdir_str:
+            with tempfile.TemporaryDirectory(suffix="test_collect_build_artifacts") as destdir_str:
                 destdir = Path(destdir_str)
                 src.collect_build_artifacts(destdir)
 

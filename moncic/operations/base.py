@@ -48,7 +48,9 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         #: Log handler used to capture build output
         self.log_handler: logging.Handler | None = None
         #: Host path used as working area
-        self.host_root = Path(self.enter_context(tempfile.TemporaryDirectory()))
+        self.host_root = Path(
+            self.enter_context(tempfile.TemporaryDirectory(suffix=f"host-root-{self.__class__.__name__}"))
+        )
         #: Path in the container used as the root of our operation-specific filesystem tree
         self.guest_root = Path("/srv/moncic-ci/")
         #: Host path of sources to build

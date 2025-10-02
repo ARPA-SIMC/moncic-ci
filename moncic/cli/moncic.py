@@ -56,7 +56,7 @@ def checkout(image: RunnableImage, repo: str | None = None, branch: str | None =
             yield Path(repo_abspath)
             return
 
-    with tempfile.TemporaryDirectory() as workdir_str:
+    with tempfile.TemporaryDirectory(suffix="checkout") as workdir_str:
         workdir = Path(workdir_str)
         # Git checkout in a temporary directory
         cmd = ["git", "-c", "advice.detachedHead=false", "clone", repo_abspath]

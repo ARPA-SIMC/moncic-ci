@@ -57,7 +57,7 @@ class Container(abc.ABC):
         #: User-provided instance name
         self._instance_name = instance_name
         #: Host directory used for supporting container interactions
-        self.workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        self.workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory(suffix="container-workdir")))
         #: Exchange directory for scripts
         self.scriptdir = self.workdir / "scripts"
         self.scriptdir.mkdir(parents=True, exist_ok=True)

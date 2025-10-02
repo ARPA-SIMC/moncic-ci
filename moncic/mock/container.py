@@ -28,9 +28,8 @@ class MockContainer(Container):
     @override
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
-        with self.image.session.run_log.push(f"{self.image.name}: container start"):
+        with self.image.session.run_log.push(f"{self.image.name}: run container"):
             yield None
-        self.image.session.run_log.append_action(f"{self.image.name}: container stop")
 
     @override
     def get_root(self) -> Path:
@@ -60,6 +59,11 @@ class MockContainer(Container):
     @override
     def forward_user(self, user: UserConfig, allow_maint: bool = False) -> None:
         self.image.session.run_log.append_forward_user(user)
+
+    @override
+    def run_shell(self, config: RunConfig | None) -> subprocess.CompletedProcess[bytes]:
+        self.image.session.run_log.append_action("run-shell")
+        return subprocess.CompletedProcess(["shell"], stdout=b"", stderr=b"", returncode=0)
 
 
 class MockMaintenanceContainer(MockContainer, MaintenanceContainer):

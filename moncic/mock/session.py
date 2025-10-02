@@ -36,9 +36,11 @@ class RunLogEntry:
         self.entries: list["RunLogEntry"] = []
         self.paused = False
 
+    @override
     def __str__(self) -> str:
         return self.name
 
+    @override
     def __repr__(self) -> str:
         return f"RunLogEntry({self.name}, {self.data})"
 

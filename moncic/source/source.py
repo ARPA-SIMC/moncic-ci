@@ -204,7 +204,7 @@ class Source(abc.ABC):
         from .local import Git
 
         # Git checkout in a temporary directory
-        workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory(suffix="source-git-clone")))
         command_log = CommandLog()
 
         clone_cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]

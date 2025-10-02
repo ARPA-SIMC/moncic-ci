@@ -1,14 +1,13 @@
-from __future__ import annotations
-
 import io
 import os
 import subprocess
 import tempfile
+from pathlib import Path
 
 import yaml
 
 
-def edit_yaml(buf: str, path: str) -> str | None:
+def edit_yaml(buf: str, path: Path) -> str | None:
     """
     Open an editor on buf and validate its result as YAML.
 

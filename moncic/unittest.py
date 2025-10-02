@@ -103,9 +103,11 @@ class TestCase(unittest.TestCase):
     def match_run_log(self, run_log: MockRunLog | RunLogEntry) -> Generator[RunLogMatcher, None, None]:
         """Create a destroying matcher for the given run log."""
         if isinstance(run_log, MockRunLog):
-            yield RunLogMatcher(self, run_log.current)
+            matcher = RunLogMatcher(self, run_log.current)
         else:
-            yield RunLogMatcher(self, run_log)
+            matcher = RunLogMatcher(self, run_log)
+        yield matcher
+        matcher.assertEmpty()
 
     def assertRunLogEmpty(self, run_log: MockRunLog | RunLogEntry) -> None:
         """Ensure the run log is empty."""
@@ -148,7 +150,7 @@ class CLITestCase(MockMoncicTestCase):
 
     @override
     def get_imageconfdir(self) -> Path | None:
-        return Path(self.enterContext(tempfile.TemporaryDirectory()))
+        return Path(self.enterContext(tempfile.TemporaryDirectory(suffix="clitestcase-imageconfdir")))
 
     def assertNoStderr(self, res: subprocess.CompletedProcess[str]) -> None:
         self.assertEqual(res.stderr, "")
@@ -201,7 +203,7 @@ class MoncicTestCase(TestCase):
 
     def tempdir(self) -> Path:
         """Create a temporary directory."""
-        return Path(self.enterContext(tempfile.TemporaryDirectory()))
+        return Path(self.enterContext(tempfile.TemporaryDirectory(suffix="moncictestcase-tempdir")))
 
     def workdir(self, filesystem_type: str | None = None) -> Path:
         """
@@ -252,7 +254,7 @@ class MoncicTestCase(TestCase):
             config = MoncicConfig.load()
 
         if config.imagedir is None or not config.imagedir.is_dir():
-            imagedir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+            imagedir = Path(self.enterContext(tempfile.TemporaryDirectory(suffix="moncictestcase-moncic-imagedir")))
             config.imagedir = Path(imagedir)
             return Moncic(config=config)
         else:

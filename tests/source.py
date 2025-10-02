@@ -20,7 +20,7 @@ class GitRepo(contextlib.ExitStack):
     def __init__(self, workdir: Path | None = None) -> None:
         super().__init__()
         if workdir is None:
-            self.root = Path(self.enter_context(tempfile.TemporaryDirectory()))
+            self.root = Path(self.enter_context(tempfile.TemporaryDirectory(suffix="gitrepo-root")))
         else:
             workdir.mkdir(parents=True, exist_ok=True)
             self.root = workdir
@@ -104,7 +104,7 @@ class WorkdirFixture(unittest.TestCase):
         # We have self.enterContext from Python 3.11
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
-        cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory()))
+        cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory(suffix="workdirfixture-workdir")))
 
     @override
     @classmethod
