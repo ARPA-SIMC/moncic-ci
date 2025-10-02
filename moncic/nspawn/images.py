@@ -187,13 +187,18 @@ class PlainImages(NspawnImages):
 
     @override
     def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+        if not isinstance(parent, NspawnImage):
+            raise NotImplementedError(
+                f"cannot create a nspawn image extending from a {parent.__class__.__name__} image"
+            )
         with context.privs.root():
             path = self.imagedir / image.name
             if path.exists():
                 return self.image(image.name, variant_of=image)
 
         assert isinstance(image, NspawnImage)
-        image.host_run(["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
+        with context.privs.root():
+            image.host_run(["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
         return self.image(image.name, variant_of=image)
 
 
@@ -306,6 +311,10 @@ class BtrfsImages(NspawnImages):
 
     @override
     def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+        if not isinstance(parent, NspawnImage):
+            raise NotImplementedError(
+                f"cannot create a nspawn image extending from a {parent.__class__.__name__} image"
+            )
         with context.privs.root():
             path = self.imagedir / image.name
             if path.exists():
@@ -313,8 +322,9 @@ class BtrfsImages(NspawnImages):
 
         assert isinstance(parent, NspawnImage)
         compression = self.wants_compression(image)
-        subvolume = Subvolume(self.session.moncic.config, path, compression)
-        subvolume.snapshot(parent.path)
+        with context.privs.root():
+            subvolume = Subvolume(self.session.moncic.config, path, compression)
+            subvolume.snapshot(parent.path)
         return self.image(image.name, variant_of=image)
 
 
