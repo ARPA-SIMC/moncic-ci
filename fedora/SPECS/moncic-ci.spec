@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.25
+Version:        0.26
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -78,6 +78,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Mon Nov 10 2025 Daniele Branchini  <dbranchini@arpae.it> - 0.26-1
+- Test and fix building a fedora source with fedora/SOURCES
+
 * Mon Nov 10 2025 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.25-1
 - Increased test coverage and fixed some `monci image {name} {command}` issues
 - Added missing f-string marker

@@ -1,4 +1,6 @@
-# Version UNRELEASED
+# Version 0.26
+
+* Test and fix building a fedora source with fedora/SOURCES
 
 # Version 0.25
 
