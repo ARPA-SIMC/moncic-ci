@@ -77,7 +77,7 @@ class ARPABuilder(RPMBuilder):
         guest_specfile_path = self.guest_source_path / self.source.specfile_path
         script.run(self.builddep + ["-y", guest_specfile_path.as_posix()], description="Install build dependencies")
 
-        guest_rpmbuild_sources_dir = self.guest_rpmbuild_path / "SOURCES"
+        guest_rpmbuild_sources_dir = self.guest_source_path / "fedora/SOURCES"
 
         if self.source.specfile_path.is_relative_to("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
