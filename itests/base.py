@@ -122,13 +122,14 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
 
     @classmethod
     @contextlib.contextmanager
-    def verbose_logging(cls) -> Generator[None, None, None]:
+    def verbose_logging(cls, debug: bool = False) -> Generator[None, None, None]:
         print()
         handler = RichHandler()
-        handler.setLevel(logging.INFO)
+        level = logging.DEBUG if debug else logging.INFO
+        handler.setLevel(level)
         root_logger = logging.getLogger()
         orig_root_level = root_logger.level
-        root_logger.setLevel(logging.INFO)
+        root_logger.setLevel(level)
         root_logger.addHandler(handler)
         try:
             yield
@@ -167,9 +168,14 @@ def setup_distro_tests(module_name: str, bases: dict[str, type[IntegrationTestsB
     """Generate one test per supported distribution and container technologies."""
     for distro_family in DistroFamily.list_families():
         for distro in distro_family.distros:
-            for tech in "nspawn", "podman":
-                base = bases[tech]
+            for backend in "nspawn", "podman":
+                parents: list[type[IntegrationTestsBase]] = []
+                if base := bases.get(f"family:{distro_family.name}"):
+                    parents.append(base)
+                if base := bases.get(f"distro:{distro.name}"):
+                    parents.append(base)
+                parents.append(bases[backend])
                 name = "".join(n.capitalize() for n in distro.full_name.split(":"))
-                cls_name = name + tech.capitalize() + suffix
-                test_case = type(cls_name, (base,), {"distro": distro})
+                cls_name = name + backend.capitalize() + suffix
+                test_case = type(cls_name, tuple(parents), {"distro": distro})
                 add_testcase(module_name, test_case)

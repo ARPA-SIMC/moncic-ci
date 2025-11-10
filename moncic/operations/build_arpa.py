@@ -82,7 +82,9 @@ class ARPABuilder(RPMBuilder):
         if self.source.specfile_path.is_relative_to("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
             if (self.host_source_path / "fedora" / "SOURCES").is_dir():
-                script.run_unquoted(f"cp -r * {self.guest_rpmbuild_path / 'SOURCES'}", cwd=guest_rpmbuild_sources_dir)
+                script.run_unquoted(
+                    f"cp -r fedora/SOURCES/* {self.guest_rpmbuild_path / 'SOURCES'}", cwd=self.guest_source_path
+                )
 
             script.run(["git", "config", "--global", "--add", "safe.directory", self.guest_source_path.as_posix()])
             guest_source_tarball = guest_rpmbuild_sources_dir / f"{self.results.name}.tar.gz"
