@@ -1,6 +1,9 @@
 # Version UNRELEASED
 
+# Version 0.25
+
 * Increased test coverage and fixed some `monci image {name} {command}` issues
+* Added missing f-string marker
 
 # Version 0.24
 
