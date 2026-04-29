@@ -8,7 +8,7 @@ import subprocess
 from collections.abc import Generator, Sequence
 from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, override
+from typing import Any, TYPE_CHECKING, override
 
 import yaml
 

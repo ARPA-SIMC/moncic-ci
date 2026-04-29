@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import Any, Self, TYPE_CHECKING, override
 
 import git
 

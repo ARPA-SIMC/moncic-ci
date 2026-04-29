@@ -8,7 +8,7 @@ import types
 import urllib.parse
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Self, override
+from typing import Any, Optional, Self, TYPE_CHECKING, override
 
 import git
 

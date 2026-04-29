@@ -1,6 +1,6 @@
 import abc
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, override
+from typing import Any, ClassVar, TYPE_CHECKING, override
 
 from ..exceptions import Fail
 from .local import Dir, File, Git, LocalSource

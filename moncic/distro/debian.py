@@ -6,7 +6,7 @@ import tempfile
 from collections import defaultdict
 from collections.abc import Collection
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, override
+from typing import Any, TYPE_CHECKING, override
 
 import requests
 

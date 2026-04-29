@@ -5,7 +5,7 @@ import logging
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from moncic.utils.script import Script
 

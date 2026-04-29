@@ -9,7 +9,7 @@ import subprocess
 from collections import defaultdict
 from collections.abc import Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, ContextManager, override
+from typing import ContextManager, TYPE_CHECKING, override
 
 from moncic import context
 from moncic.distro import Distro, DistroFamily

@@ -16,3 +16,11 @@ max-line-length = 80
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = "invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments"
+
+[tool.isort]
+# Align isort with flake8
+profile = "black"
+line_length = 80
+order_by_type = false
+case_sensitive = true
+known_first_party = "moncic"

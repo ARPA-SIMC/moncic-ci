@@ -13,6 +13,7 @@ from moncic.distro.debian import DebianDistro
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.debian import (
+    DSCInfo,
     DebianDir,
     DebianDirGit,
     DebianDsc,
@@ -20,7 +21,6 @@ from moncic.source.debian import (
     DebianGBPTestDebian,
     DebianGBPTestUpstream,
     DebianSource,
-    DSCInfo,
     GBPInfo,
     SourceInfo,
 )

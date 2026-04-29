@@ -5,7 +5,7 @@ import shutil
 import textwrap
 from collections.abc import Sequence
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any, override
+from typing import Any, TYPE_CHECKING, override
 
 from ..exceptions import Fail, Success
 

@@ -9,7 +9,7 @@ from collections.abc import Sequence
 from configparser import ConfigParser
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, override
+from typing import Any, Self, TYPE_CHECKING, override
 
 import git
 

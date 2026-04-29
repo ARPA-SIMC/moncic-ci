@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, NamedTuple, Self
+from typing import Any, IO, NamedTuple, Self, TYPE_CHECKING
 
 import yaml
 

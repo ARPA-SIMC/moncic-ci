@@ -4,7 +4,7 @@ import logging
 import tempfile
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, ContextManager
+from typing import ContextManager, IO, TYPE_CHECKING
 
 from moncic.container import BindType, ContainerConfig
 from moncic.runner import UserConfig

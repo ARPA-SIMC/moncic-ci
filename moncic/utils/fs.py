@@ -4,7 +4,7 @@ import os
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
-from typing import IO, Any
+from typing import Any, IO
 
 log = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ import dataclasses
 import logging
 from collections.abc import Callable, Generator
 from pathlib import Path
-from typing import TYPE_CHECKING, ContextManager
+from typing import ContextManager, TYPE_CHECKING
 
 from moncic.runner import UserConfig
 from moncic.utils.script import Script

@@ -5,7 +5,7 @@ import sys
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, override
+from typing import Any, IO, TYPE_CHECKING, override
 
 from moncic.image import BootstrappableImage, RunnableImage
 from moncic.images import Images

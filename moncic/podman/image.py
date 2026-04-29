@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import TYPE_CHECKING, Optional, override
+from typing import Optional, TYPE_CHECKING, override
 
 from moncic.distro import Distro
 from moncic.image import BootstrappableImage, ImageType, RunnableImage

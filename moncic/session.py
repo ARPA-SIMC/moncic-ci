@@ -6,7 +6,7 @@ import os
 import types
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, override
+from typing import Self, TYPE_CHECKING, override
 
 from . import context
 from .context import privs

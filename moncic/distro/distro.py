@@ -4,7 +4,7 @@ import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, override
+from typing import Any, ClassVar, TYPE_CHECKING, override
 
 from moncic.utils.osrelease import parse_osrelase
 from moncic.utils.script import Script
