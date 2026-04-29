@@ -340,6 +340,7 @@ class Fedora(DistroFamily):
         self.add_distro(FedoraDistro(self, 40))
         self.add_distro(FedoraDistro(self, 41))
         self.add_distro(FedoraDistro(self, 42))
+        self.add_distro(FedoraDistro(self, 44))
 
 
 class Almalinux(DistroFamily):
@@ -347,6 +348,7 @@ class Almalinux(DistroFamily):
     def init(self) -> None:
         self.add_distro(AlmaDistro(self, 8, systemd_version=239))
         self.add_distro(AlmaDistro(self, 9))
+        self.add_distro(AlmaDistro(self, 10))
 
 
 class Rocky(DistroFamily):
@@ -354,6 +356,7 @@ class Rocky(DistroFamily):
     def init(self) -> None:
         self.add_distro(RockyDistro(self, 8, systemd_version=239))
         self.add_distro(RockyDistro(self, 9))
+        self.add_distro(RockyDistro(self, 10))
 
 
 class Centos(DistroFamily):
