@@ -35,7 +35,9 @@ def get_file_list(path: str) -> list[str]:
                     in_files_section = False
                 else:
                     if is_changes:
-                        checksum, size, section, priority, fname = line.strip().split(None, 4)
+                        checksum, size, section, priority, fname = (
+                            line.strip().split(None, 4)
+                        )
                     else:
                         checksum, size, fname = line.strip().split(None, 2)
                     res.append(fname)
@@ -57,7 +59,9 @@ class DebianBuildConfig(BuildConfig):
     )
     include_source: bool = field(
         default=False,
-        metadata={"doc": "Always include sources in upload (run `dpkg-buildpackage -sa`)"},
+        metadata={
+            "doc": "Always include sources in upload (run `dpkg-buildpackage -sa`)"
+        },
     )
 
 
@@ -85,8 +89,14 @@ class DebianBuilder(Builder):
 
     @override
     @contextlib.contextmanager
-    def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
-        script = Script("Prepare Debian system for build", cwd=Path("/"), user=UserConfig.root())
+    def operation_plugin(
+        self, config: ContainerConfig
+    ) -> Generator[None, None, None]:
+        script = Script(
+            "Prepare Debian system for build",
+            cwd=Path("/"),
+            user=UserConfig.root(),
+        )
         script.run_unquoted(
             "echo man-db man-db/auto-update boolean false | debconf-set-selections",
             description="Disable reindexing of manpages during installation of build-dependencies",
@@ -155,7 +165,8 @@ class DebianBuilder(Builder):
         builddep_script = Script(
             "Install build dependencies",
             user=UserConfig.root(),
-            cwd=guest_build_root / f"{self.source.source_info.name}-{self.source.source_info.upstream_version}",
+            cwd=guest_build_root
+            / f"{self.source.source_info.name}-{self.source.source_info.upstream_version}",
         )
         builddep_script.setenv("DEB_BUILD_PROFILES", build_profiles)
         builddep_script.setenv("DEB_BUILD_OPTIONS", build_options)
@@ -166,7 +177,9 @@ class DebianBuilder(Builder):
 
         # Once build dependencies are installed, we don't need internet
         # anymore: Debian packages are required to build without network access
-        build_script = Script("Build binary package", disable_network=True, user=UserConfig.root())
+        build_script = Script(
+            "Build binary package", disable_network=True, user=UserConfig.root()
+        )
         build_script.setenv("DEB_BUILD_PROFILES", build_profiles)
         build_script.setenv("DEB_BUILD_OPTIONS", build_options)
         assert isinstance(self.image.distro, DebianDistro)
@@ -183,7 +196,9 @@ class DebianBuilder(Builder):
         script = super().collect_artifacts_script()
         dest = Path("/srv/moncic-ci/artifacts")
         for path in "/srv/moncic-ci/source", "/srv/moncic-ci/build":
-            with script.for_("f", f"$(find {shlex.quote(path)} -maxdepth 1 -type f)"):
+            with script.for_(
+                "f", f"$(find {shlex.quote(path)} -maxdepth 1 -type f)"
+            ):
                 script.run_unquoted(f'mv "$f" {shlex.quote(dest.as_posix())}')
         return script
 
@@ -212,14 +227,23 @@ class DebianBuildSource(DebianBuilder):
         )
         files = [os.path.basename(f) for f in res.stdout.decode().splitlines()]
         if self.source.source_info.dsc_filename in files:
-            return self.guest_source_path.parent / self.source.source_info.dsc_filename
+            return (
+                self.guest_source_path.parent
+                / self.source.source_info.dsc_filename
+            )
 
         # Something unexpected happened: look harder for a built .dsc file
         match len(files):
             case 0:
-                raise RuntimeError("No source .dsc files found after building the source package")
+                raise RuntimeError(
+                    "No source .dsc files found after building the source package"
+                )
             case 1:
-                log.warning("found .dsc file %s instead of %s", files[0], self.source.source_info.dsc_filename)
+                log.warning(
+                    "found .dsc file %s instead of %s",
+                    files[0],
+                    self.source.source_info.dsc_filename,
+                )
                 return self.guest_source_path.parent / files[0]
             case _:
                 log.warning(
@@ -241,7 +265,9 @@ class DebianBuilderDir(DebianBuildSource):
         script = Script("Build source package")
         assert isinstance(self.image.distro, DebianDistro)
         script.run(
-            ["dpkg-buildpackage", "-S"] + self.image.distro.dpkg_dev_no_pre_clean + self.image.distro.dpkg_dev_no_sign,
+            ["dpkg-buildpackage", "-S"]
+            + self.image.distro.dpkg_dev_no_pre_clean
+            + self.image.distro.dpkg_dev_no_sign,
             cwd=self.guest_source_path,
         )
         self.results.scripts.append(script)

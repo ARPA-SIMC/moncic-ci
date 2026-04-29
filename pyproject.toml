@@ -1,5 +1,5 @@
 [tool.black]
-line-length = 120
+line-length = 80
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html
@@ -12,7 +12,7 @@ module = "tblib.*"
 ignore_missing_imports = true
 
 [tool.pylint.MAIN]
-max-line-length = 120
+max-line-length = 80
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = "invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments"

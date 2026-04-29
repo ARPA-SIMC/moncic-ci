@@ -28,8 +28,12 @@ class BuildTests(IntegrationTestsBase, abc.ABC):
 
         context.debug.set(True)
 
-        with self.verbose_logging(), Source.create_local(source=source_path) as local_source:
-            source = DistroSource.create_from_local(local_source, distro=rimage.distro)
+        with self.verbose_logging(), Source.create_local(
+            source=source_path
+        ) as local_source:
+            source = DistroSource.create_from_local(
+                local_source, distro=rimage.distro
+            )
             # Create a Build object with system-configured defaults
             builder_class = ops_build.Builder.get_builder_class(source)
             # Fill in the build configuration
@@ -59,9 +63,17 @@ class FedoraBuildTests(BuildTests, abc.ABC):
         fedora_sources_path = source_path / "fedora" / "SOURCES"
         fedora_sources_path.mkdir()
         (fedora_sources_path / "testfile").write_text("test file")
-        subprocess.run(["git", "add", "fedora/SOURCES"], cwd=source_path, capture_output=True, check=True)
         subprocess.run(
-            ["git", "commit", "-m", "Added a test file to SOURCES"], cwd=source_path, capture_output=True, check=True
+            ["git", "add", "fedora/SOURCES"],
+            cwd=source_path,
+            capture_output=True,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "Added a test file to SOURCES"],
+            cwd=source_path,
+            capture_output=True,
+            check=True,
         )
 
         rimage = self.get_bootstrapped()
@@ -70,8 +82,12 @@ class FedoraBuildTests(BuildTests, abc.ABC):
 
         context.debug.set(True)
 
-        with self.verbose_logging(), Source.create_local(source=source_path) as local_source:
-            source = DistroSource.create_from_local(local_source, distro=rimage.distro)
+        with self.verbose_logging(), Source.create_local(
+            source=source_path
+        ) as local_source:
+            source = DistroSource.create_from_local(
+                local_source, distro=rimage.distro
+            )
             # Create a Build object with system-configured defaults
             builder_class = ops_build.Builder.get_builder_class(source)
             # Fill in the build configuration

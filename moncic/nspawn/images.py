@@ -57,7 +57,9 @@ class NspawnImages(BootstrappingImages, abc.ABC):
         return (self.imagedir / name).is_dir()
 
     @override
-    def image(self, name: str, variant_of: Image | None = None) -> RunnableImage:
+    def image(
+        self, name: str, variant_of: Image | None = None
+    ) -> RunnableImage:
         path = (self.imagedir / name).absolute()
         with context.privs.root():
             if not path.is_dir():
@@ -73,9 +75,18 @@ class NspawnImages(BootstrappingImages, abc.ABC):
                 # Reuse the previous found runnable image
                 return variant_of
             case _:
-                raise NotImplementedError(f"variant_of has unknown image type {variant_of.__class__.__name__}")
+                raise NotImplementedError(
+                    "variant_of has unknown image type"
+                    f" {variant_of.__class__.__name__}"
+                )
 
-        return self.image_class(images=self, name=name, distro=distro, path=path, bootstrapped_from=bootstrapped_from)
+        return self.image_class(
+            images=self,
+            name=name,
+            distro=distro,
+            path=path,
+            bootstrapped_from=bootstrapped_from,
+        )
 
     @override
     def list_images(self) -> list[str]:
@@ -120,7 +131,7 @@ class NspawnImages(BootstrappingImages, abc.ABC):
 
     @abc.abstractmethod
     def transactional_workdir(self, image: Image) -> ContextManager[Path]:
-        """Create a working directory for transactional maintenance of the image at path."""
+        """Create a working directory for transactional image maintenance."""
 
     def wants_compression(self, image: Image) -> str | None:
         """Check if the image should be created with compression."""
@@ -130,7 +141,9 @@ class NspawnImages(BootstrappingImages, abc.ABC):
             case RunnableImage():
                 match image.bootstrapped_from:
                     case ConfiguredImage():
-                        return image.bootstrapped_from.config.bootstrap_info.compression
+                        return (
+                            image.bootstrapped_from.config.bootstrap_info.compression
+                        )
                     case _:
                         return self.session.moncic.config.compression
             case _:
@@ -155,7 +168,11 @@ class PlainImages(NspawnImages):
         path = self.imagedir / image.name
 
         if path.exists():
-            logging.info("%s: transactional updates on non-btrfs nspawn images are not supported", path)
+            logging.info(
+                "%s: transactional updates on non-btrfs nspawn images"
+                " are not supported",
+                path,
+            )
             yield path
         else:
             work_path = path.parent / f"{path.name}.new"
@@ -184,7 +201,15 @@ class PlainImages(NspawnImages):
             if tarball_path is not None:
                 with context.privs.root():
                     # Shortcut in case we have a chroot in a tarball
-                    self.host_run(["tar", "-C", work_path.as_posix(), "-axf", tarball_path.as_posix()])
+                    self.host_run(
+                        [
+                            "tar",
+                            "-C",
+                            work_path.as_posix(),
+                            "-axf",
+                            tarball_path.as_posix(),
+                        ]
+                    )
             else:
                 with context.privs.root():
                     image.distro.bootstrap(self, work_path)
@@ -192,10 +217,13 @@ class PlainImages(NspawnImages):
         return self.image(image.name, variant_of=image)
 
     @override
-    def bootstrap_extend(self, image: BootstrappableImage, parent: RunnableImage) -> RunnableImage:
+    def bootstrap_extend(
+        self, image: BootstrappableImage, parent: RunnableImage
+    ) -> RunnableImage:
         if not isinstance(parent, NspawnImage):
             raise NotImplementedError(
-                f"cannot create a nspawn image extending from a {parent.__class__.__name__} image"
+                "cannot create a nspawn image extending"
+                f" from a {parent.__class__.__name__} image"
             )
         with context.privs.root():
             path = self.imagedir / image.name
@@ -204,7 +232,15 @@ class PlainImages(NspawnImages):
 
         assert isinstance(image, NspawnImage)
         with context.privs.root():
-            image.host_run(["cp", "--reflink=auto", "-a", image.path.as_posix(), path.as_posix()])
+            image.host_run(
+                [
+                    "cp",
+                    "--reflink=auto",
+                    "-a",
+                    image.path.as_posix(),
+                    path.as_posix(),
+                ]
+            )
         return self.image(image.name, variant_of=image)
 
 
@@ -247,7 +283,9 @@ class BtrfsImages(NspawnImages):
                         if not stat.S_ISREG(st.st_mode):
                             continue
                         size = st.st_size
-                        by_name_size[(os.path.join(relpath, fn), size)].append(entry.name)
+                        by_name_size[(os.path.join(relpath, fn), size)].append(
+                            entry.name
+                        )
 
         total_saved = 0
         for (name, size), images in by_name_size.items():
@@ -255,9 +293,14 @@ class BtrfsImages(NspawnImages):
                 continue
             saved = 0
             for imgname in images[1:]:
-                saved += do_dedupe(os.path.join(imagedir, images[0], name), os.path.join(imagedir, imgname, name), size)
+                saved += do_dedupe(
+                    os.path.join(imagedir, images[0], name),
+                    os.path.join(imagedir, imgname, name),
+                    size,
+                )
             # if saved > 0:
-            #     log.info("%s: found in %s, recovered %db", name, ", ".join(images), saved)
+            #     log.info("%s: found in %s, recovered %db", name, ",
+            #     ".join(images), saved)
             total_saved += saved
 
         log.info("%d total bytes are currently deduplicated", total_saved)
@@ -270,7 +313,9 @@ class BtrfsImages(NspawnImages):
 
         work_path = path.parent / f"{path.name}.new"
         with context.privs.root():
-            subvolume = Subvolume(self.session.moncic.config, work_path, compression)
+            subvolume = Subvolume(
+                self.session.moncic.config, work_path, compression
+            )
             if work_path.exists():
                 subvolume.remove()
                 shutil.rmtree(work_path)
@@ -308,7 +353,15 @@ class BtrfsImages(NspawnImages):
             if tarball_path is not None:
                 # Shortcut in case we have a chroot in a tarball
                 with context.privs.root():
-                    self.host_run(cmd=["tar", "-C", work_path.as_posix(), "-axf", tarball_path.as_posix()])
+                    self.host_run(
+                        cmd=[
+                            "tar",
+                            "-C",
+                            work_path.as_posix(),
+                            "-axf",
+                            tarball_path.as_posix(),
+                        ]
+                    )
             else:
                 with context.privs.root():
                     image.distro.bootstrap(self, work_path)
@@ -316,10 +369,13 @@ class BtrfsImages(NspawnImages):
         return self.image(image.name, variant_of=image)
 
     @override
-    def bootstrap_extend(self, image: BootstrappableImage, parent: RunnableImage) -> RunnableImage:
+    def bootstrap_extend(
+        self, image: BootstrappableImage, parent: RunnableImage
+    ) -> RunnableImage:
         if not isinstance(parent, NspawnImage):
             raise NotImplementedError(
-                f"cannot create a nspawn image extending from a {parent.__class__.__name__} image"
+                "cannot create a nspawn image extending"
+                f" from a {parent.__class__.__name__} image"
             )
         with context.privs.root():
             path = self.imagedir / image.name
@@ -340,7 +396,10 @@ class MachinectlImages(NspawnImages):
 
     def _list_machines(self) -> set[str]:
         res = subprocess.run(
-            ["machinectl", "list-images", "--no-pager", "--no-legend"], check=True, stdout=subprocess.PIPE, text=True
+            ["machinectl", "list-images", "--no-pager", "--no-legend"],
+            check=True,
+            stdout=subprocess.PIPE,
+            text=True,
         )
         names: set[str] = set()
         for line in res.stdout.splitlines():

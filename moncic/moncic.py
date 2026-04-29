@@ -48,12 +48,13 @@ class MoncicConfig:
         self.compression: str | None = None
         # Automatically reexec with sudo if permissions are needed
         self.auto_sudo: bool = True
-        # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
+        # Use a tmpfs overlay for ephemeral containers instead of btrfs
+        # snapshots
         self.tmpfs: bool = False
         # Directory where .deb files are cached between invocations
         self.deb_cache_dir: Path | None = expand_path("~/.cache/moncic-ci/debs")
-        # Directory where extra packages, if present, are added to package sources
-        # in containers
+        # Directory where extra packages, if present, are added to package
+        # sources in containers
         self.extra_packages_dir: Path | None = None
         # Directory where build artifacts will be stored
         self.build_artifacts_dir: Path | None = None
@@ -73,7 +74,11 @@ class MoncicConfig:
     @classmethod
     def find_git_dir(cls) -> Path | None:
         try:
-            res = subprocess.run(["git", "rev-parse", "--git-dir"], capture_output=True, text=True)
+            res = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                capture_output=True,
+                text=True,
+            )
         except FileNotFoundError:
             # Handle the rare case where git is missing
             return None
@@ -86,7 +91,9 @@ class MoncicConfig:
 
     @classmethod
     def xdg_local_config_dir(self) -> Path:
-        config_home = Path(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")))
+        config_home = Path(
+            os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        )
         return config_home / "moncic-ci"
 
     @classmethod
@@ -126,7 +133,7 @@ class MoncicConfig:
     @classmethod
     def load(cls, path: Path | None = None) -> Self:
         """
-        Load the configuration from the given path, or from a list of default paths.
+        Load the configuration from the given path, or from default paths.
         """
         if path is None:
             path = cls.find_config_file()
@@ -169,14 +176,22 @@ class Moncic:
         privs.auto_sudo = self.config.auto_sudo
 
         # Detect systemd's version
-        res = subprocess.run(["systemctl", "--version"], check=True, capture_output=True, text=True)
+        res = subprocess.run(
+            ["systemctl", "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         self.systemd_version = int(res.stdout.splitlines()[0].split()[1])
 
     def session(self) -> Session:
         """
         Create a new work session.
 
-        Session is a context manager, so you can use this as `with moncic.session() as session:`
+        Session is a context manager, so you can use this as::
+
+          with moncic.session() as session:
+              ...
         """
         return RealSession(self)
 

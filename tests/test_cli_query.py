@@ -21,7 +21,8 @@ class CliQueryTests(CLITestCase):
         self.assertRegex(res.stdout, r"test,8,yes,mock,mock")
 
     def test_distros(self) -> None:
-        # Session is not used by the command, but the mock session needs a chance to run cleanup
+        # Session is not used by the command, but the mock session needs a
+        # chance to run cleanup
         with self.session:
             pass
         self.session.test_simulate_bootstrap("test", {"extends": "rocky8"})
@@ -29,14 +30,19 @@ class CliQueryTests(CLITestCase):
         self.assertNoStderr(res)
         self.assertRunLogEmpty(self.session.run_log)
 
-        self.assertRegex(res.stdout, r"debian:sid\s+sid, unstable, debian:unstable")
+        self.assertRegex(
+            res.stdout, r"debian:sid\s+sid, unstable, debian:unstable"
+        )
 
     def test_distros_csv(self) -> None:
-        # Session is not used by the command, but the mock session needs a chance to run cleanup
+        # Session is not used by the command, but the mock session needs a
+        # chance to run cleanup
         with self.session:
             pass
         self.session.test_simulate_bootstrap("test", {"extends": "rocky8"})
         res = self.call("monci", "distros", "--csv")
         self.assertNoStderr(res)
         self.assertRunLogEmpty(self.session.run_log)
-        self.assertRegex(res.stdout, r'debian:sid,"sid, unstable, debian:unstable"')
+        self.assertRegex(
+            res.stdout, r'debian:sid,"sid, unstable, debian:unstable"'
+        )

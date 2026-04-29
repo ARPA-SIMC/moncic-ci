@@ -67,12 +67,18 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
         return self.enterContext(self.mock_session(self.moncic(mconfig)))
 
     @abc.abstractmethod
-    def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None: ...
+    def assertBootstrapCommands(
+        self, run_log: MockRunLog, path: Path
+    ) -> None: ...
 
     @abc.abstractmethod
-    def assertUpdateCommands(self, run_log: RunLogEntry, path: Path) -> None: ...
+    def assertUpdateCommands(
+        self, run_log: RunLogEntry, path: Path
+    ) -> None: ...
 
-    def assertUpdateScriptRPM(self, run_log: RunLogEntry, packages: list[str]) -> None:
+    def assertUpdateScriptRPM(
+        self, run_log: RunLogEntry, packages: list[str]
+    ) -> None:
         with self.match_run_log(run_log) as match_log:
             script = match_log.assertPopScript("Upgrade container")
         self.assertEqual(
@@ -86,7 +92,7 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
         )
 
     def get_osrelease_samples(self) -> list[dict[str, str]]:
-        """Get sample parsed os-release files (if any) that should detect as this distro."""
+        """Get sample parsed os-release files for this distro."""
         if self.distro.name == "testing":
             return []
         parsed = {"ID": self.distro.family.name}
@@ -97,16 +103,22 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
     def test_from_osrelease(self) -> None:
         for parsed in self.get_osrelease_samples():
             with self.subTest(parsed=parsed):
-                self.assertIs(DistroFamily.from_osrelease(parsed, "invalid"), self.distro)
+                self.assertIs(
+                    DistroFamily.from_osrelease(parsed, "invalid"), self.distro
+                )
 
-                with tempfile.TemporaryDirectory(suffix="test_from_osrelease") as root_str:
+                with tempfile.TemporaryDirectory(
+                    suffix="test_from_osrelease"
+                ) as root_str:
                     root = Path(root_str)
                     path = root / "etc" / "os-release"
                     path.parent.mkdir(parents=True)
                     with path.open("wt") as fd:
                         print(f"ID={shlex.quote(parsed['ID'])}", file=fd)
                         if version_id := parsed.get("VERSION_ID"):
-                            print(f"VERSION_ID={shlex.quote(version_id)}", file=fd)
+                            print(
+                                f"VERSION_ID={shlex.quote(version_id)}", file=fd
+                            )
 
                     self.assertIs(DistroFamily.from_path(root), self.distro)
 
@@ -133,7 +145,9 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
         bootstrapped.update()
 
         with self.match_run_log(session.run_log) as m:
-            container_run_log = m.assertPopFirst(f"{self.distro.full_name}: run container")
+            container_run_log = m.assertPopFirst(
+                f"{self.distro.full_name}: run container"
+            )
             self.assertUpdateCommands(container_run_log, Path("/test"))
 
 
@@ -145,11 +159,15 @@ class TestCentos7(DistroTestsBase):
         with self.match_run_log(run_log) as m:
             m.assertPopFirst(
                 re.compile(
-                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                    rf" --installroot={path} --releasever=7 install bash dbus iproute rootfiles yum"
+                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*'"
+                    rf" --enablerepo=chroot-base '--disableplugin=\*'"
+                    rf" --installroot={path} --releasever=7"
+                    rf" install bash dbus iproute rootfiles yum"
                 ),
             )
-            m.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+            m.assertPopFirst(
+                f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb"
+            )
 
     @override
     def assertUpdateCommands(self, run_log: RunLogEntry, path: Path) -> None:
@@ -160,7 +178,8 @@ class TestCentos7(DistroTestsBase):
                 [
                     "/usr/bin/yum check-update -y -q || true",
                     "/usr/bin/yum upgrade -y -q",
-                    "/usr/bin/yum install -y -q bash dbus iproute rootfiles yum",
+                    "/usr/bin/yum install -y -q"
+                    " bash dbus iproute rootfiles yum",
                 ],
             )
 
@@ -178,20 +197,30 @@ class DebDistroTestsBase(DistroTestsBase):
         if self.custom_keyring:
             mock_response = mock.Mock()
             mock_response.content = b""
-            self.enterContext(mock.patch("moncic.distro.debian.requests.get", return_value=mock_response))
+            self.enterContext(
+                mock.patch(
+                    "moncic.distro.debian.requests.get",
+                    return_value=mock_response,
+                )
+            )
             self.enterContext(mock.patch("moncic.distro.debian.subprocess.run"))
 
     @override
     def assertBootstrapCommands(self, run_log: MockRunLog, path: Path) -> None:
         match: list[str] = [
             r"(/usr/bin/eatmydata )?/usr/s?bin/(?:mmdebstrap|debootstrap)",
-            re.escape("--include=apt-utils,bash,ca-certificates,dbus,eatmydata,iproute2,systemd"),
+            re.escape(
+                "--include=apt-utils,bash,ca-certificates,dbus,"
+                "eatmydata,iproute2,systemd"
+            ),
             re.escape("--variant=minbase"),
         ]
         if self.custom_keyring:
             match.append(r"--keyring=[^\.]+\.gpg")
         if self.components:
-            match.append(re.escape(f"--components={shlex.quote(self.components)}"))
+            match.append(
+                re.escape(f"--components={shlex.quote(self.components)}")
+            )
         match += [
             re.escape(f"{self.distro.name} {path} {self.mirror}"),
         ]
@@ -207,11 +236,14 @@ class DebDistroTestsBase(DistroTestsBase):
             [
                 "/usr/bin/apt-get update",
                 "export DEBIAN_FRONTEND=noninteractive",
-                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
+                f"/usr/bin/apt-get --assume-yes --quiet --show-upgraded"
+                f" '-o Dpkg::Options::=\"--force-confnew\"'"
                 f" {self.upgrade_verb}",
                 "export DEBIAN_FRONTEND=noninteractive",
-                "/usr/bin/apt-get --assume-yes --quiet --show-upgraded '-o Dpkg::Options::=\"--force-confnew\"'"
-                f" {self.install_verb} apt-utils bash ca-certificates dbus eatmydata iproute2 systemd",
+                f"/usr/bin/apt-get --assume-yes --quiet --show-upgraded"
+                f" '-o Dpkg::Options::=\"--force-confnew\"'"
+                f" {self.install_verb} apt-utils bash ca-certificates"
+                f" dbus eatmydata iproute2 systemd",
             ],
         )
 
@@ -266,11 +298,15 @@ class FedoraDistroTestsBase(DistroTestsBase):
         with self.match_run_log(run_log) as m:
             m.assertPopFirst(
                 re.compile(
-                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                    rf" --installroot={path} --releasever={self.version} install {' '.join(self.packages)}"
+                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*'"
+                    rf" --enablerepo=chroot-base '--disableplugin=\*'"
+                    rf" --installroot={path} --releasever={self.version}"
+                    rf" install {' '.join(self.packages)}"
                 ),
             )
-            m.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+            m.assertPopFirst(
+                f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb"
+            )
 
     @override
     def assertUpdateCommands(self, run_log: RunLogEntry, path: Path) -> None:
@@ -303,15 +339,21 @@ class TestRocky8(DistroTestsBase):
         with self.match_run_log(run_log) as m:
             m.assertPopFirst(
                 re.compile(
-                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                    rf" --installroot={path} --releasever=8 install bash dbus dnf iproute rootfiles"
+                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*'"
+                    rf" --enablerepo=chroot-base '--disableplugin=\*'"
+                    rf" --installroot={path} --releasever=8"
+                    rf" install bash dbus dnf iproute rootfiles"
                 ),
             )
-            m.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+            m.assertPopFirst(
+                f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb"
+            )
 
     @override
     def assertUpdateCommands(self, run_log: RunLogEntry, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+        self.assertUpdateScriptRPM(
+            run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"]
+        )
 
 
 class TestRocky9(DistroTestsBase):
@@ -322,15 +364,21 @@ class TestRocky9(DistroTestsBase):
         with self.match_run_log(run_log) as m:
             m.assertPopFirst(
                 re.compile(
-                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*' --enablerepo=chroot-base '--disableplugin=\*'"
-                    rf" --installroot={path} --releasever=9 install bash dbus dnf iproute rootfiles"
+                    rf"/usr/s?bin/dnf -c \S+\.repo -y -q '--disablerepo=\*'"
+                    rf" --enablerepo=chroot-base '--disableplugin=\*'"
+                    rf" --installroot={path} --releasever=9 install"
+                    rf" bash dbus dnf iproute rootfiles"
                 ),
             )
-            m.assertPopFirst(f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb")
+            m.assertPopFirst(
+                f"systemd-nspawn -D {path} /usr/bin/rpmdb --rebuilddb"
+            )
 
     @override
     def assertUpdateCommands(self, run_log: RunLogEntry, path: Path) -> None:
-        self.assertUpdateScriptRPM(run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"])
+        self.assertUpdateScriptRPM(
+            run_log, ["bash", "dbus", "dnf", "iproute", "rootfiles"]
+        )
 
 
 class UbuntuDistroTestsBase(DebDistroTestsBase):

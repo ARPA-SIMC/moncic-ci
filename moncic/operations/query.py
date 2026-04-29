@@ -59,7 +59,9 @@ class Lint(ContainerSourceOperation):
         source_artifacts_dir: Path | None = None,
         reporter: Reporter,
     ):
-        super().__init__(image, source, source_artifacts_dir=source_artifacts_dir)
+        super().__init__(
+            image, source, source_artifacts_dir=source_artifacts_dir
+        )
         self.reporter = reporter
 
     # @override

@@ -61,7 +61,11 @@ class RpmDistro(Distro):
 
         with self.chroot_config() as dnf_config:
             installroot = path.absolute()
-            cmd = [installer, "-c", dnf_config] + self.dnf_noninteractive_options()
+            cmd = [
+                installer,
+                "-c",
+                dnf_config,
+            ] + self.dnf_noninteractive_options()
             cmd += [
                 "--disablerepo=*",
                 "--enablerepo=chroot-base",
@@ -71,7 +75,8 @@ class RpmDistro(Distro):
                 "install",
             ] + sorted(self.get_base_packages())
 
-            # If eatmydata is available, we can use it to make boostrap significantly faster
+            # If eatmydata is available, we can use it to make boostrap
+            # significantly faster
             #
             # Disabled for now, this causes noise when dnf executes scriptlets
             # inside the target system
@@ -82,20 +87,34 @@ class RpmDistro(Distro):
             images.host_run(cmd)
 
             # If dnf used a private rpmdb, promote it as the rpmdb of the newly
-            # created system. See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
+            # created system.
+            # See https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1004863#32
             private_rpmdb = installroot / "root" / ".rpmdb"
             system_rpmdb = installroot / "var" / "lib" / "rpm"
             if os.path.isdir(private_rpmdb):
-                images.logger.info("Moving %r to %r", private_rpmdb, system_rpmdb)
+                images.logger.info(
+                    "Moving %r to %r", private_rpmdb, system_rpmdb
+                )
                 if os.path.islink(system_rpmdb):
                     system_rpmdb = system_rpmdb.resolve()
-                    if installroot.as_posix() not in os.path.commonprefix((system_rpmdb, installroot)):
+                    if installroot.as_posix() not in os.path.commonprefix(
+                        (system_rpmdb, installroot)
+                    ):
                         raise RuntimeError(
-                            f"/var/lib/rpm in installed system points to {system_rpmdb} which is outside installroot"
+                            "/var/lib/rpm in installed system points to"
+                            f" {system_rpmdb} which is outside installroot"
                         )
                 shutil.rmtree(system_rpmdb)
                 shutil.move(private_rpmdb, system_rpmdb)
-            images.host_run(["systemd-nspawn", "-D", installroot.as_posix(), "/usr/bin/rpmdb", "--rebuilddb"])
+            images.host_run(
+                [
+                    "systemd-nspawn",
+                    "-D",
+                    installroot.as_posix(),
+                    "/usr/bin/rpmdb",
+                    "--rebuilddb",
+                ]
+            )
 
 
 class YumDistro(RpmDistro):
@@ -106,22 +125,36 @@ class YumDistro(RpmDistro):
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
-        script.run(["/usr/bin/yum", "check-update"] + self.dnf_noninteractive_options(), check=False)
+        script.run(
+            ["/usr/bin/yum", "check-update"]
+            + self.dnf_noninteractive_options(),
+            check=False,
+        )
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
         super().get_upgrade_system_script(script)
-        script.run(["/usr/bin/yum", "upgrade"] + self.dnf_noninteractive_options())
+        script.run(
+            ["/usr/bin/yum", "upgrade"] + self.dnf_noninteractive_options()
+        )
 
     @override
-    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+    def get_install_packages_script(
+        self, script: Script, packages: list[str]
+    ) -> None:
         super().get_install_packages_script(script, packages)
-        script.run(["/usr/bin/yum", "install"] + self.dnf_noninteractive_options() + packages)
+        script.run(
+            ["/usr/bin/yum", "install"]
+            + self.dnf_noninteractive_options()
+            + packages
+        )
 
     @override
     def get_prepare_build_script(self, script: Script) -> None:
         super().get_prepare_build_script(script)
-        self.get_install_packages_script(script, ["@buildsys-build", "git", "rpmdevtools"])
+        self.get_install_packages_script(
+            script, ["@buildsys-build", "git", "rpmdevtools"]
+        )
 
 
 class DnfDistro(RpmDistro):
@@ -138,17 +171,29 @@ class DnfDistro(RpmDistro):
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
         # check-update returns with code 100 if there are packages to upgrade
-        script.run(["/usr/bin/dnf", "check-update"] + self.dnf_noninteractive_options(), check=False)
+        script.run(
+            ["/usr/bin/dnf", "check-update"]
+            + self.dnf_noninteractive_options(),
+            check=False,
+        )
 
     @override
     def get_upgrade_system_script(self, script: Script) -> None:
         super().get_upgrade_system_script(script)
-        script.run(["/usr/bin/dnf", "upgrade"] + self.dnf_noninteractive_options())
+        script.run(
+            ["/usr/bin/dnf", "upgrade"] + self.dnf_noninteractive_options()
+        )
 
     @override
-    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+    def get_install_packages_script(
+        self, script: Script, packages: list[str]
+    ) -> None:
         super().get_install_packages_script(script, packages)
-        script.run(["/usr/bin/dnf", "install"] + self.dnf_noninteractive_options() + packages)
+        script.run(
+            ["/usr/bin/dnf", "install"]
+            + self.dnf_noninteractive_options()
+            + packages
+        )
 
     def _build_env_packages(self) -> list[str]:
         """Get a list of packages used in build environments."""
@@ -187,7 +232,12 @@ json.dump(res, sys.stdout)
 
         with open("/tmp/script", "w") as fd:
             fd.write(script)
-        res = subprocess.run(["/usr/bin/python3", "/tmp/script"], stdout=subprocess.PIPE, text=True, check=True)
+        res = subprocess.run(
+            ["/usr/bin/python3", "/tmp/script"],
+            stdout=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
         return cast(dict[str, dict[str, str]], json.loads(res.stdout))
 
 
@@ -215,14 +265,26 @@ class Centos7(YumDistro):
 class FedoraDistro(DnfDistro):
     version: str
 
-    def __init__(self, family: DistroFamily, version: int, archived: bool = False, **kwargs: Any):
+    def __init__(
+        self,
+        family: DistroFamily,
+        version: int,
+        archived: bool = False,
+        **kwargs: Any,
+    ):
         super().__init__(family, str(version), str(version), **kwargs)
         if archived:
             self.mirror = "https://archives.fedoraproject.org"
-            self.baseurl = f"{self.mirror}/pub/archive/fedora/linux/releases/{version}/Everything/$basearch/os/"
+            self.baseurl = (
+                f"{self.mirror}/pub/archive/fedora/linux/releases/"
+                f"{version}/Everything/$basearch/os/"
+            )
         else:
             self.mirror = "https://download.fedoraproject.org"
-            self.baseurl = f"{self.mirror}/pub/fedora/linux/releases/{version}/Everything/$basearch/os/"
+            self.baseurl = (
+                f"{self.mirror}/pub/fedora/linux/releases/"
+                f"{version}/Everything/$basearch/os/"
+            )
 
     @override
     def get_podman_name(self) -> tuple[str, str]:
@@ -246,7 +308,9 @@ class FedoraDistro(DnfDistro):
 class AlmaDistro(DnfDistro):
     mirror = "http://repo.almalinux.org"
 
-    def __init__(self, family: DistroFamily, version: int, **kwargs: Any) -> None:
+    def __init__(
+        self, family: DistroFamily, version: int, **kwargs: Any
+    ) -> None:
         super().__init__(family, str(version), str(version), **kwargs)
         self.baseurl = f"{self.mirror}/almalinux/{version}/BaseOS/$basearch/os/"
 
@@ -258,7 +322,9 @@ class AlmaDistro(DnfDistro):
 class RockyDistro(DnfDistro):
     mirror = "http://dl.rockylinux.org"
 
-    def __init__(self, family: DistroFamily, version: int, **kwargs: Any) -> None:
+    def __init__(
+        self, family: DistroFamily, version: int, **kwargs: Any
+    ) -> None:
         super().__init__(family, str(version), str(version), **kwargs)
         self.baseurl = f"{self.mirror}/pub/rocky/{version}/BaseOS/$basearch/os/"
 

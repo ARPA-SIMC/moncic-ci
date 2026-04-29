@@ -14,13 +14,20 @@ class ConfiguredImage(BootstrappableImage):
     images: "ConfiguredImages"
 
     def __init__(
-        self, *, images: "ConfiguredImages", name: str, config: Config, variant_of: Optional["DistroImage"]
+        self,
+        *,
+        images: "ConfiguredImages",
+        name: str,
+        config: Config,
+        variant_of: Optional["DistroImage"]
     ) -> None:
         if variant_of is None:
             distro = config.distro
         else:
             distro = variant_of.distro
-        super().__init__(images=images, name=name, distro=distro, bootstrapped=False)
+        super().__init__(
+            images=images, name=name, distro=distro, bootstrapped=False
+        )
         self.config = config
         self.config.warn_unsupported_entries(self.logger)
         self.variant_of = variant_of
@@ -55,7 +62,9 @@ class ConfiguredImage(BootstrappableImage):
 
     @override
     def remove_config(self) -> None:
-        self.logger.info("%s: removing image configuration file", self.config.path)
+        self.logger.info(
+            "%s: removing image configuration file", self.config.path
+        )
         self.config.path.unlink()
 
 

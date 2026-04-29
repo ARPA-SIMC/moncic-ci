@@ -1,7 +1,7 @@
 from typing import override
 
 from moncic.distro import Distro, DistroFamily
-from moncic.moncic import Moncic, MoncicConfig
+from moncic.moncic import MoncicConfig
 from moncic.provision.image import DistroImage
 from moncic.provision.images import DistroImages
 from moncic.unittest import MockMoncicTestCase
@@ -39,7 +39,9 @@ class DistroImagesTests(MockMoncicTestCase):
         self.assertFalse(self.images.has_image("does-not-exist"))
 
     def test_list_images(self) -> None:
-        self.assertCountEqual(self.images.list_images(), [d.full_name for d in self.all_distros()])
+        self.assertCountEqual(
+            self.images.list_images(), [d.full_name for d in self.all_distros()]
+        )
 
     def test_image(self) -> None:
         for distro in self.all_distros():

@@ -18,7 +18,9 @@ class Handler(Protocol):
 
 def main() -> int | None:
     parser = argparse.ArgumentParser(description="CI tool")
-    parser.add_argument("--version", action="version", version=moncic.__version__)
+    parser.add_argument(
+        "--version", action="version", version=moncic.__version__
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -32,7 +34,9 @@ def main() -> int | None:
         help="debugging output",
         shared=True,
     ),
-    subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
+    subparsers = parser.add_subparsers(
+        help="sub-command help", dest="handler", required=True
+    )
 
     for cls in cli.MAIN_COMMANDS:
         cls.make_subparser(subparsers)

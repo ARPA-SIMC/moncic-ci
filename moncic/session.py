@@ -142,7 +142,9 @@ class RealSession(Session):
             podman_images = PodmanImages(self)
 
         if privs.can_regain():
-            images = self.enter_context(NspawnImageStorage.create(self, MACHINECTL_PATH).images())
+            images = self.enter_context(
+                NspawnImageStorage.create(self, MACHINECTL_PATH).images()
+            )
             assert isinstance(images, BootstrappingImages)
             self.images.add(images)
             if podman_images:
@@ -152,7 +154,10 @@ class RealSession(Session):
             self.bootstrapper = podman_images
             self.images.add(podman_images)
         else:
-            raise Fail("neither nspawn nor podman are accessible (try running with sudo?)")
+            raise Fail(
+                "neither nspawn nor podman are accessible"
+                " (try running with sudo?)"
+            )
 
     @override
     def _make_podman(self) -> "_podman.PodmanClient":

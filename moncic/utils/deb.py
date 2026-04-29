@@ -18,7 +18,9 @@ class FileInfo(NamedTuple):
 
 
 class DebCache:
-    def __init__(self, cache_dir: Path, cache_size: int = 512 * 1024 * 1024) -> None:
+    def __init__(
+        self, cache_dir: Path, cache_size: int = 512 * 1024 * 1024
+    ) -> None:
         self.cache_dir = cache_dir
         # Maximum cache size in bytes
         self.cache_size = cache_size
@@ -50,7 +52,9 @@ class DebCache:
         """
         # Sort debs by atime and remove all those that go beyond
         # self.cache_size
-        sdebs = sorted(self.debs.items(), key=lambda x: x[1].atime_ns, reverse=True)
+        sdebs = sorted(
+            self.debs.items(), key=lambda x: x[1].atime_ns, reverse=True
+        )
         size = 0
         for name, info in sdebs:
             if size + info.size > self.cache_size:
@@ -67,7 +71,12 @@ class DebCache:
                     continue
                 st = de.stat()
                 self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
-                os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
+                os.link(
+                    de.name,
+                    de.name,
+                    src_dir_fd=self.src_dir_fd,
+                    dst_dir_fd=dst_dir_fd,
+                )
 
     def _debs_from_aptdir(self, dst_dir_fd: int) -> None:
         """Hardlink new debs to cache dir."""
@@ -77,7 +86,12 @@ class DebCache:
                 if de.name.endswith(".deb"):
                     st = de.stat()
                     if de.name not in self.debs:
-                        os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
+                        os.link(
+                            de.name,
+                            de.name,
+                            src_dir_fd=dst_dir_fd,
+                            dst_dir_fd=self.src_dir_fd,
+                        )
                     self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
 
     @contextlib.contextmanager
@@ -85,7 +99,9 @@ class DebCache:
         """
         Create a directory that can be bind mounted as /apt/cache/apt/archives
         """
-        with tempfile.TemporaryDirectory(dir=self.cache_dir, suffix="aptdir") as aptdir_str:
+        with tempfile.TemporaryDirectory(
+            dir=self.cache_dir, suffix="aptdir"
+        ) as aptdir_str:
             aptdir = Path(aptdir_str)
             with dirfd(aptdir) as dst_dir_fd:
                 self._debs_to_aptdir(dst_dir_fd)

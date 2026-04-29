@@ -26,7 +26,7 @@ class LocalSource(Source, abc.ABC):
 
     @override
     def info_dict(self) -> dict[str, Any]:
-        """Return JSON-able information about this source, without parent information."""
+        """Return JSON-able information about this source."""
         res = super().info_dict()
         res["path"] = self.path
         return res
@@ -49,7 +49,8 @@ class LocalSource(Source, abc.ABC):
         """
         Scan sources looking for all places that define a version number.
 
-        Distribution-specific subclasses can assume access to distro-specific tools.
+        Distribution-specific subclasses can assume access to distro-specific
+        tools.
 
         :param allow_exec: if True, allow running code from the repository to
                            find versions
@@ -90,7 +91,9 @@ class Dir(LocalSource):
         versions = super().lint_find_versions(allow_exec=allow_exec)
 
         if (autotools := self.path / "configure.ac").exists():
-            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
+            re_autotools = re.compile(
+                r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)"
+            )
             with autotools.open("rt") as fd:
                 for line in fd:
                     if mo := re_autotools.match(line):
@@ -106,7 +109,9 @@ class Dir(LocalSource):
                         break
 
         if (cmake := self.path / "CMakeLists.txt").exists():
-            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
+            re_cmake = re.compile(
+                r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)"""
+            )
             with cmake.open("rt") as fd:
                 for line in fd:
                     if mo := re_cmake.match(line):
@@ -150,14 +155,20 @@ class Git(Dir):
     #: False if the git repo is ephemeral and can be modified at will
     readonly: bool
 
-    def __init__(self, *, repo: git.Repo | None = None, readonly: bool = True, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *,
+        repo: git.Repo | None = None,
+        readonly: bool = True,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.repo = repo or git.Repo(self.path)
         self.readonly = readonly
 
     @override
     def info_dict(self) -> dict[str, Any]:
-        """Return JSON-able information about this source, without parent information."""
+        """Return JSON-able information about this source."""
         res = super().info_dict()
         res["readonly"] = self.readonly
         return res
@@ -180,7 +191,9 @@ class Git(Dir):
             return self
 
         if not self.readonly:
-            raise NotImplementedError("Checkout branch in place not yet implemented")
+            raise NotImplementedError(
+                "Checkout branch in place not yet implemented"
+            )
 
         return self._git_clone(self.path.as_posix(), branch)
 
@@ -205,7 +218,9 @@ class Git(Dir):
             return self
         return self._git_clone(self.path.as_posix())
 
-    def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:
+    def find_branch(
+        self, name: str
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Look for the named branch locally or in the origin repository.
 
@@ -239,7 +254,9 @@ class Git(Dir):
             res[tag.name] = tag
         return res
 
-    def find_tags(self, hexsha: str | None = None) -> dict[str, git.objects.Commit]:
+    def find_tags(
+        self, hexsha: str | None = None
+    ) -> dict[str, git.objects.Commit]:
         """
         Return the tags corresponding to the given commit hash (if any)
         """
@@ -253,7 +270,9 @@ class Git(Dir):
 
         return res
 
-    def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+    def lint_find_upstream_tag(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Find the upstream tag matching the current version.
 
@@ -261,7 +280,9 @@ class Git(Dir):
         """
         return None
 
-    def lint_find_packaging_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+    def lint_find_packaging_tag(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Find the packaging tag matching the current version.
 
@@ -269,7 +290,9 @@ class Git(Dir):
         """
         return None
 
-    def lint_find_packaging_branch(self) -> git.refs.symbolic.SymbolicReference | None:
+    def lint_find_packaging_branch(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Find the packaging branch
 

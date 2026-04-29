@@ -8,7 +8,7 @@ pyupgrade:
 	pyupgrade --exit-zero-even-if-changed --py312-plus monci $(shell find moncic tests itests -name "*.py") test
 
 black:
-	black monci moncic tests test
+	black monci moncic tests itests test
 
 autoflake:
 	autoflake --in-place --recursive monci moncic tests itests test

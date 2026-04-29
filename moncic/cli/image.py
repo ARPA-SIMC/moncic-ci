@@ -40,7 +40,9 @@ class CreateCommand(MoncicCommand, abc.ABC):
         conf_root = self.moncic.config.imageconfdirs[0]
         conf_path = conf_root / f"{self.args.name}.yaml"
         if conf_path.exists():
-            raise Fail(f"{self.args.name}: configuration already exists in {conf_path}")
+            raise Fail(
+                f"{self.args.name}: configuration already exists in {conf_path}"
+            )
 
         with atomic_writer(conf_path, "wt", use_umask=True) as fd:
             write_yaml(contents, fd)
@@ -65,7 +67,9 @@ class Extends(CreateCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("image", help="parent image")
         return parser
@@ -86,7 +90,9 @@ class Distro(CreateCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("distro", help="distribution to bootstrap")
         return parser
@@ -162,10 +168,14 @@ class Setup(MaintCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
-            "command", nargs=argparse.REMAINDER, help="run and record a maintenance command to setup the image"
+            "command",
+            nargs=argparse.REMAINDER,
+            help="run and record a maintenance command to setup the image",
         )
         return parser
 
@@ -176,7 +186,9 @@ class Setup(MaintCommand):
             else:
                 maintscript = shlex.join(self.args.command)
             maintscript += "\n"
-            data["maintscript"] = ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
+            data["maintscript"] = ruamel.yaml.scalarstring.LiteralScalarString(
+                maintscript
+            )
 
 
 class Install(MaintCommand):
@@ -186,9 +198,13 @@ class Install(MaintCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("packages", nargs="+", help="packages to install in the image")
+        parser.add_argument(
+            "packages", nargs="+", help="packages to install in the image"
+        )
         return parser
 
     def run(self) -> None:
@@ -214,13 +230,16 @@ class BuildDep(MaintCommand, SourceCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "source",
             nargs="?",
             default=".",
-            help="path or url of the repository to build. Default: the current directory",
+            help="path or url of the repository to build."
+            " Default: the current directory",
         )
         return parser
 
@@ -294,7 +313,8 @@ class Describe(MoncicCommand):
             info = image.describe()
             if maintscripts := info.get("maintscripts"):
                 info["maintscripts"] = [
-                    ruamel.yaml.scalarstring.LiteralScalarString(maintscript) for maintscript in maintscripts
+                    ruamel.yaml.scalarstring.LiteralScalarString(maintscript)
+                    for maintscript in maintscripts
                 ]
             ryaml.dump(info, sys.stdout)
 
@@ -307,11 +327,15 @@ class Image(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("name", help="name of the image")
 
-        subparsers = parser.add_subparsers(help="sub-command help", dest="handler", required=True)
+        subparsers = parser.add_subparsers(
+            help="sub-command help", dest="handler", required=True
+        )
         Extends.make_subparser(subparsers)
         Distro.make_subparser(subparsers)
         Setup.make_subparser(subparsers)

@@ -22,7 +22,11 @@ class MockImages(BootstrappingImages):
     def __init__(self, session: "MockSession") -> None:
         super().__init__(session)
         self.bootstrapped: dict[str, "MockRunnableImage"] = {}
-        self.bootstrap_path = Path(self.session.enter_context(tempfile.TemporaryDirectory(suffix="mockimages")))
+        self.bootstrap_path = Path(
+            self.session.enter_context(
+                tempfile.TemporaryDirectory(suffix="mockimages")
+            )
+        )
 
     @override
     def get_logger(self) -> logging.Logger:
@@ -30,7 +34,11 @@ class MockImages(BootstrappingImages):
 
     @override
     def host_run(
-        self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
+        self,
+        cmd: list[str],
+        check: bool = True,
+        cwd: Path | None = None,
+        interactive: bool = False,
     ) -> subprocess.CompletedProcess:
         self.session.run_log.append(cmd, {})
         return subprocess.CompletedProcess(cmd, 0, b"", b"")
@@ -44,7 +52,9 @@ class MockImages(BootstrappingImages):
         return name in self.bootstrapped
 
     @override
-    def image(self, name: str, variant_of: Image | None = None) -> "MockRunnableImage":
+    def image(
+        self, name: str, variant_of: Image | None = None
+    ) -> "MockRunnableImage":
         return self.bootstrapped[name]
 
     @override
@@ -54,15 +64,27 @@ class MockImages(BootstrappingImages):
         with self.session.run_log.push(f"{image.name}: bootstrap"):
             path = self.bootstrap_path
             image.distro.bootstrap(self, path)
-            bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
+            bootstrapped = MockRunnableImage(
+                images=self,
+                name=image.name,
+                distro=image.distro,
+                bootstrapped_from=image,
+            )
             self.bootstrapped[image.name] = bootstrapped
             return bootstrapped
 
     @override
-    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+    def bootstrap_extend(
+        self, image: "BootstrappableImage", parent: "RunnableImage"
+    ) -> "RunnableImage":
         from .image import MockRunnableImage
 
         with self.session.run_log.push(f"{image.name}: extend {parent.name}"):
-            bootstrapped = MockRunnableImage(images=self, name=image.name, distro=image.distro, bootstrapped_from=image)
+            bootstrapped = MockRunnableImage(
+                images=self,
+                name=image.name,
+                distro=image.distro,
+                bootstrapped_from=image,
+            )
             self.bootstrapped[image.name] = bootstrapped
             return bootstrapped

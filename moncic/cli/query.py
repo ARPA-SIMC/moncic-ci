@@ -71,9 +71,15 @@ class Images(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--csv", action="store_true", help="machine readable output in CSV format")
+        parser.add_argument(
+            "--csv",
+            action="store_true",
+            help="machine readable output in CSV format",
+        )
         return parser
 
     def run(self) -> None:
@@ -91,7 +97,10 @@ class Images(MoncicCommand):
 
         # List images that have been bootstrapped
         res = subprocess.run(
-            ["machinectl", "list-images", "--no-pager", "--no-legend"], check=True, stdout=subprocess.PIPE, text=True
+            ["machinectl", "list-images", "--no-pager", "--no-legend"],
+            check=True,
+            stdout=subprocess.PIPE,
+            text=True,
         )
         bootstrapped: set[str] = set()
         for line in res.stdout.splitlines():
@@ -104,7 +113,15 @@ class Images(MoncicCommand):
                 image = images.image(name)
                 if image.bootstrapped:
                     assert isinstance(image, RunnableImage)
-                    output.add_row((image.name, image.distro, "yes", image.image_type, image.get_backend_id()))
+                    output.add_row(
+                        (
+                            image.name,
+                            image.distro,
+                            "yes",
+                            image.image_type,
+                            image.get_backend_id(),
+                        )
+                    )
                 else:
                     output.add_row((image.name, image.distro, "no", "-", "-"))
         output.flush()
@@ -118,18 +135,28 @@ class Distros(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--csv", action="store_true", help="machine readable output in CSV format")
+        parser.add_argument(
+            "--csv",
+            action="store_true",
+            help="machine readable output in CSV format",
+        )
         return parser
 
     def run(self) -> None:
         if self.args.csv or not HAVE_TEXTTABLE:
             output = CSVOutput(sys.stdout)
         else:
-            output = TableOutput(sys.stdout, TextColumn("Name"), TextColumn("Shortcuts"))
+            output = TableOutput(
+                sys.stdout, TextColumn("Name"), TextColumn("Shortcuts")
+            )
 
-        for family in sorted(DistroFamily.list_families(), key=lambda x: x.name):
+        for family in sorted(
+            DistroFamily.list_families(), key=lambda x: x.name
+        ):
             for distro in family.distros:
                 output.add_row((distro.full_name, ", ".join(distro.aliases)))
         output.flush()

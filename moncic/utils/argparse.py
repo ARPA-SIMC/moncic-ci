@@ -31,10 +31,15 @@ class Namespace(argparse.Namespace):
                     super().__setattr__(name, value)
                 elif old != value:
                     raise argparse.ArgumentError(
-                        arg, f"conflicting values provided for {arg.action.dest!r} ({old!r} and {value!r})"
+                        arg,
+                        f"conflicting values provided for {arg.action.dest!r}"
+                        f" ({old!r} and {value!r})",
                     )
             else:
-                raise NotImplementedError("Action {action_type!r} for {arg.action.dest!r} is not supported")
+                raise NotImplementedError(
+                    "Action {action_type!r} for {arg.action.dest!r}"
+                    " is not supported"
+                )
         else:
             return super().__setattr__(name, value)
 
@@ -61,7 +66,9 @@ class ArgumentParser(argparse.ArgumentParser):
         res = super().add_argument(*args, **kw)
         if shared:
             if (action := kw.get("action")) not in ("store", "store_true"):
-                raise NotImplementedError(f"Action {action!r} for {args!r} is not supported")
+                raise NotImplementedError(
+                    f"Action {action!r} for {args!r} is not supported"
+                )
             # Take note of the argument if it was marked as shared
             self.shared_args[res.dest] = SharedArgument(res, args, kw)
         return res
@@ -69,7 +76,11 @@ class ArgumentParser(argparse.ArgumentParser):
     @override
     def add_subparsers(self, **kwargs: Any) -> Any:
         if "parser_class" not in kwargs:
-            kwargs["parser_class"] = type("ArgumentParser", (self.__class__,), {"shared_args": dict(self.shared_args)})
+            kwargs["parser_class"] = type(
+                "ArgumentParser",
+                (self.__class__,),
+                {"shared_args": dict(self.shared_args)},
+            )
         return super().add_subparsers(**kwargs)
 
     @override
@@ -77,5 +88,7 @@ class ArgumentParser(argparse.ArgumentParser):
         if "namespace" not in kw:
             # Use a subclass to pass the special action list without making it
             # appear as an argument
-            kw["namespace"] = type("Namespace", (Namespace,), {"_shared_args": self.shared_args})()
+            kw["namespace"] = type(
+                "Namespace", (Namespace,), {"_shared_args": self.shared_args}
+            )()
         return super().parse_args(*args, **kw)

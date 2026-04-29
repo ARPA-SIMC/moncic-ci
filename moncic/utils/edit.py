@@ -17,7 +17,9 @@ def edit_yaml(buf: str, path: Path) -> str | None:
 
     Return None if editing did not change the contents.
     """
-    ERROR_MARKER = "# ----- this line and everything below it will be ignored -----"
+    ERROR_MARKER = (
+        "# ----- this line and everything below it will be ignored -----"
+    )
     editor = os.environ.get("EDITOR", "sensible-editor")
 
     current = buf
@@ -33,7 +35,10 @@ def edit_yaml(buf: str, path: Path) -> str | None:
                 print("#", file=tf)
                 print(f"# Original file: {path}", file=tf)
                 print("#", file=tf)
-                print("# Quit with no modifications to restore the original.", file=tf)
+                print(
+                    "# Quit with no modifications to restore the original.",
+                    file=tf,
+                )
                 print("#", file=tf)
                 print("# Error:", file=tf)
                 for line in error.splitlines():

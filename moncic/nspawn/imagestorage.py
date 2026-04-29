@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING, override
 from moncic.imagestorage import ImageStorage
 from moncic.utils.btrfs import is_btrfs
 
-from .images import BtrfsImages, BtrfsMachinectlImages, PlainImages, PlainMachinectlImages
+from .images import (
+    BtrfsImages,
+    BtrfsMachinectlImages,
+    PlainImages,
+    PlainMachinectlImages,
+)
 
 if TYPE_CHECKING:
     from moncic.images import Images
@@ -38,7 +43,9 @@ class NspawnImageStorage(ImageStorage):
                 else:
                     return PlainImageStorage(session, path)
         else:
-            raise RuntimeError(f"images path {path!r} does not point to a directory")
+            raise RuntimeError(
+                f"images path {path!r} does not point to a directory"
+            )
 
 
 class PlainImageStorage(NspawnImageStorage):

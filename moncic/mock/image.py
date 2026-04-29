@@ -16,10 +16,19 @@ class MockRunnableImage(RunnableImage):
     images: "MockImages"
 
     def __init__(
-        self, *, images: "MockImages", name: str, distro: Distro, bootstrapped_from: BootstrappableImage | None = None
+        self,
+        *,
+        images: "MockImages",
+        name: str,
+        distro: Distro,
+        bootstrapped_from: BootstrappableImage | None = None,
     ) -> None:
         super().__init__(
-            images=images, image_type=ImageType.MOCK, name=name, distro=distro, bootstrapped_from=bootstrapped_from
+            images=images,
+            image_type=ImageType.MOCK,
+            name=name,
+            distro=distro,
+            bootstrapped_from=bootstrapped_from,
         )
 
     @override
@@ -32,7 +41,12 @@ class MockRunnableImage(RunnableImage):
         return self.bootstrapped_from
 
     @override
-    def container(self, *, instance_name: str | None = None, config: ContainerConfig | None = None) -> Container:
+    def container(
+        self,
+        *,
+        instance_name: str | None = None,
+        config: ContainerConfig | None = None,
+    ) -> Container:
         from .container import MockContainer
 
         config = config or ContainerConfig()
@@ -44,7 +58,10 @@ class MockRunnableImage(RunnableImage):
 
     @override
     def maintenance_container(
-        self, *, instance_name: str | None = None, config: ContainerConfig | None = None
+        self,
+        *,
+        instance_name: str | None = None,
+        config: ContainerConfig | None = None,
     ) -> MaintenanceContainer:
         from .container import MockMaintenanceContainer
 
@@ -57,7 +74,11 @@ class MockRunnableImage(RunnableImage):
 
     @override
     def host_run(
-        self, cmd: list[str], check: bool = True, cwd: Path | None = None, interactive: bool = False
+        self,
+        cmd: list[str],
+        check: bool = True,
+        cwd: Path | None = None,
+        interactive: bool = False,
     ) -> subprocess.CompletedProcess:
         self.session.run_log.append(cmd, {})
         return subprocess.CompletedProcess(cmd, 0, b"", b"")

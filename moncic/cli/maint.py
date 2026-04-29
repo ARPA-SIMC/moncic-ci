@@ -17,13 +17,20 @@ class Bootstrap(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--recreate", action="store_true", help="delete the images and recreate them from scratch")
+        parser.add_argument(
+            "--recreate",
+            action="store_true",
+            help="delete the images and recreate them from scratch",
+        )
         parser.add_argument(
             "images",
             nargs="+",
-            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+            help="names or paths of systems to bootstrap."
+            " Default: all .yaml files and existing images",
         )
         return parser
 
@@ -68,12 +75,15 @@ class Update(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "systems",
             nargs="*",
-            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+            help="names or paths of systems to bootstrap."
+            " Default: all .yaml files and existing images",
         )
         return parser
 
@@ -117,14 +127,22 @@ class Remove(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "systems",
             nargs="+",
-            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+            help="names or paths of systems to bootstrap."
+            " Default: all .yaml files and existing images",
         )
-        parser.add_argument("--purge", "-P", action="store_true", help="also remove the image configuration file")
+        parser.add_argument(
+            "--purge",
+            "-P",
+            action="store_true",
+            help="also remove the image configuration file",
+        )
         return parser
 
     def run(self) -> None:

@@ -35,9 +35,13 @@ class Run(ImageActionCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to run")
+        parser.add_argument(
+            "command", nargs=argparse.REMAINDER, help="Command to run"
+        )
         return parser
 
     def run(self) -> int:

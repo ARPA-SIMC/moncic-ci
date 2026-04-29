@@ -41,20 +41,35 @@ class Package:
 
     def files(self) -> list[Path]:
         """Return the list of files (as relative paths) in this package."""
-        res = subprocess.run(["git", "ls-files"], cwd=self.path.as_posix(), text=True, capture_output=True, check=True)
+        res = subprocess.run(
+            ["git", "ls-files"],
+            cwd=self.path.as_posix(),
+            text=True,
+            capture_output=True,
+            check=True,
+        )
         return [Path(f) for f in res.stdout.splitlines()]
 
     def as_git(self, path: Path) -> None:
         """Build a git repository of this package in the given path."""
         path.mkdir(parents=True, exist_ok=True)
-        subprocess.run(["git", "init"], cwd=path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "init"], cwd=path, capture_output=True, check=True
+        )
         for file in self.files():
             src = self.path / file
             dest = path / file
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dest)
-        subprocess.run(["git", "add", "."], cwd=path, capture_output=True, check=True)
-        subprocess.run(["git", "commit", "-m", "initial commit"], cwd=path, capture_output=True, check=True)
+        subprocess.run(
+            ["git", "add", "."], cwd=path, capture_output=True, check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial commit"],
+            cwd=path,
+            capture_output=True,
+            check=True,
+        )
 
     # If we need a source tarball:
     # with tarfile.open("hello_1.0.orig.tar.gz", "w:gz") as tar:
@@ -74,8 +89,12 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
     @classmethod
     def get_config(self, name: str) -> str:
         """Return an integration test configuration name passed by the ./test script."""
-        if (value := os.environ.get(f"MONCIC_ITESTS_{name.upper()}", None)) is None:
-            raise RuntimeError("integration tests need to be run using `./test -i`")
+        if (
+            value := os.environ.get(f"MONCIC_ITESTS_{name.upper()}", None)
+        ) is None:
+            raise RuntimeError(
+                "integration tests need to be run using `./test -i`"
+            )
         return value
 
     @classmethod
@@ -122,7 +141,9 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
 
     @classmethod
     @contextlib.contextmanager
-    def verbose_logging(cls, debug: bool = False) -> Generator[None, None, None]:
+    def verbose_logging(
+        cls, debug: bool = False
+    ) -> Generator[None, None, None]:
         print()
         handler = RichHandler()
         level = logging.DEBUG if debug else logging.INFO
@@ -164,7 +185,9 @@ class PodmanIntegrationTestsBase(IntegrationTestsBase, abc.ABC):
         return PodmanImages(cls.session)
 
 
-def setup_distro_tests(module_name: str, bases: dict[str, type[IntegrationTestsBase]], suffix: str) -> None:
+def setup_distro_tests(
+    module_name: str, bases: dict[str, type[IntegrationTestsBase]], suffix: str
+) -> None:
     """Generate one test per supported distribution and container technologies."""
     for distro_family in DistroFamily.list_families():
         for distro in distro_family.distros:
@@ -175,7 +198,9 @@ def setup_distro_tests(module_name: str, bases: dict[str, type[IntegrationTestsB
                 if base := bases.get(f"distro:{distro.name}"):
                     parents.append(base)
                 parents.append(bases[backend])
-                name = "".join(n.capitalize() for n in distro.full_name.split(":"))
+                name = "".join(
+                    n.capitalize() for n in distro.full_name.split(":")
+                )
                 cls_name = name + backend.capitalize() + suffix
                 test_case = type(cls_name, tuple(parents), {"distro": distro})
                 add_testcase(module_name, test_case)

@@ -11,9 +11,13 @@ from moncic.runner import UserConfig
 from moncic.utils.osrelease import parse_osrelase_contents
 from moncic.utils.script import Script
 
-from .base import (IntegrationTestsBase, NspawnIntegrationTestsBase,
-                   PodmanIntegrationTestsBase, setup_distro_tests,
-                   skip_if_container_cannot_start)
+from .base import (
+    IntegrationTestsBase,
+    NspawnIntegrationTestsBase,
+    PodmanIntegrationTestsBase,
+    setup_distro_tests,
+    skip_if_container_cannot_start,
+)
 
 
 class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
@@ -37,11 +41,18 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         config.forward_user = sudoer
         config.configure_workdir(workdir)
         with rimage.container(config=config) as container:
-            res = container.run(["/usr/bin/stat", "--format=%u:%g", guest_workdir.as_posix()])
-            self.assertEqual(res.stdout.decode().strip(), f"{sudoer.user_id}:{sudoer.group_id}")
+            res = container.run(
+                ["/usr/bin/stat", "--format=%u:%g", guest_workdir.as_posix()]
+            )
+            self.assertEqual(
+                res.stdout.decode().strip(),
+                f"{sudoer.user_id}:{sudoer.group_id}",
+            )
 
             (workdir / "testfile").write_text("test")
-            res = container.run(["/bin/cat", (guest_workdir / "testfile").as_posix()])
+            res = container.run(
+                ["/bin/cat", (guest_workdir / "testfile").as_posix()]
+            )
             self.assertEqual(res.stdout.decode().strip(), "test")
 
 
@@ -69,7 +80,9 @@ class DistroContainerTests(IntegrationTestsBase, abc.ABC):
             self.assertIs(distro, self.distro)
 
     def test_run_cwd(self) -> None:
-        res = self.container.run(["/bin/pwd"], config=RunConfig(cwd=Path("/tmp")))
+        res = self.container.run(
+            ["/bin/pwd"], config=RunConfig(cwd=Path("/tmp"))
+        )
         self.assertEqual(res.stdout.decode().strip(), "/tmp")
         self.assertEqual(res.stderr, b"")
 
@@ -81,11 +94,17 @@ class DistroContainerTests(IntegrationTestsBase, abc.ABC):
 
     @skip_if_container_cannot_start()
     def test_run_user(self) -> None:
-        res = self.container.run(["/usr/bin/id", "-u"], config=RunConfig(user=UserConfig.root(), cwd=Path("/")))
+        res = self.container.run(
+            ["/usr/bin/id", "-u"],
+            config=RunConfig(user=UserConfig.root(), cwd=Path("/")),
+        )
         self.assertEqual(res.stdout.decode().strip(), "0")
         self.assertEqual(res.stderr, b"")
 
-        res = self.container.run(["/usr/bin/id", "-u"], config=RunConfig(user=self.sudoer, cwd=Path("/")))
+        res = self.container.run(
+            ["/usr/bin/id", "-u"],
+            config=RunConfig(user=self.sudoer, cwd=Path("/")),
+        )
         self.assertEqual(res.stdout.decode().strip(), str(self.sudoer.user_id))
         self.assertEqual(res.stderr, b"")
 
@@ -98,13 +117,20 @@ class DistroContainerTests(IntegrationTestsBase, abc.ABC):
 
     @skip_if_container_cannot_start()
     def test_run_check(self) -> None:
-        with self.assertRaisesRegex(CalledProcessError, r"returned non-zero exit status 1."):
+        with self.assertRaisesRegex(
+            CalledProcessError, r"returned non-zero exit status 1."
+        ):
             self.container.run(["/bin/false"], config=RunConfig(check=True))
 
     @skip_if_container_cannot_start()
     def test_run_disable_network(self) -> None:
-        self.skipTest("TODO: find a way to implement this in podman and nspawn once the container has started")
-        res = self.container.run(["/usr/sbin/ip", "-json", "link", "show"], config=RunConfig(disable_network=True))
+        self.skipTest(
+            "TODO: find a way to implement this in podman and nspawn once the container has started"
+        )
+        res = self.container.run(
+            ["/usr/sbin/ip", "-json", "link", "show"],
+            config=RunConfig(disable_network=True),
+        )
         self.assertEqual(res.stderr, b"")
         self.assertEqual(res.returncode, 0)
         parsed = json.loads(res.stdout)
@@ -128,11 +154,15 @@ class DistroContainerTests(IntegrationTestsBase, abc.ABC):
     #     raise NotImplementedError()
 
 
-class NspawnDistroMaintenanceTests(DistroMaintenanceTests, NspawnIntegrationTestsBase, abc.ABC):
+class NspawnDistroMaintenanceTests(
+    DistroMaintenanceTests, NspawnIntegrationTestsBase, abc.ABC
+):
     pass
 
 
-class PodmanDistroMaintenanceTests(DistroMaintenanceTests, PodmanIntegrationTestsBase, abc.ABC):
+class PodmanDistroMaintenanceTests(
+    DistroMaintenanceTests, PodmanIntegrationTestsBase, abc.ABC
+):
     def test_get_podman_name(self) -> None:
         repo, tag = self.distro.get_podman_name()
         name = f"{repo}:{tag}"
@@ -141,16 +171,22 @@ class PodmanDistroMaintenanceTests(DistroMaintenanceTests, PodmanIntegrationTest
             self.assertTrue(self.session.podman.images.exists(name))
 
 
-class NspawnDistroContainerTests(DistroContainerTests, NspawnIntegrationTestsBase, abc.ABC):
+class NspawnDistroContainerTests(
+    DistroContainerTests, NspawnIntegrationTestsBase, abc.ABC
+):
     def test_systemd_version(self) -> None:
         if (systemd_version := self.rimage.distro.systemd_version) is None:
             return
         res = self.container.run(["/bin/systemctl", "--version"])
-        self.assertEqual(int(res.stdout.decode().splitlines()[0].split()[1]), systemd_version)
+        self.assertEqual(
+            int(res.stdout.decode().splitlines()[0].split()[1]), systemd_version
+        )
         self.assertEqual(res.stderr, b"")
 
 
-class PodmanDistroContainerTests(DistroContainerTests, PodmanIntegrationTestsBase, abc.ABC):
+class PodmanDistroContainerTests(
+    DistroContainerTests, PodmanIntegrationTestsBase, abc.ABC
+):
     pass
 
 

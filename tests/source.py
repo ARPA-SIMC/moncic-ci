@@ -20,7 +20,11 @@ class GitRepo(contextlib.ExitStack):
     def __init__(self, workdir: Path | None = None) -> None:
         super().__init__()
         if workdir is None:
-            self.root = Path(self.enter_context(tempfile.TemporaryDirectory(suffix="gitrepo-root")))
+            self.root = Path(
+                self.enter_context(
+                    tempfile.TemporaryDirectory(suffix="gitrepo-root")
+                )
+            )
         else:
             workdir.mkdir(parents=True, exist_ok=True)
             self.root = workdir
@@ -83,7 +87,9 @@ class GitRepo(contextlib.ExitStack):
         with socketserver.TCPServer(("localhost", 0), Handler) as httpd:
             port = httpd.server_address[1]
 
-            server = threading.Thread(target=httpd.serve_forever, name="test-git-http-server")
+            server = threading.Thread(
+                target=httpd.serve_forever, name="test-git-http-server"
+            )
             server.start()
 
             try:
@@ -104,7 +110,11 @@ class WorkdirFixture(unittest.TestCase):
         # We have self.enterContext from Python 3.11
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
-        cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory(suffix="workdirfixture-workdir")))
+        cls.workdir = Path(
+            cls.stack.enter_context(
+                tempfile.TemporaryDirectory(suffix="workdirfixture-workdir")
+            )
+        )
 
     @override
     @classmethod
@@ -127,8 +137,12 @@ class GitFixture(WorkdirFixture):
 
 
 def create_lint_version_fixture_path(path: Path) -> None:
-    (path / "configure.ac").write_text("AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
-    (path / "meson.build").write_text("project('test', 'cpp', version: '1.2')\n")
+    (path / "configure.ac").write_text(
+        "AC_INIT([test],[1.1],[enrico@enricozini.org]\n"
+    )
+    (path / "meson.build").write_text(
+        "project('test', 'cpp', version: '1.2')\n"
+    )
     (path / "CMakeLists.txt").write_text('set(PACKAGE_VERSION "1.3")\n')
     (path / "NEWS.md").write_text("# New in version 1.4\n")
     (path / "setup.py").write_text(
@@ -139,9 +153,13 @@ setup(name='test', packages=['test'])
     )
     (path / "test").mkdir()
     (path / "test" / "__init__.py").write_text('__version__ = "1.5"')
-    (path / "setup.cfg").write_text("[metadata]\nversion = attr: test.__version__")
+    (path / "setup.cfg").write_text(
+        "[metadata]\nversion = attr: test.__version__"
+    )
     (path / "debian").mkdir()
-    (path / "debian" / "changelog").write_text("test (1.6-1) UNRELEASED; urgency=low")
+    (path / "debian" / "changelog").write_text(
+        "test (1.6-1) UNRELEASED; urgency=low"
+    )
     (path / "fedora" / "SPECS").mkdir(parents=True)
     (path / "fedora" / "SPECS" / "test.spec").write_text(
         """
@@ -157,10 +175,16 @@ test
 
 
 def create_lint_version_fixture_git(
-    git: GitRepo, *, upstream: bool = True, rpm: bool = True, debian: bool = True
+    git: GitRepo,
+    *,
+    upstream: bool = True,
+    rpm: bool = True,
+    debian: bool = True,
 ) -> None:
     if upstream:
-        git.add("configure.ac", "AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
+        git.add(
+            "configure.ac", "AC_INIT([test],[1.1],[enrico@enricozini.org]\n"
+        )
         git.add("meson.build", "project('test', 'cpp', version: '1.2')\n")
         git.add("CMakeLists.txt", 'set(PACKAGE_VERSION "1.3")\n')
         git.add("NEWS.md", "# New in version 1.4\n")

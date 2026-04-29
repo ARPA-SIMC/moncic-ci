@@ -24,7 +24,11 @@ class NspawnImagesTests(MoncicTestCase):
         self.imagedir: Path = self.mconfig.imagedir
         self.image_yaml = self.imageconfdir / "test.yaml"
         self.image_yaml.write_text("distro: fedora40\n")
-        self.session = self.enterContext(self.mock_session(self.moncic(self.mconfig), images_class=self.images_class))
+        self.session = self.enterContext(
+            self.mock_session(
+                self.moncic(self.mconfig), images_class=self.images_class
+            )
+        )
         self.images = self.session.images.images[-1]
 
     def mock_bootstrap(self, path: Path) -> None:
@@ -62,10 +66,13 @@ VERSION_ID=34
         self.assertIsInstance(image, BootstrappableImage)
 
         with mock.patch(
-            "moncic.distro.rpm.FedoraDistro.bootstrap", side_effect=lambda images, path: self.mock_bootstrap(path)
+            "moncic.distro.rpm.FedoraDistro.bootstrap",
+            side_effect=lambda images, path: self.mock_bootstrap(path),
         ) as distro_bootstrap:
             bootstrapped = image.bootstrap()
-        distro_bootstrap.assert_called_with(self.images, Path(f"{image_path}.new"))
+        distro_bootstrap.assert_called_with(
+            self.images, Path(f"{image_path}.new")
+        )
         self.assertIsInstance(bootstrapped, NspawnImage)
         assert isinstance(bootstrapped, NspawnImage)
         self.assertEqual(bootstrapped.path, image_path)
@@ -91,7 +98,9 @@ VERSION_ID=34
         assert isinstance(bootstrapped, NspawnImage)
         self.assertEqual(bootstrapped.path, image_path)
 
-        self.assertTrue((self.imagedir / "test" / "etc" / "os-release").exists())
+        self.assertTrue(
+            (self.imagedir / "test" / "etc" / "os-release").exists()
+        )
 
     def test_bootstrap_tempdir_exists(self) -> None:
         self.session.images.reload()
@@ -103,10 +112,13 @@ VERSION_ID=34
         # The work directory already exists, leftover from a previous run
         (self.imagedir / "test.new").mkdir(parents=True)
         with mock.patch(
-            "moncic.distro.rpm.FedoraDistro.bootstrap", side_effect=lambda images, path: self.mock_bootstrap(path)
+            "moncic.distro.rpm.FedoraDistro.bootstrap",
+            side_effect=lambda images, path: self.mock_bootstrap(path),
         ) as distro_bootstrap:
             bootstrapped = image.bootstrap()
-        distro_bootstrap.assert_called_with(self.images, Path(f"{image_path}.new"))
+        distro_bootstrap.assert_called_with(
+            self.images, Path(f"{image_path}.new")
+        )
         self.assertIsInstance(bootstrapped, NspawnImage)
         assert isinstance(bootstrapped, NspawnImage)
         self.assertEqual(bootstrapped.path, image_path)

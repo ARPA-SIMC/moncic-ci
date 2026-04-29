@@ -70,12 +70,22 @@ class ARPABuilder(RPMBuilder):
             ["mkdir", "-p"]
             + [
                 (self.guest_rpmbuild_path / name).as_posix()
-                for name in ("BUILD", "BUILDROOT", "RPMS", "SOURCES", "SPECS", "SRPMS")
+                for name in (
+                    "BUILD",
+                    "BUILDROOT",
+                    "RPMS",
+                    "SOURCES",
+                    "SPECS",
+                    "SRPMS",
+                )
             ],
             description="Create rpbmuild directory tree",
         )
         guest_specfile_path = self.guest_source_path / self.source.specfile_path
-        script.run(self.builddep + ["-y", guest_specfile_path.as_posix()], description="Install build dependencies")
+        script.run(
+            self.builddep + ["-y", guest_specfile_path.as_posix()],
+            description="Install build dependencies",
+        )
 
         guest_rpmbuild_sources_dir = self.guest_rpmbuild_path / "SOURCES"
 
@@ -83,11 +93,23 @@ class ARPABuilder(RPMBuilder):
             # Convenzione SIMC per i repo upstream
             if (self.host_source_path / "fedora" / "SOURCES").is_dir():
                 script.run_unquoted(
-                    f"cp -r fedora/SOURCES/* {self.guest_rpmbuild_path / 'SOURCES'}", cwd=self.guest_source_path
+                    f"cp -r fedora/SOURCES/* {self.guest_rpmbuild_path / 'SOURCES'}",
+                    cwd=self.guest_source_path,
                 )
 
-            script.run(["git", "config", "--global", "--add", "safe.directory", self.guest_source_path.as_posix()])
-            guest_source_tarball = guest_rpmbuild_sources_dir / f"{self.results.name}.tar.gz"
+            script.run(
+                [
+                    "git",
+                    "config",
+                    "--global",
+                    "--add",
+                    "safe.directory",
+                    self.guest_source_path.as_posix(),
+                ]
+            )
+            guest_source_tarball = (
+                guest_rpmbuild_sources_dir / f"{self.results.name}.tar.gz"
+            )
             script.run(
                 [
                     "git",
@@ -125,7 +147,10 @@ class ARPABuilder(RPMBuilder):
             )
         else:
             # Convenzione SIMC per i repo con solo rpm
-            script.run_unquoted(f"cp *.patch {guest_rpmbuild_sources_dir}/", cwd=guest_rpmbuild_sources_dir)
+            script.run_unquoted(
+                f"cp *.patch {guest_rpmbuild_sources_dir}/",
+                cwd=guest_rpmbuild_sources_dir,
+            )
             script.run(["spectool", "-g", "-R", guest_specfile_path.as_posix()])
             script.run(["rpmbuild", "-ba", guest_specfile_path.as_posix()])
 
@@ -143,5 +168,7 @@ class ARPABuilder(RPMBuilder):
         )
         basedir = Path("/root/rpmbuild")
         for pattern in patterns:
-            script.run_unquoted(f"cp --reflink=auto {basedir}/{pattern} {shlex.quote(dest.as_posix())}")
+            script.run_unquoted(
+                f"cp --reflink=auto {basedir}/{pattern} {shlex.quote(dest.as_posix())}"
+            )
         return script

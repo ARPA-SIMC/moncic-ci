@@ -29,7 +29,11 @@ class TestNspawnContainer(MoncicTestCase):
         self.imagedir: Path = self.mconfig.imagedir
         self.image_yaml = self.imageconfdir / "test.yaml"
         self.image_yaml.write_text("distro: fedora34\n")
-        self.session = self.enterContext(self.mock_session(self.moncic(self.mconfig), images_class=PlainImages))
+        self.session = self.enterContext(
+            self.mock_session(
+                self.moncic(self.mconfig), images_class=PlainImages
+            )
+        )
         self.images = self.session.images.images[-1]
 
     @contextlib.contextmanager
@@ -43,7 +47,9 @@ class TestNspawnContainer(MoncicTestCase):
             yield image
 
     @contextlib.contextmanager
-    def container(self, config: ContainerConfig | None = None) -> Generator[Container, None, None]:
+    def container(
+        self, config: ContainerConfig | None = None
+    ) -> Generator[Container, None, None]:
         with self.image() as image:
             with image.container(config=config) as container:
                 yield container
@@ -152,7 +158,10 @@ class TestNspawnContainer(MoncicTestCase):
 
     def test_run_script(self) -> None:
         with self.container() as container:
-            res = container.run_script("#!/bin/sh\nA=test\necho $A\nexit 1\n", config=RunConfig(check=False))
+            res = container.run_script(
+                "#!/bin/sh\nA=test\necho $A\nexit 1\n",
+                config=RunConfig(check=False),
+            )
             self.assertEqual(res.stdout, b"test\n")
             self.assertEqual(res.stderr, b"")
             self.assertEqual(res.returncode, 1)
@@ -173,18 +182,26 @@ class TestNspawnContainer(MoncicTestCase):
                 # Running with another user fails as it does not exist in the
                 # container
                 with self.assertRaises(RuntimeError) as e:
-                    container.run_callable(get_user, config=RunConfig(user=user)).result()
-                self.assertEqual(str(e.exception), "container has no user 1000 'enrico'")
+                    container.run_callable(
+                        get_user, config=RunConfig(user=user)
+                    ).result()
+                self.assertEqual(
+                    str(e.exception), "container has no user 1000 'enrico'"
+                )
 
             container_config = ContainerConfig(forward_user=user)
             with image.container(config=container_config) as container:
                 u = container.run_callable(get_user)
                 self.assertEqual(u, UserConfig("root", 0, "root", 0))
 
-                u = container.run_callable_raw(get_user, config=RunConfig(user=user)).result()
+                u = container.run_callable_raw(
+                    get_user, config=RunConfig(user=user)
+                ).result()
                 self.assertEqual(u, user)
 
-                res = container.run_script("#!/bin/sh\n/bin/true\n", config=RunConfig(user=user))
+                res = container.run_script(
+                    "#!/bin/sh\n/bin/true\n", config=RunConfig(user=user)
+                )
                 self.assertEqual(res.stdout, b"")
                 self.assertEqual(res.stderr, b"")
 
@@ -205,18 +222,24 @@ class TestNspawnContainer(MoncicTestCase):
             self.assertEqual(res.stderr, b"")
 
             res = container.run(["/usr/bin/pwd"])
-            self.assertEqual(res.stdout.decode(), f"/media/{os.path.basename(workdir)}\n")
+            self.assertEqual(
+                res.stdout.decode(), f"/media/{os.path.basename(workdir)}\n"
+            )
             self.assertEqual(res.stderr, b"")
 
             binds = list(container.binds())
             self.assertIn(len(binds), (1, 2))
             self.assertEqual(binds[0].source, workdir)
-            self.assertEqual(binds[0].destination, "/media/" + os.path.basename(workdir))
+            self.assertEqual(
+                binds[0].destination, "/media/" + os.path.basename(workdir)
+            )
             self.assertEqual(binds[0].bind_type, "rw")
             self.assertEqual(binds[0].mount_options, [])
             if len(binds) == 2:
                 # self.assertEqual(binds[1].source, workdir)
-                self.assertEqual(binds[1].destination, "/var/cache/apt/archives")
+                self.assertEqual(
+                    binds[1].destination, "/var/cache/apt/archives"
+                )
                 self.assertEqual(binds[1].bind_type, "rw")
                 self.assertEqual(binds[1].mount_options, [])
 
@@ -225,7 +248,9 @@ class TestNspawnContainer(MoncicTestCase):
             # By default, things are run as root
             container_config = ContainerConfig()
             container_config.binds.append(
-                BindConfig.create(source=workdir, destination="/media/workdir", bind_type="rw")
+                BindConfig.create(
+                    source=workdir, destination="/media/workdir", bind_type="rw"
+                )
             )
             with self.container(config=container_config) as container:
                 container.run(["/bin/touch", "/media/workdir/test"])
@@ -240,7 +265,9 @@ class TestNspawnContainer(MoncicTestCase):
                 self.assertEqual(binds[0].mount_options, [])
                 if len(binds) == 2:
                     # self.assertEqual(binds[1].source, workdir)
-                    self.assertEqual(binds[1].destination, "/var/cache/apt/archives")
+                    self.assertEqual(
+                        binds[1].destination, "/var/cache/apt/archives"
+                    )
                     self.assertEqual(binds[1].bind_type, "rw")
                     self.assertEqual(binds[1].mount_options, [])
 
@@ -249,10 +276,15 @@ class TestNspawnContainer(MoncicTestCase):
             # By default, things are run as root
             container_config = ContainerConfig()
             container_config.binds.append(
-                BindConfig.create(source=workdir, destination="/media/workdir", bind_type="ro")
+                BindConfig.create(
+                    source=workdir, destination="/media/workdir", bind_type="ro"
+                )
             )
             with self.container(config=container_config) as container:
-                res = container.run(["/bin/touch", "/media/workdir/test"], config=RunConfig(check=False))
+                res = container.run(
+                    ["/bin/touch", "/media/workdir/test"],
+                    config=RunConfig(check=False),
+                )
                 self.assertEqual(res.returncode, 1)
 
                 container.run(["/bin/test", "!", "-e", "/media/workdir/test"])
@@ -266,7 +298,9 @@ class TestNspawnContainer(MoncicTestCase):
                 self.assertEqual(binds[0].mount_options, [])
                 if len(binds) == 2:
                     # self.assertEqual(binds[1].source, workdir)
-                    self.assertEqual(binds[1].destination, "/var/cache/apt/archives")
+                    self.assertEqual(
+                        binds[1].destination, "/var/cache/apt/archives"
+                    )
                     self.assertEqual(binds[1].bind_type, "rw")
                     self.assertEqual(binds[1].mount_options, [])
 
@@ -275,7 +309,11 @@ class TestNspawnContainer(MoncicTestCase):
             # By default, things are run as root
             container_config = ContainerConfig()
             container_config.binds.append(
-                BindConfig.create(source=workdir, destination="/media/workdir", bind_type="volatile")
+                BindConfig.create(
+                    source=workdir,
+                    destination="/media/workdir",
+                    bind_type="volatile",
+                )
             )
             with self.container(config=container_config) as container:
                 container.run(["/bin/touch", "/media/workdir/test"])
@@ -290,7 +328,9 @@ class TestNspawnContainer(MoncicTestCase):
                 self.assertEqual(binds[0].mount_options, [])
                 if len(binds) == 2:
                     # self.assertEqual(binds[1].source, workdir)
-                    self.assertEqual(binds[1].destination, "/var/cache/apt/archives")
+                    self.assertEqual(
+                        binds[1].destination, "/var/cache/apt/archives"
+                    )
                     self.assertEqual(binds[1].bind_type, "rw")
                     self.assertEqual(binds[1].mount_options, [])
 

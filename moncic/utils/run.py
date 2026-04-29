@@ -25,7 +25,9 @@ def log_run(cmd: Sequence[str], **kw: Any) -> None:
     log.info("%s %s", prompt, shlex.join(cmd))
 
 
-def run(cmd: Sequence[str], check: bool = True, **kw: Any) -> subprocess.CompletedProcess:
+def run(
+    cmd: Sequence[str], check: bool = True, **kw: Any
+) -> subprocess.CompletedProcess:
     """
     Logging wrapper to subprocess.run.
 

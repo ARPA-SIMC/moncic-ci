@@ -75,7 +75,9 @@ class BuildOptionAction(argparse._AppendAction):
         if values == "list":
             # Compute width for option names
             name_width = max(
-                len(x) for cls in Builder.list_build_classes() for x, doc in cls.build_config_class.list_build_options()
+                len(x)
+                for cls in Builder.list_build_classes()
+                for x, doc in cls.build_config_class.list_build_options()
             )
             help_wrapper = get_doc_wrapper(name_width + 4)
 
@@ -90,11 +92,15 @@ class BuildOptionAction(argparse._AppendAction):
             raise Success()
 
         if "=" not in values:
-            raise ValueError(f"option --option={values!r} must be --option=key=value")
+            raise ValueError(
+                f"option --option={values!r} must be --option=key=value"
+            )
 
         k, v = values.split("=", 1)
         if not k:
-            raise ValueError(f"option --option={values!r} must have an non-empty key")
+            raise ValueError(
+                f"option --option={values!r} must have an non-empty key"
+            )
 
         allowed_keys: set[str] = set()
         for cls in Builder.list_build_classes():
@@ -102,7 +108,9 @@ class BuildOptionAction(argparse._AppendAction):
                 allowed_keys.add(name)
 
         if k not in allowed_keys:
-            raise ValueError(f"option --option={values!r} has unsupported key {k!r}")
+            raise ValueError(
+                f"option --option={values!r} has unsupported key {k!r}"
+            )
 
         if vals := getattr(namespace, self.dest, None):
             vals[k] = v
@@ -118,7 +126,10 @@ def set_build_option_action(config: BuildConfig, key: str, val: Any) -> None:
         if field.name == key:
             break
     else:
-        raise Fail(f"cannot set option {key!r} on build config of type {type(config).__name__}")
+        raise Fail(
+            f"cannot set option {key!r} on build config"
+            f" of type {type(config).__name__}"
+        )
 
     if field.type == "bool":
         if isinstance(val, bool):

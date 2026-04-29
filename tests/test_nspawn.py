@@ -21,7 +21,11 @@ class NspawnTests(MoncicTestCase):
         self.imagedir: Path = self.mconfig.imagedir
         self.image_yaml = self.imageconfdir / "test.yaml"
         self.image_yaml.write_text("distro: fedora34\n")
-        self.session = self.enterContext(self.mock_session(self.moncic(self.mconfig), images_class=self.images_class))
+        self.session = self.enterContext(
+            self.mock_session(
+                self.moncic(self.mconfig), images_class=self.images_class
+            )
+        )
         self.images = self.images_class(self.session, self.imagedir)
 
     def _mock_bootstrap(self) -> None:
@@ -53,9 +57,11 @@ VERSION_ID=34
 #            run_log = session.run_log
 #
 #        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
-#            run_log.assertPopFirst(f"btrfs -q subvolume snapshot {parent_dir} {path}.new")
+#            run_log.assertPopFirst(f"btrfs -q subvolume snapshot {parent_dir}
+#            {path}.new")
 #        else:
-#            run_log.assertPopFirst(f"cp --reflink=auto -a {parent_dir} {path}.new")
+#            run_log.assertPopFirst(f"cp --reflink=auto -a {parent_dir}
+#            {path}.new")
 #        run_log.assertLogEmpty()
 #
 #    def test_snapshot_update(self):
@@ -87,11 +93,14 @@ VERSION_ID=34
 #        run_log = session.run_log
 #
 #        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
-#            run_log.assertPopFirst(f"btrfs -q subvolume snapshot {path} {path}.new")
-#        run_log.assertPopFirst("/usr/bin/systemctl mask --now systemd-resolved")
+#            run_log.assertPopFirst(f"btrfs -q subvolume snapshot {path}
+#            {path}.new")
+#        run_log.assertPopFirst("/usr/bin/systemctl mask --now
+#        systemd-resolved")
 #        run_log.assertPopFirst("/usr/bin/dnf updateinfo -q -y")
 #        run_log.assertPopFirst("/usr/bin/dnf upgrade -q -y")
-#        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus rootfiles iproute dnf")
+#        run_log.assertPopFirst("/usr/bin/dnf install -q -y bash dbus rootfiles
+#        iproute dnf")
 #        run_log.assertPopFirst("script:#!/bin/sh\necho base")
 #        run_log.assertPopFirst("script:#!/bin/sh\necho test")
 #        run_log.assertPopFirst("cachedir_tag:")
@@ -116,7 +125,8 @@ VERSION_ID=34
 #
 #        if self.DEFAULT_FILESYSTEM_TYPE == "btrfs":
 #            run_log.assertPopFirst(f"btrfs -q subvolume create {path}.new")
-#            run_log.assertPopFirst(f"btrfs -q property set {path}.new compression zstd:9")
+#            run_log.assertPopFirst(f"btrfs -q property set {path}.new
+#            compression zstd:9")
 #        run_log.assertPopFirst(re.compile("/usr/bin/dnf -c .+"))
 #        run_log.assertPopFirst("/usr/bin/rpmdb --rebuilddb")
 #        run_log.assertLogEmpty()

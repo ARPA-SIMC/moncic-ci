@@ -33,10 +33,16 @@ class CI(SourceCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
-            "-B", "--build-config", metavar="file.yaml", action="store", help="YAML file with build configuration"
+            "-B",
+            "--build-config",
+            metavar="file.yaml",
+            action="store",
+            help="YAML file with build configuration",
         )
         parser.add_argument(
             "-a",
@@ -46,22 +52,40 @@ class CI(SourceCommand):
             type=Path,
             help="directory where build artifacts will be stored",
         )
-        parser.add_argument("--source-only", action="store_true", help="only build source packages")
-        parser.add_argument("--shell", action="store_true", help="open a shell after the build")
-        parser.add_argument("--linger", action="store_true", help="do not shut down the container on exit")
+        parser.add_argument(
+            "--source-only",
+            action="store_true",
+            help="only build source packages",
+        )
+        parser.add_argument(
+            "--shell", action="store_true", help="open a shell after the build"
+        )
+        parser.add_argument(
+            "--linger",
+            action="store_true",
+            help="do not shut down the container on exit",
+        )
         parser.add_argument(
             "--option",
             "-O",
             action=BuildOptionAction,
-            help="key=value option for the build. See `-O list` for a list of" " available option for each build style",
+            help="key=value option for the build. See `-O list` for a list of"
+            " available option for each build style",
         )
-        parser.add_argument("--quick", action="store_true", help="quild quickly, assuming the container is up to date")
-        parser.add_argument("image", action="store", help="name of the image used to build")
+        parser.add_argument(
+            "--quick",
+            action="store_true",
+            help="quild quickly, assuming the container is up to date",
+        )
+        parser.add_argument(
+            "image", action="store", help="name of the image used to build"
+        )
         parser.add_argument(
             "source",
             nargs="?",
             default=".",
-            help="path or url of the repository or source package to build." " Default: the current directory",
+            help="path or url of the repository or source package to build."
+            " Default: the current directory",
         )
         return parser
 
@@ -138,7 +162,9 @@ class CI(SourceCommand):
                                     if obj.user:
                                         res["user"] = obj.user.user_name
                                     if obj.disable_network:
-                                        res["disable_network"] = obj.disable_network
+                                        res["disable_network"] = (
+                                            obj.disable_network
+                                        )
                                     res["shell"] = obj.shell
                                     res["lines"] = obj.lines
                                     return res
@@ -162,14 +188,19 @@ class Lint(SourceCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("image", action="store", help="name of the image used for checking")
+        parser.add_argument(
+            "image", action="store", help="name of the image used for checking"
+        )
         parser.add_argument(
             "source",
             nargs="?",
             default=".",
-            help="path or url of the repository or source package to check." " Default: the current directory",
+            help="path or url of the repository or source package to check."
+            " Default: the current directory",
         )
         return parser
 
@@ -187,7 +218,9 @@ class Lint(SourceCommand):
                 operation = ops_query.Lint(image, source, reporter=reporter)
                 reporter = operation.host_main()
         if reporter.error_count:
-            print(f"{reporter.error_count} error(s), {reporter.warning_count} warning(s)")
+            print(
+                f"{reporter.error_count} error(s), {reporter.warning_count} warning(s)"
+            )
             return 2
         if reporter.warning_count:
             print(f"{reporter.warning_count} warning(s)")
@@ -205,14 +238,21 @@ class QuerySource(SourceCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("image", action="store", help="name of the image used to query the package")
+        parser.add_argument(
+            "image",
+            action="store",
+            help="name of the image used to query the package",
+        )
         parser.add_argument(
             "source",
             nargs="?",
             default=".",
-            help="path or url of the repository to build. Default: the current directory",
+            help="path or url of the repository to build."
+            " Default: the current directory",
         )
         return parser
 

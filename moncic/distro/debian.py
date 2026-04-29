@@ -54,7 +54,9 @@ class DebianDistro(Distro):
         podman_repository: str = "docker.io/library/debian",
         **kwargs: Any,
     ):
-        super().__init__(family, name, version, other_names, cgroup_v1=cgroup_v1, **kwargs)
+        super().__init__(
+            family, name, version, other_names, cgroup_v1=cgroup_v1, **kwargs
+        )
         self.mirror = mirror
         self.key_url = key_url
         self.bootstrappers = list(bootstrappers)
@@ -69,20 +71,38 @@ class DebianDistro(Distro):
         return (self.podman_repository, self.name)
 
     @override
-    def container_config_hook(self, image: Image, config: ContainerConfig) -> None:
+    def container_config_hook(
+        self, image: Image, config: ContainerConfig
+    ) -> None:
         super().container_config_hook(image, config)
         if apt_archive_path := image.session.apt_archives:
-            config.binds.append(BindConfig.create(apt_archive_path, "/var/cache/apt/archives", BindType.APTCACHE))
+            config.binds.append(
+                BindConfig.create(
+                    apt_archive_path,
+                    "/var/cache/apt/archives",
+                    BindType.APTCACHE,
+                )
+            )
 
         if extra_packages_dir := image.session.extra_packages_dir:
             config.binds.append(
-                BindConfig.create(extra_packages_dir, "/srv/moncic-ci/mirror/packages", BindType.APTPACKAGES)
+                BindConfig.create(
+                    extra_packages_dir,
+                    "/srv/moncic-ci/mirror/packages",
+                    BindType.APTPACKAGES,
+                )
             )
 
     @override
     def get_base_packages(self) -> list[str]:
         res = super().get_base_packages()
-        res += ["systemd", "apt-utils", "eatmydata", "iproute2", "ca-certificates"]
+        res += [
+            "systemd",
+            "apt-utils",
+            "eatmydata",
+            "iproute2",
+            "ca-certificates",
+        ]
         return res
 
     def get_gbp_branches(self) -> list[str]:
@@ -104,17 +124,31 @@ class DebianDistro(Distro):
             if bootstrapper := shutil.which(name):
                 break
         else:
-            raise RuntimeError("No debian bootstrapper found. Tried: {', '.join(bootstrappers)}")
+            raise RuntimeError(
+                "No debian bootstrapper found."
+                f" Tried: {', '.join(self.bootstrappers)}"
+            )
         with contextlib.ExitStack() as stack:
             installroot = path.absolute()
-            cmd = [bootstrapper, "--include=" + ",".join(sorted(self.get_base_packages()))] + self.get_bootstrap_args()
+            cmd = [
+                bootstrapper,
+                "--include=" + ",".join(sorted(self.get_base_packages())),
+            ] + self.get_bootstrap_args()
 
             if self.key_url is not None:
-                tmpfile = stack.enter_context(tempfile.NamedTemporaryFile(suffix=".gpg"))
+                tmpfile = stack.enter_context(
+                    tempfile.NamedTemporaryFile(suffix=".gpg")
+                )
                 res = requests.get(self.key_url)
                 res.raise_for_status()
                 subprocess.run(
-                    ["gpg", "--import", "--no-default-keyring", "--keyring", tmpfile.name],
+                    [
+                        "gpg",
+                        "--import",
+                        "--no-default-keyring",
+                        "--keyring",
+                        tmpfile.name,
+                    ],
                     input=res.content,
                     check=True,
                 )
@@ -139,7 +173,9 @@ class DebianDistro(Distro):
         script.run(self.APT_INSTALL_CMD + [self.apt_full_upgrade_verb])
 
     @override
-    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+    def get_install_packages_script(
+        self, script: Script, packages: list[str]
+    ) -> None:
         super().get_install_packages_script(script, packages)
         script.setenv("DEBIAN_FRONTEND", "noninteractive")
         script.run(self.APT_INSTALL_CMD + [self.apt_install_verb] + packages)
@@ -148,7 +184,15 @@ class DebianDistro(Distro):
     def get_prepare_build_script(self, script: Script) -> None:
         super().get_prepare_build_script(script)
         self.get_install_packages_script(
-            script, ["build-essential", "dpkg-dev", "fakeroot", "eatmydata", "git-buildpackage", "util-linux"]
+            script,
+            [
+                "build-essential",
+                "dpkg-dev",
+                "fakeroot",
+                "eatmydata",
+                "git-buildpackage",
+                "util-linux",
+            ],
         )
 
     @override
@@ -168,7 +212,12 @@ class DebianDistro(Distro):
 
         # Get a list of packages that would be installed as build-essential
         base: set[str] = set()
-        res = subprocess.run(cmd_prefix + ["build-essential"], stdout=subprocess.PIPE, check=True, text=True)
+        res = subprocess.run(
+            cmd_prefix + ["build-essential"],
+            stdout=subprocess.PIPE,
+            check=True,
+            text=True,
+        )
         for line in res.stdout.splitlines():
             if mo := re_inst.match(line):
                 base.add(mo.group(1))
@@ -180,7 +229,12 @@ class DebianDistro(Distro):
         for requirement in packages:
             if requirement == "build-essential":
                 continue
-            res = subprocess.run(cmd_prefix + [requirement], stdout=subprocess.PIPE, check=True, text=True)
+            res = subprocess.run(
+                cmd_prefix + [requirement],
+                stdout=subprocess.PIPE,
+                check=True,
+                text=True,
+            )
             for line in res.stdout.splitlines():
                 if mo := re_inst.match(line):
                     if (name := mo.group(1)) not in base:
@@ -199,7 +253,14 @@ class UbuntuDistro(DebianDistro):
     Common implementation for Ubuntu-based distributions
     """
 
-    def __init__(self, family: DistroFamily, name: str, version: str, archived: bool = False, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        family: DistroFamily,
+        name: str,
+        version: str,
+        archived: bool = False,
+        **kwargs: Any,
+    ) -> None:
         if archived:
             mirror = "https://old-releases.ubuntu.com/ubuntu/"
         else:
@@ -249,7 +310,14 @@ class Debian(DistroFamily):
             )
         )
         self.add_distro(
-            DebianDistro(self, "buster", "10", ["oldoldstable"], apt_install_verb="install", systemd_version=241)
+            DebianDistro(
+                self,
+                "buster",
+                "10",
+                ["oldoldstable"],
+                apt_install_verb="install",
+                systemd_version=241,
+            )
         )
         self.add_distro(DebianDistro(self, "bullseye", "11", ["oldstable"]))
         self.add_distro(DebianDistro(self, "bookworm", "12", ["stable"]))
@@ -260,7 +328,9 @@ class Debian(DistroFamily):
         self.add_distro(DebianDistro(self, "sid", None, ["unstable"]))
 
     @override
-    def distro_from_osrelease(self, info: dict[str, str], fallback_name: str) -> Distro:
+    def distro_from_osrelease(
+        self, info: dict[str, str], fallback_name: str
+    ) -> Distro:
         # Distinguishing testing from sid is... complicated. See:
         #
         # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1021663
@@ -309,8 +379,18 @@ class Ubuntu(DistroFamily):
                 dpkg_dev_no_pre_clean=["-nc"],
             )
         )
-        self.add_distro(UbuntuDistro(self, "bionic", "18.04", apt_install_verb="install", systemd_version=237))
-        self.add_distro(UbuntuDistro(self, "focal", "20.04", systemd_version=245))
+        self.add_distro(
+            UbuntuDistro(
+                self,
+                "bionic",
+                "18.04",
+                apt_install_verb="install",
+                systemd_version=237,
+            )
+        )
+        self.add_distro(
+            UbuntuDistro(self, "focal", "20.04", systemd_version=245)
+        )
         self.add_distro(UbuntuDistro(self, "jammy", "22.04"))
         self.add_distro(UbuntuDistro(self, "noble", "24.04"))
         self.add_distro(UbuntuDistro(self, "oracular", "24.10"))

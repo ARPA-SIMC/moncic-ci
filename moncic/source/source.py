@@ -33,7 +33,9 @@ class CommandLog(list[str]):
         """
         self.append(shlex.join(args))
 
-    def run(self, cmd: Sequence[str], **kwargs: Any) -> subprocess.CompletedProcess:
+    def run(
+        self, cmd: Sequence[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess:
         """
         Run a command and append it to the command log
         """
@@ -53,7 +55,9 @@ class SourceStack(contextlib.ExitStack):
     @override
     def __enter__(self) -> Self:
         if self.entered:
-            raise RuntimeError("__enter__ called in multiple Sources of the same chain")
+            raise RuntimeError(
+                "__enter__ called in multiple Sources of the same chain"
+            )
         super().__enter__()
         self.entered = True
         return self
@@ -75,7 +79,8 @@ class Source(abc.ABC):
 
     #: User-provided name for this resource
     name: str
-    #: Source from which this one was generated. None if this is the original source
+    #: Source from which this one was generated. None if this is the original
+    #: source
     parent: Optional["Source"]
     #: ExitStack to use for temporary state
     stack: contextlib.ExitStack
@@ -83,7 +88,11 @@ class Source(abc.ABC):
     command_log: CommandLog
 
     def __init__(
-        self, *, name: str | None = None, parent: Optional["Source"] = None, command_log: CommandLog | None = None
+        self,
+        *,
+        name: str | None = None,
+        parent: Optional["Source"] = None,
+        command_log: CommandLog | None = None,
     ):
         self.parent = parent
         if parent is None:
@@ -93,7 +102,9 @@ class Source(abc.ABC):
             if name is None:
                 name = parent.name
         if name is None:
-            raise AttributeError("name not provided, and no parent to use as a fallback")
+            raise AttributeError(
+                "name not provided, and no parent to use as a fallback"
+            )
         self.name = name
         self.command_log = command_log or CommandLog()
 
@@ -126,7 +137,7 @@ class Source(abc.ABC):
         return res
 
     def info_dict(self) -> dict[str, Any]:
-        """Return JSON-able information about this source, without parent information."""
+        """Return JSON-able information about this source."""
         return {
             "name": self.name,
             "command_log": self.command_log,
@@ -152,7 +163,9 @@ class Source(abc.ABC):
         return new_kwargs
 
     @classmethod
-    def create_local(cls, *, source: str | Path, branch: str | None = None) -> "LocalSource":
+    def create_local(
+        cls, *, source: str | Path, branch: str | None = None
+    ) -> "LocalSource":
         """
         Create a distro-agnostic source from a user-defined string
         """
@@ -185,7 +198,10 @@ class Source(abc.ABC):
                 from .local import Dir
 
                 if branch is not None:
-                    raise Fail("Cannot specify a branch when working on a non-git directory")
+                    raise Fail(
+                        "Cannot specify a branch when working"
+                        " on a non-git directory"
+                    )
                 return Dir(name=name, path=source.absolute())
         else:
             from .local import File
@@ -204,10 +220,21 @@ class Source(abc.ABC):
         from .local import Git
 
         # Git checkout in a temporary directory
-        workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory(suffix="source-git-clone")))
+        workdir = Path(
+            self.stack.enter_context(
+                tempfile.TemporaryDirectory(suffix="source-git-clone")
+            )
+        )
         command_log = CommandLog()
 
-        clone_cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]
+        clone_cmd = [
+            "git",
+            "-c",
+            "advice.detachedHead=false",
+            "clone",
+            "--quiet",
+            repository,
+        ]
         if branch is not None:
             clone_cmd += ["--branch", branch]
         command_log.run(clone_cmd, cwd=workdir)
@@ -215,7 +242,9 @@ class Source(abc.ABC):
         # Look for the directory that git created
         paths = list(workdir.iterdir())
         if len(paths) != 1:
-            raise RuntimeError("git clone created more than one entry in its current directory")
+            raise RuntimeError(
+                "git clone created more than one entry in its current directory"
+            )
 
         new_path = paths[0]
 
@@ -236,4 +265,10 @@ class Source(abc.ABC):
             local_branch.checkout()
             command_log.add_command("git", "checkout", "-b", branch)
 
-        return Git(parent=self, path=new_path, repo=repo, readonly=False, command_log=command_log)
+        return Git(
+            parent=self,
+            path=new_path,
+            repo=repo,
+            readonly=False,
+            command_log=command_log,
+        )

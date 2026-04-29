@@ -23,8 +23,12 @@ class TestDebCache(unittest.TestCase):
             with DebCache(workdir, 5000) as cache:
                 with mock.patch("os.chown"):
                     with cache.apt_archives() as aptdir:
-                        self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
-                        self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
+                        self.assertTrue(
+                            os.path.exists(os.path.join(aptdir, "a.deb"))
+                        )
+                        self.assertTrue(
+                            os.path.exists(os.path.join(aptdir, "b.deb"))
+                        )
                         make_deb(aptdir, "c", 1000, 3)
                 self.assertTrue(os.path.exists(os.path.join(workdir, "a.deb")))
                 self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))
@@ -38,8 +42,12 @@ class TestDebCache(unittest.TestCase):
             with DebCache(workdir, 4000) as cache:
                 with mock.patch("os.chown"):
                     with cache.apt_archives() as aptdir:
-                        self.assertTrue(os.path.exists(os.path.join(aptdir, "a.deb")))
-                        self.assertTrue(os.path.exists(os.path.join(aptdir, "b.deb")))
+                        self.assertTrue(
+                            os.path.exists(os.path.join(aptdir, "a.deb"))
+                        )
+                        self.assertTrue(
+                            os.path.exists(os.path.join(aptdir, "b.deb"))
+                        )
                         make_deb(aptdir, "c", 1500, 3)
                 self.assertTrue(os.path.exists(os.path.join(workdir, "a.deb")))
                 self.assertTrue(os.path.exists(os.path.join(workdir, "b.deb")))

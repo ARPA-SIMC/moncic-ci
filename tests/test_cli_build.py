@@ -1,6 +1,5 @@
 import json
 
-from moncic.exceptions import Fail
 from moncic.runner import UserConfig
 from moncic.unittest import CLITestCase
 
@@ -13,7 +12,9 @@ class CliBuildTests(CLITestCase):
         with self.match_run_log(self.session.run_log) as m:
             container_log = m.assertPopFirst("test: run container")
             with self.match_run_log(container_log) as cm:
-                cm.assertPopFirst("forward_user", **UserConfig.from_current()._asdict())
+                cm.assertPopFirst(
+                    "forward_user", **UserConfig.from_current()._asdict()
+                )
                 cm.assertPopScript("Set up the container filesystem")
                 cm.assertPopScript("Update container packages before build")
                 cm.assertPopScript("Build .")

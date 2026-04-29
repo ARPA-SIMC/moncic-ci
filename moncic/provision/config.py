@@ -119,9 +119,14 @@ class Config:
         distro_name = self.conf.get("distro", None)
         extends_name = self.conf.get("extends", None)
         if distro_name and extends_name:
-            raise RuntimeError(f"{self.path}: both 'distro' and 'extends' have been specified")
+            raise RuntimeError(
+                f"{self.path}: both 'distro' and 'extends' have been specified"
+            )
         elif not distro_name and not extends_name:
-            raise RuntimeError(f"{self.path}: neither 'distro' nor 'extends' have been specified")
+            raise RuntimeError(
+                f"{self.path}: neither 'distro' nor 'extends'"
+                " have been specified"
+            )
         parent_name = distro_name or extends_name
 
         self.parent = session.images.parent_image(parent_name, name)
@@ -133,7 +138,9 @@ class Config:
     def warn_unsupported_entries(self, logger: logging.Logger) -> None:
         """Warn about config entries that are still unparsed."""
         for key in self.conf.keys():
-            logger.debug("%s: ignoring unsupported configuration: %r", self.path, key)
+            logger.debug(
+                "%s: ignoring unsupported configuration: %r", self.path, key
+            )
 
 
 def write_yaml(contents: dict[str, Any], file: IO[str]) -> None:

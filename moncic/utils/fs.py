@@ -11,7 +11,11 @@ log = logging.getLogger(__name__)
 
 @contextlib.contextmanager
 def atomic_writer(
-    path: Path, mode: str = "w+b", chmod: int | None = 0o664, sync: bool = True, use_umask: bool = False
+    path: Path,
+    mode: str = "w+b",
+    chmod: int | None = 0o664,
+    sync: bool = True,
+    use_umask: bool = False,
 ) -> Generator[IO[Any]]:
     """
     open/tempfile wrapper to atomically write to a file, by writing its
@@ -34,7 +38,9 @@ def atomic_writer(
 
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.NamedTemporaryFile(mode, dir=path.parent, prefix=path.name, delete=False) as tf:
+    with tempfile.NamedTemporaryFile(
+        mode, dir=path.parent, prefix=path.name, delete=False
+    ) as tf:
         try:
             yield tf
             tf.flush()
@@ -62,7 +68,8 @@ def is_on_rotational(pathname: str) -> bool | None:
         return None
     # Resolve the relative symlink to the partition device
     fulldev = os.path.join(os.path.dirname(dev), dest)
-    # Look for queue/rotational in the parent directory (which should be the disk device)
+    # Look for queue/rotational in the parent directory (which should be the
+    # disk device)
     rotfile = os.path.join(os.path.dirname(fulldev), "queue", "rotational")
     try:
         with open(rotfile) as fd:
@@ -102,7 +109,9 @@ def extra_packages_dir(path: Path) -> Generator[Path]:
     Create a temporary directory where all packages found in path are
     hardlinked
     """
-    with tempfile.TemporaryDirectory(dir=path, suffix="extra-packages-dir") as mirrordir_str:
+    with tempfile.TemporaryDirectory(
+        dir=path, suffix="extra-packages-dir"
+    ) as mirrordir_str:
         mirrordir = Path(mirrordir_str)
         # Hard link all .deb files into the temporary mirror directory
         with dirfd(path) as src_dir_fd:
@@ -111,7 +120,12 @@ def extra_packages_dir(path: Path) -> Generator[Path]:
                 with os.scandir(src_dir_fd) as it:
                     for de in it:
                         if de.name.endswith(".deb") or de.name.endswith(".rpm"):
-                            os.link(de.name, de.name, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+                            os.link(
+                                de.name,
+                                de.name,
+                                src_dir_fd=src_dir_fd,
+                                dst_dir_fd=dst_dir_fd,
+                            )
         # We cannot create a mirror now, since apt-ftparchive may not be
         # present outside the container
         yield mirrordir

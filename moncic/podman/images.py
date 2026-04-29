@@ -32,7 +32,9 @@ class PodmanImages(BootstrappingImages):
         return logging.getLogger("images.podman")
 
     @override
-    def image(self, name: str, variant_of: Image | None = None) -> RunnableImage:
+    def image(
+        self, name: str, variant_of: Image | None = None
+    ) -> RunnableImage:
         """
         Return the configuration for the named system
         """
@@ -56,16 +58,28 @@ class PodmanImages(BootstrappingImages):
                 # Reuse the previous found runnable image
                 return variant_of
             case _:
-                raise NotImplementedError(f"variant_of has unknown image type {variant_of.__class__.__name__}")
+                raise NotImplementedError(
+                    "variant_of has unknown image type"
+                    f" {variant_of.__class__.__name__}"
+                )
 
         return PodmanImage(
-            images=self, name=name, distro=distro, podman_image=podman_image, bootstrapped_from=bootstrapped_from
+            images=self,
+            name=name,
+            distro=distro,
+            podman_image=podman_image,
+            bootstrapped_from=bootstrapped_from,
         )
 
     def _find_distro(
-        self, name: str, podman: "podman.client.PodmanClient", podman_image: "podman.domain.images.Image"
+        self,
+        name: str,
+        podman: "podman.client.PodmanClient",
+        podman_image: "podman.domain.images.Image",
     ) -> Distro:
-        os_release = podman.containers.run(podman_image, ["cat", "/etc/os-release"], remove=True)
+        os_release = podman.containers.run(
+            podman_image, ["cat", "/etc/os-release"], remove=True
+        )
         assert isinstance(os_release, bytes)
         with io.StringIO(os_release.decode()) as fd:
             osr = parse_osrelase_contents(fd, f"{name}:/etc/os-release")
@@ -115,5 +129,9 @@ class PodmanImages(BootstrappingImages):
         return res
 
     @override
-    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
-        raise NotImplementedError("Extending podman images is not yet implemented")
+    def bootstrap_extend(
+        self, image: "BootstrappableImage", parent: "RunnableImage"
+    ) -> "RunnableImage":
+        raise NotImplementedError(
+            "Extending podman images is not yet implemented"
+        )

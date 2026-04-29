@@ -115,7 +115,9 @@ class BuildConfig:
         if not isinstance(conf, dict):
             raise Fail(f"{pathname!r}: YAML file should contain a dict")
 
-        sections = {cls.get_name() for cls in self.__class__.__mro__ if cls != object}
+        sections = {
+            cls.get_name() for cls in self.__class__.__mro__ if cls != object
+        }
 
         valid_fields = {f.name for f in fields(self)}
 
@@ -124,7 +126,12 @@ class BuildConfig:
                 continue
             for key, val in values.items():
                 if key not in valid_fields:
-                    log.warning("%r: unknown field {%r} in section {%r}", pathname, key, section)
+                    log.warning(
+                        "%r: unknown field {%r} in section {%r}",
+                        pathname,
+                        key,
+                        section,
+                    )
                 else:
                     setattr(self, key, val)
 
@@ -164,7 +171,11 @@ class Builder(ContainerSourceOperation, abc.ABC):
         from ..source.debian import DebianDir, DebianDsc, DebianGBP
         from ..source.rpm import ARPASource, RPMSource
         from .build_arpa import ARPABuilder, RPMBuilder
-        from .build_debian import DebianBuilderDir, DebianBuilderDsc, DebianBuilderGBP
+        from .build_debian import (
+            DebianBuilderDir,
+            DebianBuilderDsc,
+            DebianBuilderGBP,
+        )
 
         match source:
             case DebianDsc():
@@ -177,10 +188,18 @@ class Builder(ContainerSourceOperation, abc.ABC):
                 return ARPABuilder
             case RPMSource():
                 return RPMBuilder
-        raise Fail(f"Cannot detect builder class for {source.__class__.__name__} source")
+        raise Fail(
+            f"Cannot detect builder class for {source.__class__.__name__} source"
+        )
 
-    def __init__(self, source: DistroSource, image: "RunnableImage", config: BuildConfig) -> None:
-        super().__init__(image=image, source=source, source_artifacts_dir=config.artifacts_dir)
+    def __init__(
+        self, source: DistroSource, image: "RunnableImage", config: BuildConfig
+    ) -> None:
+        super().__init__(
+            image=image,
+            source=source,
+            source_artifacts_dir=config.artifacts_dir,
+        )
         #: Build configuration
         self.config = config
         #: Build results
@@ -192,12 +211,18 @@ class Builder(ContainerSourceOperation, abc.ABC):
         self.plugins.append(self.operation_plugin)
 
     @contextlib.contextmanager
-    def plugin_build_artifacts(self, config: ContainerConfig) -> Generator[None]:
+    def plugin_build_artifacts(
+        self, config: ContainerConfig
+    ) -> Generator[None]:
         """Collect artifacts produced by the build."""
         assert self.config.artifacts_dir is not None
         artifacts_transfer_path = self.host_root / "artifacts"
         artifacts_transfer_path.mkdir()
-        config.add_bind(artifacts_transfer_path, Path("/srv/moncic-ci/artifacts"), BindType.ARTIFACTS)
+        config.add_bind(
+            artifacts_transfer_path,
+            Path("/srv/moncic-ci/artifacts"),
+            BindType.ARTIFACTS,
+        )
         config.add_guest_scripts(teardown=self.collect_artifacts_script())
         try:
             yield None
@@ -205,10 +230,16 @@ class Builder(ContainerSourceOperation, abc.ABC):
             self.harvest_artifacts(artifacts_transfer_path)
 
     @contextlib.contextmanager
-    def operation_plugin(self, config: ContainerConfig) -> Generator[None, None, None]:
+    def operation_plugin(
+        self, config: ContainerConfig
+    ) -> Generator[None, None, None]:
         """Build-specific container setup."""
         if not self.config.quick:
-            script = Script("Update container packages before build", cwd=Path("/"), user=UserConfig.root())
+            script = Script(
+                "Update container packages before build",
+                cwd=Path("/"),
+                user=UserConfig.root(),
+            )
             self.image.distro.get_update_pkgdb_script(script)
             self.image.distro.get_upgrade_system_script(script)
             self.image.distro.get_prepare_build_script(script)
@@ -221,7 +252,9 @@ class Builder(ContainerSourceOperation, abc.ABC):
         """
         self.results.trace_log.append(shlex.join(args))
 
-    def trace_run(self, cmd: Sequence[str], check: bool = True, **kwargs: Any) -> subprocess.CompletedProcess:
+    def trace_run(
+        self, cmd: Sequence[str], check: bool = True, **kwargs: Any
+    ) -> subprocess.CompletedProcess:
         """
         Run a command, adding it to trace_log
         """
@@ -268,7 +301,11 @@ class Builder(ContainerSourceOperation, abc.ABC):
                 log.error("%r: unsupported post-build command", cmd)
         else:
             env = dict(os.environ)
-            env["MONCIC_ARTIFACTS_DIR"] = self.config.artifacts_dir.as_posix() if self.config.artifacts_dir else ""
+            env["MONCIC_ARTIFACTS_DIR"] = (
+                self.config.artifacts_dir.as_posix()
+                if self.config.artifacts_dir
+                else ""
+            )
             env["MONCIC_CONTAINER_NAME"] = container.instance_name
             env["MONCIC_IMAGE"] = self.image.name
             env["MONCIC_CONTAINER_ROOT"] = container.get_root().as_posix()
@@ -299,7 +336,12 @@ class Builder(ContainerSourceOperation, abc.ABC):
         return script
 
     def harvest_artifacts(self, transfer_dir: Path) -> None:
-        """Move artifacts from the transfer directory to their final destination."""
+        """
+        Move artifacts to their final destination.
+
+        :param transfer_dir: directory where artifacts are staged and looked up
+          for moving
+        """
         assert self.config.artifacts_dir is not None
         for path in transfer_dir.iterdir():
             if not path.is_file():

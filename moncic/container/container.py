@@ -44,7 +44,12 @@ class Container(abc.ABC):
     """
 
     def __init__(
-        self, image: RunnableImage, *, config: ContainerConfig, instance_name: str | None = None, ephemeral: bool = True
+        self,
+        image: RunnableImage,
+        *,
+        config: ContainerConfig,
+        instance_name: str | None = None,
+        ephemeral: bool = True,
     ):
         config.check()
         self.ephemeral = ephemeral
@@ -57,7 +62,11 @@ class Container(abc.ABC):
         #: User-provided instance name
         self._instance_name = instance_name
         #: Host directory used for supporting container interactions
-        self.workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory(suffix="container-workdir")))
+        self.workdir = Path(
+            self.stack.enter_context(
+                tempfile.TemporaryDirectory(suffix="container-workdir")
+            )
+        )
         #: Exchange directory for scripts
         self.scriptdir = self.workdir / "scripts"
         self.scriptdir.mkdir(parents=True, exist_ok=True)
@@ -93,7 +102,10 @@ class Container(abc.ABC):
         """Compute an instance name when none was provided in constructor."""
         global machine_name_sequence_pid, machine_name_sequence
         current_pid = os.getpid()
-        if machine_name_sequence_pid is None or machine_name_sequence_pid != current_pid:
+        if (
+            machine_name_sequence_pid is None
+            or machine_name_sequence_pid != current_pid
+        ):
             machine_name_sequence_pid = current_pid
             machine_name_sequence = 0
 
@@ -138,41 +150,65 @@ class Container(abc.ABC):
         """
         Ensure the system has a matching user and group
         """
-        check_script = Script("Check user IDs in container", cwd=Path("/"), user=UserConfig.root())
-        check_script.run_unquoted(f"USER_ID=$(id -u {user.user_id} 2>/dev/null || true)")
-        check_script.run_unquoted(f"GROUP_ID=$(id -g {user.user_id} 2>/dev/null || true)")
-        check_script.run_unquoted(f"USER_NAME=$(id -un {user.user_id} 2>/dev/null || true)")
-        check_script.run_unquoted(f"GROUP_NAME=$(id -gn {user.user_id} 2>/dev/null || true)")
+        check_script = Script(
+            "Check user IDs in container", cwd=Path("/"), user=UserConfig.root()
+        )
+        check_script.run_unquoted(
+            f"USER_ID=$(id -u {user.user_id} 2>/dev/null || true)"
+        )
+        check_script.run_unquoted(
+            f"GROUP_ID=$(id -g {user.user_id} 2>/dev/null || true)"
+        )
+        check_script.run_unquoted(
+            f"USER_NAME=$(id -un {user.user_id} 2>/dev/null || true)"
+        )
+        check_script.run_unquoted(
+            f"GROUP_NAME=$(id -gn {user.user_id} 2>/dev/null || true)"
+        )
         check_script.run_unquoted(
             f"""HAS_USER=$(test -n "$(getent passwd {shlex.quote(user.user_name)})" && echo 'yes' || echo 'no')"""
         )
         check_script.run_unquoted(
             f"""HAS_GROUP=$(test -n "$(getent group {shlex.quote(user.group_name)})" && echo 'yes' || echo 'no')"""
         )
-        check_script.run_unquoted('echo "$USER_ID:$GROUP_ID:$USER_NAME:$GROUP_NAME:$HAS_USER:$HAS_GROUP"')
+        check_script.run_unquoted(
+            'echo "$USER_ID:$GROUP_ID:$USER_NAME:$GROUP_NAME:$HAS_USER:$HAS_GROUP"'
+        )
 
         res = self.run_script(check_script)
-        uid, gid, user_name, group_name, user_in_db, group_in_db = res.stdout.strip().decode().split(":")
+        uid, gid, user_name, group_name, user_in_db, group_in_db = (
+            res.stdout.strip().decode().split(":")
+        )
 
         has_user = uid and int(uid) == user.user_id
         if not has_user and not allow_maint and not self.ephemeral:
-            raise RuntimeError(f"user {user.user_name} not found in non-ephemeral containers")
+            raise RuntimeError(
+                f"user {user.user_name} not found in non-ephemeral containers"
+            )
 
         has_group = gid and int(gid) == user.group_id
         if not has_group and not allow_maint and not self.ephemeral:
-            raise RuntimeError(f"user group {user.group_name} not found in non-ephemeral containers")
+            raise RuntimeError(
+                f"user group {user.group_name} not found in non-ephemeral containers"
+            )
 
-        setup_script = Script("Set up local user", cwd=Path("/"), user=UserConfig.root())
+        setup_script = Script(
+            "Set up local user", cwd=Path("/"), user=UserConfig.root()
+        )
 
         create_user = not has_user or user_in_db == "no"
         create_group = not has_group or group_in_db == "no"
-        if (user_name and user_name != user.user_name) or (group_name and group_name != user.group_name):
+        if (user_name and user_name != user.user_name) or (
+            group_name and group_name != user.group_name
+        ):
             setup_script.run(["userdel", user_name])
             setup_script.run(["groupdel", group_name], check=False)
             create_user = True
             create_group = True
         if create_group:
-            setup_script.run(["groupadd", "--gid", str(user.group_id), user.group_name])
+            setup_script.run(
+                ["groupadd", "--gid", str(user.group_id), user.group_name]
+            )
         if create_user:
             setup_script.run(
                 [
@@ -194,11 +230,17 @@ class Container(abc.ABC):
 
         script.run_unquoted(f'UNAME="$(id -un {user.user_id})"')
         with script.if_(f'[ "$UNAME" != {shlex.quote(user.user_name)} ]'):
-            script.fail(f"user {user.user_id} in container is named $UNAME but outside it is named {user.user_name}")
+            script.fail(
+                f"user {user.user_id} in container is named $UNAME but outside it is named {user.user_name}"
+            )
 
-        script.run_unquoted(f'''GNAME="$(getent group {user.group_id} | sed -r 's/:.+//')"''')
+        script.run_unquoted(
+            f'''GNAME="$(getent group {user.group_id} | sed -r 's/:.+//')"'''
+        )
         with script.if_(f'[ "$GNAME" != {shlex.quote(user.group_name)} ]'):
-            script.fail(f"group {user.group_id} in container is named $GNAME but outside it is named {user.group_name}")
+            script.fail(
+                f"group {user.group_id} in container is named $GNAME but outside it is named {user.group_name}"
+            )
 
         self.run_script(script)
 
@@ -217,7 +259,9 @@ class Container(abc.ABC):
         """
 
     @abc.abstractmethod
-    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
+    def run(
+        self, command: list[str], config: RunConfig | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
         """
         Run the given command inside the running system.
 
@@ -234,14 +278,18 @@ class Container(abc.ABC):
     @contextmanager
     def script_in_guest(self, script: Script) -> Generator[Path, None, None]:
         """Send the script to the container, returning its guest path."""
-        with tempfile.NamedTemporaryFile("w+t", dir=self.scriptdir, delete_on_close=False) as tf:
+        with tempfile.NamedTemporaryFile(
+            "w+t", dir=self.scriptdir, delete_on_close=False
+        ) as tf:
             script.print(file=tf)
             os.fchmod(tf.fileno(), 0o755)
             tf.close()
             yield self.guest_scriptdir / os.path.basename(tf.name)
 
     @abc.abstractmethod
-    def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+    def run_script(
+        self, script: Script, check: bool = True
+    ) -> subprocess.CompletedProcess[bytes]:
         """
         Run the given Script or string as a script in the machine.
 
@@ -250,7 +298,9 @@ class Container(abc.ABC):
         Returns the process exit status.
         """
 
-    def run_shell(self, config: RunConfig | None) -> subprocess.CompletedProcess[bytes]:
+    def run_shell(
+        self, config: RunConfig | None
+    ) -> subprocess.CompletedProcess[bytes]:
         """
         Open a shell in the container
         """
@@ -276,7 +326,9 @@ class Container(abc.ABC):
         res = self.run_script(script)
         shell = res.stdout.strip().decode()
         if not shell:
-            raise RuntimeError(f"No valid shell found. Tried: {shlex.join(shell_candidates)}")
+            raise RuntimeError(
+                f"No valid shell found. Tried: {shlex.join(shell_candidates)}"
+            )
 
         return self.run([shell, "--login"], config=config)
 
@@ -284,5 +336,13 @@ class Container(abc.ABC):
 class MaintenanceContainer(Container, abc.ABC):
     """Non-ephemeral container used for maintenance."""
 
-    def __init__(self, image: RunnableImage, *, config: ContainerConfig, instance_name: str | None = None):
-        super().__init__(image, config=config, instance_name=instance_name, ephemeral=False)
+    def __init__(
+        self,
+        image: RunnableImage,
+        *,
+        config: ContainerConfig,
+        instance_name: str | None = None,
+    ):
+        super().__init__(
+            image, config=config, instance_name=instance_name, ephemeral=False
+        )

@@ -105,7 +105,9 @@ class DistroFamily(abc.ABC):
         return cls.from_osrelease(info, path.name)
 
     @classmethod
-    def from_osrelease(cls, info: dict[str, str], fallback_name: str) -> "Distro":
+    def from_osrelease(
+        cls, info: dict[str, str], fallback_name: str
+    ) -> "Distro":
         """
         Instantiate a Distro from a parsed os-release file
         """
@@ -115,7 +117,9 @@ class DistroFamily(abc.ABC):
         family = cls.lookup_family(os_id)
         return family.distro_from_osrelease(info, fallback_name)
 
-    def distro_from_osrelease(self, info: dict[str, str], fallback_name: str) -> "Distro":
+    def distro_from_osrelease(
+        self, info: dict[str, str], fallback_name: str
+    ) -> "Distro":
         """
         Lookup a distro from parsed /etc/os-release contents.
 
@@ -156,7 +160,8 @@ class Distro(abc.ABC):
         systemd_version: int | None = None,
     ) -> None:
         """
-        :param systemd_version: known systemd version. If missing it is assumed to be undefined, but recent
+        :param systemd_version: known systemd version. If missing it is assumed
+          to be undefined, but recent
         """
         self.family = family
         self.name = name
@@ -198,7 +203,9 @@ class Distro(abc.ABC):
         """
         return ["bash", "dbus"]
 
-    def container_config_hook(self, image: "Image", config: "ContainerConfig") -> None:
+    def container_config_hook(
+        self, image: "Image", config: "ContainerConfig"
+    ) -> None:
         """
         Hook to allow distro-specific container setup
         """
@@ -206,7 +213,8 @@ class Distro(abc.ABC):
 
     def _bootstrap_mkosi(self, images: "Images", path: Path) -> None:
         # At least on Debian, mkosi does not seem able to install working
-        # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
+        # rpm-based distributions:
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
         installroot = path.absolute()
         base_packages = ",".join(self.get_base_packages())
         with tempfile.TemporaryDirectory(suffix="distro-mkosi") as workdir:
@@ -245,7 +253,9 @@ class Distro(abc.ABC):
     def get_upgrade_system_script(self, script: Script) -> None:
         """Add commands to use to upgrade system packages."""
 
-    def get_install_packages_script(self, script: Script, packages: list[str]) -> None:
+    def get_install_packages_script(
+        self, script: Script, packages: list[str]
+    ) -> None:
         """Add commands to use to install packages."""
 
     def get_prepare_build_script(self, script: Script) -> None:
@@ -256,7 +266,8 @@ class Distro(abc.ABC):
         Get the installed versions of packages described in the given list
         """
         raise NotImplementedError(
-            f"getting installed versions for package requirements is not implemented for {self.name}"
+            "getting installed versions for package requirements"
+            f" is not implemented for {self.name}"
         )
 
     def get_systemd_boot_mask_units(self) -> list[str]:
@@ -265,4 +276,8 @@ class Distro(abc.ABC):
 
     @abc.abstractmethod
     def get_podman_name(self) -> tuple[str, str]:
-        """Get the podman repository and tag for loading this distro from known repositories."""
+        """
+        Get the podman repository and tag.
+
+        These a used for loading this distro from known repositories.
+        """

@@ -40,7 +40,9 @@ def main_command(cls: type[Command]) -> type[Command]:
 
 
 @contextlib.contextmanager
-def checkout(image: RunnableImage, repo: str | None = None, branch: str | None = None) -> Generator[Path | None]:
+def checkout(
+    image: RunnableImage, repo: str | None = None, branch: str | None = None
+) -> Generator[Path | None]:
     if repo is None:
         yield None
         return
@@ -66,7 +68,10 @@ def checkout(image: RunnableImage, repo: str | None = None, branch: str | None =
         # Look for the directory that git created
         names = os.listdir(workdir)
         if len(names) != 1:
-            raise RuntimeError("git clone create more than one entry in its current directory: {names!r}")
+            raise RuntimeError(
+                "git clone created more than one entry"
+                f" in its current directory: {names!r}"
+            )
 
         yield workdir / names[0]
 
@@ -78,7 +83,9 @@ class MoncicCommand(Command):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         assert isinstance(parser, ArgumentParserWithSharedArgs)
         if "imagedir" not in parser.shared_args:
@@ -99,14 +106,16 @@ class MoncicCommand(Command):
                 type=Path,
                 help="path to the Moncic-CI config file to use. By default,"
                 " look in a number of well-known locations, see"
-                " https://github.com/ARPA-SIMC/moncic-ci/blob/main/doc/moncic-ci-config.md",
+                " https://github.com/ARPA-SIMC/moncic-ci/"
+                "blob/main/doc/moncic-ci-config.md",
             )
             parser.add_argument(
                 "--extra-packages-dir",
                 action="store",
                 shared=True,
                 type=Path,
-                help="directory where extra packages, if present, are added to package sources" " in containers",
+                help="directory where extra packages, if present, are added"
+                " to package sources in containers",
             )
         return parser
 
@@ -137,59 +146,83 @@ class MoncicCommand(Command):
             config.imagedir = imagedir
 
         if self.args.extra_packages_dir:
-            config.extra_packages_dir = expand_path(self.args.extra_packages_dir)
+            config.extra_packages_dir = expand_path(
+                self.args.extra_packages_dir
+            )
 
 
 class ImageActionCommand(MoncicCommand):
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument("system", help="name or path of the system to use")
 
         parser.add_argument(
-            "--maintenance", action="store_true", help="run in maintenance mode: changes will be preserved"
+            "--maintenance",
+            action="store_true",
+            help="run in maintenance mode: changes will be preserved",
         )
 
         git_workdir = parser.add_mutually_exclusive_group(required=False)
         git_workdir.add_argument(
-            "-w", "--workdir", type=Path, help="bind mount (writable) the given directory as working directory"
+            "-w",
+            "--workdir",
+            type=Path,
+            help="bind mount (writable) the given directory"
+            " as working directory",
         )
         git_workdir.add_argument(
-            "-W", "--workdir-volatile", type=Path, help="bind mount (volatile) the given directory as working directory"
+            "-W",
+            "--workdir-volatile",
+            type=Path,
+            help="bind mount (volatile) the given directory"
+            " as working directory",
         )
         git_workdir.add_argument(
-            "--clone", metavar="repository", help="checkout the given repository (local or remote) in the chroot"
+            "--clone",
+            metavar="repository",
+            help="checkout the given repository (local or remote)"
+            " in the chroot",
         )
 
         parser.add_argument(
             "--bind",
             action="append",
-            help="option passed to systemd-nspawn as is (see man systemd-nspawn)" " can be given multiple times",
+            help="option passed to systemd-nspawn as is"
+            " (see man systemd-nspawn)"
+            " can be given multiple times",
         )
         parser.add_argument(
             "--bind-ro",
             action="append",
-            help="option passed to systemd-nspawn as is (see man systemd-nspawn)" " can be given multiple times",
+            help="option passed to systemd-nspawn as is"
+            " (see man systemd-nspawn)"
+            " can be given multiple times",
         )
         parser.add_argument(
             "--bind-volatile",
             action="append",
-            help="same as --bind-ro, but it adds a volatile overlay to make the directory writable"
-            " in the container. Can be given multiple times",
+            help="same as --bind-ro, but it adds a volatile overlay"
+            " to make the directory writable in the container."
+            " Can be given multiple times",
         )
 
         parser.add_argument(
             "-u",
             "--user",
             action="store_true",
-            help="create a shell as the current user before sudo" " (default is root, or the owner of workdir)",
+            help="create a shell as the current user before sudo"
+            " (default is root, or the owner of workdir)",
         )
         parser.add_argument(
             "-r",
             "--root",
             action="store_true",
-            help="create a shell as root (useful if using workdir and still wanting a root shell)",
+            help="create a shell as root"
+            " (useful if using workdir and still wanting a root shell)",
         )
 
         return parser
@@ -218,18 +251,32 @@ class ImageActionCommand(MoncicCommand):
             config = ContainerConfig()
             if workdir is not None:
                 assert workdir_bind_type is not None
-                config.configure_workdir(workdir, bind_type=BindType(workdir_bind_type))
+                config.configure_workdir(
+                    workdir, bind_type=BindType(workdir_bind_type)
+                )
             elif self.args.user:
                 config.forward_user = UserConfig.from_sudoer()
             if self.args.bind:
                 for entry in self.args.bind:
-                    config.binds.append(BindConfig.from_nspawn(entry, bind_type=BindType.READWRITE))
+                    config.binds.append(
+                        BindConfig.from_nspawn(
+                            entry, bind_type=BindType.READWRITE
+                        )
+                    )
             if self.args.bind_ro:
                 for entry in self.args.bind_ro:
-                    config.binds.append(BindConfig.from_nspawn(entry, bind_type=BindType.READONLY))
+                    config.binds.append(
+                        BindConfig.from_nspawn(
+                            entry, bind_type=BindType.READONLY
+                        )
+                    )
             if self.args.bind_volatile:
                 for entry in self.args.bind_volatile:
-                    config.binds.append(BindConfig.from_nspawn(entry, bind_type=BindType.VOLATILE))
+                    config.binds.append(
+                        BindConfig.from_nspawn(
+                            entry, bind_type=BindType.VOLATILE
+                        )
+                    )
 
             if self.args.maintenance:
                 with image.maintenance_container(config=config) as container:
@@ -246,14 +293,21 @@ class SourceCommand(MoncicCommand):
 
     @override
     @classmethod
-    def make_subparser(cls, subparsers: "argparse._SubParsersAction[Any]") -> argparse.ArgumentParser:
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--branch", action="store", help="branch to be used. Default: let 'git clone' choose")
+        parser.add_argument(
+            "--branch",
+            action="store",
+            help="branch to be used. Default: let 'git clone' choose",
+        )
         parser.add_argument(
             "-s",
             "--source-type",
             action=SourceTypeAction,
-            help="name of the procedure used to run the CI. Use 'list' to list available options."
+            help="name of the procedure used to run the CI."
+            " Use 'list' to list available options."
             " Default: autodetect",
         )
         return parser
@@ -263,14 +317,20 @@ class SourceCommand(MoncicCommand):
         """
         Instantiate a local Source object
         """
-        with Source.create_local(source=self.args.source, branch=self.args.branch) as source:
+        with Source.create_local(
+            source=self.args.source, branch=self.args.branch
+        ) as source:
             yield source
 
-    def distro_source(self, source: LocalSource, distro: "Distro") -> DistroSource:
+    def distro_source(
+        self, source: LocalSource, distro: "Distro"
+    ) -> DistroSource:
         """
         Instantiate a DistroSource object from a local source
         """
-        return DistroSource.create_from_local(source, distro=distro, style=self.args.source_type)
+        return DistroSource.create_from_local(
+            source, distro=distro, style=self.args.source_type
+        )
 
     @contextlib.contextmanager
     def source(self, distro: "Distro") -> Generator[DistroSource]:
@@ -278,5 +338,9 @@ class SourceCommand(MoncicCommand):
         Instantiate a DistroSource object in one go
         """
         with self.local_source() as local_source:
-            log.debug("%s: local source type %s", local_source, local_source.__class__.__name__)
+            log.debug(
+                "%s: local source type %s",
+                local_source,
+                local_source.__class__.__name__,
+            )
             yield self.distro_source(local_source, distro=distro)

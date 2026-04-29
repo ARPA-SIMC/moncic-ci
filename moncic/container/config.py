@@ -28,11 +28,17 @@ class ContainerConfig:
         self.forward_user: UserConfig | None = None
 
         #: Hooks to run before the contaner is started / after it has stopped
-        self.host_setup_hooks: list[Callable[["Container"], ContextManager[None]]] = []
+        self.host_setup_hooks: list[
+            Callable[["Container"], ContextManager[None]]
+        ] = []
         #: Hooks to run after the contaner is started / before it has stopped
-        self.guest_setup_hooks: list[Callable[["Container"], ContextManager[None]]] = []
+        self.guest_setup_hooks: list[
+            Callable[["Container"], ContextManager[None]]
+        ] = []
 
-    def add_guest_scripts(self, *, setup: Script | None = None, teardown: Script | None = None) -> None:
+    def add_guest_scripts(
+        self, *, setup: Script | None = None, teardown: Script | None = None
+    ) -> None:
         """Schedule scripts to be run in the container after starting/before stopping."""
 
         @contextlib.contextmanager
@@ -69,7 +75,9 @@ class ContainerConfig:
             yield None
 
     @contextlib.contextmanager
-    def guest_setup(self, container: "Container") -> Generator[None, None, None]:
+    def guest_setup(
+        self, container: "Container"
+    ) -> Generator[None, None, None]:
         """Perform setup/teardown on the guest after starting/before stopping the container."""
         with contextlib.ExitStack() as stack:
             for bind in self.binds:
@@ -78,9 +86,17 @@ class ContainerConfig:
                 stack.enter_context(hook(container))
             yield None
 
-    def add_bind(self, source: Path, destination: Path, bind_type: BindType, cwd: bool = False) -> None:
+    def add_bind(
+        self,
+        source: Path,
+        destination: Path,
+        bind_type: BindType,
+        cwd: bool = False,
+    ) -> None:
         """Add a bind to this container configuration."""
-        self.binds.append(BindConfig.create(source, destination, bind_type, cwd))
+        self.binds.append(
+            BindConfig.create(source, destination, bind_type, cwd)
+        )
 
     def check(self) -> None:
         """
@@ -88,7 +104,10 @@ class ContainerConfig:
         """
 
     def configure_workdir(
-        self, workdir: Path, bind_type: BindType = BindType.READWRITE, mountpoint: Path = Path("/media")
+        self,
+        workdir: Path,
+        bind_type: BindType = BindType.READWRITE,
+        mountpoint: Path = Path("/media"),
     ) -> None:
         """
         Configure a working directory, bind mounted into the container, set as

@@ -12,7 +12,12 @@ class Script:
     """Incrementally build a shellscript."""
 
     def __init__(
-        self, title: str, *, cwd: Path | None = None, user: UserConfig | None = None, disable_network: bool = False
+        self,
+        title: str,
+        *,
+        cwd: Path | None = None,
+        user: UserConfig | None = None,
+        disable_network: bool = False,
     ) -> None:
         self.title = title
         self.cwd = cwd
@@ -58,7 +63,13 @@ class Script:
         """Export an environment variable."""
         self.add_line(f"export {key}={shlex.quote(value)}")
 
-    def run_unquoted(self, command: str, *, description: str | None = None, cwd: Path | None = None) -> None:
+    def run_unquoted(
+        self,
+        command: str,
+        *,
+        description: str | None = None,
+        cwd: Path | None = None,
+    ) -> None:
         if description:
             self.add_line("echo " + shlex.quote(description))
         if cwd:
@@ -99,7 +110,9 @@ class Script:
             self.add_line(")")
 
     @contextmanager
-    def if_(self, condition: str | Iterable[str]) -> Generator[None, None, None]:
+    def if_(
+        self, condition: str | Iterable[str]
+    ) -> Generator[None, None, None]:
         """Delimit a conditional block."""
         if not isinstance(condition, str):
             condition = shlex.join(condition)
@@ -113,7 +126,9 @@ class Script:
             self.add_line("fi")
 
     @contextmanager
-    def for_(self, var: str, generator: str | Iterable[str]) -> Generator[None, None, None]:
+    def for_(
+        self, var: str, generator: str | Iterable[str]
+    ) -> Generator[None, None, None]:
         """Delimit a for loop."""
         if not isinstance(generator, str):
             generator = shlex.join(generator)
@@ -135,7 +150,9 @@ class Script:
         self.add_line(f'echo "{message}" >&2')
         self.add_line("exit 1")
 
-    def debug(self, command: list[str], *, description: str | None = None) -> None:
+    def debug(
+        self, command: list[str], *, description: str | None = None
+    ) -> None:
         """Append a command generating debugging output."""
         if not self.debug_mode:
             return
@@ -143,11 +160,15 @@ class Script:
             self.add_line("echo " + shlex.quote(description))
         self.add_line(shlex.join(command) + " >&2")
 
-    def write(self, path: Path, contents: str, description: str | None = None) -> None:
+    def write(
+        self, path: Path, contents: str, description: str | None = None
+    ) -> None:
         """Append a command to write data to a file."""
         if description:
             self.add_line("echo " + shlex.quote(description))
-        self.add_line(f"echo {shlex.quote(contents)} > {shlex.quote(path.as_posix())}")
+        self.add_line(
+            f"echo {shlex.quote(contents)} > {shlex.quote(path.as_posix())}"
+        )
 
     def print(self, file: IO[str] | None = None) -> None:
         """Write the script to a file."""

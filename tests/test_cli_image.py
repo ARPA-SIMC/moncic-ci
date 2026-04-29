@@ -13,7 +13,9 @@ class CliImageTests(CLITestCase):
 
     def test_image_distro_config_exists(self) -> None:
         (self.config.imageconfdirs[0] / "test.yaml").write_text("")
-        with self.assertRaisesRegex(Fail, "^test: configuration already exists in "):
+        with self.assertRaisesRegex(
+            Fail, "^test: configuration already exists in "
+        ):
             self.call("monci", "image", "test", "distro", "rocky8")
         self.assertRunLogEmpty(self.session.run_log)
 
@@ -25,7 +27,9 @@ class CliImageTests(CLITestCase):
 
     def test_image_extends_config_exists(self) -> None:
         (self.config.imageconfdirs[0] / "test.yaml").write_text("")
-        with self.assertRaisesRegex(Fail, "^test: configuration already exists in "):
+        with self.assertRaisesRegex(
+            Fail, "^test: configuration already exists in "
+        ):
             self.call("monci", "image", "test", "distro", "rocky8")
         self.assertRunLogEmpty(self.session.run_log)
 
@@ -37,7 +41,9 @@ class CliImageTests(CLITestCase):
         image = self.session.images.configured_images.image("test")
         self.assertIsInstance(image, ConfiguredImage)
         assert isinstance(image, ConfiguredImage)
-        self.assertEqual(image.config.bootstrap_info.maintscript, "#!/bin/sh\ntrue\n")
+        self.assertEqual(
+            image.config.bootstrap_info.maintscript, "#!/bin/sh\ntrue\n"
+        )
 
         with self.match_run_log(self.session.run_log) as m:
             container_log = m.assertPopFirst("test: run container")
@@ -61,7 +67,9 @@ class CliImageTests(CLITestCase):
 
     def test_image_edit(self) -> None:
         self.session.test_simulate_bootstrap("test", {"extends": "rocky8"})
-        with mock.patch("moncic.cli.image.edit_yaml", return_value="distro: rocky8"):
+        with mock.patch(
+            "moncic.cli.image.edit_yaml", return_value="distro: rocky8"
+        ):
             res = self.call("monci", "image", "test", "edit")
         self.assertNoStderr(res)
         self.assertEqual(res.stdout, "")
@@ -76,5 +84,7 @@ class CliImageTests(CLITestCase):
         self.session.test_simulate_bootstrap("test", {"extends": "rocky8"})
         res = self.call("monci", "image", "test", "cat")
         self.assertNoStderr(res)
-        self.assertEqual(res.stdout.splitlines(), [f"# {path}", "---", "extends: rocky8"])
+        self.assertEqual(
+            res.stdout.splitlines(), [f"# {path}", "---", "extends: rocky8"]
+        )
         self.assertRunLogEmpty(self.session.run_log)

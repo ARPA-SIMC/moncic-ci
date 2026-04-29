@@ -1,5 +1,3 @@
-from moncic.exceptions import Fail
-from moncic.runner import UserConfig
 from moncic.unittest import CLITestCase
 
 

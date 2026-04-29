@@ -10,7 +10,11 @@ from moncic.image import BootstrappableImage, ImageType, RunnableImage
 from moncic.utils.btrfs import Subvolume
 
 if TYPE_CHECKING:
-    from moncic.container import Container, ContainerConfig, MaintenanceContainer
+    from moncic.container import (
+        Container,
+        ContainerConfig,
+        MaintenanceContainer,
+    )
     from moncic.provision.config import ContainerInfo
 
     from .images import NspawnImages
@@ -33,7 +37,11 @@ class NspawnImage(RunnableImage, abc.ABC):
         bootstrapped_from: BootstrappableImage | None,
     ) -> None:
         super().__init__(
-            images=images, image_type=ImageType.NSPAWN, name=name, distro=distro, bootstrapped_from=bootstrapped_from
+            images=images,
+            image_type=ImageType.NSPAWN,
+            name=name,
+            distro=distro,
+            bootstrapped_from=bootstrapped_from,
         )
         #: Image storage for this image
         self.images = images
@@ -41,18 +49,34 @@ class NspawnImage(RunnableImage, abc.ABC):
         self.path: Path = path
 
     @override
-    def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
+    def container(
+        self,
+        *,
+        instance_name: str | None = None,
+        config: Optional["ContainerConfig"] = None,
+    ) -> "Container":
         from .container import NspawnContainer
 
-        return NspawnContainer(self, config=self._make_container_config(config), instance_name=instance_name)
+        return NspawnContainer(
+            self,
+            config=self._make_container_config(config),
+            instance_name=instance_name,
+        )
 
     @override
     def maintenance_container(
-        self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
+        self,
+        *,
+        instance_name: str | None = None,
+        config: Optional["ContainerConfig"] = None,
     ) -> "MaintenanceContainer":
         from .container import NspawnMaintenanceContainer
 
-        return NspawnMaintenanceContainer(self, config=self._make_container_config(config), instance_name=instance_name)
+        return NspawnMaintenanceContainer(
+            self,
+            config=self._make_container_config(config),
+            instance_name=instance_name,
+        )
 
     @override
     def get_backend_id(self) -> str:
@@ -83,7 +107,8 @@ class NspawnImage(RunnableImage, abc.ABC):
         #     with self.create_container() as container:
         #         try:
         #             res["packages_installed"] = dict(
-        #                 container.run_callable(self.distro.get_versions, args=(res["packages_required"],)).result()
+        #                 container.run_callable(self.distro.get_versions,
+        #                 args=(res["packages_required"],)).result()
         #             )
         #         except NotImplementedError as e:
         #             self.log.info("cannot get details of how package requirements have been resolved: %s", e)
@@ -128,8 +153,14 @@ class NspawnImage(RunnableImage, abc.ABC):
                 if not cachedir_path.exists():
                     with cachedir_path.open("wt") as fd:
                         # See https://bford.info/cachedir/
-                        print("Signature: 8a477f597d28d172789f06886806bc55", file=fd)
-                        print("# This file hints to backup software that they can skip this directory.", file=fd)
+                        print(
+                            "Signature: 8a477f597d28d172789f06886806bc55",
+                            file=fd,
+                        )
+                        print(
+                            "# This file hints to backup software that they can skip this directory.",
+                            file=fd,
+                        )
                         print("# See https://bford.info/cachedir/", file=fd)
 
 
@@ -156,6 +187,8 @@ class NspawnImageBtrfs(NspawnImage):
     def remove(self) -> BootstrappableImage | None:
         with context.privs.root():
             if self.path.exists():
-                subvolume = Subvolume(self.session.images.session.moncic.config, self.path, None)
+                subvolume = Subvolume(
+                    self.session.images.session.moncic.config, self.path, None
+                )
                 subvolume.remove()
         return self.bootstrapped_from

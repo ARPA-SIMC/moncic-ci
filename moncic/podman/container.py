@@ -7,7 +7,13 @@ from typing import Any, override
 
 import podman
 
-from moncic.container import BindConfig, Container, ContainerConfig, MaintenanceContainer, RunConfig
+from moncic.container import (
+    BindConfig,
+    Container,
+    ContainerConfig,
+    MaintenanceContainer,
+    RunConfig,
+)
 from moncic.runner import UserConfig
 from moncic.utils.script import Script
 
@@ -21,7 +27,13 @@ class PodmanContainer(Container):
 
     image: PodmanImage
 
-    def __init__(self, image: PodmanImage, *, config: ContainerConfig, instance_name: str | None = None) -> None:
+    def __init__(
+        self,
+        image: PodmanImage,
+        *,
+        config: ContainerConfig,
+        instance_name: str | None = None,
+    ) -> None:
         super().__init__(image, config=config, instance_name=instance_name)
         self.container: podman.domain.containers.Container | None = None
 
@@ -46,8 +58,10 @@ class PodmanContainer(Container):
         if self.container is not None:
             raise RuntimeError("Container already started")
 
-        # For the Python API, see https://podman-py.readthedocs.io/en/latest/podman.domain.containers_create.html
-        # For the mount structure, see https://docs.podman.io/en/latest/_static/api.html#tag/containers/operation/ContainerCreateLibpod
+        # For the Python API, see
+        # https://podman-py.readthedocs.io/en/latest/podman.domain.containers_create.html
+        # For the mount structure, see
+        # https://docs.podman.io/en/latest/_static/api.html#tag/containers/operation/ContainerCreateLibpod
 
         # TODO: self.config.ephemeral
         # TODO: self.config.tmpfs
@@ -90,13 +104,20 @@ class PodmanContainer(Container):
 
                 container_kwargs["userns_mode"] = userns_mode
 
-                # FIXME: remove this hack when we can use a podman library with this
-                # fix: https://github.com/containers/podman-py/commit/1510ab7921dfbcdf929144730102be8e97bd7295
-                if not hasattr(podman.domain.containers_create, "normalize_nsmode"):
+                # FIXME: remove this hack when we can use a podman library with
+                # this fix:
+                # https://github.com/containers/podman-py/commit/1510ab7921dfbcdf929144730102be8e97bd7295
+                if not hasattr(
+                    podman.domain.containers_create, "normalize_nsmode"
+                ):
                     del container_kwargs["userns_mode"]
-                    orig_render_payload = podman.domain.containers_create.CreateMixin._render_payload
+                    orig_render_payload = (
+                        podman.domain.containers_create.CreateMixin._render_payload
+                    )
 
-                    def tweak(_: Any, kwargs: MutableMapping[str, Any]) -> dict[str, Any]:
+                    def tweak(
+                        _: Any, kwargs: MutableMapping[str, Any]
+                    ) -> dict[str, Any]:
                         res = orig_render_payload(kwargs)
                         res["userns"] = userns_mode
                         return res
@@ -104,7 +125,11 @@ class PodmanContainer(Container):
                     from unittest import mock
 
                     stack.enter_context(
-                        mock.patch("podman.domain.containers_create.CreateMixin._render_payload", tweak)
+                        mock.patch(
+                            "podman.domain.containers_create.CreateMixin"
+                            "._render_payload",
+                            tweak,
+                        )
                     )
 
             self.container = self.image.session.podman.containers.create(
@@ -124,7 +149,9 @@ class PodmanContainer(Container):
             self.container = None
 
     @override
-    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
+    def run(
+        self, command: list[str], config: RunConfig | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
         assert self.container is not None
 
         if config is None:
@@ -160,7 +187,9 @@ class PodmanContainer(Container):
         return res
 
     @override
-    def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+    def run_script(
+        self, script: Script, check: bool = True
+    ) -> subprocess.CompletedProcess[bytes]:
         with self.script_in_guest(script) as guest_path:
             config = RunConfig()
             config.check = check

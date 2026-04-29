@@ -84,7 +84,10 @@ class BootstrappingImages(Images, abc.ABC):
             case ConfiguredImage():
                 if parent_name := image.config.bootstrap_info.extends:
                     if not self.session.images.has_image(parent_name):
-                        raise RuntimeError(f"{image.name} extends {parent_name} which does not exist in {self}")
+                        raise RuntimeError(
+                            f"{image.name} extends {parent_name}"
+                            f" which does not exist in {self}"
+                        )
                     parent = self.session.images.image(parent_name)
                     if isinstance(parent, BootstrappableImage):
                         parent = parent.bootstrap()
@@ -102,7 +105,9 @@ class BootstrappingImages(Images, abc.ABC):
         """Bootstrap an image from scratch."""
 
     @abc.abstractmethod
-    def bootstrap_extend(self, image: "BootstrappableImage", parent: "RunnableImage") -> "RunnableImage":
+    def bootstrap_extend(
+        self, image: "BootstrappableImage", parent: "RunnableImage"
+    ) -> "RunnableImage":
         """Bootstrap an image extending an existing one."""
 
 
@@ -154,7 +159,10 @@ class ImageRepository(ImagesBase):
     def image(self, name: str, variant_of: Optional["Image"] = None) -> "Image":
         """Instantiate an image by name."""
         if variant_of is not None:
-            raise NotImplementedError("calling ImageRepository.image with a variant image is not supported")
+            raise NotImplementedError(
+                "calling ImageRepository.image with a variant image"
+                " is not supported"
+            )
         result: Image | None = None
         for images in self.images:
             if not images.has_image(name):

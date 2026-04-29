@@ -54,7 +54,11 @@ class Codec:
         length = 0
 
         idx = (numalpha - 1 + self.shiftalpha + self.alphaend) % numalpha
-        while not (v == 0 and idx == (numalpha - 1 + self.shiftalpha) % numalpha and length >= minlength):
+        while not (
+            v == 0
+            and idx == (numalpha - 1 + self.shiftalpha) % numalpha
+            and length >= minlength
+        ):
             r = v % len(alphabets[idx])
             v = int(v / len(alphabets[idx]))
             st = alphabets[idx][r] + st
@@ -92,7 +96,9 @@ class Codec:
 
         return True
 
-    def random(self, minlength: int = 6, prng: random.Random = random.Random()) -> str:
+    def random(
+        self, minlength: int = 6, prng: random.Random = random.Random()
+    ) -> str:
         numalpha = len(self.alphabets)
         word = ""
 

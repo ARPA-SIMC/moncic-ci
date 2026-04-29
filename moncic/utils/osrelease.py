@@ -12,7 +12,9 @@ def iter_assigns(tokens: Iterator[str]) -> Generator[tuple[str, str]]:
             break
         equals = next(tokens)
         if equals != "=":
-            raise RuntimeError("syntax error, found a triplet that is not an assignment")
+            raise RuntimeError(
+                "syntax error, found a triplet that is not an assignment"
+            )
         value = next(tokens)
         yield (name, value)
 

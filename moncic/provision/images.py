@@ -54,7 +54,9 @@ class ConfiguredImages(Images):
         return name in self.configs
 
     @override
-    def image(self, name: str, variant_of: Image | None = None) -> BootstrappableImage:
+    def image(
+        self, name: str, variant_of: Image | None = None
+    ) -> BootstrappableImage:
         from .image import ConfiguredImage, DistroImage
 
         if variant_of is not None and not isinstance(variant_of, DistroImage):
@@ -66,7 +68,9 @@ class ConfiguredImages(Images):
         if path := self.configs.get(name):
             try:
                 config = Config(self.session, name, path)
-                return ConfiguredImage(images=self, name=name, config=config, variant_of=variant_of)
+                return ConfiguredImage(
+                    images=self, name=name, config=config, variant_of=variant_of
+                )
             except Exception as e:
                 e.add_note(f"image name: {name}")
                 raise
@@ -99,11 +103,15 @@ class DistroImages(Images):
             return False
 
     @override
-    def image(self, name: str, variant_of: Image | None = None) -> BootstrappableImage:
+    def image(
+        self, name: str, variant_of: Image | None = None
+    ) -> BootstrappableImage:
         from .image import DistroImage
 
         if variant_of is not None:
-            raise NotImplementedError("cannot build a DistroImage as an instance of another image")
+            raise NotImplementedError(
+                "cannot build a DistroImage as an instance of another image"
+            )
 
         distro = DistroFamily.lookup_distro(name)
         return DistroImage(images=self, name=name, distro=distro)

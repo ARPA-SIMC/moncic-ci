@@ -19,7 +19,9 @@ class NspawnTransactionalTests(MoncicTestCase):
         self.session = self.enterContext(self.moncic().session())
         self.images = self.session.images
         assert self.session.moncic.config.imagedir is not None
-        self.test_image_config_file = self.session.moncic.config.imagedir / (test_image_name + ".yaml")
+        self.test_image_config_file = self.session.moncic.config.imagedir / (
+            test_image_name + ".yaml"
+        )
         # Bootstrap a snapshot of base_image_name to use as our playground
         with context.privs.root():
             if base_image_name not in self.images.list_images():
@@ -51,12 +53,20 @@ maintscript: |
 
     def test_transactional_update_succeeded(self) -> None:
         with context.privs.root():
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+            self.assertFalse(
+                os.path.exists(
+                    os.path.join(
+                        self.images.imagedir, test_image_name, "root", "token"
+                    )
+                )
+            )
 
             image = self.images.image(test_image_name)
             with image.maintenance_system() as system:
                 # Check that we are working on a temporary snapshot
-                self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
+                self.assertEqual(
+                    os.path.basename(system.path), f"{test_image_name}.new"
+                )
 
                 with system.create_container() as container:
 
@@ -65,31 +75,67 @@ maintscript: |
                             out.write("test_transactional_updates")
                         return ("result", 123)
 
-                    self.assertEqual(container.run_callable(test_function), ("result", 123))
+                    self.assertEqual(
+                        container.run_callable(test_function), ("result", 123)
+                    )
 
                 # The file has been written in a persistent way
-                self.assertTrue(os.path.exists(os.path.join(system.path, "root", "token")))
+                self.assertTrue(
+                    os.path.exists(os.path.join(system.path, "root", "token"))
+                )
 
                 # But not in the original image
-                self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+                self.assertFalse(
+                    os.path.exists(
+                        os.path.join(
+                            self.images.imagedir,
+                            test_image_name,
+                            "root",
+                            "token",
+                        )
+                    )
+                )
 
             # Exiting the maintenance transaction commits the changes
-            self.assertTrue(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+            self.assertTrue(
+                os.path.exists(
+                    os.path.join(
+                        self.images.imagedir, test_image_name, "root", "token"
+                    )
+                )
+            )
 
             # The temporary snapshot has been deleted
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".new"))
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".tmp"))
+            self.assertFalse(
+                os.path.exists(
+                    os.path.join(self.images.imagedir, test_image_name) + ".new"
+                )
+            )
+            self.assertFalse(
+                os.path.exists(
+                    os.path.join(self.images.imagedir, test_image_name) + ".tmp"
+                )
+            )
 
     def test_transactional_update_failed(self) -> None:
         with context.privs.root():
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+            self.assertFalse(
+                os.path.exists(
+                    os.path.join(
+                        self.images.imagedir, test_image_name, "root", "token"
+                    )
+                )
+            )
 
             with self.assertRaises(RuntimeError):
                 with self.assertLogs(level=logging.WARNING):
                     image = self.images.image(test_image_name)
                     with image.maintenance_system() as system:
                         # Check that we are working on a temporary snapshot
-                        self.assertEqual(os.path.basename(system.path), f"{test_image_name}.new")
+                        self.assertEqual(
+                            os.path.basename(system.path),
+                            f"{test_image_name}.new",
+                        )
 
                         with system.create_container() as container:
 
@@ -101,8 +147,22 @@ maintscript: |
                             container.run_callable(test_function)
 
             # Exiting the maintenance transaction rolls back the changes
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name, "root", "token")))
+            self.assertFalse(
+                os.path.exists(
+                    os.path.join(
+                        self.images.imagedir, test_image_name, "root", "token"
+                    )
+                )
+            )
 
             # The temporary snapshot has been deleted
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".new"))
-            self.assertFalse(os.path.exists(os.path.join(self.images.imagedir, test_image_name) + ".tmp"))
+            self.assertFalse(
+                os.path.exists(
+                    os.path.join(self.images.imagedir, test_image_name) + ".new"
+                )
+            )
+            self.assertFalse(
+                os.path.exists(
+                    os.path.join(self.images.imagedir, test_image_name) + ".tmp"
+                )
+            )

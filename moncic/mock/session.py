@@ -30,7 +30,9 @@ class RunLogEntry:
     lower-level operations done while performing a higher level one.
     """
 
-    def __init__(self, name: str = "root", data: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, name: str = "root", data: dict[str, Any] | None = None
+    ) -> None:
         self.name = name
         self.data = data or {}
         self.entries: list["RunLogEntry"] = []
@@ -44,7 +46,9 @@ class RunLogEntry:
     def __repr__(self) -> str:
         return f"RunLogEntry({self.name}, {self.data})"
 
-    def append_action(self, action: str, data: dict[str, Any] | None = None) -> None:
+    def append_action(
+        self, action: str, data: dict[str, Any] | None = None
+    ) -> None:
         if self.paused:
             return
         self.entries.append(RunLogEntry(action, data))
@@ -127,7 +131,9 @@ class MockRunLog:
             yield
 
     @contextmanager
-    def push(self, action: str, data: dict[str, Any] | None = None) -> Generator[None, None, None]:
+    def push(
+        self, action: str, data: dict[str, Any] | None = None
+    ) -> Generator[None, None, None]:
         """Add an entry and append logs to it until context ends."""
         if self.current.paused:
             yield
@@ -147,7 +153,9 @@ class MockSession(Session):
     Mock session used for tests
     """
 
-    def __init__(self, moncic: "Moncic", bootstrapper_cls: type[Images] | None = None) -> None:
+    def __init__(
+        self, moncic: "Moncic", bootstrapper_cls: type[Images] | None = None
+    ) -> None:
         super().__init__(moncic)
         if bootstrapper_cls is None:
             from .images import MockImages
@@ -174,7 +182,9 @@ class MockSession(Session):
         kwargs.setdefault("func", caller_stack.f_code.co_name)
         self.log.append(kwargs)
 
-    def get_process_result(self, *, args: list[str]) -> subprocess.CompletedProcess:
+    def get_process_result(
+        self, *, args: list[str]
+    ) -> subprocess.CompletedProcess:
         cmdline = shlex.join(args)
         for regex, result in self.process_result_queue.items():
             if re.search(regex, cmdline):
@@ -195,7 +205,9 @@ class MockSession(Session):
             args=[], returncode=returncode, stdout=stdout, stderr=stderr
         )
 
-    def test_simulate_bootstrap(self, name: str, config: dict[str, Any] | None = None) -> RunnableImage:
+    def test_simulate_bootstrap(
+        self, name: str, config: dict[str, Any] | None = None
+    ) -> RunnableImage:
         """Bootstrap an image, optionally writing its config file."""
         if config is not None:
             self.test_write_config(name, config)

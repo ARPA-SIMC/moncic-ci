@@ -96,16 +96,21 @@ class UserConfig(NamedTuple):
         if self.user_id == 0 and self.group_id == 0:
             return
 
-        # TODO: do not use pwd and grp, as they may be cached from the host system
+        # TODO: do not use pwd and grp, as they may be cached from the host
+        # system
         try:
             pw = pwd.getpwuid(self.user_id)
         except KeyError:
-            raise RuntimeError(f"container has no user {self.user_id} {self.user_name!r}") from None
+            raise RuntimeError(
+                f"container has no user {self.user_id} {self.user_name!r}"
+            ) from None
 
         try:
             gr = grp.getgrgid(self.group_id)
         except KeyError:
-            raise RuntimeError(f"container has no group {self.group_id} {self.group_name!r}") from None
+            raise RuntimeError(
+                f"container has no group {self.group_id} {self.group_name!r}"
+            ) from None
 
         if pw.pw_name != self.user_name:
             raise RuntimeError(
@@ -123,7 +128,13 @@ class UserConfig(NamedTuple):
 class Runner:
     """Run a command, logging its output in realtime."""
 
-    def __init__(self, logger: logging.Logger, cmd: list[str], cwd: Path | None = None, check: bool = True):
+    def __init__(
+        self,
+        logger: logging.Logger,
+        cmd: list[str],
+        cwd: Path | None = None,
+        check: bool = True,
+    ):
         super().__init__()
         self.logger = logger
         self.cmd = cmd
@@ -148,7 +159,9 @@ class Runner:
             if not line:
                 break
             self.stdout.append(line)
-            self.logger.info("stdout: %s", line.decode(errors="replace").rstrip())
+            self.logger.info(
+                "stdout: %s", line.decode(errors="replace").rstrip()
+            )
 
     async def read_stderr(self, reader: asyncio.StreamReader) -> None:
         while True:
@@ -156,7 +169,9 @@ class Runner:
             if not line:
                 break
             self.stderr.append(line)
-            self.logger.info("stderr: %s", line.decode(errors="replace").rstrip())
+            self.logger.info(
+                "stderr: %s", line.decode(errors="replace").rstrip()
+            )
 
     async def start_process(self) -> asyncio.subprocess.Process:
         self.logger.info("Running %s", self.name)
@@ -173,7 +188,11 @@ class Runner:
             executable = self.cmd[0]
 
         return await asyncio.create_subprocess_exec(
-            executable, *self.cmd[1:], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, **kwargs
+            executable,
+            *self.cmd[1:],
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            **kwargs,
         )
 
     async def _run(self) -> subprocess.CompletedProcess[bytes]:
@@ -192,7 +211,13 @@ class Runner:
         stderr = b"".join(self.stderr)
 
         if self.check and proc.returncode != 0:
-            self.logger.error("%s: exited with status %d", self.name, proc.returncode)
-            raise subprocess.CalledProcessError(proc.returncode, self.cmd, stdout, stderr)
+            self.logger.error(
+                "%s: exited with status %d", self.name, proc.returncode
+            )
+            raise subprocess.CalledProcessError(
+                proc.returncode, self.cmd, stdout, stderr
+            )
 
-        return subprocess.CompletedProcess(self.cmd, proc.returncode, stdout, stderr)
+        return subprocess.CompletedProcess(
+            self.cmd, proc.returncode, stdout, stderr
+        )

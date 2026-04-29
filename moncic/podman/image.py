@@ -8,7 +8,11 @@ from moncic.image import BootstrappableImage, ImageType, RunnableImage
 if TYPE_CHECKING:
     import podman
 
-    from moncic.container import Container, ContainerConfig, MaintenanceContainer
+    from moncic.container import (
+        Container,
+        ContainerConfig,
+        MaintenanceContainer,
+    )
 
     from .container import PodmanContainer
     from .images import PodmanImages
@@ -34,7 +38,11 @@ class PodmanImage(RunnableImage):
         bootstrapped_from: BootstrappableImage | None = None
     ) -> None:
         super().__init__(
-            images=images, image_type=ImageType.PODMAN, name=name, distro=distro, bootstrapped_from=bootstrapped_from
+            images=images,
+            image_type=ImageType.PODMAN,
+            name=name,
+            distro=distro,
+            bootstrapped_from=bootstrapped_from,
         )
         self.id: str = podman_image.id
         self.short_id: str = podman_image.short_id
@@ -61,15 +69,25 @@ class PodmanImage(RunnableImage):
         return self.bootstrapped_from
 
     @override
-    def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
+    def container(
+        self,
+        *,
+        instance_name: str | None = None,
+        config: Optional["ContainerConfig"] = None
+    ) -> "Container":
         from .container import PodmanContainer
 
         return PodmanContainer(self, config=self._make_container_config(config))
 
     @override
     def maintenance_container(
-        self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
+        self,
+        *,
+        instance_name: str | None = None,
+        config: Optional["ContainerConfig"] = None
     ) -> "MaintenanceContainer":
         from .container import PodmanMaintenanceContainer
 
-        return PodmanMaintenanceContainer(self, config=self._make_container_config(config))
+        return PodmanMaintenanceContainer(
+            self, config=self._make_container_config(config)
+        )

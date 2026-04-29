@@ -32,7 +32,14 @@ class Image(abc.ABC):
     Identify an image from which systems can be started.
     """
 
-    def __init__(self, *, images: "Images", name: str, distro: "Distro", bootstrapped: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        images: "Images",
+        name: str,
+        distro: "Distro",
+        bootstrapped: bool = False,
+    ) -> None:
         #: Moncic-CI session
         self.session = images.session
         #: Containing Images instance
@@ -124,7 +131,9 @@ class RunnableImage(Image, abc.ABC):
         distro: "Distro",
         bootstrapped_from: BootstrappableImage | None = None,
     ) -> None:
-        super().__init__(images=images, name=name, distro=distro, bootstrapped=True)
+        super().__init__(
+            images=images, name=name, distro=distro, bootstrapped=True
+        )
         #: Container type
         self.image_type: ImageType = image_type
         self.bootstrapped_from = bootstrapped_from
@@ -157,14 +166,18 @@ class RunnableImage(Image, abc.ABC):
         for u in self.bootstrapped_from.forwards_users:
             container.forward_user(UserConfig.from_user(u), allow_maint=True)
 
-        script = Script("Upgrade container", cwd=Path("/"), user=UserConfig.root())
+        script = Script(
+            "Upgrade container", cwd=Path("/"), user=UserConfig.root()
+        )
         self.distro.get_setup_network_script(script)
         for text in self.bootstrapped_from.maintscripts:
             for line in text.splitlines():
                 script.run_unquoted(line)
         self.distro.get_update_pkgdb_script(script)
         self.distro.get_upgrade_system_script(script)
-        self.distro.get_install_packages_script(script, sorted(self.bootstrapped_from.package_list))
+        self.distro.get_install_packages_script(
+            script, sorted(self.bootstrapped_from.package_list)
+        )
         container.run_script(script)
 
     def update(self) -> None:
@@ -180,7 +193,9 @@ class RunnableImage(Image, abc.ABC):
         """Return a dictionary describing facts about the image."""
         return {}
 
-    def _make_container_config(self, config: Optional["ContainerConfig"]) -> "ContainerConfig":
+    def _make_container_config(
+        self, config: Optional["ContainerConfig"]
+    ) -> "ContainerConfig":
         """Create the final container config."""
         from .container import ContainerConfig
 
@@ -192,14 +207,22 @@ class RunnableImage(Image, abc.ABC):
         return config
 
     @abc.abstractmethod
-    def container(self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None) -> "Container":
+    def container(
+        self,
+        *,
+        instance_name: str | None = None,
+        config: Optional["ContainerConfig"] = None,
+    ) -> "Container":
         """
         Boot a container with this system
         """
 
     @abc.abstractmethod
     def maintenance_container(
-        self, *, instance_name: str | None = None, config: Optional["ContainerConfig"] = None
+        self,
+        *,
+        instance_name: str | None = None,
+        config: Optional["ContainerConfig"] = None,
     ) -> "MaintenanceContainer":
         """
         Boot a container with this system

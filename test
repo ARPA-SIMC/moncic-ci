@@ -48,7 +48,9 @@ def clear_podman() -> None:
 
 def main() -> None:
     """Run unit or integration testing."""
-    parser = argparse.ArgumentParser(description="Run unit or integration testing.")
+    parser = argparse.ArgumentParser(
+        description="Run unit or integration testing."
+    )
     parser.add_argument(
         "-v",
         "--verbose",
@@ -131,11 +133,18 @@ def main() -> None:
 
     if args.coverage:
         runner = [sys.executable, "-m", "coverage"]
-        subprocess.run(runner + ["run"] + cmd, check=True, cwd=top_srcdir.as_posix())
+        subprocess.run(
+            runner + ["run"] + cmd, check=True, cwd=top_srcdir.as_posix()
+        )
         # subprocess.run(runner + ["combine"], check=True, cwd=top_srcdir.as_posix())
         report_args = ["--precision=2", "--include", "monci,moncic/*,tests/*"]
         subprocess.run(runner + ["html"] + report_args, check=True)
-        subprocess.run(runner + ["report", "--skip-covered", "--show-missing"] + report_args, check=True)
+        subprocess.run(
+            runner
+            + ["report", "--skip-covered", "--show-missing"]
+            + report_args,
+            check=True,
+        )
     else:
         os.chdir(top_srcdir.as_posix())
         cmd = [sys.executable] + cmd

@@ -36,14 +36,18 @@ class RunLogMatcher:
         self.testcase = testcase
         self.log = log
 
-    def _tentative_match(self, entry: RunLogEntry, name: str | re.Pattern[str]) -> bool:
+    def _tentative_match(
+        self, entry: RunLogEntry, name: str | re.Pattern[str]
+    ) -> bool:
         """Check if an entry may match the given name."""
         if isinstance(name, str):
             return entry.name.startswith(name.split()[0])
         else:
             return bool(name.search(entry.name))
 
-    def assertEntryMatches(self, entry: RunLogEntry, name: str | re.Pattern[str], **kwargs: Any) -> None:
+    def assertEntryMatches(
+        self, entry: RunLogEntry, name: str | re.Pattern[str], **kwargs: Any
+    ) -> None:
         """Test the entry for an exact match."""
         if isinstance(name, str):
             self.testcase.assertEqual(entry.name, name)
@@ -51,7 +55,9 @@ class RunLogMatcher:
             self.testcase.assertRegex(entry.name, name)
         self.testcase.assertEqual(entry.data, kwargs)
 
-    def assertPopFirstOptional(self, name: str | re.Pattern[str], **kwargs: Any) -> RunLogEntry | None:
+    def assertPopFirstOptional(
+        self, name: str | re.Pattern[str], **kwargs: Any
+    ) -> RunLogEntry | None:
         """
         Optionally match the first run log and return it.
 
@@ -64,13 +70,17 @@ class RunLogMatcher:
         self.assertEntryMatches(entry, name, **kwargs)
         return entry
 
-    def assertPopFirst(self, name: str | re.Pattern[str], **kwargs: Any) -> RunLogEntry:
+    def assertPopFirst(
+        self, name: str | re.Pattern[str], **kwargs: Any
+    ) -> RunLogEntry:
         """Match the first run log and return it."""
         entry = self.log.entries.pop(0)
         self.assertEntryMatches(entry, name, **kwargs)
         return entry
 
-    def assertPopUntil(self, name: str | re.Pattern[str], **kwargs: Any) -> RunLogEntry:
+    def assertPopUntil(
+        self, name: str | re.Pattern[str], **kwargs: Any
+    ) -> RunLogEntry:
         """Skip entries until the name matches, and return it."""
         matched = False
         while self.log.entries and not matched:
@@ -100,7 +110,9 @@ class TestCase(unittest.TestCase):
     """TestCase extended with moncic-ci specific assertions."""
 
     @contextlib.contextmanager
-    def match_run_log(self, run_log: MockRunLog | RunLogEntry) -> Generator[RunLogMatcher, None, None]:
+    def match_run_log(
+        self, run_log: MockRunLog | RunLogEntry
+    ) -> Generator[RunLogMatcher, None, None]:
         """Create a destroying matcher for the given run log."""
         if isinstance(run_log, MockRunLog):
             matcher = RunLogMatcher(self, run_log.current)
@@ -145,12 +157,20 @@ class CLITestCase(MockMoncicTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.session = MockSession(self.moncic)
-        self.enterContext(mock.patch("moncic.cli.moncic.Moncic", return_value=self.moncic))
-        self.enterContext(mock.patch.object(self.moncic, "session", return_value=self.session))
+        self.enterContext(
+            mock.patch("moncic.cli.moncic.Moncic", return_value=self.moncic)
+        )
+        self.enterContext(
+            mock.patch.object(self.moncic, "session", return_value=self.session)
+        )
 
     @override
     def get_imageconfdir(self) -> Path | None:
-        return Path(self.enterContext(tempfile.TemporaryDirectory(suffix="clitestcase-imageconfdir")))
+        return Path(
+            self.enterContext(
+                tempfile.TemporaryDirectory(suffix="clitestcase-imageconfdir")
+            )
+        )
 
     def assertNoStderr(self, res: subprocess.CompletedProcess[str]) -> None:
         self.assertEqual(res.stderr, "")
@@ -163,14 +183,18 @@ class CLITestCase(MockMoncicTestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         returnvalue: int | None = None
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
+            stderr
+        ):
             try:
                 main()
                 returnvalue = 0
             finally:
                 sys.argv = orig_argv
 
-        return subprocess.CompletedProcess(args, returnvalue, stdout.getvalue(), stderr.getvalue())
+        return subprocess.CompletedProcess(
+            args, returnvalue, stdout.getvalue(), stderr.getvalue()
+        )
 
 
 class MoncicTestCase(TestCase):
@@ -192,9 +216,13 @@ class MoncicTestCase(TestCase):
         context.privs = cls.old_privs
 
     @contextlib.contextmanager
-    def mount(self, mount_type: str, src: str | Path, path: Path) -> Generator[None]:
+    def mount(
+        self, mount_type: str, src: str | Path, path: Path
+    ) -> Generator[None]:
         with context.privs.root():
-            subprocess.run(["mount", "-t", mount_type, str(src), str(path)], check=True)
+            subprocess.run(
+                ["mount", "-t", mount_type, str(src), str(path)], check=True
+            )
         try:
             yield None
         finally:
@@ -203,12 +231,17 @@ class MoncicTestCase(TestCase):
 
     def tempdir(self) -> Path:
         """Create a temporary directory."""
-        return Path(self.enterContext(tempfile.TemporaryDirectory(suffix="moncictestcase-tempdir")))
+        return Path(
+            self.enterContext(
+                tempfile.TemporaryDirectory(suffix="moncictestcase-tempdir")
+            )
+        )
 
     def workdir(self, filesystem_type: str | None = None) -> Path:
         """
-        Create a temporary working directory. If filesystem_type is set to one of
-        the supported options, make sure it is backed by that given filessytem
+        Create a temporary working directory. If filesystem_type is set to one
+        of the supported options, make sure it is backed by that given
+        filessytem
         """
         if filesystem_type is None or filesystem_type == "default":
             # Default: let tempfile choose
@@ -217,7 +250,9 @@ class MoncicTestCase(TestCase):
             imagedir = self.tempdir()
             self.enterContext(self.mount("tmpfs", "none", imagedir))
             with context.privs.root():
-                os.chown(imagedir, context.privs.user_uid, context.privs.user_gid)
+                os.chown(
+                    imagedir, context.privs.user_uid, context.privs.user_gid
+                )
             return imagedir
         elif filesystem_type == "btrfs":
             imagedir = self.tempdir()
@@ -228,10 +263,14 @@ class MoncicTestCase(TestCase):
             subprocess.run(["mkfs.btrfs", backing.name], check=True)
             self.enterContext(self.mount("btrfs", backing.name, imagedir))
             with context.privs.root():
-                os.chown(imagedir, context.privs.user_uid, context.privs.user_gid)
+                os.chown(
+                    imagedir, context.privs.user_uid, context.privs.user_gid
+                )
             return imagedir
         else:
-            raise NotImplementedError(f"unsupported filesystem type {filesystem_type!r}")
+            raise NotImplementedError(
+                f"unsupported filesystem type {filesystem_type!r}"
+            )
 
     def config(self, filesystem_type: str | None = None) -> MoncicConfig:
         if filesystem_type is None:
@@ -254,13 +293,23 @@ class MoncicTestCase(TestCase):
             config = MoncicConfig.load()
 
         if config.imagedir is None or not config.imagedir.is_dir():
-            imagedir = Path(self.enterContext(tempfile.TemporaryDirectory(suffix="moncictestcase-moncic-imagedir")))
+            imagedir = Path(
+                self.enterContext(
+                    tempfile.TemporaryDirectory(
+                        suffix="moncictestcase-moncic-imagedir"
+                    )
+                )
+            )
             config.imagedir = Path(imagedir)
             return Moncic(config=config)
         else:
             return Moncic(config=config)
 
-    def mock_session(self, moncic: Moncic | None = None, images_class: type[Images] | None = None) -> MockSession:
+    def mock_session(
+        self,
+        moncic: Moncic | None = None,
+        images_class: type[Images] | None = None,
+    ) -> MockSession:
         if moncic is None:
             moncic = self.moncic()
         return MockSession(moncic, bootstrapper_cls=images_class)

@@ -18,7 +18,7 @@ from moncic.container import (
     MaintenanceContainer,
     RunConfig,
 )
-from moncic.runner import Runner, UserConfig
+from moncic.runner import Runner
 from moncic.utils.nspawn import escape_bind_ro
 from moncic.utils.script import Script
 
@@ -34,7 +34,13 @@ class NspawnContainer(Container):
 
     image: NspawnImage
 
-    def __init__(self, image: NspawnImage, *, config: ContainerConfig, instance_name: str | None = None) -> None:
+    def __init__(
+        self,
+        image: NspawnImage,
+        *,
+        config: ContainerConfig,
+        instance_name: str | None = None,
+    ) -> None:
         super().__init__(image, config=config, instance_name=instance_name)
         # machinectl properties of the running machine
         self.properties: dict[str, str] = {}
@@ -59,9 +65,11 @@ class NspawnContainer(Container):
             kernel_cmdline = Path("/proc/cmdline").read_text().split()
             if "systemd.unified_cgroup_hierarchy=0" not in kernel_cmdline:
                 raise ContainerCannotStart(
-                    "Container requires guest cgroup v1, not available on host with cgroup v2."
-                    " You can try with the podman backend, or work around it by adding"
-                    " 'systemd.unified_cgroup_hierarchy=0` to your host kernel commandline"
+                    "Container requires guest cgroup v1, not available"
+                    " on host with cgroup v2. You can try with the podman"
+                    " backend, or work around it by adding"
+                    " 'systemd.unified_cgroup_hierarchy=0` to your host"
+                    " kernel commandline"
                 )
 
     def _run_nspawn(self, cmd: list[str]) -> None:
@@ -109,7 +117,10 @@ class NspawnContainer(Container):
             "--resolv-conf=replace-host",
             "--timezone=copy",
         ]
-        cmd.append(f"--bind-ro={escape_bind_ro(self.scriptdir)}:{escape_bind_ro(self.guest_scriptdir)}")
+        cmd.append(
+            f"--bind-ro={escape_bind_ro(self.scriptdir)}:"
+            f"{escape_bind_ro(self.guest_scriptdir)}"
+        )
         for bind_config in self.config.binds:
             cmd.append(bind_config.to_nspawn())
         if self.ephemeral:
@@ -122,9 +133,10 @@ class NspawnContainer(Container):
             if tmpfs:
                 cmd.append("--volatile=overlay")
                 # See https://github.com/Truelite/nspawn-runner/issues/10
-                # According to systemd-nspawn(1), --read-only is implied if --volatile
-                # is used, but it seems that without using --read-only one ostree
-                # remains locked and VMs can only be started once from it.
+                # According to systemd-nspawn(1), --read-only is implied if
+                # --volatile is used, but it seems that without using
+                # --read-only one ostree remains locked and VMs can only be
+                # started once from it.
                 cmd.append("--read-only")
             else:
                 cmd.append("--ephemeral")
@@ -144,13 +156,23 @@ class NspawnContainer(Container):
 
     @contextmanager
     def _container_in_path(self, path: Path) -> Generator[None, None, None]:
-        self.image.logger.info("Starting system %s as %s using image %s", self.image.name, self.instance_name, path)
+        self.image.logger.info(
+            "Starting system %s as %s using image %s",
+            self.image.name,
+            self.instance_name,
+            path,
+        )
 
         cmd = self.get_start_command(path)
         self._run_nspawn(cmd)
 
         # Read machine properties
-        res = subprocess.run(["machinectl", "show", self.instance_name], capture_output=True, text=True, check=True)
+        res = subprocess.run(
+            ["machinectl", "show", self.instance_name],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         self.properties = {}
         for line in res.stdout.splitlines():
             key, value = line.split("=", 1)
@@ -173,7 +195,9 @@ class NspawnContainer(Container):
                     time.sleep(0.1)
 
     @override
-    def run(self, command: list[str], config: RunConfig | None = None) -> subprocess.CompletedProcess[bytes]:
+    def run(
+        self, command: list[str], config: RunConfig | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
         if config is None:
             config = RunConfig()
         if config.cwd is None:
@@ -200,11 +224,19 @@ class NspawnContainer(Container):
         else:
             cmd.append("--pipe")
         if config.user is not None:
-            cmd += [f"--uid={config.user.user_id}", f"--gid={config.user.group_id}"]
+            cmd += [
+                f"--uid={config.user.user_id}",
+                f"--gid={config.user.group_id}",
+            ]
         if config.disable_network:
-            # This is ignored, probably because the container has already been started
+            # This is ignored, probably because the container has already been
+            # started
             cmd += ["--property=PrivateNetwork=true"]
-        if not command[0].startswith("/") and systemd_version is not None and systemd_version <= 246:
+        if (
+            not command[0].startswith("/")
+            and systemd_version is not None
+            and systemd_version <= 246
+        ):
             command = ["/usr/bin/env"] + command
 
         # if home_bind:
@@ -225,7 +257,9 @@ class NspawnContainer(Container):
         return res
 
     @override
-    def run_script(self, script: Script, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+    def run_script(
+        self, script: Script, check: bool = True
+    ) -> subprocess.CompletedProcess[bytes]:
         with self.script_in_guest(script) as guest_path:
             config = RunConfig()
             config.check = check
