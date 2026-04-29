@@ -62,14 +62,9 @@ class Container(abc.ABC):
         #: User-provided instance name
         self._instance_name = instance_name
         #: Host directory used for supporting container interactions
-        self.workdir = Path(
-            self.stack.enter_context(
-                tempfile.TemporaryDirectory(suffix="container-workdir")
-            )
-        )
+        self.workdir: Path
         #: Exchange directory for scripts
-        self.scriptdir = self.workdir / "scripts"
-        self.scriptdir.mkdir(parents=True, exist_ok=True)
+        self.scriptdir: Path
         self.guest_scriptdir = Path("/srv/moncic-ci/scripts")
 
     @cached_property
@@ -117,17 +112,28 @@ class Container(abc.ABC):
         return instance_name
 
     def __enter__(self) -> Self:
-        self.stack.__enter__()
-        self.stack.enter_context(self.config.host_setup(self))
-        self.stack.enter_context(self._container())
+        # If __enter__ raises an exception, __exit__ is not called.
+        # Use an internal ExitStack to cleanup intermediate context managers if
+        # an exception is raised
+        with ExitStack() as container_stack:
+            self.workdir = Path(
+                container_stack.enter_context(
+                    tempfile.TemporaryDirectory(suffix="container-workdir")
+                )
+            )
+            self.scriptdir = self.workdir / "scripts"
+            self.scriptdir.mkdir(parents=True, exist_ok=True)
+            container_stack.enter_context(self.config.host_setup(self))
+            container_stack.enter_context(self._container())
 
-        # Do user forwarding if requested
-        if self.config.forward_user:
-            self.forward_user(self.config.forward_user)
-        # We do not need to delete the user if it was created, because we
-        # enforce that forward_user is only used on ephemeral containers
+            # Do user forwarding if requested
+            if self.config.forward_user:
+                self.forward_user(self.config.forward_user)
+            # We do not need to delete the user if it was created, because we
+            # enforce that forward_user is only used on ephemeral containers
 
-        self.stack.enter_context(self.config.guest_setup(self))
+            container_stack.enter_context(self.config.guest_setup(self))
+            self.stack.enter_context(container_stack.pop_all())
         self.started = True
         return self
 
