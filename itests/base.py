@@ -29,9 +29,13 @@ from moncic.utils.btrfs import is_btrfs
 class VerboseLogHandler(logging.Handler):
     """Log handler for integration test verbose logging."""
 
-    def __init__(self, level: int | str = logging.NOTSET) -> None:
+    def __init__(
+        self, level: int | str = logging.NOTSET, *, test_id: str
+    ) -> None:
         super().__init__(level)
         self.console = rich.get_console()
+        self.test_id = test_id
+        self.has_output: bool = False
 
     def format_level(self, record: logging.LogRecord) -> rich.text.Text:
         """Format the logging level."""
@@ -44,6 +48,10 @@ class VerboseLogHandler(logging.Handler):
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
+        if not self.has_output:
+            self.console.rule(rich.markup.escape(f"🡇 {self.test_id} 🡇"))
+        self.has_output = True
+
         message = rich.markup.escape(self.format(record))
 
         time = rich.text.Text.styled(
@@ -62,6 +70,12 @@ class VerboseLogHandler(logging.Handler):
             message,
             highlight=False,
         )
+
+    @override
+    def close(self) -> None:
+        if self.has_output:
+            self.console.rule(rich.markup.escape(f"🡅 {self.test_id} 🡅"))
+        super().close()
 
 
 @contextlib.contextmanager
@@ -164,28 +178,27 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
     @abc.abstractmethod
     def make_images(cls) -> BootstrappingImages: ...
 
-    @classmethod
-    def get_bootstrapped(cls) -> RunnableImage:
-        if not cls.bootstrapped:
-            if cls.images.has_image(cls.distro.full_name):
-                image = cls.images.image(cls.distro.full_name)
+    def get_bootstrapped(self) -> RunnableImage:
+        if not self.bootstrapped:
+            if self.images.has_image(self.distro.full_name):
+                image = self.images.image(self.distro.full_name)
                 assert isinstance(image, RunnableImage)
-                cls.bootstrapped = image
+                self.__class__.bootstrapped = image
                 return image
 
-            with cls.verbose_logging():
+            with self.verbose_logging():
                 # Make sure we bootstrap purely from the DistroImage
-                bimage = cls.distro_images.image(cls.distro.full_name)
-                cls.bootstrapped = cls.images.bootstrap(bimage)
-        return cls.bootstrapped
+                bimage = self.distro_images.image(self.distro.full_name)
+                self.__class__.bootstrapped = self.images.bootstrap(bimage)
+        assert self.bootstrapped
+        return self.bootstrapped
 
-    @classmethod
     @contextlib.contextmanager
     def verbose_logging(
-        cls, debug: bool = False
+        self, debug: bool = False
     ) -> Generator[None, None, None]:
         print()
-        handler = VerboseLogHandler()
+        handler = VerboseLogHandler(test_id=self.id())
         level = logging.DEBUG if debug else logging.INFO
         handler.setLevel(level)
         root_logger = logging.getLogger()
@@ -197,6 +210,7 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
         finally:
             root_logger.setLevel(orig_root_level)
             root_logger.removeHandler(handler)
+            handler.close()
 
 
 class NspawnIntegrationTestsBase(IntegrationTestsBase, abc.ABC):
