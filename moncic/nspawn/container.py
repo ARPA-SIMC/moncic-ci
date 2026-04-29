@@ -276,7 +276,11 @@ class NspawnContainer(Container):
 
             self.image.logger.info("Running script %s", script.title)
             cmd = [guest_path.as_posix()]
-            return self.run(cmd, config)
+            try:
+                return self.run(cmd, config)
+            except Exception as e:
+                e.add_note(f"Script: {script.title!r}")
+                raise
 
 
 class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):

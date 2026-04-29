@@ -295,6 +295,8 @@ class FedoraDistro(DnfDistro):
         res = super().get_base_packages()
         if int(self.version) >= 41:
             res += ["systemd"]
+        if int(self.version) >= 44:
+            res += ["shadow-utils"]
         return res
 
     @override
