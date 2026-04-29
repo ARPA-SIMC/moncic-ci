@@ -285,6 +285,8 @@ class FedoraDistro(DnfDistro):
                 f"{self.mirror}/pub/fedora/linux/releases/"
                 f"{version}/Everything/$basearch/os/"
             )
+        if version >= 44:
+            self.disable_nspawn_suppress_sync = True
 
     @override
     def get_podman_name(self) -> tuple[str, str]:

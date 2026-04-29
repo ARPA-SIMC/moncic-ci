@@ -169,6 +169,10 @@ class Distro(abc.ABC):
         self.other_names = other_names or []
         self.cgroup_v1 = cgroup_v1
         self.systemd_version = systemd_version
+        # Set to True to disable --suppress-sync for systemd-nspawn for this
+        # distribution. See https://github.com/systemd/systemd/issues/41868 and
+        # https://github.com/systemd/systemd/issues/41868
+        self.disable_nspawn_suppress_sync = False
 
     @override
     def __str__(self) -> str:

@@ -140,7 +140,10 @@ class NspawnContainer(Container):
                 cmd.append("--read-only")
             else:
                 cmd.append("--ephemeral")
-        if self.image.images.session.moncic.systemd_version >= 250:
+        if (
+            self.image.images.session.moncic.systemd_version >= 250
+            and not self.image.distro.disable_nspawn_suppress_sync
+        ):
             cmd.append("--suppress-sync=yes")
         cmd.append(f"systemd.hostname={self.instance_name}")
         for name in self.image.distro.get_systemd_boot_mask_units():
