@@ -49,6 +49,7 @@ class VerboseLogHandler(logging.Handler):
     @override
     def emit(self, record: logging.LogRecord) -> None:
         if not self.has_output:
+            print()
             self.console.rule(rich.markup.escape(f"🡇 {self.test_id} 🡇"))
         self.has_output = True
 
@@ -197,7 +198,6 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
     def verbose_logging(
         self, debug: bool = False
     ) -> Generator[None, None, None]:
-        print()
         handler = VerboseLogHandler(test_id=self.id())
         level = logging.DEBUG if debug else logging.INFO
         handler.setLevel(level)
