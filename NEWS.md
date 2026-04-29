@@ -1,3 +1,8 @@
+# Version 0.27
+
+* Added support for Fedora 44, Rocky Linux 10, Alma Linux 10 (#122)
+* Removed unused code that broke tests when machinectl was not installed (#123)
+
 # Version 0.26
 
 * Test and fix building a fedora source with fedora/SOURCES

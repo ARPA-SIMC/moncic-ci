@@ -4,7 +4,7 @@
 
 
 Name:           moncic-ci
-Version:        0.26
+Version:        0.27
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -78,6 +78,10 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Wed Apr 29 2026 Daniele Branchini  <dbranchini@arpae.it> - 0.27-1
+- Added support for Fedora 44, Rocky Linux 10, Alma Linux 10 (#122)
+- Removed unused code that broke tests when machinectl was not installed (#123)
+
 * Mon Nov 10 2025 Daniele Branchini  <dbranchini@arpae.it> - 0.26-1
 - Test and fix building a fedora source with fedora/SOURCES
 
