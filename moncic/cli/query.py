@@ -95,17 +95,6 @@ class Images(MoncicCommand):
                 TextColumn("Backend ID"),
             )
 
-        # List images that have been bootstrapped
-        res = subprocess.run(
-            ["machinectl", "list-images", "--no-pager", "--no-legend"],
-            check=True,
-            stdout=subprocess.PIPE,
-            text=True,
-        )
-        bootstrapped: set[str] = set()
-        for line in res.stdout.splitlines():
-            bootstrapped.add(line.split()[0])
-
         # List configured images
         with self.moncic.session() as session:
             images = session.images
