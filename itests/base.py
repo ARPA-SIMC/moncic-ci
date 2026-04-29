@@ -4,12 +4,14 @@ import logging
 import os
 import shutil
 import subprocess
+import time as tm
 from collections.abc import Generator
 from pathlib import Path
 from typing import ClassVar, override
 from unittest import SkipTest
 
-from rich.logging import RichHandler
+import rich
+import rich.text
 
 from moncic.container import ContainerCannotStart
 from moncic.distro import Distro, DistroFamily
@@ -22,6 +24,44 @@ from moncic.provision.images import DistroImages
 from moncic.session import Session
 from moncic.unittest import MoncicTestCase, add_testcase
 from moncic.utils.btrfs import is_btrfs
+
+
+class VerboseLogHandler(logging.Handler):
+    """Log handler for integration test verbose logging."""
+
+    def __init__(self, level: int | str = logging.NOTSET) -> None:
+        super().__init__(level)
+        self.console = rich.get_console()
+
+    def format_level(self, record: logging.LogRecord) -> rich.text.Text:
+        """Format the logging level."""
+        # Taken from rich.logging.RichHandler.get_level_text
+        level_name = record.levelname
+        level_text = rich.text.Text.styled(
+            level_name.ljust(8), f"logging.level.{level_name.lower()}"
+        )
+        return level_text
+
+    @override
+    def emit(self, record: logging.LogRecord) -> None:
+        message = rich.markup.escape(self.format(record))
+
+        time = rich.text.Text.styled(
+            tm.strftime("%H:%M:%S", tm.localtime(record.created)), "log.time"
+        )
+        fname = rich.text.Text.styled(
+            rich.markup.escape(f"{record.filename}:{record.lineno}".ljust(25)),
+            "log.path",
+        )
+        level = self.format_level(record)
+
+        self.console.print(
+            time,
+            fname,
+            level,
+            message,
+            highlight=False,
+        )
 
 
 @contextlib.contextmanager
@@ -145,7 +185,7 @@ class IntegrationTestsBase(MoncicTestCase, abc.ABC):
         cls, debug: bool = False
     ) -> Generator[None, None, None]:
         print()
-        handler = RichHandler()
+        handler = VerboseLogHandler()
         level = logging.DEBUG if debug else logging.INFO
         handler.setLevel(level)
         root_logger = logging.getLogger()
