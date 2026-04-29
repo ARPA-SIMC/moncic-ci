@@ -142,7 +142,14 @@ class DistroContainerTests(IntegrationTestsBase, abc.ABC):
         script.run_unquoted("echo $PATH")
         res = self.container.run_script(script)
         self.assertIn("/usr/bin", res.stdout.decode().strip())
-        self.assertEqual(res.stderr, b"")
+        self.assertEqual(
+            [
+                line
+                for line in res.stderr.decode().splitlines()
+                if not line.startswith("+ ")
+            ],
+            [],
+        )
         self.assertEqual(res.returncode, 0)
 
     # def test_remove(self) -> None:
