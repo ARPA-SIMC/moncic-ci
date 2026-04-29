@@ -285,8 +285,6 @@ class NspawnMaintenanceContainer(NspawnContainer, MaintenanceContainer):
     @override
     @contextmanager
     def _container(self) -> Generator[None, None, None]:
-        from moncic.provision.image import ConfiguredImage
-
         self._check_host_system()
 
         with self.image.images.transactional_workdir(self.image) as work_path:

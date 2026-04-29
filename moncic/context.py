@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
@@ -12,16 +10,16 @@ if TYPE_CHECKING:
     from .session import Session
 
 #: Current Moncic instance
-moncic: ContextVar[Moncic] = ContextVar("moncic")
+moncic: ContextVar["Moncic"] = ContextVar("moncic")
 
 #: Current Moncic session
-session: ContextVar[Session] = ContextVar("session")
+session: ContextVar["Session"] = ContextVar("session")
 
 #: Current Moncic system (set only when executing in a container)
-image: ContextVar[Image] = ContextVar("image")
+image: ContextVar["Image"] = ContextVar("image")
 
 #: Current Moncic container (set only when executing in a container)
-container: ContextVar[Container] = ContextVar("container")
+container: ContextVar["Container"] = ContextVar("container")
 
 #: Manage root privileges
 privs: ProcessPrivs = ProcessPrivs()

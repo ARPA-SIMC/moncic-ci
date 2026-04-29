@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import argparse
 import logging
 import sys
@@ -54,7 +52,7 @@ class Command:
 
     @classmethod
     def make_subparser(
-        cls, subparsers: argparse._SubParsersAction[Any]
+        cls, subparsers: "argparse._SubParsersAction[Any]"
     ) -> argparse.ArgumentParser:
         if cls.NAME is None:
             cls.NAME = cls.__name__.lower()

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import re
 import shutil
@@ -72,7 +70,7 @@ class DebianDistro(Distro):
 
     @override
     def container_config_hook(
-        self, image: Image, config: ContainerConfig
+        self, image: "Image", config: ContainerConfig
     ) -> None:
         super().container_config_hook(image, config)
         if apt_archive_path := image.session.apt_archives:
@@ -119,7 +117,7 @@ class DebianDistro(Distro):
         return ["--variant=minbase"]
 
     @override
-    def bootstrap(self, images: Images, path: Path) -> None:
+    def bootstrap(self, images: "Images", path: Path) -> None:
         for name in self.bootstrappers:
             if bootstrapper := shutil.which(name):
                 break
@@ -155,7 +153,8 @@ class DebianDistro(Distro):
                 cmd.append(f"--keyring={tmpfile.name}")
 
             cmd += [self.name, installroot.as_posix(), self.mirror]
-            # If eatmydata is available, we can use it to make deboostrap significantly faster
+            # If eatmydata is available, we can use it to make deboostrap
+            # significantly faster
             eatmydata = shutil.which("eatmydata")
             if eatmydata is not None:
                 cmd.insert(0, eatmydata)

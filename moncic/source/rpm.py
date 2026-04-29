@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import itertools
 import logging
@@ -187,7 +185,7 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         cls,
         parent: Dir,
         *,
-        distro: Distro,
+        distro: "Distro",
         specfiles: list[Path] | None = None,
     ) -> "ARPASourceDir":
         if specfiles is None:
@@ -208,7 +206,7 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         cls,
         parent: Dir,
         *,
-        distro: Distro,
+        distro: "Distro",
         specfiles: list[Path] | None = None,
     ) -> "ARPASourceGit":
         if specfiles is None:

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from functools import cached_property
 from pathlib import Path
@@ -56,7 +54,7 @@ class ConfiguredImages(Images):
     @override
     def image(
         self, name: str, variant_of: Image | None = None
-    ) -> BootstrappableImage:
+    ) -> "BootstrappableImage":
         from .image import ConfiguredImage, DistroImage
 
         if variant_of is not None and not isinstance(variant_of, DistroImage):
@@ -105,7 +103,7 @@ class DistroImages(Images):
     @override
     def image(
         self, name: str, variant_of: Image | None = None
-    ) -> BootstrappableImage:
+    ) -> "BootstrappableImage":
         from .image import DistroImage
 
         if variant_of is not None:

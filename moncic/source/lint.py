@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
 from pathlib import Path
@@ -24,11 +22,11 @@ class Reporter:
         #: Number of warnings found
         self.warning_count: int = 0
 
-    def error(self, source: Source, message: str) -> None:
+    def error(self, source: "Source", message: str) -> None:
         log.error("%s", message)
         self.error_count += 1
 
-    def warning(self, source: Source, message: str) -> None:
+    def warning(self, source: "Source", message: str) -> None:
         log.warning("%s", message)
         self.warning_count += 1
 

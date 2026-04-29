@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import contextlib
 import logging
@@ -35,7 +33,7 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
 
     def __init__(
         self,
-        image: RunnableImage,
+        image: "RunnableImage",
         source: DistroSource,
         *,
         source_artifacts_dir: Path | None = None,
@@ -197,7 +195,8 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         """
         Log execution information.
 
-        This logs all available information about how the task is executed in the container
+        This logs all available information about how the task is executed in
+        the container
         """
         # Log moncic config
         moncic_config = self.image.session.moncic.config
@@ -207,7 +206,7 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
         container_config.log_debug(log)
 
     @contextlib.contextmanager
-    def container(self) -> Generator[Container]:
+    def container(self) -> Generator["Container"]:
         """
         Start a container to run CI operations
         """
@@ -229,7 +228,7 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
             user=UserConfig.root(),
         )
 
-    def _after_build(self, container: Container) -> None:
+    def _after_build(self, container: "Container") -> None:
         """
         Hook to run commands on the container after the main operation ended
         """
@@ -247,5 +246,5 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
                 self._after_build(container)
 
     @abc.abstractmethod
-    def run(self, container: Container) -> None:
+    def run(self, container: "Container") -> None:
         """Run the operation in the container."""

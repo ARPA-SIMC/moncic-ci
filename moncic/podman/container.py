@@ -14,7 +14,6 @@ from moncic.container import (
     MaintenanceContainer,
     RunConfig,
 )
-from moncic.runner import UserConfig
 from moncic.utils.script import Script
 
 from .image import PodmanImage

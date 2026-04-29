@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import contextlib
 import logging
@@ -17,7 +15,7 @@ from moncic import context
 from moncic.distro import Distro, DistroFamily
 from moncic.image import BootstrappableImage, Image, RunnableImage
 from moncic.images import BootstrappingImages
-from moncic.provision.image import ConfiguredImage, DistroImage
+from moncic.provision.image import ConfiguredImage
 from moncic.utils.btrfs import Subvolume, do_dedupe
 
 from .image import NspawnImage, NspawnImageBtrfs, NspawnImagePlain
@@ -37,14 +35,14 @@ class NspawnImages(BootstrappingImages, abc.ABC):
 
     image_class: type[NspawnImage]
 
-    def __init__(self, session: Session, imagedir: Path):
+    def __init__(self, session: "Session", imagedir: Path):
         self.session = session
         self.imagedir = imagedir
         self.logger = logging.getLogger("images.nspawn")
 
     @classmethod
     @abc.abstractmethod
-    def create_machinectl(cls, session: Session) -> NspawnImages:
+    def create_machinectl(cls, session: "Session") -> "NspawnImages":
         """Create a NspawnImages accessing machinectl storage."""
 
     @override
@@ -159,7 +157,7 @@ class PlainImages(NspawnImages):
 
     @override
     @classmethod
-    def create_machinectl(cls, session: Session) -> NspawnImages:
+    def create_machinectl(cls, session: "Session") -> NspawnImages:
         return PlainMachinectlImages(session)
 
     @override
@@ -253,7 +251,7 @@ class BtrfsImages(NspawnImages):
 
     @override
     @classmethod
-    def create_machinectl(cls, session: Session) -> NspawnImages:
+    def create_machinectl(cls, session: "Session") -> NspawnImages:
         return BtrfsMachinectlImages(session)
 
     @override
@@ -391,7 +389,7 @@ class BtrfsImages(NspawnImages):
 
 
 class MachinectlImages(NspawnImages):
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: "Session") -> None:
         super().__init__(session, MACHINECTL_PATH)
 
     def _list_machines(self) -> set[str]:

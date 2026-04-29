@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, override
@@ -12,7 +10,7 @@ if TYPE_CHECKING:
 
 
 # Registry of known builders
-source_types: dict[str, type[DistroSource]] = {}
+source_types: dict[str, type["DistroSource"]] = {}
 
 
 class DistroSource(LocalSource, abc.ABC):
@@ -21,9 +19,9 @@ class DistroSource(LocalSource, abc.ABC):
     """
 
     style: ClassVar[str | None] = None
-    distro: Distro
+    distro: "Distro"
 
-    def __init__(self, *, distro: Distro, **kwargs: Any) -> None:
+    def __init__(self, *, distro: "Distro", **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.distro = distro
 
