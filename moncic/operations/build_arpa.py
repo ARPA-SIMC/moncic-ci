@@ -147,10 +147,9 @@ class ARPABuilder(RPMBuilder):
             )
         else:
             # Convenzione SIMC per i repo con solo rpm
-            script.run_unquoted(
-                f"cp *.patch {guest_rpmbuild_sources_dir}/",
-                cwd=guest_rpmbuild_sources_dir,
-            )
+            for patchfile in glob.glob(f"{self.guest_source_path}/*.patch"):
+                shutil.copy(patchfile, guest_rpmbuild_sources_dir)
+
             script.run(["spectool", "-g", "-R", guest_specfile_path.as_posix()])
             script.run(["rpmbuild", "-ba", guest_specfile_path.as_posix()])
 
