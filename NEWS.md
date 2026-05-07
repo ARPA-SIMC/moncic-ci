@@ -1,3 +1,7 @@
+# Version 0.28
+
+* Fix copying fedora patch files from root of source dir (#124)
+
 # Version 0.27
 
 * Added support for Fedora 44, Rocky Linux 10, Alma Linux 10 (#122)
