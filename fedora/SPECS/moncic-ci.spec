@@ -1,5 +1,5 @@
-%global releaseno 1
-# Note: define _srcarchivename in Travis build only.
+%global releaseno 2
+# Note: define _srcarchivename in CI build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
 
@@ -78,14 +78,18 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
-* Thu May 07 2026 Daniele Branchini  <dbranchini@arpae.it> - 0.28-1
+* Thu May 07 2026 Daniele Branchini <dbranchini@arpae.it> - 0.28-2
+- Fix test failure (#128)
+- Updated man page (#129)    
+
+* Thu May 07 2026 Daniele Branchini <dbranchini@arpae.it> - 0.28-1
 - Fix copying fedora patch files from root of source dir (#124)
 
-* Wed Apr 29 2026 Daniele Branchini  <dbranchini@arpae.it> - 0.27-1
+* Wed Apr 29 2026 Daniele Branchini <dbranchini@arpae.it> - 0.27-1
 - Added support for Fedora 44, Rocky Linux 10, Alma Linux 10 (#122)
 - Removed unused code that broke tests when machinectl was not installed (#123)
 
-* Mon Nov 10 2025 Daniele Branchini  <dbranchini@arpae.it> - 0.26-1
+* Mon Nov 10 2025 Daniele Branchini <dbranchini@arpae.it> - 0.26-1
 - Test and fix building a fedora source with fedora/SOURCES
 
 * Mon Nov 10 2025 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.25-1
