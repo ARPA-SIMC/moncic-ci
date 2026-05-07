@@ -287,7 +287,7 @@ class FedoraDistro(DnfDistro):
             )
         if version >= 44:
             # See https://github.com/systemd/systemd/issues/41868 and
-            # https://github.com/systemd/systemd/issues/41868
+            # https://bugzilla.redhat.com/show_bug.cgi?id=2437037
             self.disable_nspawn_suppress_sync = True
 
     @override
