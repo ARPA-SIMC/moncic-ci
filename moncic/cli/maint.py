@@ -82,7 +82,7 @@ class Update(MoncicCommand):
         parser.add_argument(
             "systems",
             nargs="*",
-            help="names or paths of systems to bootstrap."
+            help="names or paths of systems to update."
             " Default: all .yaml files and existing images",
         )
         return parser
@@ -134,7 +134,7 @@ class Remove(MoncicCommand):
         parser.add_argument(
             "systems",
             nargs="+",
-            help="names or paths of systems to bootstrap."
+            help="names or paths of systems to remove."
             " Default: all .yaml files and existing images",
         )
         parser.add_argument(
