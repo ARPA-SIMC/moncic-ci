@@ -93,10 +93,13 @@ class RunLogMatcher:
         self.assertEntryMatches(entry, name, **kwargs)
         return entry
 
-    def assertPopScript(self, title: str) -> Script:
+    def assertPopScript(self, title: str | re.Pattern[str]) -> Script:
         """Treat the first entry as a script, match its title and return it."""
         entry = self.log.entries.pop(0)
-        self.testcase.assertEqual(entry.name, title)
+        if isinstance(title, str):
+            self.testcase.assertEqual(entry.name, title)
+        else:
+            self.testcase.assertRegex(entry.name, title)
         script = entry.data["script"]
         assert isinstance(script, Script)
         return script
@@ -108,6 +111,12 @@ class RunLogMatcher:
 
 class TestCase(unittest.TestCase):
     """TestCase extended with moncic-ci specific assertions."""
+
+    @override
+    def setUp(self) -> None:
+        super().setUp()
+        # Don't truncate diffs
+        self.maxDiff = None
 
     @contextlib.contextmanager
     def match_run_log(

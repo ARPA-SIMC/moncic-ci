@@ -88,12 +88,15 @@ class ARPABuilder(RPMBuilder):
         )
 
         guest_rpmbuild_sources_dir = self.guest_rpmbuild_path / "SOURCES"
+        sh_guest_rpmbuild_sources_dir = shlex.quote(
+            guest_rpmbuild_sources_dir.as_posix()
+        )
 
         if self.source.specfile_path.is_relative_to("fedora/SPECS/"):
             # Convenzione SIMC per i repo upstream
             if (self.host_source_path / "fedora" / "SOURCES").is_dir():
                 script.run_unquoted(
-                    f"cp -r fedora/SOURCES/* {self.guest_rpmbuild_path / 'SOURCES'}",
+                    f"cp -r fedora/SOURCES/* {sh_guest_rpmbuild_sources_dir}/",
                     cwd=self.guest_source_path,
                 )
 
@@ -114,7 +117,7 @@ class ARPABuilder(RPMBuilder):
                 [
                     "git",
                     "archive",
-                    f"--prefix={shlex.quote(self.results.name)}/",
+                    f"--prefix={self.results.name}/",
                     "--format=tar.gz",
                     "-o",
                     guest_source_tarball.as_posix(),
@@ -148,8 +151,8 @@ class ARPABuilder(RPMBuilder):
         else:
             # Convenzione SIMC per i repo con solo rpm
             script.run_unquoted(
-                f"cp *.patch {guest_rpmbuild_sources_dir}/",
-                cwd=guest_rpmbuild_sources_dir,
+                f"cp *.patch {sh_guest_rpmbuild_sources_dir}/",
+                cwd=self.guest_source_path,
             )
             script.run(["spectool", "-g", "-R", guest_specfile_path.as_posix()])
             script.run(["rpmbuild", "-ba", guest_specfile_path.as_posix()])
