@@ -16,14 +16,13 @@ class Package:
 
     def files(self) -> list[Path]:
         """Return the list of files (as relative paths) in this package."""
-        res = subprocess.run(
-            ["git", "ls-files"],
-            cwd=self.path.as_posix(),
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-        return [Path(f) for f in res.stdout.splitlines()]
+        res: list[Path] = []
+        for dirpath, dirnames, filenames in self.path.walk():
+            if dirpath == self.path and ".git" in dirnames:
+                dirnames.remove(".git")
+            for fn in filenames:
+                res.append((dirpath / fn).relative_to(self.path))
+        return res
 
     def as_git(self, path: Path) -> "Package":
         """Build a git repository of this package in the given path."""
