@@ -286,6 +286,8 @@ class FedoraDistro(DnfDistro):
                 f"{version}/Everything/$basearch/os/"
             )
         if version >= 44:
+            # See https://github.com/systemd/systemd/issues/41868 and
+            # https://github.com/systemd/systemd/issues/41868
             self.disable_nspawn_suppress_sync = True
 
     @override
