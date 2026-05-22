@@ -2,7 +2,6 @@ import argparse
 import csv
 import logging
 import shutil
-import subprocess
 import sys
 from collections.abc import Sequence
 from typing import Any, NamedTuple, TextIO, override

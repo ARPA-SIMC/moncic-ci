@@ -38,55 +38,49 @@ class BuildConfig:
     artifacts_dir: Path | None = field(
         default=None,
         metadata={
-            "doc": """
-                    Directory where artifacts are copied after the build. Artifacts are lost when not set
-                    """
+            "doc": "Directory where artifacts are copied after the build."
+            " Artifacts are lost when not set"
         },
     )
 
     source_only: bool = field(
         default=False,
         metadata={
-            "doc": """
-                    Set to True to only build source packages, and skip compiling/building
-                    binary packages
-                """
+            "doc": "Set to True to only build source packages,"
+            " and skip compiling/building binary packages"
         },
     )
 
     on_success: list[str] = field(
         default_factory=list,
         metadata={
-            "doc": """
-                    Zero or more scripts or actions to execute after a
-                    successful build.
-
-                    See [Post-build actions](post-build.actions.md) for documentation of possible values.
-                """
+            "doc": "Zero or more scripts or actions to execute"
+            " after a successful build."
+            "\n"
+            "See [Post-build actions](post-build.actions.md)"
+            " for documentation of possible values."
         },
     )
 
     on_fail: list[str] = field(
         default_factory=list,
         metadata={
-            "doc": """
-                    Zero or more scripts or actions to execute after a
-                    failed build.
-
-                    See [Post-build actions](post-build.actions.md) for documentation of possible values.
-                """
+            "doc": "Zero or more scripts or actions to execute"
+            " after a failed build."
+            "\n"
+            "See [Post-build actions](post-build.actions.md)"
+            " for documentation of possible values."
         },
     )
 
     on_end: list[str] = field(
         default_factory=list,
         metadata={
-            "doc": """
-                    Zero or more scripts or actions to execute after a
-                    build, regardless of its result.
-
-                    See [Post-build actions](post-build.actions.md) for documentation of possible values.
-                """
+            "doc": "Zero or more scripts or actions to execute after a build,"
+            " regardless of its result."
+            "\n"
+            "See [Post-build actions](post-build.actions.md)"
+            " for documentation of possible values."
         },
     )
 
@@ -193,7 +187,8 @@ class Builder[SourceType: DistroSource](
             case RPMSource():
                 return RPMBuilder
         raise Fail(
-            f"Cannot detect builder class for {source.__class__.__name__} source"
+            "Cannot detect builder class for"
+            f" {source.__class__.__name__} source"
         )
 
     def __init__(
@@ -326,7 +321,8 @@ class Builder[SourceType: DistroSource](
     def collect_artifacts_script(self) -> Script:
         script = super().collect_artifacts_script()
 
-        # TODO: collect build log (if needed: we are streaming back the output after all)
+        # TODO: collect build log (if needed: we are streaming back the output
+        # after all)
         # user = UserConfig.from_sudoer()
         # if self.build.name is None:
         #     raise RuntimeError("build name not set")

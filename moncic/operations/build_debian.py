@@ -12,7 +12,7 @@ from typing import override
 from moncic.container import Container, ContainerConfig
 from moncic.distro.debian import DebianDistro
 from moncic.runner import UserConfig
-from moncic.source.debian import DebianGBP, DebianSource, DebianDsc, DebianDir
+from moncic.source.debian import DebianDir, DebianDsc, DebianGBP, DebianSource
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.script import Script
 
@@ -52,15 +52,15 @@ class DebianBuildConfig(BuildConfig):
     build_profile: str = field(
         default="",
         metadata={
-            "doc": """
-                    space-separate list of Debian build profile to pass as DEB_BUILD_PROFILE
-                    """
+            "doc": "space-separate list of Debian build profile"
+            " to pass as DEB_BUILD_PROFILE"
         },
     )
     include_source: bool = field(
         default=False,
         metadata={
-            "doc": "Always include sources in upload (run `dpkg-buildpackage -sa`)"
+            "doc": "Always include sources in upload"
+            " (run `dpkg-buildpackage -sa`)"
         },
     )
 
@@ -96,8 +96,10 @@ class DebianBuilder[SourceType: DebianSource](Builder[SourceType]):
             user=UserConfig.root(),
         )
         script.run_unquoted(
-            "echo man-db man-db/auto-update boolean false | debconf-set-selections",
-            description="Disable reindexing of manpages during installation of build-dependencies",
+            "echo man-db man-db/auto-update boolean false"
+            " | debconf-set-selections",
+            description="Disable reindexing of manpages"
+            " during installation of build-dependencies",
         )
         with super().operation_plugin(config):
             config.add_guest_scripts(setup=script)
@@ -160,11 +162,11 @@ class DebianBuilder[SourceType: DebianSource](Builder[SourceType]):
         self.results.scripts.append(unpack_script)
         container.run_script(unpack_script)
 
+        src = self.source.source_info
         builddep_script = Script(
             "Install build dependencies",
             user=UserConfig.root(),
-            cwd=guest_build_root
-            / f"{self.source.source_info.name}-{self.source.source_info.upstream_version}",
+            cwd=guest_build_root / f"{src.name}-{src.upstream_version}",
         )
         builddep_script.setenv("DEB_BUILD_PROFILES", build_profiles)
         builddep_script.setenv("DEB_BUILD_OPTIONS", build_options)
@@ -234,7 +236,8 @@ class DebianBuildSource[SourceType: DebianSource](DebianBuilder[SourceType]):
         match len(files):
             case 0:
                 raise RuntimeError(
-                    "No source .dsc files found after building the source package"
+                    "No source .dsc files found"
+                    " after building the source package"
                 )
             case 1:
                 log.warning(

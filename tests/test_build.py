@@ -1,24 +1,23 @@
 import re
-import unittest
 import tempfile
+import unittest
 from functools import cached_property
 from pathlib import Path
 from typing import override
 
+from moncic.distro import Distro, DistroFamily
+from moncic.image import RunnableImage
+from moncic.mock.image import MockRunnableImage
+from moncic.mock.images import MockImages
+from moncic.mock.session import MockSession
 from moncic.operations.build import Builder
 from moncic.operations.build_arpa import ARPABuilder, RPMBuilder
 from moncic.operations.build_debian import DebianBuilder
 from moncic.source import Source
 from moncic.source.distro import DistroSource
 from moncic.source.rpm import ARPASource
-from moncic.distro import DistroFamily, Distro
 from moncic.unittest import MockMoncicTestCase
-from moncic.unittest.sources import SourcesTestCase, Package
-from moncic.mock.session import MockSession
-from moncic.mock.images import MockImages
-from moncic.mock.image import MockRunnableImage
-from moncic.image import RunnableImage
-
+from moncic.unittest.sources import Package, SourcesTestCase
 
 COMMON_BUILD_PROFILES = [
     "artifacts_dir",
@@ -26,6 +25,13 @@ COMMON_BUILD_PROFILES = [
     "on_success",
     "on_fail",
     "on_end",
+]
+
+BUILD_SCRIPT_LEAD = [
+    "echo 'Create rpbmuild directory tree'",
+    "mkdir -p /root/rpmbuild/BUILD /root/rpmbuild/BUILDROOT /root/rpmbuild/RPMS"
+    " /root/rpmbuild/SOURCES /root/rpmbuild/SPECS /root/rpmbuild/SRPMS",
+    "echo 'Install build dependencies'",
 ]
 
 
@@ -103,14 +109,15 @@ class TestBuildARPA(SourcesTestCase, MockMoncicTestCase, unittest.TestCase):
             self.assertEqual(
                 script.lines,
                 [
-                    "echo 'Create rpbmuild directory tree'",
-                    "mkdir -p /root/rpmbuild/BUILD /root/rpmbuild/BUILDROOT /root/rpmbuild/RPMS"
-                    " /root/rpmbuild/SOURCES /root/rpmbuild/SPECS /root/rpmbuild/SRPMS",
-                    "echo 'Install build dependencies'",
-                    "dnf builddep -y /srv/moncic-ci/source/hello/fedora/SPECS/hello.spec",
-                    "git config --global --add safe.directory /srv/moncic-ci/source/hello",
-                    "(cd /srv/moncic-ci/source/hello && git archive --prefix=hello/"
-                    " --format=tar.gz -o /root/rpmbuild/SOURCES/hello.tar.gz HEAD)",
+                    *BUILD_SCRIPT_LEAD,
+                    "dnf builddep -y"
+                    " /srv/moncic-ci/source/hello/fedora/SPECS/hello.spec",
+                    "git config --global --add safe.directory"
+                    " /srv/moncic-ci/source/hello",
+                    "(cd /srv/moncic-ci/source/hello &&"
+                    " git archive --prefix=hello/"
+                    " --format=tar.gz -o /root/rpmbuild/SOURCES/hello.tar.gz"
+                    " HEAD)",
                     "spectool -g -R --define 'srcarchivename hello'"
                     " /srv/moncic-ci/source/hello/fedora/SPECS/hello.spec",
                     "rpmbuild -ba --define 'srcarchivename hello'"
@@ -138,10 +145,7 @@ class TestBuildARPA(SourcesTestCase, MockMoncicTestCase, unittest.TestCase):
             self.assertEqual(
                 script.lines,
                 [
-                    "echo 'Create rpbmuild directory tree'",
-                    "mkdir -p /root/rpmbuild/BUILD /root/rpmbuild/BUILDROOT /root/rpmbuild/RPMS"
-                    " /root/rpmbuild/SOURCES /root/rpmbuild/SPECS /root/rpmbuild/SRPMS",
-                    "echo 'Install build dependencies'",
+                    *BUILD_SCRIPT_LEAD,
                     "dnf builddep -y /srv/moncic-ci/source/hello/hello.spec",
                     "spectool -g -R /srv/moncic-ci/source/hello/hello.spec",
                     "rpmbuild -ba /srv/moncic-ci/source/hello/hello.spec",
@@ -170,12 +174,10 @@ class TestBuildARPA(SourcesTestCase, MockMoncicTestCase, unittest.TestCase):
             self.assertEqual(
                 script.lines,
                 [
-                    "echo 'Create rpbmuild directory tree'",
-                    "mkdir -p /root/rpmbuild/BUILD /root/rpmbuild/BUILDROOT /root/rpmbuild/RPMS"
-                    " /root/rpmbuild/SOURCES /root/rpmbuild/SPECS /root/rpmbuild/SRPMS",
-                    "echo 'Install build dependencies'",
+                    *BUILD_SCRIPT_LEAD,
                     "dnf builddep -y /srv/moncic-ci/source/hello/hello.spec",
-                    "(cd /srv/moncic-ci/source/hello && cp bar.patch foo.patch /root/rpmbuild/SOURCES/)",
+                    "(cd /srv/moncic-ci/source/hello && cp bar.patch foo.patch"
+                    " /root/rpmbuild/SOURCES/)",
                     "spectool -g -R /srv/moncic-ci/source/hello/hello.spec",
                     "rpmbuild -ba /srv/moncic-ci/source/hello/hello.spec",
                 ],

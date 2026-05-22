@@ -5,7 +5,7 @@ from typing import Any, override
 
 from moncic.container import Container
 from moncic.runner import UserConfig
-from moncic.source.rpm import RPMSource, ARPASource
+from moncic.source.rpm import ARPASource, RPMSource
 from moncic.utils.script import Script
 
 from .build import Builder
