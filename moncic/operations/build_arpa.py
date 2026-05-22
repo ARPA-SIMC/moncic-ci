@@ -148,10 +148,15 @@ class ARPABuilder[SourceType: ARPASource](RPMBuilder[SourceType]):
             )
         else:
             # Convenzione SIMC per i repo con solo rpm
-            script.run_unquoted(
-                f"cp *.patch {sh_guest_rpmbuild_sources_dir}/",
-                cwd=self.guest_source_path,
-            )
+            if self.source.patchfiles:
+                script.run(
+                    [
+                        "cp",
+                        *self.source.patchfiles,
+                        f"{sh_guest_rpmbuild_sources_dir}/",
+                    ],
+                    cwd=self.guest_source_path,
+                )
             script.run(["spectool", "-g", "-R", guest_specfile_path.as_posix()])
             script.run(["rpmbuild", "-ba", guest_specfile_path.as_posix()])
 

@@ -158,6 +158,19 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
     ARPAE-SIMC (https://www.arpae.it)
     """
 
+    def __init__(self, path: Path, **kwargs: Any) -> None:
+        specfiles = self.locate_specfiles(path)
+        if not specfiles:
+            raise Fail(f"{path}: no specfiles found in well-known locations")
+        if len(specfiles) > 1:
+            raise Fail(f"{path}: {len(specfiles)} specfiles found")
+        super().__init__(path=path, specfile_path=specfiles[0], **kwargs)
+        #: .patch files found in the root
+        self.patchfiles: list[str] = [p.name for p in self.path.glob("*.patch")]
+        # It doesn't need to be sorted, but it helps making behaviour
+        # deterministic for tests
+        self.patchfiles.sort()
+
     @classmethod
     def locate_specfiles(cls, path: Path) -> list[Path]:
         """
@@ -181,16 +194,7 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         *,
         distro: "Distro",
     ) -> "ARPASourceDir":
-        specfiles = cls.locate_specfiles(parent.path)
-        if not specfiles:
-            raise Fail(
-                f"{parent.path}: no specfiles found in well-known locations"
-            )
-        if len(specfiles) > 1:
-            raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
-        return ARPASourceDir(
-            **parent.derive_kwargs(distro=distro, specfile_path=specfiles[0])
-        )
+        return ARPASourceDir(**parent.derive_kwargs(distro=distro))
 
     @override
     @classmethod
@@ -200,16 +204,7 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         *,
         distro: "Distro",
     ) -> "ARPASourceGit":
-        specfiles = cls.locate_specfiles(parent.path)
-        if not specfiles:
-            raise Fail(
-                f"{parent.path}: no specfiles found in well-known locations"
-            )
-        if len(specfiles) > 1:
-            raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
-        return ARPASourceGit(
-            **parent.derive_kwargs(distro=distro, specfile_path=specfiles[0])
-        )
+        return ARPASourceGit(**parent.derive_kwargs(distro=distro))
 
 
 class ARPASourceDir(ARPASource, Dir):
