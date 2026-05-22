@@ -5,7 +5,7 @@ from typing import Any, override
 
 from moncic.container import Container
 from moncic.runner import UserConfig
-from moncic.source.rpm import RPMSource
+from moncic.source.rpm import RPMSource, ARPASource
 from moncic.utils.script import Script
 
 from .build import Builder
@@ -13,12 +13,10 @@ from .build import Builder
 log = logging.getLogger(__name__)
 
 
-class RPMBuilder(Builder):
+class RPMBuilder[SourceType: RPMSource](Builder[SourceType]):
     """
     Build RPM packages
     """
-
-    source: RPMSource
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -56,7 +54,7 @@ class RPMBuilder(Builder):
     #     return packages
 
 
-class ARPABuilder(RPMBuilder):
+class ARPABuilder[SourceType: ARPASource](RPMBuilder[SourceType]):
     """
     ARPA/SIMC builder, building RPM packages using the logic previously
     configured for travis
@@ -150,10 +148,15 @@ class ARPABuilder(RPMBuilder):
             )
         else:
             # Convenzione SIMC per i repo con solo rpm
-            script.run_unquoted(
-                f"cp *.patch {sh_guest_rpmbuild_sources_dir}/",
-                cwd=self.guest_source_path,
-            )
+            if self.source.patchfiles:
+                script.run(
+                    [
+                        "cp",
+                        *self.source.patchfiles,
+                        f"{sh_guest_rpmbuild_sources_dir}/",
+                    ],
+                    cwd=self.guest_source_path,
+                )
             script.run(["spectool", "-g", "-R", guest_specfile_path.as_posix()])
             script.run(["rpmbuild", "-ba", guest_specfile_path.as_posix()])
 

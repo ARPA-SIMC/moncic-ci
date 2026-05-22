@@ -10,6 +10,7 @@ from moncic.operations.build_arpa import ARPABuilder, RPMBuilder
 from moncic.operations.build_debian import DebianBuilder
 from moncic.source import Source
 from moncic.source.distro import DistroSource
+from moncic.source.rpm import ARPASource
 from moncic.distro import DistroFamily, Distro
 from moncic.unittest import MockMoncicTestCase
 from moncic.unittest.sources import SourcesTestCase, Package
@@ -93,7 +94,9 @@ class TestBuildARPA(SourcesTestCase, MockMoncicTestCase, unittest.TestCase):
         source = self.source(package)
         image = self.image()
         container = self.enterContext(image.container())
-        with ARPABuilder(source, image, self.build_config) as builder:
+        with ARPABuilder[ARPASource](
+            source, image, self.build_config
+        ) as builder:
             builder.build(container)
         with self.match_run_log(self.session.run_log) as m:
             script = m.assertPopScript(re.compile(r"^Build .+/hello"))
@@ -124,7 +127,9 @@ class TestBuildARPA(SourcesTestCase, MockMoncicTestCase, unittest.TestCase):
         source = self.source(package)
         image = self.image()
         container = self.enterContext(image.container())
-        with ARPABuilder(source, image, self.build_config) as builder:
+        with ARPABuilder[ARPASource](
+            source, image, self.build_config
+        ) as builder:
             builder.build(container)
         with self.match_run_log(self.session.run_log) as m:
             script = m.assertPopScript(
@@ -138,7 +143,39 @@ class TestBuildARPA(SourcesTestCase, MockMoncicTestCase, unittest.TestCase):
                     " /root/rpmbuild/SOURCES /root/rpmbuild/SPECS /root/rpmbuild/SRPMS",
                     "echo 'Install build dependencies'",
                     "dnf builddep -y /srv/moncic-ci/source/hello/hello.spec",
-                    "(cd /srv/moncic-ci/source/hello && cp *.patch /root/rpmbuild/SOURCES/)",
+                    "spectool -g -R /srv/moncic-ci/source/hello/hello.spec",
+                    "rpmbuild -ba /srv/moncic-ci/source/hello/hello.spec",
+                ],
+            )
+            m.assertEmpty()
+
+    def test_no_fedora_dir_with_patches(self) -> None:
+        tmpdir = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        pkgdir = tmpdir / "hello"
+        pkgdir.mkdir()
+        package = self.get_package("hello").as_spec_in_root(pkgdir)
+        (pkgdir / "foo.patch").touch()
+        (pkgdir / "bar.patch").touch()
+        source = self.source(package)
+        image = self.image()
+        container = self.enterContext(image.container())
+        with ARPABuilder[ARPASource](
+            source, image, self.build_config
+        ) as builder:
+            builder.build(container)
+        with self.match_run_log(self.session.run_log) as m:
+            script = m.assertPopScript(
+                re.compile(rf"^Build {re.escape(pkgdir.as_posix())}")
+            )
+            self.assertEqual(
+                script.lines,
+                [
+                    "echo 'Create rpbmuild directory tree'",
+                    "mkdir -p /root/rpmbuild/BUILD /root/rpmbuild/BUILDROOT /root/rpmbuild/RPMS"
+                    " /root/rpmbuild/SOURCES /root/rpmbuild/SPECS /root/rpmbuild/SRPMS",
+                    "echo 'Install build dependencies'",
+                    "dnf builddep -y /srv/moncic-ci/source/hello/hello.spec",
+                    "(cd /srv/moncic-ci/source/hello && cp bar.patch foo.patch /root/rpmbuild/SOURCES/)",
                     "spectool -g -R /srv/moncic-ci/source/hello/hello.spec",
                     "rpmbuild -ba /srv/moncic-ci/source/hello/hello.spec",
                 ],
