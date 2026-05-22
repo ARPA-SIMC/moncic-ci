@@ -198,9 +198,7 @@ class TestARPASourceDir(WorkdirFixture):
             root = self.path
         with Source.create_local(source=root) as parent:
             assert isinstance(parent, Dir)
-            src = ARPASource.prepare_from_dir(
-                parent, distro=ROCKY9, specfiles=[specfile]
-            )
+            src = ARPASource.prepare_from_dir(parent, distro=ROCKY9)
             assert isinstance(src, ARPASourceDir)
             self.assertIs(src.parent, parent)
             yield src
@@ -209,13 +207,15 @@ class TestARPASourceDir(WorkdirFixture):
         specfile = self.make_specfile(self.path)
         with self.source(specfile=specfile) as src:
             self.assertEqual(src.distro, ROCKY9)
-            self.assertEqual(src.specfile_path, specfile)
+            self.assertEqual(src.specfile_path, Path("specfile.spec"))
 
     def test_from_dir_one_specfile_sub(self) -> None:
         specfile = self.make_specfile(self.path / "fedora" / "SPECS")
         with self.source(specfile=specfile) as src:
             self.assertEqual(src.distro, ROCKY9)
-            self.assertEqual(src.specfile_path, specfile)
+            self.assertEqual(
+                src.specfile_path, Path("fedora/SPECS/specfile.spec")
+            )
 
     def test_derivation(self) -> None:
         specfile = self.make_specfile(self.path)
@@ -228,7 +228,7 @@ class TestARPASourceDir(WorkdirFixture):
                     "name": self.path.as_posix(),
                     "path": self.path,
                     "distro": ROCKY9,
-                    "specfile_path": specfile,
+                    "specfile_path": Path("specfile.spec"),
                 },
             )
 
@@ -283,34 +283,31 @@ class TestARPASourceGit(GitFixture):
 
     @contextlib.contextmanager
     def source(
-        self, branch: str, specfile: Path, root: Path | None = None
+        self, branch: str, root: Path | None = None
     ) -> Generator[ARPASourceGit]:
         if root is None:
             root = self.path
         with Source.create_local(source=root, branch=branch) as parent:
             assert isinstance(parent, Git)
-            src = ARPASource.prepare_from_git(
-                parent, distro=ROCKY9, specfiles=[specfile]
-            )
+            src = ARPASource.prepare_from_git(parent, distro=ROCKY9)
             assert isinstance(src, ARPASourceGit)
             self.assertIs(src.parent, parent)
             yield src
 
     def test_from_dir_one_specfile_root(self) -> None:
-        specfile = Path("specfile.spec")
-        with self.source(branch="specfile_root", specfile=specfile) as src:
+        with self.source(branch="specfile_root") as src:
             self.assertEqual(src.distro, ROCKY9)
-            self.assertEqual(src.specfile_path, specfile)
+            self.assertEqual(src.specfile_path, Path("specfile.spec"))
 
     def test_from_dir_one_specfile_sub(self) -> None:
-        specfile = Path("fedora/SPECS/specfile.spec")
-        with self.source(branch="specfile_subdir", specfile=specfile) as src:
+        with self.source(branch="specfile_subdir") as src:
             self.assertEqual(src.distro, ROCKY9)
-            self.assertEqual(src.specfile_path, specfile)
+            self.assertEqual(
+                src.specfile_path, Path("fedora/SPECS/specfile.spec")
+            )
 
     def test_derivation(self) -> None:
-        specfile = Path("specfile.spec")
-        with self.source(branch="specfile_root", specfile=specfile) as src:
+        with self.source(branch="specfile_root") as src:
             kwargs = src.derive_kwargs()
             self.assertEqual(
                 kwargs,
@@ -321,7 +318,7 @@ class TestARPASourceGit(GitFixture):
                     "readonly": False,
                     "repo": src.repo,
                     "distro": ROCKY9,
-                    "specfile_path": specfile,
+                    "specfile_path": Path("specfile.spec"),
                 },
             )
 
@@ -331,9 +328,7 @@ class TestARPASourceGit(GitFixture):
         create_lint_version_fixture_git(git)
         git.commit()
 
-        with self.source(
-            branch="main", specfile=Path("fedora/SPECS/test.spec"), root=path
-        ) as src:
+        with self.source(branch="main", root=path) as src:
             assert isinstance(src, Dir)
             self.assertEqual(
                 src.lint_find_versions(),
@@ -379,9 +374,7 @@ test
         )
         git.commit()
         git.git("tag", "v1.0-1")
-        with self.source(
-            branch="main", specfile=Path("testfile.spec"), root=path
-        ) as src:
+        with self.source(branch="main", root=path) as src:
             tag = src.lint_find_upstream_tag()
             assert tag is not None
             self.assertEqual(tag.name, "v1.0")
@@ -409,9 +402,7 @@ test
         )
         git.commit()
         git.git("tag", "v1.0-2")
-        with self.source(
-            branch="main", specfile=Path("testfile.spec"), root=path
-        ) as src:
+        with self.source(branch="main", root=path) as src:
             tag = src.lint_find_upstream_tag()
             assert tag is not None
             self.assertEqual(tag.name, "v1.0-1")
@@ -439,9 +430,7 @@ test
         )
         git.commit()
         git.git("tag", "v1.0-2")
-        with self.source(
-            branch="main", specfile=Path("testfile.spec"), root=path
-        ) as src:
+        with self.source(branch="main", root=path) as src:
             tag = src.lint_find_upstream_tag()
             assert tag is not None
             self.assertEqual(tag.name, "v1.0-1")
@@ -466,9 +455,7 @@ test
 """,
         )
         git.commit()
-        with self.source(
-            branch="main", specfile=Path("testfile.spec"), root=path
-        ) as src:
+        with self.source(branch="main", root=path) as src:
             tag = src.lint_find_upstream_tag()
             self.assertIsNone(tag)
             tag = src.lint_find_packaging_tag()

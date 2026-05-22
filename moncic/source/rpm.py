@@ -72,10 +72,7 @@ class RPMSource(DistroSource, abc.ABC):
     ) -> "ARPASourceDir":
         if not isinstance(distro, RpmDistro):
             raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
-        specfiles = ARPASourceDir.locate_specfiles(parent.path)
-        return ARPASourceDir.prepare_from_dir(
-            parent=parent, specfiles=specfiles, distro=distro
-        )
+        return ARPASourceDir.prepare_from_dir(parent=parent, distro=distro)
 
     @override
     @classmethod
@@ -84,10 +81,7 @@ class RPMSource(DistroSource, abc.ABC):
     ) -> "ARPASourceGit":
         if not isinstance(distro, RpmDistro):
             raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
-        specfiles = ARPASourceGit.locate_specfiles(parent.path)
-        return ARPASourceGit.prepare_from_git(
-            parent=parent, specfiles=specfiles, distro=distro
-        )
+        return ARPASourceGit.prepare_from_git(parent=parent, distro=distro)
 
     @cached_property
     def spec_versions(self) -> tuple[str | None, str | None]:
@@ -186,10 +180,8 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         parent: Dir,
         *,
         distro: "Distro",
-        specfiles: list[Path] | None = None,
     ) -> "ARPASourceDir":
-        if specfiles is None:
-            specfiles = cls.locate_specfiles(parent.path)
+        specfiles = cls.locate_specfiles(parent.path)
         if not specfiles:
             raise Fail(
                 f"{parent.path}: no specfiles found in well-known locations"
@@ -207,10 +199,8 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         parent: Dir,
         *,
         distro: "Distro",
-        specfiles: list[Path] | None = None,
     ) -> "ARPASourceGit":
-        if specfiles is None:
-            specfiles = cls.locate_specfiles(parent.path)
+        specfiles = cls.locate_specfiles(parent.path)
         if not specfiles:
             raise Fail(
                 f"{parent.path}: no specfiles found in well-known locations"
