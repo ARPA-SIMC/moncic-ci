@@ -159,7 +159,9 @@ class BuildResults:
     scripts: list[Script] = field(default_factory=list)
 
 
-class Builder(ContainerSourceOperation, abc.ABC):
+class Builder[SourceType: DistroSource](
+    ContainerSourceOperation[SourceType], abc.ABC
+):
     """
     Build a Source using a container
     """
@@ -167,7 +169,9 @@ class Builder(ContainerSourceOperation, abc.ABC):
     build_config_class: type[BuildConfig] = BuildConfig
 
     @classmethod
-    def get_builder_class(cls, source: DistroSource) -> type["Builder"]:
+    def get_builder_class[T: DistroSource](
+        cls, source: T
+    ) -> type["Builder[T]"]:
         from ..source.debian import DebianDir, DebianDsc, DebianGBP
         from ..source.rpm import ARPASource, RPMSource
         from .build_arpa import ARPABuilder, RPMBuilder
@@ -193,7 +197,7 @@ class Builder(ContainerSourceOperation, abc.ABC):
         )
 
     def __init__(
-        self, source: DistroSource, image: "RunnableImage", config: BuildConfig
+        self, source: SourceType, image: "RunnableImage", config: BuildConfig
     ) -> None:
         super().__init__(
             image=image,
@@ -358,7 +362,7 @@ class Builder(ContainerSourceOperation, abc.ABC):
         return cls.__name__.lower().removesuffix("builder")
 
     @classmethod
-    def list_build_classes(cls) -> list[type["Builder"]]:
+    def list_build_classes(cls) -> list[type["Builder[DistroSource]"]]:
         """
         Return a list of all available build classes, including intermediate
         classes in class hierarchies

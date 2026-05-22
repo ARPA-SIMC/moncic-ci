@@ -10,7 +10,7 @@ from .base import ContainerSourceOperation
 log = logging.getLogger(__name__)
 
 
-class Query(ContainerSourceOperation):
+class Query(ContainerSourceOperation[DistroSource]):
     """
     Query informations about a Source using a container
     """
@@ -28,7 +28,7 @@ class Query(ContainerSourceOperation):
     #     # return self.build
 
 
-class BuildDeps(ContainerSourceOperation):
+class BuildDeps(ContainerSourceOperation[DistroSource]):
     """
     Query informations about a Source using a container
     """
@@ -46,7 +46,7 @@ class BuildDeps(ContainerSourceOperation):
     #     # return self.build
 
 
-class Lint(ContainerSourceOperation):
+class Lint(ContainerSourceOperation[DistroSource]):
     """
     Run linter code using a container
     """

@@ -18,7 +18,9 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
+class ContainerSourceOperation[SourceType: DistroSource](
+    contextlib.ExitStack, abc.ABC
+):
     """
     Base class for operations on sources performed inside a container.
 
@@ -34,7 +36,7 @@ class ContainerSourceOperation(contextlib.ExitStack, abc.ABC):
     def __init__(
         self,
         image: "RunnableImage",
-        source: DistroSource,
+        source: SourceType,
         *,
         source_artifacts_dir: Path | None = None,
     ) -> None:

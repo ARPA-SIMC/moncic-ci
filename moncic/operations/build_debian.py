@@ -12,7 +12,7 @@ from typing import override
 from moncic.container import Container, ContainerConfig
 from moncic.distro.debian import DebianDistro
 from moncic.runner import UserConfig
-from moncic.source.debian import DebianGBP, DebianSource
+from moncic.source.debian import DebianGBP, DebianSource, DebianDsc, DebianDir
 from moncic.utils.deb import apt_get_cmd
 from moncic.utils.script import Script
 
@@ -65,7 +65,7 @@ class DebianBuildConfig(BuildConfig):
     )
 
 
-class DebianBuilder(Builder):
+class DebianBuilder[SourceType: DebianSource](Builder[SourceType]):
     """
     Build Debian packages
     """
@@ -73,8 +73,6 @@ class DebianBuilder(Builder):
     build_config_class = DebianBuildConfig
 
     config: DebianBuildConfig
-
-    source: DebianSource
 
     # @guest_only
     # def get_build_deps_in_container(self) -> list[str]:
@@ -203,7 +201,7 @@ class DebianBuilder(Builder):
         return script
 
 
-class DebianBuilderDsc(DebianBuilder):
+class DebianBuilderDsc(DebianBuilder[DebianDsc]):
     """Build a package from a DebianDsc source."""
 
     @override
@@ -211,7 +209,7 @@ class DebianBuilderDsc(DebianBuilder):
         return self.guest_source_path
 
 
-class DebianBuildSource(DebianBuilder):
+class DebianBuildSource[SourceType: DebianSource](DebianBuilder[SourceType]):
     def _find_built_dsc(self, container: Container) -> Path:
         res = container.run(
             [
@@ -255,7 +253,7 @@ class DebianBuildSource(DebianBuilder):
                 return self.guest_source_path.parent / files[0]
 
 
-class DebianBuilderDir(DebianBuildSource):
+class DebianBuilderDir(DebianBuildSource[DebianDir]):
     """Build a package from a DebianDir source."""
 
     @override
@@ -275,7 +273,7 @@ class DebianBuilderDir(DebianBuildSource):
         return self._find_built_dsc(container)
 
 
-class DebianBuilderGBP(DebianBuildSource):
+class DebianBuilderGBP(DebianBuildSource[DebianGBP]):
     """Build a package from a DebianGBP source."""
 
     source: DebianGBP
