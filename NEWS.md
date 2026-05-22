@@ -1,3 +1,7 @@
+# Version 0.29
+
+* Test and deal with an ARPA source with specfile in root but no patches (#124)
+
 # Version 0.28
 
 * Fix copying fedora patch files from root of source dir (#124)

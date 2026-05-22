@@ -1,10 +1,10 @@
-%global releaseno 2
+%global releaseno 1
 # Note: define _srcarchivename in CI build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
 
 Name:           moncic-ci
-Version:        0.28
+Version:        0.29
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -78,6 +78,9 @@ as you would run it on your normal system, keeping iteration lags low.
 %{python3_sitelib}/moncic*
 
 %changelog
+* Fri May 22 2026 Daniele Branchini  <dbranchini@arpae.it> - 0.29-1
+- Test and deal with an ARPA source with specfile in root but no patches (#124)
+
 * Thu May 07 2026 Daniele Branchini <dbranchini@arpae.it> - 0.28-2
 - Fix test failure (#128)
 - Updated man page (#129)    
