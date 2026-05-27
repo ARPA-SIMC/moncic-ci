@@ -1,6 +1,7 @@
 # Version UNRELEASED
 
 * Implemented configuring podman images to extend other podman images
+* Fixed tests in debian packaging
 
 # Version 0.29
 

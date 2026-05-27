@@ -1,10 +1,9 @@
 import shutil
 import subprocess
-import sys
 import unittest
 from pathlib import Path
 
-top_srcdir = Path(sys.argv[0]).parent.absolute()
+top_srcdir = Path(__file__).parent.parent.parent.absolute()
 
 
 class Package:
@@ -74,5 +73,5 @@ class SourcesTestCase(unittest.TestCase):
     @classmethod
     def get_package(cls, name: str = "hello") -> Package:
         """Return a Package object from the integration test data."""
-        packages_dir = top_srcdir / "itests"
+        packages_dir = top_srcdir / "tests"
         return Package(packages_dir / name)

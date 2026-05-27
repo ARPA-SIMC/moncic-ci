@@ -17,7 +17,7 @@ from moncic.source.rpm import (
     RPMSource,
 )
 
-from .source import (
+from moncic.unittest.source import (
     GitFixture,
     GitRepo,
     WorkdirFixture,

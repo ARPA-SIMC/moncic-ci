@@ -6,7 +6,7 @@ from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import Dir, File, Git
 
-from .source import (
+from moncic.unittest.source import (
     GitFixture,
     GitRepo,
     WorkdirFixture,
