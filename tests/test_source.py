@@ -1,14 +1,12 @@
-from __future__ import annotations
-
 import tempfile
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-from moncic.source.source import CommandLog, SourceStack, Source
-from moncic.source.local import Git
+from typing import TYPE_CHECKING, override
 
 import git
+
+from moncic.source.local import Git
+from moncic.source.source import CommandLog, Source, SourceStack
 
 from .source import GitFixture
 
@@ -30,19 +28,25 @@ class TestSourceStack(unittest.TestCase):
 
     def test_enter_twice(self) -> None:
         with SourceStack() as stack:
-            with self.assertRaisesRegex(RuntimeError, "__enter__ called in multiple Sources of the same chain"):
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "__enter__ called in multiple Sources of the same chain",
+            ):
                 with stack:
                     pass
 
 
 class MockSource(Source):
-    def make_buildable(self, *, distro: Distro, source_type: str | None = None) -> Source:
+    def make_buildable(
+        self, *, distro: "Distro", source_type: str | None = None
+    ) -> Source:
         return self
 
 
 class TestSource(GitFixture):
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.git.add("test", b"test")
         cls.git.commit("initial commit")
@@ -93,8 +97,12 @@ class TestSource(GitFixture):
 
         with parent as var:
             self.assertIs(var, parent)
-            path1 = Path(parent.stack.enter_context(tempfile.NamedTemporaryFile()).name)
-            path2 = Path(child.stack.enter_context(tempfile.NamedTemporaryFile()).name)
+            path1 = Path(
+                parent.stack.enter_context(tempfile.NamedTemporaryFile()).name
+            )
+            path2 = Path(
+                child.stack.enter_context(tempfile.NamedTemporaryFile()).name
+            )
             self.assertTrue(path1.exists())
             self.assertTrue(path2.exists())
         self.assertFalse(path1.exists())
@@ -106,8 +114,12 @@ class TestSource(GitFixture):
 
         with child as var:
             self.assertIs(var, child)
-            path1 = Path(parent.stack.enter_context(tempfile.NamedTemporaryFile()).name)
-            path2 = Path(child.stack.enter_context(tempfile.NamedTemporaryFile()).name)
+            path1 = Path(
+                parent.stack.enter_context(tempfile.NamedTemporaryFile()).name
+            )
+            path2 = Path(
+                child.stack.enter_context(tempfile.NamedTemporaryFile()).name
+            )
             self.assertTrue(path1.exists())
             self.assertTrue(path2.exists())
         self.assertFalse(path1.exists())
@@ -124,11 +136,22 @@ class TestSource(GitFixture):
             self.assertNotEqual(src.path, self.git.root)
             self.assertTrue(src.path.exists)
             self.assertEqual(orig.command_log, [])
-            self.assertEqual(src.command_log, [f"git -c advice.detachedHead=false clone --quiet {self.git.root}"])
+            self.assertEqual(
+                src.command_log,
+                [
+                    f"git -c advice.detachedHead=false clone"
+                    f" --quiet {self.git.root}"
+                ],
+            )
 
             # Remote branches are recreated locally
             self.assertEqual(
-                sorted(r.name for r in src.repo.refs if not r.name.startswith("origin/")), ["1.0", "devel", "main"]
+                sorted(
+                    r.name
+                    for r in src.repo.refs
+                    if not r.name.startswith("origin/")
+                ),
+                ["1.0", "devel", "main"],
             )
 
         self.assertFalse(src.path.exists())
@@ -139,7 +162,9 @@ class TestSource(GitFixture):
 
         origrepo = git.Repo(self.git.root)
         with MockSource(name="source") as orig:
-            src = orig._git_clone(repository=self.git.root.as_posix(), branch="devel")
+            src = orig._git_clone(
+                repository=self.git.root.as_posix(), branch="devel"
+            )
             self.assertIsInstance(src, Git)
             self.assertEqual(origrepo.active_branch.name, "main")
             self.assertEqual(src.repo.active_branch.name, "devel")
@@ -148,7 +173,11 @@ class TestSource(GitFixture):
             self.assertTrue(src.path.exists)
             self.assertEqual(orig.command_log, [])
             self.assertEqual(
-                src.command_log, [f"git -c advice.detachedHead=false clone --quiet {self.git.root} --branch devel"]
+                src.command_log,
+                [
+                    f"git -c advice.detachedHead=false clone"
+                    f" --quiet {self.git.root} --branch devel"
+                ],
             )
 
         self.assertFalse(src.path.exists())
@@ -159,7 +188,9 @@ class TestSource(GitFixture):
 
         origrepo = git.Repo(self.git.root)
         with MockSource(name="source") as orig:
-            src = orig._git_clone(repository=self.git.root.as_posix(), branch="1.0")
+            src = orig._git_clone(
+                repository=self.git.root.as_posix(), branch="1.0"
+            )
             self.assertIsInstance(src, Git)
             self.assertEqual(origrepo.active_branch.name, "main")
             self.assertEqual(src.repo.active_branch.name, "moncic-ci")
@@ -170,7 +201,8 @@ class TestSource(GitFixture):
             self.assertEqual(
                 src.command_log,
                 [
-                    f"git -c advice.detachedHead=false clone --quiet {self.git.root} --branch 1.0",
+                    f"git -c advice.detachedHead=false clone"
+                    f" --quiet {self.git.root} --branch 1.0",
                     "git checkout -b moncic-ci",
                 ],
             )

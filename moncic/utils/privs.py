@@ -1,9 +1,8 @@
-from __future__ import annotations
-
 import contextlib
 import os
 import pwd
 import sys
+from collections.abc import Generator
 
 from ..exceptions import Fail
 
@@ -13,7 +12,7 @@ class ProcessPrivs:
     Drop root privileges and regain them only when needed
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.orig_uid, self.orig_euid, self.orig_suid = os.getresuid()
         self.orig_gid, self.orig_egid, self.orig_sgid = os.getresgid()
 
@@ -29,7 +28,10 @@ class ProcessPrivs:
         self.dropped = not self.have_sudo
         self.auto_sudo = False
 
-    def update_env(self):
+    def can_regain(self) -> bool:
+        return self.have_sudo or self.auto_sudo
+
+    def update_env(self) -> None:
         uid = os.getuid()
         if uid == 0:
             os.environ["HOME"] = "/root"
@@ -39,14 +41,14 @@ class ProcessPrivs:
             os.environ["HOME"] = pw.pw_dir
             os.environ["USER"] = pw.pw_name
 
-    def needs_sudo(self):
+    def needs_sudo(self) -> None:
         if not self.have_sudo:
             if self.auto_sudo:
                 os.execvp("sudo", ["sudo"] + sys.argv)
             else:
                 raise Fail("This command needs sudo to run")
 
-    def drop(self):
+    def drop(self) -> None:
         """
         Drop root privileges
         """
@@ -57,7 +59,7 @@ class ProcessPrivs:
         self.dropped = True
         self.update_env()
 
-    def regain(self):
+    def regain(self) -> None:
         """
         Regain root privileges
         """
@@ -70,7 +72,7 @@ class ProcessPrivs:
         self.update_env()
 
     @contextlib.contextmanager
-    def root(self):
+    def root(self) -> Generator[None, None, None]:
         """
         Regain root privileges for the duration of this context manager
         """
@@ -84,7 +86,7 @@ class ProcessPrivs:
                 self.drop()
 
     @contextlib.contextmanager
-    def user(self):
+    def user(self) -> Generator[None, None, None]:
         """
         Drop root privileges for the duration of this context manager
         """

@@ -1,151 +1,204 @@
-from __future__ import annotations
-
+import abc
 import logging
 import os
 import tempfile
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, NamedTuple
+from pathlib import Path
+from typing import Any, ClassVar, TYPE_CHECKING, override
 
-from ..utils.osrelease import parse_osrelase
+from moncic.utils.osrelease import parse_osrelase
+from moncic.utils.script import Script
 
 if TYPE_CHECKING:
-    from ..container import ContainerConfig
-    from ..system import System
+    from moncic.container import ContainerConfig
+    from moncic.image import Image
+    from moncic.images import Images
 
 log = logging.getLogger(__name__)
 
 
-class DistroInfo(NamedTuple):
-    """
-    Information about a distribution
-    """
-
-    # Canonical name
-    name: str
-    shortcuts: list[str]
-
-
-class DistroFamily:
+class DistroFamily(abc.ABC):
     """
     Base class for handling a family of distributions
     """
 
     # Registry of known families
-    families: dict[str, DistroFamily] = {}
+    families: ClassVar[dict[str, "DistroFamily"]] = {}
+    # Index distros by lookup names
+    distro_lookup: ClassVar[dict[str, "Distro"]] = {}
 
     # Registry mapping known shortcut names to the corresponding full
     # ``family:version`` name
     SHORTCUTS: dict[str, str] = {}
 
-    @classmethod
-    def register(cls, family_cls: type[DistroFamily]) -> type[DistroFamily]:
-        name = getattr(family_cls, "NAME", None)
-        if name is None:
-            name = family_cls.__name__.lower()
-        cls.families[name] = family_cls()
-        return family_cls
+    @override
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Register subclasses."""
+        super().__init_subclass__(**kwargs)
+        name: str | None
+        if (name := getattr(cls, "NAME", None)) is None:
+            name = cls.__name__.lower()
+        cls.families[name] = cls(name)
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.distros: list["Distro"] = []
+        self.init()
+
+    @abc.abstractmethod
+    def init(self) -> None:
+        """Populate self.distros via add_distro."""
 
     @classmethod
-    def populate(cls):
-        """
-        Ensure modules that register DistroFamily instances get loaded
-        """
-        from . import debian, rpm  # noqa
+    def add_distro_lookup(cls, distro: "Distro") -> None:
+        cls.distro_lookup[distro.full_name] = distro
+        for alias in distro.aliases:
+            cls.distro_lookup[alias] = distro
+
+    def add_distro(self, distro: "Distro") -> None:
+        """Add a distro to this family."""
+        self.distros.append(distro)
+        self.add_distro_lookup(distro)
+
+    @override
+    def __str__(self) -> str:
+        return self.name
 
     @classmethod
-    def list(cls) -> Iterable[DistroFamily]:
-        cls.populate()
+    def list_families(cls) -> Iterable["DistroFamily"]:
         return cls.families.values()
 
     @classmethod
-    def lookup_family(cls, name: str) -> DistroFamily:
-        cls.populate()
+    def lookup_family(cls, name: str) -> "DistroFamily":
         return cls.families[name]
 
     @classmethod
-    def lookup_distro(cls, name: str) -> Distro:
+    def lookup_distro(cls, name: str) -> "Distro":
         """
         Lookup a Distro object by name.
 
         If the name contains a ``:``, it is taken as a full ``family:version``
         name. Otherwise, it is looked up among distribution shortcut names.
         """
-        cls.populate()
-        if ":" in name:
-            family, version = name.split(":", 1)
-            return cls.lookup_family(family).create_distro(version)
-        else:
-            return cls._lookup_shortcut(name)
-
-    @classmethod
-    def _lookup_shortcut(cls, name: str) -> Distro:
-        """
-        Lookup a Distro object by shortcut
-        """
-        for family in cls.families.values():
-            if (fullname := family.SHORTCUTS.get(name)) is not None:
-                return cls.lookup_distro(fullname)
+        if res := cls.distro_lookup.get(name):
+            return res
         raise KeyError(f"Distro {name!r} not found")
 
     @classmethod
-    def from_path(cls, path: str) -> Distro:
+    def from_path(cls, path: Path) -> "Distro":
         """
         Instantiate a Distro from an existing filesystem tree
         """
-        cls.populate()
         # For os-release format documentation, see
         # https://www.freedesktop.org/software/systemd/man/os-release.html
 
         # TODO: check if "{path}.yaml" exists
         info: dict[str, str] | None
         try:
-            info = parse_osrelase(os.path.join(path, "etc", "os-release"))
+            info = parse_osrelase(path / "etc" / "os-release")
         except FileNotFoundError:
             info = None
 
-        if info is None or "ID" not in info or "VERSION_ID" not in info:
-            return cls.lookup_distro(os.path.basename(path))
-        else:
-            family = cls.lookup_family(info["ID"])
-            return family.create_distro(info["VERSION_ID"])
+        if info is None:
+            return cls.lookup_distro(path.name)
 
-    @property
-    def name(self) -> str:
-        """
-        Name for this distribution
-        """
-        name = getattr(self, "NAME", None)
-        if name is None:
-            name = self.__class__.__name__.lower()
-        return name
+        return cls.from_osrelease(info, path.name)
 
-    def __str__(self) -> str:
-        return self.name
-
-    def create_distro(self, version: str) -> Distro:
+    @classmethod
+    def from_osrelease(
+        cls, info: dict[str, str], fallback_name: str
+    ) -> "Distro":
         """
-        Create a Distro object for a distribution in this family, given its
-        version
+        Instantiate a Distro from a parsed os-release file
         """
-        raise NotImplementedError(f"{self.__class__}.create_distro not implemented")
+        if (os_id := info.get("ID")) is None:
+            return cls.lookup_distro(fallback_name)
 
-    def list_distros(self) -> list[DistroInfo]:
+        family = cls.lookup_family(os_id)
+        return family.distro_from_osrelease(info, fallback_name)
+
+    def distro_from_osrelease(
+        self, info: dict[str, str], fallback_name: str
+    ) -> "Distro":
         """
-        Return a list of distros available in this family
+        Lookup a distro from parsed /etc/os-release contents.
+
+        DistroFamily instances can override this to provide distro-specific
+        behaviour.
         """
-        return [DistroInfo(name, [shortcut]) for shortcut, name in self.SHORTCUTS.items()]
+        if (os_version := info.get("VERSION_ID")) is None:
+            return self.lookup_distro(fallback_name)
+
+        names: list[str] = [f"{self.name}:{os_version}"]
+        if "." in os_version:
+            names.append(f"{self.name}:{os_version.split(".")[0]}")
+
+        for name in names:
+            if res := self.distro_lookup.get(name):
+                return res
+
+        raise KeyError(
+            f"Distro ID={self.name!r}, VERSION_ID={os_version!r} not found."
+            f" Tried: {', '.join(repr(name) for name in names)} "
+        )
 
 
-class Distro:
+class Distro(abc.ABC):
     """
     Common base class for bootstrapping distributions
     """
 
-    def __init__(self, name: str):
-        self.name = name
+    SHORTCUTS: dict[str, str]
 
+    def __init__(
+        self,
+        family: DistroFamily,
+        name: str,
+        version: str | None,
+        other_names: list[str] | None = None,
+        cgroup_v1: bool = False,
+        systemd_version: int | None = None,
+    ) -> None:
+        """
+        :param systemd_version: known systemd version. If missing it is assumed
+          to be undefined, but recent
+        """
+        self.family = family
+        self.name = name
+        self.version = version
+        self.other_names = other_names or []
+        self.cgroup_v1 = cgroup_v1
+        self.systemd_version = systemd_version
+        # Set to True to disable --suppress-sync for systemd-nspawn for this
+        # distribution. See https://github.com/systemd/systemd/issues/41868 and
+        # https://bugzilla.redhat.com/show_bug.cgi?id=2437037
+        self.disable_nspawn_suppress_sync = False
+
+    @override
     def __str__(self) -> str:
         return self.name
+
+    @override
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name})"
+
+    @property
+    def full_name(self) -> str:
+        return self.family.name + ":" + self.name
+
+    @property
+    def aliases(self) -> list[str]:
+        res: list[str] = []
+        if not self.name[0].isdigit():
+            res.append(self.name)
+        if self.version is not None:
+            if self.name != self.version:
+                res.append(f"{self.family.name}:{self.version}")
+            res.append(f"{self.family.name}{self.version}")
+        for other_name in self.other_names:
+            res.append(f"{other_name}")
+            res.append(f"{self.family.name}:{other_name}")
+        return res
 
     def get_base_packages(self) -> list[str]:
         """
@@ -154,35 +207,34 @@ class Distro:
         """
         return ["bash", "dbus"]
 
-    def container_config_hook(self, system: System, config: ContainerConfig):
+    def container_config_hook(
+        self, image: "Image", config: "ContainerConfig"
+    ) -> None:
         """
         Hook to allow distro-specific container setup
         """
         # Do nothing by default
 
-    def bootstrap(self, system: System) -> None:
-        """
-        Boostrap a fresh system inside the given directory
-        """
+    def _bootstrap_mkosi(self, images: "Images", path: Path) -> None:
         # At least on Debian, mkosi does not seem able to install working
-        # rpm-based distributions: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
-        distro, release = self.name.split(":", 1)
-        installroot = os.path.abspath(system.path)
+        # rpm-based distributions:
+        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1008169
+        installroot = path.absolute()
         base_packages = ",".join(self.get_base_packages())
-        with tempfile.TemporaryDirectory() as workdir:
+        with tempfile.TemporaryDirectory(suffix="distro-mkosi") as workdir:
             cmd = [
                 "/usr/bin/mkosi",
-                f"--distribution={distro}",
-                f"--release={release}",
+                f"--distribution={self.family.name}",
+                f"--release={self.name}",
                 "--format=directory",
-                f"--output={installroot}",
-                "--base-packages=true",
+                f"--output-directory={installroot.parent}",
+                f"--output={installroot.name}",
                 f"--package={base_packages}",
                 f"--directory={workdir}",
                 "--force",
                 # f"--mirror={self.mirror}",
             ]
-            system.local_run(cmd)
+            images.host_run(cmd)
 
         # Cleanup mkosi manifest file
         try:
@@ -190,34 +242,46 @@ class Distro:
         except FileNotFoundError:
             pass
 
-    def get_setup_network_script(self, system: System) -> list[list[str]]:
+    def bootstrap(self, images: "Images", path: Path) -> None:
         """
-        Get the sequence of commands to use to setup networking
+        Boostrap a fresh system inside the given directory
         """
-        return []
+        self._bootstrap_mkosi(images, path)
 
-    def get_update_pkgdb_script(self, system: System) -> list[list[str]]:
-        """
-        Get the sequence of commands to use to update package information
-        """
-        return []
+    def get_setup_network_script(self, script: Script) -> None:
+        """Add commands to use to setup networking."""
 
-    def get_upgrade_system_script(self, system: System) -> list[list[str]]:
-        """
-        Get the sequence of commands to use to upgrade system packages
-        """
-        return []
+    def get_update_pkgdb_script(self, script: Script) -> None:
+        """Add commands to use to update package information."""
 
-    def get_install_packages_script(self, system: System, packages: list[str]) -> list[list[str]]:
-        """
-        Get the sequence of commands to use to install packages
-        """
-        return []
+    def get_upgrade_system_script(self, script: Script) -> None:
+        """Add commands to use to upgrade system packages."""
+
+    def get_install_packages_script(
+        self, script: Script, packages: list[str]
+    ) -> None:
+        """Add commands to use to install packages."""
+
+    def get_prepare_build_script(self, script: Script) -> None:
+        """Add commands to use to prepare a build system."""
 
     def get_versions(self, packages: list[str]) -> dict[str, dict[str, str]]:
         """
         Get the installed versions of packages described in the given list
         """
         raise NotImplementedError(
-            f"getting installed versions for package requirements is not implemented for {self.name}"
+            "getting installed versions for package requirements"
+            f" is not implemented for {self.name}"
         )
+
+    def get_systemd_boot_mask_units(self) -> list[str]:
+        """Return a list of unit names to mask at container boot."""
+        return []
+
+    @abc.abstractmethod
+    def get_podman_name(self) -> tuple[str, str]:
+        """
+        Get the podman repository and tag.
+
+        These a used for loading this distro from known repositories.
+        """

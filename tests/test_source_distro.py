@@ -1,36 +1,31 @@
-from __future__ import annotations
-
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast, override
 
-from moncic.exceptions import Fail
 from moncic.distro import DistroFamily
-from moncic.source.source import CommandLog, SourceStack, Source
-from moncic.source.distro import DistroSource, source_types
-from moncic.source.local import File, Dir, Git
 from moncic.distro.debian import DebianDistro
 from moncic.distro.rpm import RpmDistro
-from .source import GitFixture
+from moncic.exceptions import Fail
+from moncic.source.distro import DistroSource, source_types
+from moncic.source.local import Dir, File, Git
+from moncic.source.source import Source
 
-if TYPE_CHECKING:
-    from moncic.distro import Distro
+from .source import GitFixture
 
 ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))
 SID = cast(DebianDistro, DistroFamily.lookup_distro("sid"))
 
 
-class MockSource(DistroSource, style="mock"):
-    ...
+class MockSource(DistroSource, style="mock"): ...
 
 
-class MockSource1(DistroSource):
-    ...
+class MockSource1(DistroSource): ...
 
 
 class TestDistrSource(GitFixture):
     path_file: Path
     path_dir: Path
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -68,10 +63,14 @@ class TestDistrSource(GitFixture):
 
     def test_create_default_dir(self) -> None:
         parent = cast(Dir, Source.create_local(source=self.path_file))
-        with self.assertRaisesRegex(Fail, "mock is not applicable on a non-git directory"):
+        with self.assertRaisesRegex(
+            Fail, "mock is not applicable on a non-git directory"
+        ):
             MockSource.prepare_from_dir(parent, distro=SID)
 
     def test_create_default_git(self) -> None:
         parent = cast(Git, Source.create_local(source=self.git.root))
-        with self.assertRaisesRegex(Fail, "mock is not applicable on a git repository"):
+        with self.assertRaisesRegex(
+            Fail, "mock is not applicable on a git repository"
+        ):
             MockSource.prepare_from_git(parent, distro=SID)

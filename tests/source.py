@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import http.server
 import logging
@@ -11,6 +9,7 @@ import threading
 import unittest
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any, ClassVar, override
 
 
 class GitRepo(contextlib.ExitStack):
@@ -18,10 +17,14 @@ class GitRepo(contextlib.ExitStack):
     Temporary git repository used for testing
     """
 
-    def __init__(self, workdir: Path | None = None):
+    def __init__(self, workdir: Path | None = None) -> None:
         super().__init__()
         if workdir is None:
-            self.root = Path(self.enter_context(tempfile.TemporaryDirectory()))
+            self.root = Path(
+                self.enter_context(
+                    tempfile.TemporaryDirectory(suffix="gitrepo-root")
+                )
+            )
         else:
             workdir.mkdir(parents=True, exist_ok=True)
             self.root = workdir
@@ -30,7 +33,7 @@ class GitRepo(contextlib.ExitStack):
         self.git("config", "user.name", "Test User")
         self.git("config", "user.email", "hyde@example.com")
 
-    def git(self, *args: str):
+    def git(self, *args: str) -> None:
         """
         Run git commands in the test repository
         """
@@ -38,7 +41,7 @@ class GitRepo(contextlib.ExitStack):
         cmd.extend(args)
         subprocess.run(cmd, cwd=self.root, check=True, capture_output=True)
 
-    def add(self, relpath: str, content: str | bytes = b""):
+    def add(self, relpath: str, content: str | bytes = b"") -> None:
         """
         Create a file and git add it
         """
@@ -52,14 +55,14 @@ class GitRepo(contextlib.ExitStack):
                 out.write(content)
         self.git("add", relpath)
 
-    def commit(self, message="test commit"):
+    def commit(self, message: str = "test commit") -> None:
         """
         Run git commit with the given message
         """
         self.git("commit", "-m", message)
 
     @contextlib.contextmanager
-    def serve(self) -> Generator[str, None, None]:
+    def serve(self) -> Generator[str]:
         """
         Run a webserver serving the repo contents for the duration of this
         context manager.
@@ -72,18 +75,21 @@ class GitRepo(contextlib.ExitStack):
         root = self.root
 
         class Handler(http.server.SimpleHTTPRequestHandler):
-            def __init__(self, *args, **kw):
-                kw["directory"] = root
-                super().__init__(*args, **kw)
+            def __init__(self, *args: Any, **kwargs: Any) -> None:
+                kwargs["directory"] = root
+                super().__init__(*args, **kwargs)
 
-            def log_message(self, *args):
+            @override
+            def log_message(self, *args: Any) -> None:
                 logging.debug(*args)
 
         # Auto-allocate the server port
         with socketserver.TCPServer(("localhost", 0), Handler) as httpd:
             port = httpd.server_address[1]
 
-            server = threading.Thread(target=httpd.serve_forever, name="test-git-http-server")
+            server = threading.Thread(
+                target=httpd.serve_forever, name="test-git-http-server"
+            )
             server.start()
 
             try:
@@ -94,18 +100,25 @@ class GitRepo(contextlib.ExitStack):
 
 
 class WorkdirFixture(unittest.TestCase):
+    stack: ClassVar[contextlib.ExitStack]
     workdir: Path
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         # We have self.enterContext from Python 3.11
         cls.stack = contextlib.ExitStack()
         cls.stack.__enter__()
-        cls.workdir = Path(cls.stack.enter_context(tempfile.TemporaryDirectory()))
+        cls.workdir = Path(
+            cls.stack.enter_context(
+                tempfile.TemporaryDirectory(suffix="workdirfixture-workdir")
+            )
+        )
 
+    @override
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         cls.stack.__exit__(None, None, None)
         super().tearDownClass()
 
@@ -115,16 +128,21 @@ class GitFixture(WorkdirFixture):
     git: GitRepo
     git_name: str = "repo"
 
+    @override
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         cls.path = cls.workdir / cls.git_name
         cls.git = cls.stack.enter_context(GitRepo(cls.path))
 
 
 def create_lint_version_fixture_path(path: Path) -> None:
-    (path / "configure.ac").write_text("AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
-    (path / "meson.build").write_text("project('test', 'cpp', version: '1.2')\n")
+    (path / "configure.ac").write_text(
+        "AC_INIT([test],[1.1],[enrico@enricozini.org]\n"
+    )
+    (path / "meson.build").write_text(
+        "project('test', 'cpp', version: '1.2')\n"
+    )
     (path / "CMakeLists.txt").write_text('set(PACKAGE_VERSION "1.3")\n')
     (path / "NEWS.md").write_text("# New in version 1.4\n")
     (path / "setup.py").write_text(
@@ -135,9 +153,13 @@ setup(name='test', packages=['test'])
     )
     (path / "test").mkdir()
     (path / "test" / "__init__.py").write_text('__version__ = "1.5"')
-    (path / "setup.cfg").write_text("[metadata]\nversion = attr: test.__version__")
+    (path / "setup.cfg").write_text(
+        "[metadata]\nversion = attr: test.__version__"
+    )
     (path / "debian").mkdir()
-    (path / "debian" / "changelog").write_text("test (1.6-1) UNRELEASED; urgency=low")
+    (path / "debian" / "changelog").write_text(
+        "test (1.6-1) UNRELEASED; urgency=low"
+    )
     (path / "fedora" / "SPECS").mkdir(parents=True)
     (path / "fedora" / "SPECS" / "test.spec").write_text(
         """
@@ -153,10 +175,16 @@ test
 
 
 def create_lint_version_fixture_git(
-    git: GitRepo, *, upstream: bool = True, rpm: bool = True, debian: bool = True
+    git: GitRepo,
+    *,
+    upstream: bool = True,
+    rpm: bool = True,
+    debian: bool = True,
 ) -> None:
     if upstream:
-        git.add("configure.ac", "AC_INIT([test],[1.1],[enrico@enricozini.org]\n")
+        git.add(
+            "configure.ac", "AC_INIT([test],[1.1],[enrico@enricozini.org]\n"
+        )
         git.add("meson.build", "project('test', 'cpp', version: '1.2')\n")
         git.add("CMakeLists.txt", 'set(PACKAGE_VERSION "1.3")\n')
         git.add("NEWS.md", "# New in version 1.4\n")

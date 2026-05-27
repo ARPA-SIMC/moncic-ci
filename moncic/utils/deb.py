@@ -1,13 +1,14 @@
-from __future__ import annotations
-
 import contextlib
 import os
 import shutil
 import tempfile
+import types
 from collections.abc import Generator
-from typing import NamedTuple
+from pathlib import Path
+from typing import NamedTuple, Self
 
-from ..runner import UserConfig
+from moncic.runner import UserConfig
+
 from .fs import dirfd
 
 
@@ -17,7 +18,9 @@ class FileInfo(NamedTuple):
 
 
 class DebCache:
-    def __init__(self, cache_dir: str, cache_size: int = 512 * 1024 * 1024):
+    def __init__(
+        self, cache_dir: Path, cache_size: int = 512 * 1024 * 1024
+    ) -> None:
         self.cache_dir = cache_dir
         # Maximum cache size in bytes
         self.cache_size = cache_size
@@ -26,25 +29,32 @@ class DebCache:
         self.src_dir_fd: int | None = None
         self.cache_user = UserConfig.from_sudoer()
 
-    def __enter__(self):
-        os.makedirs(self.cache_dir, exist_ok=True)
+    def __enter__(self) -> Self:
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.src_dir_fd = os.open(self.cache_dir, os.O_RDONLY)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
         # Do cache cleanup
         self.trim_cache()
-
+        assert self.src_dir_fd is not None
         os.close(self.src_dir_fd)
 
-    def trim_cache(self):
+    def trim_cache(self) -> None:
         """
         Trim cache to fit self.cache_size, removing the files least recently
         accessed
         """
         # Sort debs by atime and remove all those that go beyond
         # self.cache_size
-        sdebs = sorted(self.debs.items(), key=lambda x: x[1].atime_ns, reverse=True)
+        sdebs = sorted(
+            self.debs.items(), key=lambda x: x[1].atime_ns, reverse=True
+        )
         size = 0
         for name, info in sdebs:
             if size + info.size > self.cache_size:
@@ -53,40 +63,55 @@ class DebCache:
             else:
                 size += info.size
 
+    def _debs_to_aptdir(self, dst_dir_fd: int) -> None:
+        """Handlink existing debs to the destination directory."""
+        with os.scandir(self.src_dir_fd) as it:
+            for de in it:
+                if not de.name.endswith(".deb"):
+                    continue
+                st = de.stat()
+                self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+                os.link(
+                    de.name,
+                    de.name,
+                    src_dir_fd=self.src_dir_fd,
+                    dst_dir_fd=dst_dir_fd,
+                )
+
+    def _debs_from_aptdir(self, dst_dir_fd: int) -> None:
+        """Hardlink new debs to cache dir."""
+        os.lseek(dst_dir_fd, 0, os.SEEK_SET)
+        with os.scandir(dst_dir_fd) as it:
+            for de in it:
+                if de.name.endswith(".deb"):
+                    st = de.stat()
+                    if de.name not in self.debs:
+                        os.link(
+                            de.name,
+                            de.name,
+                            src_dir_fd=dst_dir_fd,
+                            dst_dir_fd=self.src_dir_fd,
+                        )
+                    self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+
     @contextlib.contextmanager
-    def apt_archives(self) -> Generator[str, None, None]:
+    def apt_archives(self) -> Generator[Path]:
         """
         Create a directory that can be bind mounted as /apt/cache/apt/archives
         """
-        with tempfile.TemporaryDirectory(dir=self.cache_dir) as aptdir:
+        with tempfile.TemporaryDirectory(
+            dir=self.cache_dir, suffix="aptdir"
+        ) as aptdir_str:
+            aptdir = Path(aptdir_str)
             with dirfd(aptdir) as dst_dir_fd:
-                # Handlink debs to temp dir
-                with os.scandir(self.src_dir_fd) as it:
-                    for de in it:
-                        if de.name.endswith(".deb"):
-                            st = de.stat()
-                            self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
-                            os.link(de.name, de.name, src_dir_fd=self.src_dir_fd, dst_dir_fd=dst_dir_fd)
-                            os.chown(de.name, 0, 0, dir_fd=dst_dir_fd)
-
+                self._debs_to_aptdir(dst_dir_fd)
                 try:
                     yield aptdir
                 finally:
-                    # Hardlink new debs to cache dir
-                    os.lseek(dst_dir_fd, 0, os.SEEK_SET)
-                    with os.scandir(dst_dir_fd) as it:
-                        for de in it:
-                            if de.name.endswith(".deb"):
-                                st = de.stat()
-                                if de.name not in self.debs:
-                                    os.link(de.name, de.name, src_dir_fd=dst_dir_fd, dst_dir_fd=self.src_dir_fd)
-                                os.chown(
-                                    de.name, self.cache_user.user_id, self.cache_user.group_id, dir_fd=self.src_dir_fd
-                                )
-                                self.debs[de.name] = FileInfo(st.st_size, st.st_atime_ns)
+                    self._debs_from_aptdir(dst_dir_fd)
 
 
-def apt_get_cmd(*args) -> list[str]:
+def apt_get_cmd(*args: str) -> list[str]:
     """
     Build an apt-get command
     """

@@ -1,22 +1,162 @@
-#!/bin/sh
+#!/usr/bin/python3
 
-set -ue
+import argparse
+import os
+import subprocess
+import sys
+from pathlib import Path
 
-ARGS=""
-export PYTHONDEVMODE=1
+from rich.console import Console
 
-if [ "$#" -gt 0 ] && [ "$1" = "-v" ]
-then
-	shift
-	ARGS="-v"
-fi
+from moncic.utils.privs import ProcessPrivs
 
-if [ "$#" -eq 0 ]
-then
-	python3 -m unittest discover "$ARGS"
-else
-	for name in "$@"
-	do
-		python3 -m unittest discover "$ARGS" -k $name
-	done
-fi
+privs = ProcessPrivs()
+privs.drop()
+console = Console()
+top_srcdir = Path(sys.argv[0]).parent.absolute()
+integration_tests_podman_repo = "localhost/moncic-ci-integration-tests"
+
+
+class Fail(Exception):
+    """There was an error in the script."""
+
+
+def clear_nspawn(path: Path) -> None:
+    """Remove all images in the given path."""
+    cmd = []
+    if os.getuid() == 0:
+        cmd += ["sudo"]
+    cmd += ["rm", "-rf", path.as_posix()]
+    with privs.root():
+        subprocess.run(cmd, check=True)
+
+
+def clear_podman() -> None:
+    """Remove all images in the integration_tests_podman_repo repository."""
+    try:
+        import podman
+    except ModuleNotFoundError:
+        return
+
+    uri = f"unix:///run/user/{os.getuid()}/podman/podman.sock"
+    with podman.PodmanClient(base_url=uri) as client:
+        for image in client.images.list(all=True):
+            for tag in image.tags:
+                if tag.startswith(integration_tests_podman_repo):
+                    client.images.remove(tag)
+
+
+def main() -> None:
+    """Run unit or integration testing."""
+    parser = argparse.ArgumentParser(
+        description="Run unit or integration testing."
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Verbose output",
+    )
+    parser.add_argument(
+        "-i",
+        "--integration",
+        action="store_true",
+        help="run integration tests from itests/ instead of unit tests from tests/",
+    )
+    parser.add_argument(
+        "-c",
+        "--coverage",
+        action="store_true",
+        help="collect test coverage for unit tests",
+    )
+    parser.add_argument(
+        "-f",
+        "--failfast",
+        action="store_true",
+        help="stop running the test suite after first failed test",
+    )
+    parser.add_argument(
+        "-k",
+        dest="patterns",
+        action="append",
+        type=str,
+        help=(
+            "Only run test methods and classes"
+            " that match the pattern or substring."
+            " Can be used multiple times. Same as unittest -k option."
+        ),
+    )
+    parser.add_argument(
+        "--integration-tests-workdir",
+        type=Path,
+        action="store",
+        default=top_srcdir / "integration-tests-workdir",
+        help="working directory for integration test nspawn images",
+    )
+    parser.add_argument(
+        "--clear",
+        action="store_true",
+        help="Clear persistent integration test artifacts",
+    )
+    args = parser.parse_args()
+
+    env = dict(os.environ)
+    env["PYTHONDEVMODE"] = "1"
+    env["MONCIC_ITESTS_WORKDIR"] = args.integration_tests_workdir.as_posix()
+    env["MONCIC_ITESTS_PODMAN_REPO"] = integration_tests_podman_repo
+    env["MONCIC_ITESTS_TOP_SRCDIR"] = top_srcdir.as_posix()
+
+    if args.clear:
+        clear_nspawn(args.integration_tests_workdir)
+        clear_podman()
+
+    cmd = ["-m", "unittest", "discover"]
+    verbose = args.verbose
+    if args.failfast:
+        cmd += ["--failfast"]
+    if args.integration:
+        cmd += ["-s", "itests"]
+        verbose = True
+    else:
+        cmd += ["-s", "tests"]
+    if verbose:
+        cmd += ["--verbose"]
+    cmd += ["-t", top_srcdir.as_posix()]
+    if args.patterns:
+        for pattern in args.patterns:
+            cmd += ["-k", pattern]
+
+    if args.integration:
+        if args.coverage:
+            raise Fail("--coverage does not work with --integration tests")
+        privs.regain()
+
+    if args.coverage:
+        runner = [sys.executable, "-m", "coverage"]
+        subprocess.run(
+            runner + ["run"] + cmd, check=True, cwd=top_srcdir.as_posix()
+        )
+        # subprocess.run(runner + ["combine"], check=True, cwd=top_srcdir.as_posix())
+        report_args = ["--precision=2", "--include", "monci,moncic/*,tests/*"]
+        subprocess.run(runner + ["html"] + report_args, check=True)
+        subprocess.run(
+            runner
+            + ["report", "--skip-covered", "--show-missing"]
+            + report_args,
+            check=True,
+        )
+    else:
+        os.chdir(top_srcdir.as_posix())
+        cmd = [sys.executable] + cmd
+        os.execve(sys.executable, cmd, env=env)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Fail as e:
+        console.print(e, style="bold red")
+        sys.exit(1)
+    except Exception:
+        console.print_exception()
+        sys.exit(2)

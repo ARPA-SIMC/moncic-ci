@@ -1,5 +1,5 @@
-[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora38.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
-[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora40.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
+[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora42.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
+[![Build Status](https://simc.arpae.it/moncic-ci/moncic-ci/fedora44.png)](https://simc.arpae.it/moncic-ci/moncic-ci/)
 [![Build Status](https://copr.fedorainfracloud.org/coprs/simc/stable/package/moncic-ci/status_image/last_build.png)](https://copr.fedorainfracloud.org/coprs/simc/stable/package/moncic-ci/)
 
 # Moncic-CI
@@ -77,40 +77,21 @@ filesystem it can optionally use its features to reduce disk usage.
 
 ## Distributions supported
 
-The up to date list of supported distribution can be queried with `monci
-distros`. It currently is:
+The up to date list of supported operating systems can be queried with `monci
+distros`. Currently supported, on nspawn and podman containers:
 
-```
-$ monci distros
-Name               Shortcuts
-centos:7           centos7
-centos:8           centos8
-debian:jessie      jessie, debian:8
-debian:stretch     stretch, debian:9
-debian:buster      buster, debian:10
-debian:bullseye    bullseye, debian:11
-debian:bookworm    bookworm, debian:12
-debian:sid         sid
-debian:oldstable
-debian:stable
-debian:testing
-debian:unstable
-fedora:32          fedora32
-fedora:33          fedora33
-fedora:34          fedora34
-fedora:35          fedora35
-fedora:36          fedora36
-fedora:37          fedora37
-fedora:38          fedora38
-rocky:8            rocky8
-rocky:9            rocky9
-ubuntu:xenial      xenial, ubuntu:16.04
-ubuntu:bionic      bionic, ubuntu:18.04
-ubuntu:focal       focal, ubuntu:20.04
-ubuntu:hirsute     hirsute, ubuntu:21.04
-ubuntu:impish      impish, ubuntu:21.10
-ubuntu:jammy       jammy, ubuntu:22.04
-```
+* Almalinux: 8 and 9
+* Centos: 7
+* Debian: stretch to trixie and testing/sid
+* Fedora: 39 to 42
+* Rocky: 8 and 9
+* Ubuntu: xenial, bionic, focal, jammy, noble, oracular, plucky
+
+Caveats from the last integration test run:
+
+* Ubuntu Xenial on nspawn: systemd in container needs cgroups v1 support
+
+All other systems appear to work on both nspawn and podman containers.
 
 ## In depth
 

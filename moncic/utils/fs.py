@@ -1,24 +1,28 @@
-from __future__ import annotations
-
 import contextlib
 import logging
 import os
 import tempfile
 from collections.abc import Generator
+from pathlib import Path
+from typing import Any, IO
 
 log = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
 def atomic_writer(
-    fname: str, mode: str = "w+b", chmod: int | None = 0o664, sync: bool = True, use_umask: bool = False, **kw
-):
+    path: Path,
+    mode: str = "w+b",
+    chmod: int | None = 0o664,
+    sync: bool = True,
+    use_umask: bool = False,
+) -> Generator[IO[Any]]:
     """
     open/tempfile wrapper to atomically write to a file, by writing its
     contents to a temporary file in the same directory, and renaming it at the
     end of the block if no exception has been raised.
 
-    :arg fname: name of the file to create
+    :arg path: file to create
     :arg mode: passed to mkstemp/open
     :arg chmod: permissions of the resulting file
     :arg sync: if True, call fdatasync before renaming
@@ -32,25 +36,22 @@ def atomic_writer(
         os.umask(cur_umask)
         chmod &= ~cur_umask
 
-    dirname = os.path.dirname(fname)
-    if not os.path.isdir(dirname):
-        os.makedirs(dirname)
+    path.parent.mkdir(parents=True, exist_ok=True)
 
-    fd, abspath = tempfile.mkstemp(dir=dirname, text="b" not in mode, prefix=fname)
-    outfd = open(fd, mode, closefd=True, **kw)
-    try:
-        yield outfd
-        outfd.flush()
-        if sync:
-            os.fdatasync(fd)
-        if chmod is not None:
-            os.fchmod(fd, chmod)
-        os.rename(abspath, fname)
-    except Exception:
-        os.unlink(abspath)
-        raise
-    finally:
-        outfd.close()
+    with tempfile.NamedTemporaryFile(
+        mode, dir=path.parent, prefix=path.name, delete=False
+    ) as tf:
+        try:
+            yield tf
+            tf.flush()
+            if sync:
+                os.fdatasync(tf)
+            if chmod is not None:
+                os.fchmod(tf.fileno(), chmod)
+            os.rename(tf.name, path)
+        except Exception:
+            os.unlink(tf.name)
+            raise
 
 
 def is_on_rotational(pathname: str) -> bool | None:
@@ -67,7 +68,8 @@ def is_on_rotational(pathname: str) -> bool | None:
         return None
     # Resolve the relative symlink to the partition device
     fulldev = os.path.join(os.path.dirname(dev), dest)
-    # Look for queue/rotational in the parent directory (which should be the disk device)
+    # Look for queue/rotational in the parent directory (which should be the
+    # disk device)
     rotfile = os.path.join(os.path.dirname(fulldev), "queue", "rotational")
     try:
         with open(rotfile) as fd:
@@ -77,7 +79,7 @@ def is_on_rotational(pathname: str) -> bool | None:
 
 
 @contextlib.contextmanager
-def cd(path: str):
+def cd(path: str) -> Generator[None, None, None]:
     """
     chdir to path for the duration of this context manager
     """
@@ -90,7 +92,7 @@ def cd(path: str):
 
 
 @contextlib.contextmanager
-def dirfd(path: str) -> Generator[int, None, None]:
+def dirfd(path: Path) -> Generator[int]:
     """
     Open a directory as a file descriptor
     """
@@ -102,12 +104,15 @@ def dirfd(path: str) -> Generator[int, None, None]:
 
 
 @contextlib.contextmanager
-def extra_packages_dir(path: str) -> Generator[str, None, None]:
+def extra_packages_dir(path: Path) -> Generator[Path]:
     """
     Create a temporary directory where all packages found in path are
     hardlinked
     """
-    with tempfile.TemporaryDirectory(dir=path) as mirrordir:
+    with tempfile.TemporaryDirectory(
+        dir=path, suffix="extra-packages-dir"
+    ) as mirrordir_str:
+        mirrordir = Path(mirrordir_str)
         # Hard link all .deb files into the temporary mirror directory
         with dirfd(path) as src_dir_fd:
             with dirfd(mirrordir) as dst_dir_fd:
@@ -115,7 +120,12 @@ def extra_packages_dir(path: str) -> Generator[str, None, None]:
                 with os.scandir(src_dir_fd) as it:
                     for de in it:
                         if de.name.endswith(".deb") or de.name.endswith(".rpm"):
-                            os.link(de.name, de.name, src_dir_fd=src_dir_fd, dst_dir_fd=dst_dir_fd)
+                            os.link(
+                                de.name,
+                                de.name,
+                                src_dir_fd=src_dir_fd,
+                                dst_dir_fd=dst_dir_fd,
+                            )
         # We cannot create a mirror now, since apt-ftparchive may not be
         # present outside the container
         yield mirrordir

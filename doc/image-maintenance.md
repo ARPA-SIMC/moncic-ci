@@ -45,7 +45,7 @@ A maintenance procedure for an image configured as `distro:` (without
 `extends:`):
 
 1. The `maintscript:` script configured in the image, if present
-2. If the image configuration does not specify a `maintascript:` script, a
+2. If the image configuration does not specify a `maintscript:` script, a
    default distribution-specfic upgrade command, like `apt-get update; apt-get
    -y upgrade` or `dnf upgrade -q -y`
 

@@ -1,61 +1,80 @@
-from __future__ import annotations
-
+import abc
 import contextlib
 import contextvars
-import re
-import shlex
-import subprocess
-import sys
+import importlib.util
+import os
+import types
 from functools import cached_property
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Self, TYPE_CHECKING, override
 
-from . import context, imagestorage
+from . import context
+from .context import privs
+from .exceptions import Fail
 from .utils.deb import DebCache
 from .utils.fs import extra_packages_dir
 
 if TYPE_CHECKING:
+    import podman as _podman
+
+    from .images import BootstrappingImages, ImageRepository
     from .moncic import Moncic
 
+MACHINECTL_PATH = Path("/var/lib/machines")
 
-class Session(contextlib.ExitStack):
+
+class Session(contextlib.ExitStack, abc.ABC):
     """
     Hold shared resourcse during a single-threaded Moncic-CI work session
     """
 
-    def __init__(self, moncic: Moncic):
+    #: Images used to bootstrap OS images
+    bootstrapper: "BootstrappingImages"
+
+    # Container images
+    images: "ImageRepository"
+
+    def __init__(self, moncic: "Moncic") -> None:
+        from .images import ImageRepository
+
         super().__init__()
         self.moncic = moncic
-        self.orig_moncic: contextvars.Token | None = None
-        self.orig_session: contextvars.Token | None = None
+        self.orig_moncic: contextvars.Token["Moncic"] | None = None
+        self.orig_session: contextvars.Token["Session"] | None = None
+        #: Prefix used to filter podman repositories that Moncic-CI will use
+        self.podman_repository = "localhost/moncic-ci"
+        self.images = ImageRepository(self)
 
-        # Storage for OS images
-        self.image_storage = self._instantiate_imagestorage()
-
-    def _instantiate_imagestorage(self) -> imagestorage.ImageStorage:
-        if self.moncic.config.imagedir is None:
-            return imagestorage.ImageStorage.create_default(self)
-        else:
-            return imagestorage.ImageStorage.create(self, self.moncic.config.imagedir)
-
-    def __enter__(self):
+    @override
+    def __enter__(self) -> Self:
         self.orig_moncic = context.moncic.set(self.moncic)
         self.orig_session = context.session.set(self)
         return super().__enter__()
 
-    def __exit__(self, *args):
-        res = super().__exit__(*args)
+    @override
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        super().__exit__(exc_type, exc_val, exc_tb)
         if self.orig_session is not None:
             context.session.reset(self.orig_session)
         if self.orig_moncic is not None:
-            context.moncic.set(self.orig_moncic)
-        return res
+            context.moncic.reset(self.orig_moncic)
+
+    @abc.abstractmethod
+    def _make_podman(self) -> "_podman.PodmanClient":
+        """Create a new PodmanClient."""
 
     @cached_property
-    def images(self) -> imagestorage.Images:
-        """
-        Return the Images storage
-        """
-        return self.enter_context(self.image_storage.images())
+    def podman(self) -> "_podman.PodmanClient":
+        return self._make_podman()
+
+    @abc.abstractmethod
+    def _make_debcache(self, path: Path) -> DebCache:
+        """Create a new DebCache."""
 
     @cached_property
     def debcache(self) -> DebCache | None:
@@ -63,12 +82,12 @@ class Session(contextlib.ExitStack):
         Return the DebCache object to manage an apt package cache
         """
         if path := self.moncic.config.deb_cache_dir:
-            return self.enter_context(DebCache(path))
+            return self._make_debcache(path)
         else:
             return None
 
     @cached_property
-    def apt_archives(self) -> str | None:
+    def apt_archives(self) -> Path | None:
         """
         Return the path of a directory that can be bind-mounted as
         /var/cache/apt/archives in Debian containers
@@ -79,7 +98,7 @@ class Session(contextlib.ExitStack):
             return None
 
     @cached_property
-    def extra_packages_dir(self) -> str | None:
+    def extra_packages_dir(self) -> Path | None:
         """
         Return the path of a directory with extra packages to add as a source
         to containers
@@ -90,64 +109,63 @@ class Session(contextlib.ExitStack):
             return None
 
 
-class MockSession(Session):
+class RealSession(Session):
     """
-    Mock session used for tests
+    Concrete session implementation.
     """
 
-    def __init__(self, moncic: Moncic):
+    def __init__(self, moncic: "Moncic") -> None:
         super().__init__(moncic)
-        self.log: list[dict[str, Any]] = []
-        self.process_result_queue: dict[str, subprocess.CompletedProcess] = {}
+        if self.moncic.config.imagedir is None:
+            self._instantiate_images_default()
+        else:
+            self._instantiate_images_imagedir(self.moncic.config.imagedir)
 
-    def mock_log(self, **kwargs: Any):
-        caller_stack = sys._getframe(1)
-        kwargs.setdefault("func", caller_stack.f_code.co_name)
-        self.log.append(kwargs)
+    def _instantiate_images_imagedir(self, path: Path) -> None:
+        from .images import BootstrappingImages
+        from .nspawn.imagestorage import NspawnImageStorage
 
-    def get_process_result(self, *, args: list[str]) -> subprocess.CompletedProcess:
-        cmdline = " ".join(shlex.quote(c) for c in args)
-        for regex, result in self.process_result_queue.items():
-            if re.search(regex, cmdline):
-                self.process_result_queue.pop(regex)
-                result.args = args
-                return result
-        return subprocess.CompletedProcess(args=args, returncode=0)
+        imagestorage = NspawnImageStorage.create(self, path)
+        images = self.enter_context(imagestorage.images())
+        assert isinstance(images, BootstrappingImages)
+        self.images.add(images)
+        self.bootstrapper = images
 
-    def set_process_result(
-        self,
-        regex: str,
-        *,
-        returncode: int = 0,
-        stdout: str | bytes | None = None,
-        stderr: str | bytes | None = None,
-    ):
-        self.process_result_queue[regex] = subprocess.CompletedProcess(
-            args=[], returncode=returncode, stdout=stdout, stderr=stderr
-        )
+    def _instantiate_images_default(self) -> None:
+        from .images import BootstrappingImages
+        from .nspawn.imagestorage import NspawnImageStorage
 
-    def _instantiate_imagestorage(self) -> imagestorage.ImageStorage:
-        return imagestorage.ImageStorage.create_mock(self)
+        podman_images: BootstrappingImages | None = None
+        if importlib.util.find_spec("podman"):
+            from .podman.images import PodmanImages
 
-    @cached_property
-    def debcache(self) -> DebCache | None:
-        """
-        Return the DebCache object to manage an apt package cache
-        """
-        return None
+            podman_images = PodmanImages(self)
 
-    @cached_property
-    def apt_archives(self) -> str | None:
-        """
-        Return the path of a directory that can be bind-mounted as
-        /var/cache/apt/archives in Debian containers
-        """
-        return None
+        if privs.can_regain():
+            images = self.enter_context(
+                NspawnImageStorage.create(self, MACHINECTL_PATH).images()
+            )
+            assert isinstance(images, BootstrappingImages)
+            self.images.add(images)
+            if podman_images:
+                self.images.add(podman_images)
+            self.bootstrapper = images
+        elif podman_images:
+            self.bootstrapper = podman_images
+            self.images.add(podman_images)
+        else:
+            raise Fail(
+                "neither nspawn nor podman are accessible"
+                " (try running with sudo?)"
+            )
 
-    @cached_property
-    def extra_packages_dir(self) -> str | None:
-        """
-        Return the path of a directory with extra packages to add as a source
-        to containers
-        """
-        return None
+    @override
+    def _make_podman(self) -> "_podman.PodmanClient":
+        import podman
+
+        uri = f"unix:///run/user/{os.getuid()}/podman/podman.sock"
+        return self.enter_context(podman.PodmanClient(base_url=uri))
+
+    @override
+    def _make_debcache(self, path: Path) -> DebCache:
+        return self.enter_context(DebCache(path))

@@ -1,12 +1,10 @@
-from __future__ import annotations
-
+import argparse
 import csv
 import logging
 import shutil
-import subprocess
 import sys
 from collections.abc import Sequence
-from typing import Any, NamedTuple, TextIO
+from typing import Any, NamedTuple, TextIO, override
 
 try:
     from texttable import Texttable
@@ -15,25 +13,28 @@ try:
 except ModuleNotFoundError:
     HAVE_TEXTTABLE = False
 
-from ..distro import DistroFamily
+from moncic.distro import DistroFamily
+from moncic.image import RunnableImage
+
 from .moncic import MoncicCommand, main_command
 
 log = logging.getLogger(__name__)
 
 
 class RowOutput:
-    def add_row(self, row: Sequence[Any]):
+    def add_row(self, row: Sequence[Any]) -> None:
         raise NotImplementedError(f"{self.__class__}.add_row() not implemented")
 
-    def flush(self):
+    def flush(self) -> None:
         pass
 
 
 class CSVOutput(RowOutput):
-    def __init__(self, out: TextIO):
+    def __init__(self, out: TextIO) -> None:
         self.writer = csv.writer(out)
 
-    def add_row(self, row: Sequence[Any]):
+    @override
+    def add_row(self, row: Sequence[Any]) -> None:
         self.writer.writerow(row)
 
 
@@ -44,7 +45,7 @@ class TextColumn(NamedTuple):
 
 
 class TableOutput(RowOutput):
-    def __init__(self, out: TextIO, *args: TextColumn):
+    def __init__(self, out: TextIO, *args: TextColumn) -> None:
         self.out = out
         self.table = Texttable(max_width=shutil.get_terminal_size()[0])
         self.table.set_deco(Texttable.HEADER)
@@ -52,10 +53,12 @@ class TableOutput(RowOutput):
         self.table.set_cols_align([a.align for a in args])
         self.table.add_row([a.title for a in args])
 
-    def add_row(self, row: Sequence[Any]):
+    @override
+    def add_row(self, row: Sequence[Any]) -> None:
         self.table.add_row(row)
 
-    def flush(self):
+    @override
+    def flush(self) -> None:
         print(self.table.draw())
 
 
@@ -65,12 +68,17 @@ class Images(MoncicCommand):
     List OS images
     """
 
-    NEEDS_ROOT = False
-
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--csv", action="store_true", help="machine readable output in CSV format")
+        parser.add_argument(
+            "--csv",
+            action="store_true",
+            help="machine readable output in CSV format",
+        )
         return parser
 
     def run(self) -> None:
@@ -78,23 +86,32 @@ class Images(MoncicCommand):
             output = CSVOutput(sys.stdout)
         else:
             output = TableOutput(
-                sys.stdout, TextColumn("Name"), TextColumn("Distro"), TextColumn("Boostrapped"), TextColumn("Path")
+                sys.stdout,
+                TextColumn("Name"),
+                TextColumn("Distro"),
+                TextColumn("Boostrapped"),
+                TextColumn("Backend"),
+                TextColumn("Backend ID"),
             )
-
-        # List images that have been bootstrapped
-        res = subprocess.run(
-            ["machinectl", "list-images", "--no-pager", "--no-legend"], check=True, stdout=subprocess.PIPE, text=True
-        )
-        bootstrapped: set[str] = set()
-        for line in res.stdout.splitlines():
-            bootstrapped.add(line.split()[0])
 
         # List configured images
         with self.moncic.session() as session:
             images = session.images
-            for name in images.list_images(skip_unaccessible=True):
-                with images.system(name) as system:
-                    output.add_row((name, system.distro.name, "yes" if name in bootstrapped else "no", system.path))
+            for name in images.list_images():
+                image = images.image(name)
+                if image.bootstrapped:
+                    assert isinstance(image, RunnableImage)
+                    output.add_row(
+                        (
+                            image.name,
+                            image.distro,
+                            "yes",
+                            image.image_type,
+                            image.get_backend_id(),
+                        )
+                    )
+                else:
+                    output.add_row((image.name, image.distro, "no", "-", "-"))
         output.flush()
 
 
@@ -104,19 +121,30 @@ class Distros(MoncicCommand):
     List OS images
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--csv", action="store_true", help="machine readable output in CSV format")
+        parser.add_argument(
+            "--csv",
+            action="store_true",
+            help="machine readable output in CSV format",
+        )
         return parser
 
-    def run(self):
+    def run(self) -> None:
         if self.args.csv or not HAVE_TEXTTABLE:
             output = CSVOutput(sys.stdout)
         else:
-            output = TableOutput(sys.stdout, TextColumn("Name"), TextColumn("Shortcuts"))
+            output = TableOutput(
+                sys.stdout, TextColumn("Name"), TextColumn("Shortcuts")
+            )
 
-        for family in sorted(DistroFamily.list(), key=lambda x: x.name):
-            for info in family.list_distros():
-                output.add_row((info.name, ", ".join(info.shortcuts)))
+        for family in sorted(
+            DistroFamily.list_families(), key=lambda x: x.name
+        ):
+            for distro in family.distros:
+                output.add_row((distro.full_name, ", ".join(distro.aliases)))
         output.flush()

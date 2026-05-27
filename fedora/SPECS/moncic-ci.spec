@@ -1,10 +1,10 @@
 %global releaseno 1
-# Note: define _srcarchivename in Travis build only.
+# Note: define _srcarchivename in CI build only.
 %{!?srcarchivename: %global srcarchivename %{name}-%{version}-%{releaseno}}
 
 
 Name:           moncic-ci
-Version:        0.16
+Version:        0.29
 Release:        %{releaseno}%{dist}
 Summary:        Continuous integration tool and development helper
 
@@ -24,9 +24,12 @@ BuildRequires:  python3-GitPython
 # for tests
 BuildRequires:  python3-pytest
 BuildRequires:  python3-requests
+BuildRequires:  python3-rich
 BuildRequires:  systemd-container
 BuildRequires:  btrfs-progs
 BuildRequires:  dnf
+BuildRequires:  debootstrap
+BuildRequires:  python3-texttable
 
 Requires:       python3
 Requires:       python3-yaml
@@ -38,6 +41,7 @@ Requires:       python3-GitPython
 # not strictly necessary, for formatting
 Requires:       python3-texttable
 Requires:       python3-coloredlogs
+Requires:       python3-rich
 
 %description
 Moncic CI manages lightweight containers for use with Continuous Integration
@@ -67,13 +71,80 @@ as you would run it on your normal system, keeping iteration lags low.
 %py3_install
 
 %check
-%pytest
+./test
 
 %files
 %{_bindir}/monci
 %{python3_sitelib}/moncic*
 
 %changelog
+* Fri May 22 2026 Daniele Branchini  <dbranchini@arpae.it> - 0.29-1
+- Test and deal with an ARPA source with specfile in root but no patches (#124)
+
+* Thu May 07 2026 Daniele Branchini <dbranchini@arpae.it> - 0.28-2
+- Fix test failure (#128)
+- Updated man page (#129)    
+
+* Thu May 07 2026 Daniele Branchini <dbranchini@arpae.it> - 0.28-1
+- Fix copying fedora patch files from root of source dir (#124)
+
+* Wed Apr 29 2026 Daniele Branchini <dbranchini@arpae.it> - 0.27-1
+- Added support for Fedora 44, Rocky Linux 10, Alma Linux 10 (#122)
+- Removed unused code that broke tests when machinectl was not installed (#123)
+
+* Mon Nov 10 2025 Daniele Branchini <dbranchini@arpae.it> - 0.26-1
+- Test and fix building a fedora source with fedora/SOURCES
+
+* Mon Nov 10 2025 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.25-1
+- Increased test coverage and fixed some `monci image {name} {command}` issues
+- Added missing f-string marker
+
+* Wed Oct 01 2025 Daniele Branchini <dbranchini@arpae.it> - 0.24-1
+- Fixed `--extra-packages-dir` that was broken by the previous refactoring
+- Fixed `monci image {name} {extends|distro} {name}` command (#121)
+
+* Wed Jun 25 2025 Daniele Branchini <dbranchini@arpae.it> - 0.23-1
+- Remove work directories left around from previous runs (#119)
+
+* Fri Jun 20 2025 Daniele Branchini <dbranchini@arpae.it> - 0.22-1
+- Added an initial suite of integration tests
+- Fixed bootstrap for supported distributions
+- Removed support for Centos 8. Centos 7 is still supported.
+- Added support for Almalinux.
+- Added support for newer Ubuntu, removed support for EOL Ubuntus.
+- Detect when a container for an old distribution cannot be started due to
+  group v1 guest on v2 host (see https://github.com/lxc/lxc/issues/4072)
+- Use mmdebstrap to bootstrap Debian, if available
+- `moncic ci` can now use podman containers
+- Fine tuned distribution support, driven by new integration tests. Reported
+  results in README.md
+- Removed support for Debian Jessie
+- Removed support for Fedora <= 38
+- Deal with dnf being both in sbin and bin in F42 (#117)
+
+* Tue May 27 2025 Daniele Branchini <dbranchini@arpae.it> - 0.21-1
+- Use check-update instead of updateinfo for yum and dnf (#116)
+- Update distro tests to deal with running scripts instead of command sequences (#115)
+
+* Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.20-1
+- Use Script for build-specific container setup
+- Deal with the configuration directory not existing
+- Fixed user check script
+
+* Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.19-1
+- Add missing modules (#113)
+- Refactored operations 
+- Fix bootstrapping without `--recreate`
+- Fixed podman bootstrapping for Rocky Linux distros
+
+* Mon May 26 2025 Daniele Branchini <dbranchini@arpae.it> - 0.18-1
+- Support podman images and containers (#112)
+- Install systemd when bootstrapping Fedora 42 (#111)
+
+* Thu Apr 24 2025 Daniele Branchini <dbranchini@arpae.it> - 0.17-1
+- Added Fedora 42 support
+- Added debian/latest and ubuntu/latest to candidate branches (per DEP-14)
+
 * Fri Oct 18 2024 Emanuele Di Giacomo <edigiacomo@arpae.it> - 0.16-1
 - Fixed rpm-arpa build (#108)
 

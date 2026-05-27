@@ -1,14 +1,13 @@
-from __future__ import annotations
-
 import io
 import os
 import subprocess
 import tempfile
+from pathlib import Path
 
 import yaml
 
 
-def edit_yaml(buf: str, path: str) -> str | None:
+def edit_yaml(buf: str, path: Path) -> str | None:
     """
     Open an editor on buf and validate its result as YAML.
 
@@ -18,7 +17,9 @@ def edit_yaml(buf: str, path: str) -> str | None:
 
     Return None if editing did not change the contents.
     """
-    ERROR_MARKER = "# ----- this line and everything below it will be ignored -----"
+    ERROR_MARKER = (
+        "# ----- this line and everything below it will be ignored -----"
+    )
     editor = os.environ.get("EDITOR", "sensible-editor")
 
     current = buf
@@ -34,7 +35,10 @@ def edit_yaml(buf: str, path: str) -> str | None:
                 print("#", file=tf)
                 print(f"# Original file: {path}", file=tf)
                 print("#", file=tf)
-                print("# Quit with no modifications to restore the original.", file=tf)
+                print(
+                    "# Quit with no modifications to restore the original.",
+                    file=tf,
+                )
                 print("#", file=tf)
                 print("# Error:", file=tf)
                 for line in error.splitlines():

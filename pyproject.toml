@@ -1,12 +1,26 @@
 [tool.black]
-line-length = 120
+line-length = 80
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html
 mypy_path = "stubs"
+strict = true
+enable_error_code = "explicit-override"
+
+[[tool.mypy.overrides]]
+module = "tblib.*"
+ignore_missing_imports = true
 
 [tool.pylint.MAIN]
-max-line-length = 120
+max-line-length = 80
 
 [tool.pylint.'MESSAGES CONTROL']
 disable = "invalid-name,too-many-instance-attributes,too-many-locals,too-many-arguments"
+
+[tool.isort]
+# Align isort with flake8
+profile = "black"
+line_length = 80
+order_by_type = false
+case_sensitive = true
+known_first_party = "moncic"

@@ -1,17 +1,16 @@
-from __future__ import annotations
-
 import argparse
 import configparser
 import inspect
 import shutil
 import textwrap
+from collections.abc import Sequence
 from dataclasses import fields
-from typing import TYPE_CHECKING, Any
+from typing import Any, TYPE_CHECKING, override
 
 from ..exceptions import Fail, Success
 
 if TYPE_CHECKING:
-    from moncic.build import Build
+    from moncic.operations.build import BuildConfig
 
 
 def get_doc_wrapper(lead_width: int) -> textwrap.TextWrapper:
@@ -20,7 +19,14 @@ def get_doc_wrapper(lead_width: int) -> textwrap.TextWrapper:
 
 
 class SourceTypeAction(argparse._StoreAction):
-    def __call__(self, parser, namespace, values, option_string=None):
+    @override
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
         if values == "list":
             from ..source.distro import source_types
 
@@ -29,7 +35,9 @@ class SourceTypeAction(argparse._StoreAction):
             help_wrapper = get_doc_wrapper(name_width + 2)
 
             for name, source_cls in sorted(source_types.items()):
-                for idx, line in enumerate(help_wrapper.wrap(inspect.getdoc(source_cls))):
+                doc = inspect.getdoc(source_cls)
+                assert doc is not None
+                for idx, line in enumerate(help_wrapper.wrap(doc)):
                     if idx == 0:
                         print(f"{name.rjust(name_width)}: {line}")
                     else:
@@ -50,17 +58,30 @@ class BuildOptionAction(argparse._AppendAction):
     Build subclasses.
     """
 
-    def __call__(self, parser, namespace, values, option_string=None):
-        from ..build import Build
+    @override
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        from moncic.operations.build import Builder
+
+        assert isinstance(values, str)
 
         if values == "list":
             # Compute width for option names
-            name_width = max(len(x) for cls in Build.list_build_classes() for x, doc in cls.list_build_options())
+            name_width = max(
+                len(x)
+                for cls in Builder.list_build_classes()
+                for x, doc in cls.build_config_class.list_build_options()
+            )
             help_wrapper = get_doc_wrapper(name_width + 4)
 
-            for cls in Build.list_build_classes():
+            for cls in Builder.list_build_classes():
                 print(f"{cls.get_name()}:")
-                for name, doc in cls.list_build_options():
+                for name, doc in cls.build_config_class.list_build_options():
                     for idx, line in enumerate(help_wrapper.wrap(doc)):
                         if idx == 0:
                             print(f"  {name.rjust(name_width)}: {line}")
@@ -69,19 +90,25 @@ class BuildOptionAction(argparse._AppendAction):
             raise Success()
 
         if "=" not in values:
-            raise ValueError(f"option --option={values!r} must be --option=key=value")
+            raise ValueError(
+                f"option --option={values!r} must be --option=key=value"
+            )
 
         k, v = values.split("=", 1)
         if not k:
-            raise ValueError(f"option --option={values!r} must have an non-empty key")
+            raise ValueError(
+                f"option --option={values!r} must have an non-empty key"
+            )
 
         allowed_keys: set[str] = set()
-        for cls in Build.list_build_classes():
-            for name, doc in cls.list_build_options():
+        for cls in Builder.list_build_classes():
+            for name, doc in cls.build_config_class.list_build_options():
                 allowed_keys.add(name)
 
         if k not in allowed_keys:
-            raise ValueError(f"option --option={values!r} has unsupported key {k!r}")
+            raise ValueError(
+                f"option --option={values!r} has unsupported key {k!r}"
+            )
 
         if vals := getattr(namespace, self.dest, None):
             vals[k] = v
@@ -89,25 +116,28 @@ class BuildOptionAction(argparse._AppendAction):
             setattr(namespace, self.dest, {k: v})
 
 
-def set_build_option_action(build: Build, key: str, val: Any) -> None:
+def set_build_option_action(config: "BuildConfig", key: str, val: Any) -> None:
     """
-    Set a build option action in a builder instance
+    Set a build option action in a BuildConfig instance
     """
-    for field in fields(build):
+    for field in fields(config):
         if field.name == key:
             break
     else:
-        raise Fail(f"cannot set option {key!r} on build of type {type(build).__name__}")
+        raise Fail(
+            f"cannot set option {key!r} on build config"
+            f" of type {type(config).__name__}"
+        )
 
     if field.type == "bool":
         if isinstance(val, bool):
-            setattr(build, key, val)
+            setattr(config, key, val)
         elif isinstance(val, str):
             bool_value = configparser.ConfigParser.BOOLEAN_STATES.get(val)
             if bool_value is None:
                 raise Fail(f"cannot parse value of {key}={val!r} as a boolean")
-            setattr(build, key, bool_value)
+            setattr(config, key, bool_value)
         else:
             raise TypeError(f"trying to set {key} (of type bool) to {val!r}")
     else:
-        setattr(build, key, val)
+        setattr(config, key, val)

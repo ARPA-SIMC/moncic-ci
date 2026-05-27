@@ -1,19 +1,17 @@
-from __future__ import annotations
-
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import override
 
 from moncic.exceptions import Fail
 from moncic.source import Source
-from moncic.source.local import File, Dir, Git
+from moncic.source.local import Dir, File, Git
 
 from .source import (
-    WorkdirFixture,
     GitFixture,
     GitRepo,
-    create_lint_version_fixture_path,
+    WorkdirFixture,
     create_lint_version_fixture_git,
+    create_lint_version_fixture_path,
 )
 
 
@@ -21,6 +19,7 @@ class TestFile(WorkdirFixture):
     file: Path
     dsc: Path
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -42,16 +41,25 @@ class TestFile(WorkdirFixture):
             self.assertEqual(src.path, self.file)
 
     def test_fail_if_branch_used(self) -> None:
-        with self.assertRaisesRegex(Fail, "Cannot specify a branch when working on a file"):
+        with self.assertRaisesRegex(
+            Fail, "Cannot specify a branch when working on a file"
+        ):
             Source.create_local(source=self.file, branch="test")
 
     def test_derivation(self) -> None:
         with Source.create_local(source=self.file) as src:
             assert isinstance(src, File)
             kwargs = src.derive_kwargs()
-            self.assertEqual(kwargs, {"parent": src, "name": self.file.as_posix(), "path": self.file})
+            self.assertEqual(
+                kwargs,
+                {
+                    "parent": src,
+                    "name": self.file.as_posix(),
+                    "path": self.file,
+                },
+            )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         with Source.create_local(source=self.file) as src:
             assert isinstance(src, File)
             self.assertEqual(src.lint_find_versions(), {})
@@ -60,6 +68,7 @@ class TestFile(WorkdirFixture):
 class TestDir(WorkdirFixture):
     path: Path
 
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -79,16 +88,25 @@ class TestDir(WorkdirFixture):
             self.assertEqual(src.path, self.path)
 
     def test_fail_if_branch_used(self) -> None:
-        with self.assertRaisesRegex(Fail, "Cannot specify a branch when working on a non-git directory"):
+        with self.assertRaisesRegex(
+            Fail, "Cannot specify a branch when working on a non-git directory"
+        ):
             Source.create_local(source=self.path, branch="test")
 
     def test_derivation(self) -> None:
         with Source.create_local(source=self.path) as src:
             assert isinstance(src, Dir)
             kwargs = src.derive_kwargs()
-            self.assertEqual(kwargs, {"parent": src, "name": self.path.as_posix(), "path": self.path})
+            self.assertEqual(
+                kwargs,
+                {
+                    "parent": src,
+                    "name": self.path.as_posix(),
+                    "path": self.path,
+                },
+            )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         create_lint_version_fixture_path(path)
 
@@ -121,6 +139,7 @@ class TestDir(WorkdirFixture):
 
 
 class TestGit(GitFixture):
+    @override
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
@@ -204,7 +223,7 @@ class TestGit(GitFixture):
                 },
             )
 
-    def test_lint_find_versions(self):
+    def test_lint_find_versions(self) -> None:
         path = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
         git = self.stack.enter_context(GitRepo(path))
         create_lint_version_fixture_git(git)

@@ -1,19 +1,26 @@
-from __future__ import annotations
-
-import dataclasses
 import logging
 import os
 import subprocess
+import warnings
+from pathlib import Path
+from typing import Any, Self, overload
 
 import yaml
 
-from .session import MockSession, Session
+from .context import privs
+from .session import RealSession, Session
 from .utils.privs import ProcessPrivs
 
 log = logging.getLogger(__name__)
 
 
-def expand_path(path: str | None) -> str | None:
+@overload
+def expand_path(path: Path) -> Path: ...
+@overload
+def expand_path(path: str) -> Path | None: ...
+
+
+def expand_path(path: str | Path | None) -> Path | None:
     """
     Process a path in the configuration, expanding ~ and making it absolute.
 
@@ -21,54 +28,57 @@ def expand_path(path: str | None) -> str | None:
     """
     if not path:
         return None
-    return os.path.abspath(os.path.expanduser(path))
+    return Path(path).expanduser().absolute()
 
 
-@dataclasses.dataclass
 class MoncicConfig:
     """
     Global Moncic-CI configuration
     """
 
-    # Directory where images are stored
-    imagedir: str = "/var/lib/machines"
-    # Directories where image configuration can stored, if not found in
-    # imagedir
-    imageconfdirs: list[str] = dataclasses.field(default_factory=list)
-    # Btrfs compression level to set on OS image subvolumes when they are
-    # created. The value is the same as can be set by `btrfs property set
-    # compression`. Default: nothing is set
-    compression: str | None = None
-    # Automatically reexec with sudo if permissions are needed
-    auto_sudo: bool = True
-    # Use a tmpfs overlay for ephemeral containers instead of btrfs snapshots
-    tmpfs: bool = False
-    # Directory where .deb files are cached between invocations
-    deb_cache_dir: str | None = "~/.cache/moncic-ci/debs"
-    # Directory where extra packages, if present, are added to package sources
-    # in containers
-    extra_packages_dir: str | None = None
-    # Directory where build artifacts will be stored
-    build_artifacts_dir: str | None = None
+    def __init__(self) -> None:
+        # Directory where images are stored
+        self.imagedir: Path | None = None
+        # Directories where image configuration can stored, if not found in
+        # imagedir
+        self.imageconfdirs: list[Path] = [self.xdg_local_config_dir()]
+        # Btrfs compression level to set on OS image subvolumes when they are
+        # created. The value is the same as can be set by `btrfs property set
+        # compression`. Default: nothing is set
+        self.compression: str | None = None
+        # Automatically reexec with sudo if permissions are needed
+        self.auto_sudo: bool = True
+        # Use a tmpfs overlay for ephemeral containers instead of btrfs
+        # snapshots
+        self.tmpfs: bool = False
+        # Directory where .deb files are cached between invocations
+        self.deb_cache_dir: Path | None = expand_path("~/.cache/moncic-ci/debs")
+        # Directory where extra packages, if present, are added to package
+        # sources in containers
+        self.extra_packages_dir: Path | None = None
+        # Directory where build artifacts will be stored
+        self.build_artifacts_dir: Path | None = None
 
-    def __post_init__(self):
-        # Allow to use ~ in config files
-        self.imagedir = expand_path(self.imagedir)
-
-        # Use ~ in imageconfdirs, and default to [$XDG_CONFIG_HOME/moncic-ci]
-        if not self.imageconfdirs:
-            self.imageconfdirs = [self.xdg_local_config_dir()]
-        else:
-            self.imageconfdirs = [expand_path(path) for path in self.imageconfdirs]
-
-        self.deb_cache_dir = expand_path(self.deb_cache_dir)
-        self.extra_packages_dir = expand_path(self.extra_packages_dir)
-        self.build_artifacts_dir = expand_path(self.build_artifacts_dir)
+    def dict(self) -> dict[str, Any]:
+        return {
+            "imagedir": self.imagedir,
+            "imageconfdirs": self.imageconfdirs,
+            "compression": self.compression,
+            "auto_sudo": self.auto_sudo,
+            "tmpfs": self.tmpfs,
+            "deb_cache_dir": self.deb_cache_dir,
+            "extra_packages_dir": self.extra_packages_dir,
+            "build_artifacts_dir": self.build_artifacts_dir,
+        }
 
     @classmethod
-    def find_git_dir(cls) -> str | None:
+    def find_git_dir(cls) -> Path | None:
         try:
-            res = subprocess.run(["git", "rev-parse", "--git-dir"], capture_output=True, text=True)
+            res = subprocess.run(
+                ["git", "rev-parse", "--git-dir"],
+                capture_output=True,
+                text=True,
+            )
         except FileNotFoundError:
             # Handle the rare case where git is missing
             return None
@@ -76,16 +86,18 @@ class MoncicConfig:
             return None
         path = res.stdout.strip()
         if path:
-            return path
+            return Path(path)
         return None
 
     @classmethod
-    def xdg_local_config_dir(self) -> str:
-        config_home = os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
-        return os.path.join(config_home, "moncic-ci")
+    def xdg_local_config_dir(self) -> Path:
+        config_home = Path(
+            os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        )
+        return config_home / "moncic-ci"
 
     @classmethod
-    def find_config_file(cls) -> str | None:
+    def find_config_file(cls) -> Path | None:
         """
         Locate a moncic-ci.yaml configuration file in a list of well known
         directories
@@ -102,26 +114,26 @@ class MoncicConfig:
         #    that it accidentally gets committed
         git_dir = cls.find_git_dir()
         if git_dir is not None:
-            candidate = os.path.join(git_dir, "moncic-ci.yaml")
-            if os.path.exists(candidate):
+            candidate = git_dir / "moncic-ci.yaml"
+            if candidate.exists():
                 return candidate
 
         # Try in the home directory, as ~/.config/moncic-ci/moncic-ci.yaml
-        local_config = os.path.join(cls.xdg_local_config_dir(), "moncic-ci.yaml")
-        if os.path.exists(local_config):
+        local_config = cls.xdg_local_config_dir() / "moncic-ci.yaml"
+        if local_config.exists():
             return local_config
 
         # Try system-wide, as /etc/moncic-ci.yaml
-        system_config = "/etc/moncic-ci.yaml"
-        if os.path.exists(system_config):
+        system_config = Path("/etc/moncic-ci.yaml")
+        if system_config.exists():
             return system_config
 
         return None
 
     @classmethod
-    def load(cls, path: str | None = None):
+    def load(cls, path: Path | None = None) -> Self:
         """
-        Load the configuration from the given path, or from a list of default paths.
+        Load the configuration from the given path, or from default paths.
         """
         if path is None:
             path = cls.find_config_file()
@@ -130,13 +142,28 @@ class MoncicConfig:
             return cls()
 
         try:
-            with open(path) as fd:
+            with path.open() as fd:
                 conf = yaml.load(fd, Loader=yaml.CLoader)
             log.info("Configuration loaded from %s", path)
         except FileNotFoundError:
-            conf = None
+            return cls()
 
-        return cls(**conf)
+        res = cls()
+        if imagedir := conf.pop("imagedir", None):
+            res.imagedir = expand_path(imagedir)
+        if imageconfdirs := conf.pop("imageconfdirs", None):
+            res.imageconfdirs = [expand_path(d) for d in imageconfdirs]
+        if compression := conf.pop("compression", None):
+            res.compression = compression
+        res.auto_sudo = conf.pop("auto_sudo", res.auto_sudo)
+        res.tmpfs = conf.pop("tmpfs", res.tmpfs)
+        if deb_cache_dir := conf.pop("deb_cache_dir", None):
+            res.deb_cache_dir = expand_path(deb_cache_dir)
+        if extra_packages_dir := conf.pop("extra_packages_dir", None):
+            res.extra_packages_dir = expand_path(extra_packages_dir)
+        if build_artifacts_dir := conf.pop("build_artifacts_dir", None):
+            res.build_artifacts_dir = expand_path(build_artifacts_dir)
+        return res
 
 
 class Moncic:
@@ -144,32 +171,32 @@ class Moncic:
     General state of the Moncic-CI setup
     """
 
-    def __init__(self, config: MoncicConfig, privs: ProcessPrivs | None = None):
-        self.privs: ProcessPrivs
-        if privs is None:
-            self.privs = ProcessPrivs()
-        else:
-            self.privs = privs
-
+    def __init__(self, config: MoncicConfig):
         self.config = config
-        self.privs.auto_sudo = self.config.auto_sudo
+        privs.auto_sudo = self.config.auto_sudo
 
         # Detect systemd's version
-        res = subprocess.run(["systemctl", "--version"], check=True, capture_output=True, text=True)
+        res = subprocess.run(
+            ["systemctl", "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         self.systemd_version = int(res.stdout.splitlines()[0].split()[1])
 
     def session(self) -> Session:
         """
         Create a new work session.
 
-        Session is a context manager, so you can use this as `with moncic.session() as session:`
-        """
-        return Session(self)
+        Session is a context manager, so you can use this as::
 
-    def mock_session(self) -> Session:
+          with moncic.session() as session:
+              ...
         """
-        Create a new mock session for tests.
+        return RealSession(self)
 
-        Session is a context manager, so you can use this as `with moncic.mock_session() as session:`
-        """
-        return MockSession(self)
+    @property
+    def privs(self) -> ProcessPrivs:
+        warnings.warn("use moncic.context.privs instead", DeprecationWarning)
+        global privs
+        return privs

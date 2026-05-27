@@ -1,3 +1,83 @@
+# Version UNRELEASED
+
+* Implemented configuring podman images to extend other podman images
+
+# Version 0.29
+
+* Test and deal with an ARPA source with specfile in root but no patches (#124)
+
+# Version 0.28
+
+* Fix copying fedora patch files from root of source dir (#124)
+
+# Version 0.27
+
+* Added support for Fedora 44, Rocky Linux 10, Alma Linux 10 (#122)
+* Removed unused code that broke tests when machinectl was not installed (#123)
+
+# Version 0.26
+
+* Test and fix building a fedora source with fedora/SOURCES
+
+# Version 0.25
+
+* Increased test coverage and fixed some `monci image {name} {command}` issues
+* Added missing f-string marker
+
+# Version 0.24
+
+* Fixed `--extra-packages-dir` that was broken by the previous refactoring
+* Fixed `monci image {name} {extends|distro} {name}` command (#121)
+
+# Version 0.23
+
+* Remove work directories left around from previous runs (#119)
+
+# Version 0.22
+
+* Added an initial suite of integration tests
+* Fixed bootstrap for supported distributions
+* Removed support for Centos 8. Centos 7 is still supported.
+* Added support for Almalinux.
+* Added support for newer Ubuntu, removed support for EOL Ubuntus.
+* Detect when a container for an old distribution cannot be started due to
+  group v1 guest on v2 host (see https://github.com/lxc/lxc/issues/4072)
+* Use mmdebstrap to bootstrap Debian, if available
+* `moncic ci` can now use podman containers
+* Fine tuned distribution support, driven by new integration tests. Reported
+  results in README.md
+* Removed support for Debian Jessie
+* Removed support for Fedora <= 38
+* Deal with dnf being both in sbin and bin in F42 (#117)
+
+# Version 0.21
+
+* Use check-update instead of updateinfo for yum and dnf (#116)
+* Update distro tests to deal with running scripts instead of command sequences (#115)
+
+# Version 0.20
+
+* Use Script for build-specific container setup
+* Deal with the configuration directory not existing
+* Fixed user check script
+
+# Version 0.19
+
+* Add missing modules (#113)
+* Refactored operations 
+* Fix bootstrapping without `--recreate`
+* Fixed podman bootstrapping for Rocky Linux distros
+
+# Version 0.18
+
+* [Support podman images and containers](doc/podman.md) (#112)
+* Install systemd when bootstrapping Fedora 42 (#111)
+
+# Version 0.17
+
+* Added Fedora 42 support
+* Added debian/latest and ubuntu/latest to candidate branches (per DEP-14)
+
 # Version 0.16
 
 * Fixed rpm-arpa build (#108)

@@ -1,16 +1,15 @@
-from __future__ import annotations
-
 import logging
 import os
 import shlex
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 log = logging.getLogger("run")
 
 
-def log_run(cmd: Sequence[str], **kw) -> None:
+def log_run(cmd: Sequence[str], **kw: Any) -> None:
     """
     Log executing a command
     """
@@ -23,10 +22,12 @@ def log_run(cmd: Sequence[str], **kw) -> None:
     else:
         prompt += "$"
 
-    log.info("%s %s", prompt, " ".join(shlex.quote(x) for x in cmd))
+    log.info("%s %s", prompt, shlex.join(cmd))
 
 
-def run(cmd: Sequence[str], check: bool = True, **kw) -> subprocess.CompletedProcess:
+def run(
+    cmd: Sequence[str], check: bool = True, **kw: Any
+) -> subprocess.CompletedProcess:
     """
     Logging wrapper to subprocess.run.
 

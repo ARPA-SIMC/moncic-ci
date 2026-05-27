@@ -1,7 +1,8 @@
-from __future__ import annotations
-
+import argparse
 import logging
-import os
+from typing import Any, override
+
+from moncic.image import BootstrappableImage, RunnableImage
 
 from .moncic import MoncicCommand, main_command
 
@@ -14,45 +15,56 @@ class Bootstrap(MoncicCommand):
     Create or update the whole set of OS images for the CI
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
-        parser.add_argument("--recreate", action="store_true", help="delete the images and recreate them from scratch")
         parser.add_argument(
-            "systems",
-            nargs="*",
-            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+            "--recreate",
+            action="store_true",
+            help="delete the images and recreate them from scratch",
+        )
+        parser.add_argument(
+            "images",
+            nargs="+",
+            help="names or paths of systems to bootstrap."
+            " Default: all .yaml files and existing images",
         )
         return parser
 
-    def run(self):
+    def run(self) -> int | None:
         with self.moncic.session() as session:
             images = session.images
+            names = self.args.images
+            for name in names:
+                image = images.image(name)
 
-            if not self.args.systems:
-                systems = images.list_images()
-            else:
-                systems = self.args.systems
+                if image.bootstrapped:
+                    assert isinstance(image, RunnableImage)
+                    if self.args.recreate:
+                        bootstrappable_image = image.remove()
+                    else:
+                        return None
+                else:
+                    assert isinstance(image, BootstrappableImage)
+                    bootstrappable_image = image
 
-            systems = images.add_dependencies(systems)
-
-            for name in systems:
-                if self.args.recreate:
-                    images.remove_system(name)
-
+                assert bootstrappable_image is not None
                 try:
-                    images.bootstrap_system(name)
+                    image = bootstrappable_image.bootstrap()
                 except Exception:
                     log.critical("%s: cannot create image", name, exc_info=True)
                     return 5
 
-                with images.maintenance_system(name) as system:
-                    log.info("%s: updating image", name)
-                    try:
-                        system.update()
-                    except Exception:
-                        log.critical("%s: cannot update image", name, exc_info=True)
-                        return 6
+                log.info("%s: updating image", name)
+                try:
+                    image.update()
+                except Exception:
+                    log.critical("%s: cannot update image", name, exc_info=True)
+                    return 6
+        return None
 
 
 @main_command
@@ -61,17 +73,21 @@ class Update(MoncicCommand):
     Update existing OS images
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "systems",
             nargs="*",
-            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+            help="names or paths of systems to update."
+            " Default: all .yaml files and existing images",
         )
         return parser
 
-    def run(self):
+    def run(self) -> int | None:
         with self.moncic.session() as session:
             images = session.images
             if not self.args.systems:
@@ -83,23 +99,24 @@ class Update(MoncicCommand):
             count_failed = 0
 
             for name in systems:
-                with images.maintenance_system(name) as system:
-                    if not os.path.exists(system.path):
-                        continue
-
-                    log.info("%s: updating image", name)
-                    try:
-                        system.update()
-                        count_ok += 1
-                    except Exception:
-                        log.critical("%s: cannot update image", name, exc_info=True)
-                        count_failed += 1
+                image = images.image(name)
+                if not image.bootstrapped:
+                    continue
+                assert isinstance(image, RunnableImage)
+                log.info("%s: updating image", name)
+                try:
+                    image.update()
+                    count_ok += 1
+                except Exception:
+                    log.critical("%s: cannot update image", name, exc_info=True)
+                    count_failed += 1
 
             log.info("%d images successfully updated", count_ok)
 
             if count_failed:
                 log.error("%d images failed to update", count_failed)
                 return 6
+        return None
 
 
 @main_command
@@ -108,24 +125,36 @@ class Remove(MoncicCommand):
     Remove existing OS images
     """
 
+    @override
     @classmethod
-    def make_subparser(cls, subparsers):
+    def make_subparser(
+        cls, subparsers: "argparse._SubParsersAction[Any]"
+    ) -> argparse.ArgumentParser:
         parser = super().make_subparser(subparsers)
         parser.add_argument(
             "systems",
             nargs="+",
-            help="names or paths of systems to bootstrap. Default: all .yaml files and existing images",
+            help="names or paths of systems to remove."
+            " Default: all .yaml files and existing images",
         )
-        parser.add_argument("--purge", "-P", action="store_true", help="also remove the image configuration file")
+        parser.add_argument(
+            "--purge",
+            "-P",
+            action="store_true",
+            help="also remove the image configuration file",
+        )
         return parser
 
-    def run(self):
+    def run(self) -> None:
         with self.moncic.session() as session:
             images = session.images
             for name in self.args.systems:
-                images.remove_system(name)
+                image = images.image(name)
+                assert isinstance(image, RunnableImage)
+                bootstrappable_image = image.remove()
                 if self.args.purge:
-                    images.remove_config(name)
+                    assert bootstrappable_image is not None
+                    bootstrappable_image.remove_config()
 
 
 @main_command
@@ -134,6 +163,6 @@ class Dedup(MoncicCommand):
     Deduplicate disk usage in image directories
     """
 
-    def run(self):
+    def run(self) -> None:
         with self.moncic.session() as session:
             session.images.deduplicate()

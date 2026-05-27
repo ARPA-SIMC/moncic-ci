@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import abc
 import itertools
 import logging
@@ -7,15 +5,15 @@ import shutil
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, Self, TYPE_CHECKING, override
 
 import git
 
+from ..distro.rpm import RpmDistro
 from ..exceptions import Fail
-from .local import Dir, Git, File
 from ..utils.run import run
 from .distro import DistroSource
-from ..distro.rpm import RpmDistro
+from .local import Dir, File, Git
 
 if TYPE_CHECKING:
     from ..distro import Distro
@@ -45,36 +43,45 @@ class RPMSource(DistroSource, abc.ABC):
         super().__init__(**kwargs)
         self.specfile_path = specfile_path
 
+    @override
     def info_dict(self) -> dict[str, Any]:
-        """Return JSON-able information about this source, without parent information."""
         res = super().info_dict()
         res["specfile_path"] = self.specfile_path.as_posix()
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["specfile_path"] = self.specfile_path
 
+    @override
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
+    def create_from_file(cls, parent: File, *, distro: "Distro") -> Self:
         if parent.path.suffix == ".dsc":
-            raise Fail(f"{parent.path}: cannot build Debian source package on a RPM distribution")
+            raise Fail(
+                f"{parent.path}: cannot build Debian source package"
+                " on a RPM distribution"
+            )
         else:
             raise Fail(f"{parent.path}: cannot detect source type")
 
+    @override
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
+    def create_from_dir(
+        cls, parent: Dir, *, distro: "Distro"
+    ) -> "ARPASourceDir":
         if not isinstance(distro, RpmDistro):
             raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
-        specfiles = ARPASourceDir.locate_specfiles(parent.path)
-        return ARPASourceDir.prepare_from_dir(parent=parent, specfiles=specfiles, distro=distro)
+        return ARPASourceDir.prepare_from_dir(parent=parent, distro=distro)
 
+    @override
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> "RPMSource":  # TODO: use Self from 3.11+
+    def create_from_git(
+        cls, parent: Git, *, distro: "Distro"
+    ) -> "ARPASourceGit":
         if not isinstance(distro, RpmDistro):
             raise RuntimeError("cannot create a RPMSource non a non-RPM distro")
-        specfiles = ARPASourceGit.locate_specfiles(parent.path)
-        return ARPASourceGit.prepare_from_git(parent=parent, specfiles=specfiles, distro=distro)
+        return ARPASourceGit.prepare_from_git(parent=parent, distro=distro)
 
     @cached_property
     def spec_versions(self) -> tuple[str | None, str | None]:
@@ -101,7 +108,11 @@ class RPMSource(DistroSource, abc.ABC):
             text=True,
         )
         if res.returncode != 0:
-            log.warning("%s: rpmspec failed to parse the specfile: %s", spec_path, res.stderr)
+            log.warning(
+                "%s: rpmspec failed to parse the specfile: %s",
+                spec_path,
+                res.stderr,
+            )
             return None, None
 
         version: str | None = None
@@ -122,7 +133,8 @@ class RPMSource(DistroSource, abc.ABC):
         else:
             return version, None
 
-    def lint_find_versions(self, *, allow_exec=False) -> dict[str, str]:
+    @override
+    def lint_find_versions(self, *, allow_exec: bool = False) -> dict[str, str]:
         versions = super().lint_find_versions(allow_exec=allow_exec)
         version, release = self.spec_versions
         if version is not None:
@@ -146,6 +158,19 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
     ARPAE-SIMC (https://www.arpae.it)
     """
 
+    def __init__(self, path: Path, **kwargs: Any) -> None:
+        specfiles = self.locate_specfiles(path)
+        if not specfiles:
+            raise Fail(f"{path}: no specfiles found in well-known locations")
+        if len(specfiles) > 1:
+            raise Fail(f"{path}: {len(specfiles)} specfiles found")
+        super().__init__(path=path, specfile_path=specfiles[0], **kwargs)
+        #: .patch files found in the root
+        self.patchfiles: list[str] = [p.name for p in self.path.glob("*.patch")]
+        # It doesn't need to be sorted, but it helps making behaviour
+        # deterministic for tests
+        self.patchfiles.sort()
+
     @classmethod
     def locate_specfiles(cls, path: Path) -> list[Path]:
         """
@@ -154,39 +179,32 @@ class ARPASource(RPMSource, abc.ABC, style="rpm-arpa"):
         Return its path relative to the given path
         """
         spec_globs = ["fedora/SPECS/*.spec", "*.spec"]
-        return [p.relative_to(path) for p in itertools.chain.from_iterable(path.glob(g) for g in spec_globs)]
+        return [
+            p.relative_to(path)
+            for p in itertools.chain.from_iterable(
+                path.glob(g) for g in spec_globs
+            )
+        ]
 
+    @override
     @classmethod
     def prepare_from_dir(
         cls,
         parent: Dir,
         *,
-        distro: Distro,
-        specfiles: list[Path] | None = None,
-    ) -> "ARPASourceDir":  # TODO: Self from python 3.11+
-        if specfiles is None:
-            specfiles = cls.locate_specfiles(parent.path)
-        if not specfiles:
-            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
-        if len(specfiles) > 1:
-            raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
-        return ARPASourceDir(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
+        distro: "Distro",
+    ) -> "ARPASourceDir":
+        return ARPASourceDir(**parent.derive_kwargs(distro=distro))
 
+    @override
     @classmethod
     def prepare_from_git(
         cls,
         parent: Dir,
         *,
-        distro: Distro,
-        specfiles: list[Path] | None = None,
-    ) -> "ARPASourceGit":  # TODO: Self from python 3.11+
-        if specfiles is None:
-            specfiles = cls.locate_specfiles(parent.path)
-        if not specfiles:
-            raise Fail(f"{parent.path}: no specfiles found in well-known locations")
-        if len(specfiles) > 1:
-            raise Fail(f"{parent.path}: {len(specfiles)} specfiles found")
-        return ARPASourceGit(**parent.derive_kwargs(distro=distro, specfile_path=specfiles[0]))
+        distro: "Distro",
+    ) -> "ARPASourceGit":
+        return ARPASourceGit(**parent.derive_kwargs(distro=distro))
 
 
 class ARPASourceDir(ARPASource, Dir):
@@ -202,7 +220,10 @@ class ARPASourceGit(ARPASource, Git):
     configured for travis
     """
 
-    def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+    @override
+    def lint_find_upstream_tag(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         version, release = self.spec_versions
         if version is None:
             return None
@@ -210,7 +231,10 @@ class ARPASourceGit(ARPASource, Git):
             return tag
         return self.tags_by_name.get(f"v{version}-1")
 
-    def lint_find_packaging_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+    @override
+    def lint_find_packaging_tag(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         version, release = self.spec_versions
         if release is None:
             return None
@@ -218,5 +242,8 @@ class ARPASourceGit(ARPASource, Git):
             return tag
         return None
 
-    def lint_find_packaging_branch(self) -> git.refs.symbolic.SymbolicReference | None:
+    @override
+    def lint_find_packaging_branch(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         return self.repo.active_branch

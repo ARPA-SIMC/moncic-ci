@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import contextlib
 import fcntl
 import logging
@@ -8,11 +6,12 @@ import re
 import struct
 import subprocess
 import tempfile
+from collections.abc import Generator
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..moncic import MoncicConfig
-    from ..system import SystemConfig
 
 log = logging.getLogger(__name__)
 
@@ -22,16 +21,18 @@ class Subvolume:
     Low-level functions to access and maintain a btrfs subvolume
     """
 
-    def __init__(self, system_config: SystemConfig, mconfig: MoncicConfig):
-        self.log = system_config.logger
-        self.system_config = system_config
+    def __init__(
+        self, mconfig: "MoncicConfig", path: Path, compression: str | None
+    ):
         self.mconfig = mconfig
-        self.path = system_config.path
-        self.compression = system_config.compression
-        if self.compression is None:
+        self.path = path
+        self.compression: str | None
+        if compression is None:
             self.compression = mconfig.compression
+        else:
+            self.compression = compression
 
-    def replace_subvolume(self, path: str):
+    def replace_subvolume(self, path: Path) -> None:
         """
         Replace the given subvolume with this one.
 
@@ -39,25 +40,19 @@ class Subvolume:
         """
         # We can do this because we stay on the same directory, which should
         # only be writable by root
-        stash_path = path + ".tmp"
-        os.rename(path, stash_path)
-        os.rename(self.path, path)
+        stash_path = path.parent / f"{path.name}.tmp"
+        path.rename(stash_path)
+        self.path.rename(path)
         self.path = path
-        old = Subvolume(self.system_config, self.mconfig)
-        old.path = stash_path
+        old = Subvolume(self.mconfig, stash_path, self.compression)
         old.remove()
 
-    def local_run(self, cmd: list[str]) -> subprocess.CompletedProcess:
-        """
-        Run a command on the host system.
-        """
-        # Import here to avoid dependency loops
-        from ..runner import LocalRunner
-
-        return LocalRunner.run(self.log, cmd, system_config=self.system_config)
+    def local_run(self, cmd: list[str]) -> None:
+        """Run a command on the host system."""
+        subprocess.run(cmd)
 
     @contextlib.contextmanager
-    def create(self):
+    def create(self) -> Generator[None, None, None]:
         """
         Create a btrfs subvolume, and leave it on exit only if the context
         manager did not raise an exception
@@ -66,10 +61,22 @@ class Subvolume:
             raise RuntimeError(f"{self.path!r} already exists")
 
         # See if there is a compression level configured that we should apply
-        self.local_run(["btrfs", "-q", "subvolume", "create", self.path])
+        self.local_run(
+            ["btrfs", "-q", "subvolume", "create", self.path.as_posix()]
+        )
         try:
             if self.compression is not None:
-                self.local_run(["btrfs", "-q", "property", "set", self.path, "compression", self.compression])
+                self.local_run(
+                    [
+                        "btrfs",
+                        "-q",
+                        "property",
+                        "set",
+                        self.path.as_posix(),
+                        "compression",
+                        self.compression,
+                    ]
+                )
             yield
         except BaseException:
             # Catch BaseException instead of Exception to also cleanup in case
@@ -77,7 +84,7 @@ class Subvolume:
             self.remove()
             raise
 
-    def snapshot(self, source_path: str):
+    def snapshot(self, source_path: Path) -> None:
         """
         Create a btrfs subvolume, and leave it on exit only if the context
         manager did not raise an exception
@@ -87,9 +94,18 @@ class Subvolume:
         if os.path.exists(self.path):
             raise RuntimeError(f"{self.path!r} already exists")
 
-        self.local_run(["btrfs", "-q", "subvolume", "snapshot", source_path, self.path])
+        self.local_run(
+            [
+                "btrfs",
+                "-q",
+                "subvolume",
+                "snapshot",
+                source_path.as_posix(),
+                self.path.as_posix(),
+            ]
+        )
 
-    def remove(self):
+    def remove(self) -> None:
         """
         Remove this subvolume and all subvolumes nested inside it
         """
@@ -99,7 +115,10 @@ class Subvolume:
         # names
         re_btrfslist = re.compile(r"^ID (\d+) gen \d+ top level \d+ path (.+)$")
         res = subprocess.run(
-            ["btrfs", "subvolume", "list", "-o", self.path], check=True, text=True, capture_output=True
+            ["btrfs", "subvolume", "list", "-o", self.path.as_posix()],
+            check=True,
+            text=True,
+            capture_output=True,
         )
         to_delete = []
         for line in res.stdout.splitlines():
@@ -111,10 +130,22 @@ class Subvolume:
         # Delete in reverse order
         for subvolid, subvolpath in to_delete[::-1]:
             log.info("removing btrfs subvolume %r", subvolpath)
-            self.local_run(["btrfs", "-q", "subvolume", "delete", "--subvolid", subvolid, self.path])
+            self.local_run(
+                [
+                    "btrfs",
+                    "-q",
+                    "subvolume",
+                    "delete",
+                    "--subvolid",
+                    subvolid,
+                    self.path.as_posix(),
+                ]
+            )
 
         # Delete the subvolume itself
-        self.local_run(["btrfs", "-q", "subvolume", "delete", self.path])
+        self.local_run(
+            ["btrfs", "-q", "subvolume", "delete", self.path.as_posix()]
+        )
 
 
 FIDEDUPERANGE = 0xC0189436
@@ -129,7 +160,7 @@ def ioctl_fideduperange(src_fd: int, s: bytes) -> tuple[int, int]:
     return bytes_dup, status
 
 
-def do_dedupe(src_file: str, dst_file: str, size: int):
+def do_dedupe(src_file: str, dst_file: str, size: int) -> int:
     """
     Tell the kernel to deduplicate the two files if their contents are the
     same.
@@ -153,7 +184,19 @@ def do_dedupe(src_file: str, dst_file: str, size: int):
             for offset in range(0, size, chunk_size):
                 src_len = min(chunk_size, size - offset)
 
-                s = struct.pack("QQHHIqQQiH", offset, src_len, 1, 0, 0, dst_fd, offset, 0, 0, 0)
+                s = struct.pack(
+                    "QQHHIqQQiH",
+                    offset,
+                    src_len,
+                    1,
+                    0,
+                    0,
+                    dst_fd,
+                    offset,
+                    0,
+                    0,
+                    0,
+                )
                 bytes_deduped, status = ioctl_fideduperange(src_fd, s)
                 total_bytes_deduped += bytes_deduped
         finally:
@@ -164,23 +207,33 @@ def do_dedupe(src_file: str, dst_file: str, size: int):
     return total_bytes_deduped
 
 
-def is_btrfs(path: str) -> bool:
+def is_btrfs(path: Path) -> bool:
     """
     Check if a path is on a btrfs filesystem
     """
     # FIXME: One could use os.statvfs, but its Python version does not (yet?)
     #        expose the f_type field in its output
-    res = subprocess.run(["stat", "--file-system", "--format=%T", path], capture_output=True, text=True, check=True)
+    res = subprocess.run(
+        ["stat", "--file-system", "--format=%T", path.as_posix()],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
     return res.stdout.strip() == "btrfs"
 
 
 @contextlib.contextmanager
-def pause_automounting(pathname: str):
+def pause_automounting(pathname: str) -> Generator[None, None, None]:
     """
-    Pause automounting on the file image for the duration of this context manager
+    Temporarily pause automounting on the file image
     """
     # Get the partition UUID
-    res = subprocess.run(["btrfs", "filesystem", "show", pathname, "--raw"], check=True, capture_output=True, text=True)
+    res = subprocess.run(
+        ["btrfs", "filesystem", "show", pathname, "--raw"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     if mo := re.search(r"uuid: (\S+)", res.stdout):
         uuid = mo.group(1)
     else:
@@ -189,15 +242,27 @@ def pause_automounting(pathname: str):
     # See /usr/lib/udisks2/udisks2-inhibit
     rules_dir = "/run/udev/rules.d"
     os.makedirs(rules_dir, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="wt", dir=rules_dir, prefix="90-udisks-inhibit-", suffix=".rules") as fd:
-        print(f'SUBSYSTEM=="block", ENV{{ID_FS_UUID}}=="{uuid}", ENV{{UDISKS_IGNORE}}="1"', file=fd)
+    with tempfile.NamedTemporaryFile(
+        mode="wt", dir=rules_dir, prefix="90-udisks-inhibit-", suffix=".rules"
+    ) as fd:
+        print(
+            f'SUBSYSTEM=="block", ENV{{ID_FS_UUID}}=="{uuid}",'
+            f' ENV{{UDISKS_IGNORE}}="1"',
+            file=fd,
+        )
         fd.flush()
         os.fsync(fd.fileno())
         subprocess.run(["udevadm", "control", "--reload"], check=True)
-        subprocess.run(["udevadm", "trigger", "--settle", "--subsystem-match=block"], check=True)
+        subprocess.run(
+            ["udevadm", "trigger", "--settle", "--subsystem-match=block"],
+            check=True,
+        )
         try:
             yield
         finally:
             fd.close()
             subprocess.run(["udevadm", "control", "--reload"], check=True)
-            subprocess.run(["udevadm", "trigger", "--settle", "--subsystem-match=block"], check=True)
+            subprocess.run(
+                ["udevadm", "trigger", "--settle", "--subsystem-match=block"],
+                check=True,
+            )

@@ -1,9 +1,7 @@
-from __future__ import annotations
-
 import logging
 from collections import defaultdict
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 
 from .local import Git, LocalSource
 
@@ -24,11 +22,11 @@ class Reporter:
         #: Number of warnings found
         self.warning_count: int = 0
 
-    def error(self, source: Source, message: str):
+    def error(self, source: "Source", message: str) -> None:
         log.error("%s", message)
         self.error_count += 1
 
-    def warning(self, source: Source, message: str):
+    def warning(self, source: "Source", message: str) -> None:
         log.warning("%s", message)
         self.warning_count += 1
 
@@ -52,8 +50,12 @@ class BaseLinter:
             else:
                 by_version[version].append(name)
         if len(by_version) > 1:
-            descs = [f"{v} in {', '.join(names)}" for v, names in by_version.items()]
-            self.reporter.warning(self.source, f"Versions mismatch: {'; '.join(descs)}")
+            descs = [
+                f"{v} in {', '.join(names)}" for v, names in by_version.items()
+            ]
+            self.reporter.warning(
+                self.source, f"Versions mismatch: {'; '.join(descs)}"
+            )
 
     def check_branches(self) -> None:
         assert isinstance(self.source, Git)
@@ -67,17 +69,35 @@ class BaseLinter:
             packaging = self.source.lint_find_packaging_branch()
 
         if upstream is not None and packaging is not None:
-            log.info("Checking changes from upstream %s to packaging %s", upstream, packaging)
+            log.info(
+                "Checking changes from upstream %s to packaging %s",
+                upstream,
+                packaging,
+            )
 
-            # Check if the packaging branch introduced changes to the upstream sources
+            # Check if the packaging branch introduced changes to the upstream
+            # sources
             upstream_affected: set[str] = set()
             for diff in upstream.commit.diff(packaging.commit):
-                if diff.a_path is not None and not self.source.lint_path_is_packaging(Path(diff.a_path)):
+                if (
+                    diff.a_path is not None
+                    and not self.source.lint_path_is_packaging(
+                        Path(diff.a_path)
+                    )
+                ):
                     upstream_affected.add(diff.a_path)
-                if diff.b_path is not None and not self.source.lint_path_is_packaging(Path(diff.b_path)):
+                if (
+                    diff.b_path is not None
+                    and not self.source.lint_path_is_packaging(
+                        Path(diff.b_path)
+                    )
+                ):
                     upstream_affected.add(diff.b_path)
             for name in sorted(upstream_affected):
-                self.reporter.warning(self.source, f"{name}: upstream file affected by debian branch")
+                self.reporter.warning(
+                    self.source,
+                    f"{name}: upstream file affected by debian branch",
+                )
 
     def lint_path_is_packaging(self, path: Path) -> bool:
         """
@@ -85,7 +105,7 @@ class BaseLinter:
         """
         return False
 
-    def run(self):
+    def run(self) -> None:
         pass
 
 
@@ -100,7 +120,8 @@ class GuestLinter(BaseLinter):
         super().__init__(source, reporter)
         self.versions = source.lint_find_versions(allow_exec=True)
 
-    def run(self):
+    @override
+    def run(self) -> None:
         super().run()
         self.check_versions()
         if isinstance(self.source, Git):

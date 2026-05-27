@@ -1,14 +1,14 @@
-from __future__ import annotations
-
 import abc
 import contextlib
 import logging
 import shlex
 import subprocess
 import tempfile
+import types
 import urllib.parse
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence
+from typing import Any, Optional, Self, TYPE_CHECKING, override
 
 import git
 
@@ -17,7 +17,7 @@ from moncic.exceptions import Fail
 from ..utils.run import run
 
 if TYPE_CHECKING:
-    from .local import LocalSource, Git
+    from .local import Git, LocalSource
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +33,9 @@ class CommandLog(list[str]):
         """
         self.append(shlex.join(args))
 
-    def run(self, cmd: Sequence[str], **kwargs) -> subprocess.CompletedProcess:
+    def run(
+        self, cmd: Sequence[str], **kwargs: Any
+    ) -> subprocess.CompletedProcess:
         """
         Run a command and append it to the command log
         """
@@ -50,9 +52,12 @@ class SourceStack(contextlib.ExitStack):
         super().__init__()
         self.entered: bool = False
 
-    def __enter__(self) -> "SourceStack":  # TODO: use Self from 3.11+
+    @override
+    def __enter__(self) -> Self:
         if self.entered:
-            raise RuntimeError("__enter__ called in multiple Sources of the same chain")
+            raise RuntimeError(
+                "__enter__ called in multiple Sources of the same chain"
+            )
         super().__enter__()
         self.entered = True
         return self
@@ -74,14 +79,21 @@ class Source(abc.ABC):
 
     #: User-provided name for this resource
     name: str
-    #: Source from which this one was generated. None if this is the original source
+    #: Source from which this one was generated. None if this is the original
+    #: source
     parent: Optional["Source"]
     #: ExitStack to use for temporary state
     stack: contextlib.ExitStack
     #: Commands that can be used to recreate this source
     command_log: CommandLog
 
-    def __init__(self, *, name: str | None = None, parent: Source | None = None, command_log: CommandLog | None = None):
+    def __init__(
+        self,
+        *,
+        name: str | None = None,
+        parent: Optional["Source"] = None,
+        command_log: CommandLog | None = None,
+    ):
         self.parent = parent
         if parent is None:
             self.stack = SourceStack()
@@ -90,22 +102,31 @@ class Source(abc.ABC):
             if name is None:
                 name = parent.name
         if name is None:
-            raise AttributeError("name not provided, and no parent to use as a fallback")
+            raise AttributeError(
+                "name not provided, and no parent to use as a fallback"
+            )
         self.name = name
         self.command_log = command_log or CommandLog()
 
+    @override
     def __str__(self) -> str:
         return self.name
 
+    @override
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name})"
 
-    def __enter__(self) -> "Source":
+    def __enter__(self) -> Self:
         self.stack.__enter__()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> Any:
-        return self.stack.__exit__(exc_type, exc_val, exc_tb)
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: types.TracebackType | None,
+    ) -> None:
+        self.stack.__exit__(exc_type, exc_val, exc_tb)
 
     def info_history(self) -> list[dict[str, Any]]:
         """Return JSON-able information about this source."""
@@ -116,7 +137,7 @@ class Source(abc.ABC):
         return res
 
     def info_dict(self) -> dict[str, Any]:
-        """Return JSON-able information about this source, without parent information."""
+        """Return JSON-able information about this source."""
         return {
             "name": self.name,
             "command_log": self.command_log,
@@ -142,7 +163,9 @@ class Source(abc.ABC):
         return new_kwargs
 
     @classmethod
-    def create_local(cls, *, source: str | Path, branch: str | None = None) -> "LocalSource":
+    def create_local(
+        cls, *, source: str | Path, branch: str | None = None
+    ) -> "LocalSource":
         """
         Create a distro-agnostic source from a user-defined string
         """
@@ -175,7 +198,10 @@ class Source(abc.ABC):
                 from .local import Dir
 
                 if branch is not None:
-                    raise Fail("Cannot specify a branch when working on a non-git directory")
+                    raise Fail(
+                        "Cannot specify a branch when working"
+                        " on a non-git directory"
+                    )
                 return Dir(name=name, path=source.absolute())
         else:
             from .local import File
@@ -194,10 +220,21 @@ class Source(abc.ABC):
         from .local import Git
 
         # Git checkout in a temporary directory
-        workdir = Path(self.stack.enter_context(tempfile.TemporaryDirectory()))
+        workdir = Path(
+            self.stack.enter_context(
+                tempfile.TemporaryDirectory(suffix="source-git-clone")
+            )
+        )
         command_log = CommandLog()
 
-        clone_cmd = ["git", "-c", "advice.detachedHead=false", "clone", "--quiet", repository]
+        clone_cmd = [
+            "git",
+            "-c",
+            "advice.detachedHead=false",
+            "clone",
+            "--quiet",
+            repository,
+        ]
         if branch is not None:
             clone_cmd += ["--branch", branch]
         command_log.run(clone_cmd, cwd=workdir)
@@ -205,7 +242,9 @@ class Source(abc.ABC):
         # Look for the directory that git created
         paths = list(workdir.iterdir())
         if len(paths) != 1:
-            raise RuntimeError("git clone created more than one entry in its current directory")
+            raise RuntimeError(
+                "git clone created more than one entry in its current directory"
+            )
 
         new_path = paths[0]
 
@@ -226,4 +265,10 @@ class Source(abc.ABC):
             local_branch.checkout()
             command_log.add_command("git", "checkout", "-b", branch)
 
-        return Git(parent=self, path=new_path, repo=repo, readonly=False, command_log=command_log)
+        return Git(
+            parent=self,
+            path=new_path,
+            repo=repo,
+            readonly=False,
+            command_log=command_log,
+        )

@@ -1,17 +1,15 @@
-from __future__ import annotations
-
 import abc
 import re
 import shutil
 import subprocess
 from functools import cached_property
 from pathlib import Path
-from typing import Any
-
-from .source import Source
-from ..utils.run import run
+from typing import Any, Self, override
 
 import git
+
+from ..utils.run import run
+from .source import Source
 
 
 class LocalSource(Source, abc.ABC):
@@ -26,18 +24,20 @@ class LocalSource(Source, abc.ABC):
         super().__init__(**kwargs)
         self.path = path
 
+    @override
     def info_dict(self) -> dict[str, Any]:
-        """Return JSON-able information about this source, without parent information."""
+        """Return JSON-able information about this source."""
         res = super().info_dict()
         res["path"] = self.path
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["path"] = self.path
 
     @abc.abstractmethod
-    def in_path(self, path: Path) -> LocalSource:  # TODO: use Self in 3.11+
+    def in_path(self, path: Path) -> Self:
         """
         Return a new source, the same as this one but on a different path.
 
@@ -49,7 +49,8 @@ class LocalSource(Source, abc.ABC):
         """
         Scan sources looking for all places that define a version number.
 
-        Distribution-specific subclasses can assume access to distro-specific tools.
+        Distribution-specific subclasses can assume access to distro-specific
+        tools.
 
         :param allow_exec: if True, allow running code from the repository to
                            find versions
@@ -67,7 +68,8 @@ class File(LocalSource):
         super().__init__(**kwargs)
         assert self.path.is_file()
 
-    def in_path(self, path: Path) -> File:
+    @override
+    def in_path(self, path: Path) -> Self:
         return self.__class__(**self.derive_kwargs(path=path))
 
 
@@ -80,14 +82,18 @@ class Dir(LocalSource):
         super().__init__(**kwargs)
         assert self.path.is_dir()
 
-    def in_path(self, path: Path) -> Dir:
+    @override
+    def in_path(self, path: Path) -> Self:
         return self.__class__(**self.derive_kwargs(path=path))
 
+    @override
     def lint_find_versions(self, *, allow_exec: bool = False) -> dict[str, str]:
         versions = super().lint_find_versions(allow_exec=allow_exec)
 
         if (autotools := self.path / "configure.ac").exists():
-            re_autotools = re.compile(r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)")
+            re_autotools = re.compile(
+                r"\s*AC_INIT\s*\(\s*[^,]+\s*,\s*\[?([^,\]]+)"
+            )
             with autotools.open("rt") as fd:
                 for line in fd:
                     if mo := re_autotools.match(line):
@@ -103,7 +109,9 @@ class Dir(LocalSource):
                         break
 
         if (cmake := self.path / "CMakeLists.txt").exists():
-            re_cmake = re.compile(r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)""")
+            re_cmake = re.compile(
+                r"""\s*set\s*\(\s*PACKAGE_VERSION\s+["']([^"']+)"""
+            )
             with cmake.open("rt") as fd:
                 for line in fd:
                     if mo := re_cmake.match(line):
@@ -147,26 +155,35 @@ class Git(Dir):
     #: False if the git repo is ephemeral and can be modified at will
     readonly: bool
 
-    def __init__(self, *, repo: git.Repo | None = None, readonly: bool = True, **kwargs) -> None:
+    def __init__(
+        self,
+        *,
+        repo: git.Repo | None = None,
+        readonly: bool = True,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.repo = repo or git.Repo(self.path)
         self.readonly = readonly
 
+    @override
     def info_dict(self) -> dict[str, Any]:
-        """Return JSON-able information about this source, without parent information."""
+        """Return JSON-able information about this source."""
         res = super().info_dict()
         res["readonly"] = self.readonly
         return res
 
+    @override
     def add_init_args_for_derivation(self, kwargs: dict[str, Any]) -> None:
         super().add_init_args_for_derivation(kwargs)
         kwargs["repo"] = self.repo
         kwargs["readonly"] = self.readonly
 
-    def in_path(self, path: Path) -> Git:
+    @override
+    def in_path(self, path: Path) -> Self:
         return self.__class__(**self.derive_kwargs(path=path, repo=None))
 
-    def get_branch(self, branch: str) -> Git:
+    def get_branch(self, branch: str) -> "Git":
         """
         Return a Git repo with self.branch as the current branch
         """
@@ -174,11 +191,13 @@ class Git(Dir):
             return self
 
         if not self.readonly:
-            raise NotImplementedError("Checkout branch in place not yet implemented")
+            raise NotImplementedError(
+                "Checkout branch in place not yet implemented"
+            )
 
         return self._git_clone(self.path.as_posix(), branch)
 
-    def get_writable(self) -> Git:
+    def get_writable(self) -> "Git":
         """
         Return a Git repo that is not readonly.
 
@@ -189,7 +208,7 @@ class Git(Dir):
 
         return self._git_clone(self.path.as_posix())
 
-    def get_clean(self) -> Git:
+    def get_clean(self) -> "Git":
         """
         Return a Git repo that is not dirty.
 
@@ -199,7 +218,9 @@ class Git(Dir):
             return self
         return self._git_clone(self.path.as_posix())
 
-    def find_branch(self, name: str) -> git.refs.symbolic.SymbolicReference | None:
+    def find_branch(
+        self, name: str
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Look for the named branch locally or in the origin repository.
 
@@ -233,7 +254,9 @@ class Git(Dir):
             res[tag.name] = tag
         return res
 
-    def find_tags(self, hexsha: str | None = None) -> dict[str, git.objects.Commit]:
+    def find_tags(
+        self, hexsha: str | None = None
+    ) -> dict[str, git.objects.Commit]:
         """
         Return the tags corresponding to the given commit hash (if any)
         """
@@ -247,7 +270,9 @@ class Git(Dir):
 
         return res
 
-    def lint_find_upstream_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+    def lint_find_upstream_tag(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Find the upstream tag matching the current version.
 
@@ -255,7 +280,9 @@ class Git(Dir):
         """
         return None
 
-    def lint_find_packaging_tag(self) -> git.refs.symbolic.SymbolicReference | None:
+    def lint_find_packaging_tag(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Find the packaging tag matching the current version.
 
@@ -263,7 +290,9 @@ class Git(Dir):
         """
         return None
 
-    def lint_find_packaging_branch(self) -> git.refs.symbolic.SymbolicReference | None:
+    def lint_find_packaging_branch(
+        self,
+    ) -> git.refs.symbolic.SymbolicReference | None:
         """
         Find the packaging branch
 

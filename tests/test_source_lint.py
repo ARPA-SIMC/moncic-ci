@@ -1,70 +1,76 @@
-from __future__ import annotations
-
 import unittest
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Self, override
 from unittest import mock
 
-from moncic.distro import DistroFamily
-from moncic.source.lint import Reporter
+from moncic.distro import Distro, DistroFamily
 from moncic.source import Source
 from moncic.source.distro import DistroSource
-from moncic.source.local import File, Dir, Git
-from moncic.source.lint import guest_lint
-
-from .source import GitRepo
-
-if TYPE_CHECKING:
-    from moncic.distro import Distro
-
+from moncic.source.lint import Reporter, guest_lint
+from moncic.source.local import Dir, File, Git
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")
 SID = DistroFamily.lookup_distro("sid")
 
 
 class MockDistroSource(DistroSource):
+    @override
     @classmethod
-    def create_from_file(cls, parent: File, *, distro: Distro) -> "DistroSource":
+    def create_from_file(cls, parent: File, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
+    @override
     @classmethod
-    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> "DistroSource":
+    def create_from_dir(cls, parent: Dir, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
+    @override
     @classmethod
-    def create_from_git(cls, parent: Git, *, distro: Distro) -> "DistroSource":
+    def create_from_git(cls, parent: Git, *, distro: Distro) -> DistroSource:
         raise NotImplementedError()
 
-    def in_path(self, path: Path) -> LocalSource:  # TODO: use Self in 3.11+
+    @override
+    def in_path(self, path: Path) -> Self:
         raise NotImplementedError()
 
 
 class MockReporter(Reporter):
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.errors: list[str] = []
         self.warnings: list[str] = []
 
-    def error(self, source: Source, message: str):
+    @override
+    def error(self, source: Source, message: str) -> None:
         self.errors.append(message)
         self.error_count += 1
 
-    def warning(self, source: Source, message: str):
+    @override
+    def warning(self, source: Source, message: str) -> None:
         self.warnings.append(message)
         self.warning_count += 1
 
 
 class TestLint(unittest.TestCase):
     def assertLint(
-        self, *, versions: dict[str, str], errors: list[str] | None = None, warnings: list[str] | None = None
-    ):
+        self,
+        *,
+        versions: dict[str, str],
+        errors: list[str] | None = None,
+        warnings: list[str] | None = None
+    ) -> None:
         """
         Make sure we get the given lint warning given a set of detected versions
         """
         reporter = MockReporter()
-        source = MockDistroSource(name="test", path=Path("/dev/null"), distro=SID)
+        source = MockDistroSource(
+            name="test", path=Path("/dev/null"), distro=SID
+        )
 
-        with mock.patch("moncic.source.local.LocalSource.lint_find_versions", return_value=versions):
+        with mock.patch(
+            "moncic.source.local.LocalSource.lint_find_versions",
+            return_value=versions,
+        ):
             guest_lint(source, reporter)
 
         if errors:
@@ -77,7 +83,7 @@ class TestLint(unittest.TestCase):
         else:
             self.assertEqual(reporter.warnings, [])
 
-    def test_versions(self):
+    def test_versions(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.1",
@@ -85,10 +91,13 @@ class TestLint(unittest.TestCase):
                 "debian-release": "1.2-1",
                 "spec-release": "1.2-1rocky9",
             },
-            warnings=["Versions mismatch: 1.1 in autotools; 1.2 in meson, debian-release, spec-release"],
+            warnings=[
+                "Versions mismatch: 1.1 in autotools; 1.2 in meson,"
+                " debian-release, spec-release"
+            ],
         )
 
-    def test_versions_tag(self):
+    def test_versions_tag(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.2",
@@ -97,10 +106,13 @@ class TestLint(unittest.TestCase):
                 "debian-release": "1.2-1",
                 "spec-release": "1.2-1rocky9",
             },
-            warnings=["Versions mismatch: 1.2 in autotools, meson, debian-release, spec-release; 1.3 in tag"],
+            warnings=[
+                "Versions mismatch: 1.2 in autotools, meson, debian-release,"
+                " spec-release; 1.3 in tag"
+            ],
         )
 
-    def test_versions_tag_debian(self):
+    def test_versions_tag_debian(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.2",
@@ -108,10 +120,13 @@ class TestLint(unittest.TestCase):
                 "tag-debian": "1.3",
                 "tag-debian-release": "1.3-1",
             },
-            warnings=["Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-debian, tag-debian-release"],
+            warnings=[
+                "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-debian,"
+                " tag-debian-release"
+            ],
         )
 
-    def test_versions_tag_arpa(self):
+    def test_versions_tag_arpa(self) -> None:
         self.assertLint(
             versions={
                 "autotools": "1.2",
@@ -119,7 +134,10 @@ class TestLint(unittest.TestCase):
                 "tag-arpa": "1.3",
                 "tag-arpa-release": "1.3-1",
             },
-            warnings=["Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-arpa, tag-arpa-release"],
+            warnings=[
+                "Versions mismatch: 1.2 in autotools, meson; 1.3 in tag-arpa,"
+                " tag-arpa-release"
+            ],
         )
 
 
@@ -129,9 +147,12 @@ class TestLint(unittest.TestCase):
 #         self.method_stack = contextlib.ExitStack()
 #         self.method_stack.__enter__()
 #         self.moncic = self.method_stack.enter_context(make_moncic())
-#         self.session = self.method_stack.enter_context(self.moncic.mock_session())
+#         self.session = self.method_stack.enter_context(
+#             self.moncic.mock_session()
+#         )
 #         self.repo = GitRepo()
-#         self.repo.add("meson.build", "project('test', 'cpp', version: '1.2')\n")
+#         self.repo.add("meson.build",
+#             "project('test', 'cpp', version: '1.2')\n")
 #         self.repo.commit("initial")
 #         self.repo.git("tag", "v1.2")
 #
@@ -158,7 +179,9 @@ class TestLint(unittest.TestCase):
 #
 #     def test_tag_version(self):
 #         self.repo.git("checkout", "-b", "debian/sid")
-#         self.repo.add("debian/changelog", "test (1.1-1) UNRELEASED; urgency=low")
+#         self.repo.add(
+#             "debian/changelog", "test (1.1-1) UNRELEASED; urgency=low"
+#         )
 #         self.repo.commit("packaged for debian")
 #         self.repo.git("tag", "debian/1.2-1")
 #
@@ -213,7 +236,9 @@ class TestLint(unittest.TestCase):
 #         # upstream tag and a packaging tag/branch should only affect the
 #         # packaging files
 #         self.repo.git("checkout", "-b", "debian/sid")
-#         self.repo.add("debian/changelog", "test (1.2-1) UNRELEASED; urgency=low")
+#         self.repo.add(
+#             "debian/changelog", "test (1.2-1) UNRELEASED; urgency=low"
+#         )
 #         self.repo.add(
 #             "debian/gbp.conf",
 #             """
@@ -228,14 +253,19 @@ class TestLint(unittest.TestCase):
 #
 #         self.repo.add("file", "contents")
 #         self.repo.commit("change to upstream")
-#         self.assertEqual(self._lint(SID), (["file: upstream file affected by debian branch"], []))
+#         self.assertEqual(
+#             self._lint(SID),
+#             (["file: upstream file affected by debian branch"], []),
+#         )
 #
 #     def test_packaging_changes_deb_release(self):
 #         # Consistency between tags and commit history: the changes between an
 #         # upstream tag and a packaging tag/branch should only affect the
 #         # packaging files
 #         self.repo.git("checkout", "-b", "debian/sid")
-#         self.repo.add("debian/changelog", "test (1.2-1) UNRELEASED; urgency=low")
+#         self.repo.add(
+#             "debian/changelog", "test (1.2-1) UNRELEASED; urgency=low"
+#         )
 #         self.repo.add(
 #             "debian/gbp.conf",
 #             """
@@ -254,11 +284,16 @@ class TestLint(unittest.TestCase):
 #         self.repo.add("file", "contents")
 #         self.repo.commit("change to upstream")
 #
-#         self.repo.add("debian/changelog", "test (1.2-2) UNRELEASED; urgency=low")
+#         self.repo.add(
+#             "debian/changelog", "test (1.2-2) UNRELEASED; urgency=low"
+#         )
 #         self.repo.commit("packaged")
 #
 #         self.repo.git("tag", "debian/1.2-2")
-#         self.assertEqual(self._lint(SID), (["file: upstream file affected by debian branch"], []))
+#         self.assertEqual(
+#             self._lint(SID),
+#             (["file: upstream file affected by debian branch"], []),
+#         )
 #
 #     def test_packaging_changes_arpa(self):
 #         self.repo.add(
@@ -300,7 +335,10 @@ class TestLint(unittest.TestCase):
 # Release: 2rocky9
 # """,
 #         )
-#         self.assertEqual(self._lint(ROCKY9), (["file: upstream file affected by packaging changes"], []))
+#         self.assertEqual(
+#             self._lint(ROCKY9),
+#             (["file: upstream file affected by packaging changes"], []),
+#         )
 #
 #         # ------------
 #         # TODO: Checks in git history:
