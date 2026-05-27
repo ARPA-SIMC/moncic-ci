@@ -1,3 +1,7 @@
+# Version UNRELEASED
+
+* Implemented configuring podman images to extend other podman images
+
 # Version 0.29
 
 * Test and deal with an ARPA source with specfile in root but no patches (#124)

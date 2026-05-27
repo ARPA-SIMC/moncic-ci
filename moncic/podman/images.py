@@ -132,6 +132,18 @@ class PodmanImages(BootstrappingImages):
     def bootstrap_extend(
         self, image: "BootstrappableImage", parent: "RunnableImage"
     ) -> "RunnableImage":
-        raise NotImplementedError(
-            "Extending podman images is not yet implemented"
-        )
+        from .image import PodmanImage
+
+        if not isinstance(parent, PodmanImage):
+            raise NotImplementedError(
+                "A podman image can only extend another podman image"
+            )
+
+        image.logger.info("bootstrapping in podman")
+
+        dest_repository, dest_tag = self.podman_name(image.name)
+        parent.podman_image.tag(dest_repository, dest_tag)
+
+        res = self.image(image.name)
+        res.update()
+        return res
