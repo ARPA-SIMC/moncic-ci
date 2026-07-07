@@ -51,7 +51,9 @@ class PodmanImage(RunnableImage):
     def commit(self, container: "PodmanContainer") -> None:
         """Commit the container and update the image."""
         assert container.container is not None
-        podman_image = container.container.commit()
+        podman_image = container.container.commit(
+            pause=True, changes=["USER root:root", "WORKDIR /"]
+        )
         self.podman_image = podman_image
         self.id = podman_image.id
         self.short_id = podman_image.short_id
