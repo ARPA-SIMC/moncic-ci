@@ -36,3 +36,17 @@ options:
 Run `monci ci` on a source using a Debian image to attempt to build a Debian
 package. Moncic-CI will examine the source to find how it should be built,
 using one of the strategies described in [Source styles](source-styles.md).
+
+## Running autopkgtest
+
+You can use these commands to use Moncic-CI images as bases for running autopkgtests.
+
+To make an autopkgtest image:
+```
+autopkgtest-build-podman -i localhost/moncic-ci:IMAGENAME --init=systemd
+```
+
+To run tests on it:
+```
+autopkgtest file.changes -- podman localhost/autopkgtest/systemd/moncic-ci:IMAGENAME
+```
