@@ -61,7 +61,7 @@ def main() -> None:
         "-i",
         "--integration",
         action="store_true",
-        help="run integration tests from itests/ instead of unit tests from tests/",
+        help="run integration tests from itests/ instead of unit tests",
     )
     parser.add_argument(
         "-c",
@@ -118,7 +118,7 @@ def main() -> None:
         cmd += ["-s", "itests"]
         verbose = True
     else:
-        cmd += ["-s", "tests"]
+        cmd += ["-s", "moncic"]
     if verbose:
         cmd += ["--verbose"]
     cmd += ["-t", top_srcdir.as_posix()]
@@ -137,7 +137,7 @@ def main() -> None:
             runner + ["run"] + cmd, check=True, cwd=top_srcdir.as_posix()
         )
         # subprocess.run(runner + ["combine"], check=True, cwd=top_srcdir.as_posix())
-        report_args = ["--precision=2", "--include", "monci,moncic/*,tests/*"]
+        report_args = ["--precision=2", "--include", "monci,moncic/*"]
         subprocess.run(runner + ["html"] + report_args, check=True)
         subprocess.run(
             runner

@@ -24,3 +24,7 @@ line_length = 80
 order_by_type = false
 case_sensitive = true
 known_first_party = "moncic"
+
+[tool.pytest.ini_options]
+# addopts = ["--import-mode=importlib", "--ignore=doc"]
+addopts = ["--ignore=doc", "--ignore=integration-tests-workdir", "--ignore=itests"]

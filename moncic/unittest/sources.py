@@ -73,5 +73,5 @@ class SourcesTestCase(unittest.TestCase):
     @classmethod
     def get_package(cls, name: str = "hello") -> Package:
         """Return a Package object from the integration test data."""
-        packages_dir = top_srcdir / "tests"
+        packages_dir = top_srcdir / "testdata"
         return Package(packages_dir / name)
