@@ -84,7 +84,10 @@ class DistroTestsBase(MoncicTestCase, abc.ABC):
         self.assertEqual(
             script.lines,
             [
-                "/usr/bin/systemctl mask --now systemd-resolved",
+                "if test -x /usr/bin/systemctl",
+                "then",
+                "    /usr/bin/systemctl mask --now systemd-resolved",
+                "fi",
                 "/usr/bin/dnf check-update -y -q || true",
                 "/usr/bin/dnf upgrade -y -q",
                 f"/usr/bin/dnf install -y -q {shlex.join(packages)}",
