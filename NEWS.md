@@ -2,6 +2,8 @@
 
 * Implemented configuring podman images to extend other podman images
 * Fixed tests in debian packaging
+* Fedora 42 and Fedora 44 containers now work with podman
+* Added instructions for running autopkgtests from moncic-ci images
 
 # Version 0.29
 
