@@ -1,8 +1,6 @@
 #! /usr/bin/make -f
 
 export PYBUILD_NAME=moncic-ci
-export PYBUILD_TEST_ARGS=tests
-
 
 %:
 	dh $@ --with python3 --buildsystem=pybuild
