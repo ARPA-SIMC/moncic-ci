@@ -41,23 +41,24 @@ class Bootstrap(MoncicCommand):
             for name in names:
                 image = images.image(name)
 
-                if image.bootstrapped:
+                bootstrappable_image: BootstrappableImage | None = None
+                if image.bootstrapped and self.args.recreate:
                     assert isinstance(image, RunnableImage)
-                    if self.args.recreate:
-                        bootstrappable_image = image.remove()
-                    else:
-                        return None
-                else:
+                    bootstrappable_image = image.remove()
+                elif not image.bootstrapped:
                     assert isinstance(image, BootstrappableImage)
                     bootstrappable_image = image
 
-                assert bootstrappable_image is not None
-                try:
-                    image = bootstrappable_image.bootstrap()
-                except Exception:
-                    log.critical("%s: cannot create image", name, exc_info=True)
-                    return 5
+                if bootstrappable_image is not None:
+                    try:
+                        image = bootstrappable_image.bootstrap()
+                    except Exception:
+                        log.critical(
+                            "%s: cannot create image", name, exc_info=True
+                        )
+                        return 5
 
+                assert isinstance(image, RunnableImage)
                 log.info("%s: updating image", name)
                 try:
                     image.update()

@@ -4,6 +4,7 @@
 * Fixed tests in debian packaging
 * Fedora 42 and Fedora 44 containers now work with podman
 * Added instructions for running autopkgtests from moncic-ci images
+* Allow bootstrapping a mix of bootstrapped and non-bootstrapped images (#127)
 
 # Version 0.29
 
