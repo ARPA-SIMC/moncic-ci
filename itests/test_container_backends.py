@@ -40,9 +40,10 @@ class DistroMaintenanceTests(IntegrationTestsBase, abc.ABC):
         config = ContainerConfig()
         config.forward_user = sudoer
         config.configure_workdir(workdir)
-        with self.verbose_logging(), rimage.container(
-            config=config
-        ) as container:
+        with (
+            self.verbose_logging(),
+            rimage.container(config=config) as container,
+        ):
             res = container.run(
                 ["/usr/bin/stat", "--format=%u:%g", guest_workdir.as_posix()]
             )

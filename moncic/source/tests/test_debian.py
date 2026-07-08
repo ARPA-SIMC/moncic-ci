@@ -25,7 +25,6 @@ from moncic.source.debian import (
     SourceInfo,
 )
 from moncic.source.local import Dir, File, Git
-
 from moncic.unittest.source import (
     GitFixture,
     GitRepo,

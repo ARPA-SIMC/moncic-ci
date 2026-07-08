@@ -1,11 +1,10 @@
 from pathlib import Path
-from unittest import mock
 
+from moncic.cli.moncic import MoncicCommand, make_argparser
 from moncic.exceptions import Fail
+from moncic.moncic import MoncicConfig
 from moncic.provision.image import ConfiguredImage
 from moncic.unittest import TestCase
-from moncic.cli.moncic import MoncicCommand, make_argparser
-from moncic.moncic import MoncicConfig
 
 
 class CliImageTests(TestCase):

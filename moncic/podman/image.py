@@ -35,7 +35,7 @@ class PodmanImage(RunnableImage):
         name: str,
         distro: Distro,
         podman_image: "podman.domain.images.Image",
-        bootstrapped_from: BootstrappableImage | None = None
+        bootstrapped_from: BootstrappableImage | None = None,
     ) -> None:
         super().__init__(
             images=images,
@@ -75,7 +75,7 @@ class PodmanImage(RunnableImage):
         self,
         *,
         instance_name: str | None = None,
-        config: Optional["ContainerConfig"] = None
+        config: Optional["ContainerConfig"] = None,
     ) -> "Container":
         from .container import PodmanContainer
 
@@ -86,7 +86,7 @@ class PodmanImage(RunnableImage):
         self,
         *,
         instance_name: str | None = None,
-        config: Optional["ContainerConfig"] = None
+        config: Optional["ContainerConfig"] = None,
     ) -> "MaintenanceContainer":
         from .container import PodmanMaintenanceContainer
 

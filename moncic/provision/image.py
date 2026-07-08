@@ -19,7 +19,7 @@ class ConfiguredImage(BootstrappableImage):
         images: "ConfiguredImages",
         name: str,
         config: Config,
-        variant_of: Optional["DistroImage"]
+        variant_of: Optional["DistroImage"],
     ) -> None:
         if variant_of is None:
             distro = config.distro

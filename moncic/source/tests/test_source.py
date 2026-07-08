@@ -7,7 +7,6 @@ import git
 
 from moncic.source.local import Git
 from moncic.source.source import CommandLog, Source, SourceStack
-
 from moncic.unittest.source import GitFixture
 
 if TYPE_CHECKING:

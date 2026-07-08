@@ -5,7 +5,6 @@ from typing import override
 from moncic.exceptions import Fail
 from moncic.source import Source
 from moncic.source.local import Dir, File, Git
-
 from moncic.unittest.source import (
     GitFixture,
     GitRepo,

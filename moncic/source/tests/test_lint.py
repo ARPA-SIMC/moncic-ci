@@ -57,7 +57,7 @@ class TestLint(unittest.TestCase):
         *,
         versions: dict[str, str],
         errors: list[str] | None = None,
-        warnings: list[str] | None = None
+        warnings: list[str] | None = None,
     ) -> None:
         """
         Make sure we get the given lint warning given a set of detected versions

@@ -5,7 +5,6 @@ from moncic.distro import DistroFamily
 from moncic.source import Source
 from moncic.source.local import Git
 from moncic.source.remote import URL
-
 from moncic.unittest.source import GitFixture
 
 ROCKY9 = DistroFamily.lookup_distro("rocky9")

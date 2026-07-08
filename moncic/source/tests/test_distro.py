@@ -8,7 +8,6 @@ from moncic.exceptions import Fail
 from moncic.source.distro import DistroSource, source_types
 from moncic.source.local import Dir, File, Git
 from moncic.source.source import Source
-
 from moncic.unittest.source import GitFixture
 
 ROCKY9 = cast(RpmDistro, DistroFamily.lookup_distro("rocky9"))

@@ -16,7 +16,6 @@ from moncic.source.rpm import (
     ARPASourceGit,
     RPMSource,
 )
-
 from moncic.unittest.source import (
     GitFixture,
     GitRepo,

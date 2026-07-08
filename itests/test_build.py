@@ -28,9 +28,10 @@ class BuildTests(IntegrationTestsBase, abc.ABC):
 
         context.debug.set(True)
 
-        with self.verbose_logging(), Source.create_local(
-            source=source_path
-        ) as local_source:
+        with (
+            self.verbose_logging(),
+            Source.create_local(source=source_path) as local_source,
+        ):
             source = DistroSource.create_from_local(
                 local_source, distro=rimage.distro
             )
@@ -82,9 +83,10 @@ class FedoraBuildTests(BuildTests, abc.ABC):
 
         context.debug.set(True)
 
-        with self.verbose_logging(), Source.create_local(
-            source=source_path
-        ) as local_source:
+        with (
+            self.verbose_logging(),
+            Source.create_local(source=source_path) as local_source,
+        ):
             source = DistroSource.create_from_local(
                 local_source, distro=rimage.distro
             )
