@@ -234,6 +234,7 @@ class DebDistroTestsBase(DistroTestsBase):
         self.assertEqual(
             script.lines,
             [
+                "sh -c 'rm -f /etc/apt/apt.conf.d/docker*'",
                 "/usr/bin/apt-get update",
                 "export DEBIAN_FRONTEND=noninteractive",
                 f"/usr/bin/apt-get --assume-yes --quiet --show-upgraded"

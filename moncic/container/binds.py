@@ -430,9 +430,9 @@ class BindConfigAptCache(BindConfig):
                 ]
             )
             setup_script.run_unquoted(
-                "chown _apt /var/cache/apt/archives/*.deb"
+                "chown _apt:root /var/cache/apt/archives/*.deb"
             )
-            setup_script.run(["chown", "_apt", "/var/cache/apt/archives"])
+            setup_script.run(["chown", "_apt:root", "/var/cache/apt/archives"])
 
         teardown_script = Script(
             f"apt cache mount teardown for {self.destination}",

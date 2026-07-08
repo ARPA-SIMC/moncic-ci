@@ -18,9 +18,18 @@ class FileInfo(NamedTuple):
 
 
 class DebCache:
+    """Manage a cache of debian packages that persists between containers."""
+
     def __init__(
         self, cache_dir: Path, cache_size: int = 512 * 1024 * 1024
     ) -> None:
+        """
+        Initialize a DebCache
+
+        :param cache_dir: path where packages are cached
+        :param cache_size: remove older packages when the cache size is above
+          this threshold (bytes)
+        """
         self.cache_dir = cache_dir
         # Maximum cache size in bytes
         self.cache_size = cache_size
@@ -64,7 +73,7 @@ class DebCache:
                 size += info.size
 
     def _debs_to_aptdir(self, dst_dir_fd: int) -> None:
-        """Handlink existing debs to the destination directory."""
+        """Hardlink existing debs to the destination directory."""
         with os.scandir(self.src_dir_fd) as it:
             for de in it:
                 if not de.name.endswith(".deb"):

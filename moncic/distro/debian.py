@@ -163,6 +163,9 @@ class DebianDistro(Distro):
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
         super().get_update_pkgdb_script(script)
+        # Remove docker minimization configuration, as we want to preserve the
+        # apt cache to persist it between container invocations
+        script.run(["sh", "-c", "rm -f /etc/apt/apt.conf.d/docker*"])
         script.run(["/usr/bin/apt-get", "update"])
 
     @override
