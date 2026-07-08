@@ -10,6 +10,7 @@ from typing import Any, override
 
 import git
 
+import moncic
 from moncic import context
 from moncic.container import BindConfig, BindType, Container, ContainerConfig
 from moncic.distro import Distro
@@ -37,6 +38,39 @@ def main_command(cls: type[Command]) -> type[Command]:
     """
     MAIN_COMMANDS.append(cls)
     return cls
+
+
+def make_argparser() -> argparse.ArgumentParser:
+    """Create the Moncic-CI argument parser."""
+    from moncic.utils import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Simple Continuous Integration tool"
+    )
+    parser.add_argument(
+        "--version", action="version", version=moncic.__version__
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="verbose output",
+        shared=True,
+    ),
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="debugging output",
+        shared=True,
+    ),
+    subparsers = parser.add_subparsers(
+        help="sub-command help", dest="handler", required=True
+    )
+
+    for cls in MAIN_COMMANDS:
+        cls.make_subparser(subparsers)
+
+    return parser
 
 
 @contextlib.contextmanager
@@ -114,7 +148,7 @@ class MoncicCommand(Command):
                 action="store",
                 shared=True,
                 type=Path,
-                help="directory where extra packages, if present, are added"
+                help="directory that contains extra packages to be added"
                 " to package sources in containers",
             )
         return parser
@@ -144,6 +178,8 @@ class MoncicCommand(Command):
         """
         if imagedir := expand_path(self.args.imagedir):
             config.imagedir = imagedir
+            # Also load YAML image configuration from nspawn image directories
+            config.imageconfdirs.append(imagedir)
 
         if self.args.extra_packages_dir:
             config.extra_packages_dir = expand_path(

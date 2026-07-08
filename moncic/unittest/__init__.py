@@ -112,6 +112,23 @@ class RunLogMatcher:
 class TestCase(unittest.TestCase):
     """TestCase extended with moncic-ci specific assertions."""
 
+    old_privs: ClassVar[ProcessPrivs]
+
+    @override
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        privs = SudoTestSuite()
+        privs.drop()
+        cls.old_privs = context.privs
+        context.privs = privs
+
+    @override
+    @classmethod
+    def tearDownClass(cls) -> None:
+        super().tearDownClass()
+        context.privs = cls.old_privs
+
     @override
     def setUp(self) -> None:
         super().setUp()
@@ -192,8 +209,9 @@ class CLITestCase(MockMoncicTestCase):
         stdout = io.StringIO()
         stderr = io.StringIO()
         returnvalue: int | None = None
-        with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(
-            stderr
+        with (
+            contextlib.redirect_stdout(stdout),
+            contextlib.redirect_stderr(stderr),
         ):
             try:
                 main()
@@ -207,23 +225,6 @@ class CLITestCase(MockMoncicTestCase):
 
 
 class MoncicTestCase(TestCase):
-    old_privs: ClassVar[ProcessPrivs]
-
-    @override
-    @classmethod
-    def setUpClass(cls) -> None:
-        super().setUpClass()
-        privs = SudoTestSuite()
-        privs.drop()
-        cls.old_privs = context.privs
-        context.privs = privs
-
-    @override
-    @classmethod
-    def tearDownClass(cls) -> None:
-        super().tearDownClass()
-        context.privs = cls.old_privs
-
     @contextlib.contextmanager
     def mount(
         self, mount_type: str, src: str | Path, path: Path
