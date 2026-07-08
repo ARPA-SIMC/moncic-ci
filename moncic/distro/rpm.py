@@ -165,7 +165,10 @@ class DnfDistro(RpmDistro):
     @override
     def get_setup_network_script(self, script: Script) -> None:
         super().get_setup_network_script(script)
-        script.run(["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"])
+        with script.if_("test -x /usr/bin/systemctl"):
+            script.run(
+                ["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"]
+            )
 
     @override
     def get_update_pkgdb_script(self, script: Script) -> None:
