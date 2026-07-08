@@ -1,9 +1,25 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "moncic-ci"
+dynamic = ["version"]
+readme = "README.md"
+requires-python = ">= 3.12"
+license = "GPL-2.0-or-later"
+license-files = ["LICENSE"]
+
+[project.urls]
+"Source code" = "https://github.com/ARPA-SIMC/moncic-ci"
+
 [tool.black]
 line-length = 80
 
 [tool.mypy]
 # https://mypy.readthedocs.io/en/latest/config_file.html
 mypy_path = "stubs"
+packages = ["moncic"]
 strict = true
 enable_error_code = "explicit-override"
 
