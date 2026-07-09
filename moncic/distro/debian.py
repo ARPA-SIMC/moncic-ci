@@ -161,11 +161,14 @@ class DebianDistro(Distro):
             images.host_run(cmd)
 
     @override
-    def get_update_pkgdb_script(self, script: Script) -> None:
-        super().get_update_pkgdb_script(script)
+    def get_update_pkgdb_script(
+        self, script: Script, extra_sources: dict[str, Any]
+    ) -> None:
+        super().get_update_pkgdb_script(script, extra_sources)
         # Remove docker minimization configuration, as we want to preserve the
         # apt cache to persist it between container invocations
         script.run(["sh", "-c", "rm -f /etc/apt/apt.conf.d/docker*"])
+        # TODO: install custom repositories
         script.run(["/usr/bin/apt-get", "update"])
 
     @override

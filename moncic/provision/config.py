@@ -14,27 +14,30 @@ if TYPE_CHECKING:
 class BootstrapInfo(NamedTuple):
     """Information used to bootstrap an image."""
 
-    # Name of the distribution used to bootstrap this image.
-    # If missing, this image needs to be created from an existing image
+    #: Name of the distribution used to bootstrap this image.
+    #: If missing, this image needs to be created from an existing image
     distro: str | None
-    # Name of the distribution used as a base for this one.
-    # If missing, this image needs to be created by bootstrapping from scratch
+    #: Name of the distribution used as a base for this one.
+    #: If missing, this image needs to be created by bootstrapping from scratch
     extends: str | None
-    # List of packages to install
+    #: List of packages to install
     packages: list[str]
-    # Contents of a script to run for system maintenance
+    #: Contents of a script to run for system maintenance
     maintscript: str | None
-    # List of users to propagate from host to image during maintenance
+    #: List of users to propagate from host to image during maintenance
     forward_users: list[str]
-    # When False, a CACHEDIR.TAG is created in the container image as a hint
-    # for backup programs to skip backing up an image that can be recreated
-    # from scratch
+    #: When False, a CACHEDIR.TAG is created in the container image as a hint
+    #: for backup programs to skip backing up an image that can be recreated
+    #: from scratch
     backup: bool
-    # Btrfs compression level to set on the OS image subvolume when it is
-    # created. The value is the same as can be set by `btrfs property set
-    # compression`. Default: the global 'compression' setting. You can use 'no'
-    # or 'none' to ask for no compression when one globally is set.
+    #: Btrfs compression level to set on the OS image subvolume when it is
+    #: created. The value is the same as can be set by `btrfs property set
+    #: compression`. Default: the global 'compression' setting. You can use 'no'
+    #: or 'none' to ask for no compression when one globally is set.
     compression: str | None
+    #: Distribution-specific list of named extra definitions for package
+    #: manager repositories
+    extra_sources: dict[str, Any]
 
     @classmethod
     def from_distro(cls, distro: Distro) -> Self:
@@ -46,6 +49,7 @@ class BootstrapInfo(NamedTuple):
             forward_users=[],
             backup=False,
             compression=None,
+            extra_sources={},
         )
 
     @classmethod
@@ -80,6 +84,7 @@ class BootstrapInfo(NamedTuple):
             forward_users=forward_users,
             backup=conf.pop("backup", False),
             compression=conf.pop("compression", None),
+            extra_sources=conf.pop("extra_sources", {}),
         )
 
 

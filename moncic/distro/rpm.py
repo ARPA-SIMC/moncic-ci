@@ -123,8 +123,10 @@ class YumDistro(RpmDistro):
         return super().get_base_packages() + ["yum"]
 
     @override
-    def get_update_pkgdb_script(self, script: Script) -> None:
-        super().get_update_pkgdb_script(script)
+    def get_update_pkgdb_script(
+        self, script: Script, extra_sources: dict[str, Any]
+    ) -> None:
+        super().get_update_pkgdb_script(script, extra_sources)
         script.run(
             ["/usr/bin/yum", "check-update"]
             + self.dnf_noninteractive_options(),
@@ -171,8 +173,10 @@ class DnfDistro(RpmDistro):
             )
 
     @override
-    def get_update_pkgdb_script(self, script: Script) -> None:
-        super().get_update_pkgdb_script(script)
+    def get_update_pkgdb_script(
+        self, script: Script, extra_sources: dict[str, Any]
+    ) -> None:
+        super().get_update_pkgdb_script(script, extra_sources)
         # check-update returns with code 100 if there are packages to upgrade
         script.run(
             ["/usr/bin/dnf", "check-update"]

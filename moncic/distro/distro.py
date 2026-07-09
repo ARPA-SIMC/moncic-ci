@@ -251,8 +251,16 @@ class Distro(abc.ABC):
     def get_setup_network_script(self, script: Script) -> None:
         """Add commands to use to setup networking."""
 
-    def get_update_pkgdb_script(self, script: Script) -> None:
-        """Add commands to use to update package information."""
+    def get_update_pkgdb_script(
+        self, script: Script, extra_sources: dict[str, Any]
+    ) -> None:
+        """
+        Add commands to use to update package information.
+
+        :param script: target script for generated commands
+        :param extra_sources: extra package sources, mapping their names to
+          distribution-specific definitions
+        """
 
     def get_upgrade_system_script(self, script: Script) -> None:
         """Add commands to use to upgrade system packages."""
