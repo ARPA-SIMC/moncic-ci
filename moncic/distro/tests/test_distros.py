@@ -9,6 +9,7 @@ from unittest import mock
 from moncic.distro import Distro, DistroFamily
 from moncic.image import BootstrappableImage, RunnableImage
 from moncic.mock.session import MockRunLog, MockSession, RunLogEntry
+from moncic.utils.script import Script
 from moncic.unittest import MoncicTestCase
 
 
@@ -286,6 +287,34 @@ class TestTesting(DebianDistroTestsBase):
 
 class TestSid(DebianDistroTestsBase):
     name = "sid"
+
+    def test_extra_source_deb822(self) -> None:
+        script = Script("upgrade")
+        self.distro.get_update_pkgdb_script(
+            script, {"test": {"deb822": "foobar"}}
+        )
+        self.assertEqual(
+            script.lines,
+            [
+                "sh -c 'rm -f /etc/apt/apt.conf.d/docker*'",
+                "echo foobar > /etc/apt/sources.list.d/test.sources",
+                "/usr/bin/apt-get update",
+            ],
+        )
+
+    def test_extra_source_extrepo(self) -> None:
+        script = Script("upgrade")
+        self.distro.get_update_pkgdb_script(
+            script, {"test": {"extrepo": "foobar"}}
+        )
+        self.assertEqual(
+            script.lines,
+            [
+                "sh -c 'rm -f /etc/apt/apt.conf.d/docker*'",
+                "/usr/bin/extrepo enable foobar",
+                "/usr/bin/apt-get update",
+            ],
+        )
 
 
 class FedoraDistroTestsBase(DistroTestsBase):

@@ -6,6 +6,8 @@
 * Added instructions for running autopkgtests from moncic-ci images
 * Allow bootstrapping a mix of bootstrapped and non-bootstrapped images (#127)
 * Load image configuration also from nspawn imagedirs (#126)
+* Allow to specify `extra_sources` for Debian image configuration.
+  See [the image container configuration documentation](doc/image-config.md)
 
 # Version 0.29
 
