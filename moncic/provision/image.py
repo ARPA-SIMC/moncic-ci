@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING, override
+from typing import Optional, TYPE_CHECKING, override, Any
 
 from moncic.image import BootstrappableImage
 
@@ -66,6 +66,10 @@ class ConfiguredImage(BootstrappableImage):
             "%s: removing image configuration file", self.config.path
         )
         self.config.path.unlink()
+
+    @override
+    def _extra_sources(self) -> dict[str, Any]:
+        return self.config.bootstrap_info.extra_sources
 
 
 class DistroImage(BootstrappableImage):

@@ -120,6 +120,19 @@ class BootstrappableImage(Image, abc.ABC):
     def remove_config(self) -> None:
         """Remove the configuration file, if it exists."""
 
+    def _extra_sources(self) -> dict[str, Any]:
+        return {}
+
+    @cached_property
+    def extra_sources(self) -> dict[str, Any]:
+        """
+        Extra package sources to use.
+
+        :returns: a dict mapping source names to distribution-specific
+          definitions
+        """
+        return self._extra_sources()
+
 
 class RunnableImage(Image, abc.ABC):
     def __init__(
@@ -153,6 +166,15 @@ class RunnableImage(Image, abc.ABC):
     def get_backend_id(self) -> str:
         """Return how the image is called in the backend."""
 
+    def get_update_packages_script(self, script: Script) -> None:
+        """Add commands to use to update packages."""
+        if self.bootstrapped_from is None:
+            return
+        self.distro.get_update_pkgdb_script(
+            script, self.bootstrapped_from.extra_sources
+        )
+        self.distro.get_upgrade_system_script(script)
+
     def update_container(self, container: "MaintenanceContainer") -> None:
         """
         Run update machinery on a container.
@@ -173,8 +195,7 @@ class RunnableImage(Image, abc.ABC):
         for text in self.bootstrapped_from.maintscripts:
             for line in text.splitlines():
                 script.run_unquoted(line)
-        self.distro.get_update_pkgdb_script(script)
-        self.distro.get_upgrade_system_script(script)
+        self.get_update_packages_script(script)
         self.distro.get_install_packages_script(
             script, sorted(self.bootstrapped_from.package_list)
         )

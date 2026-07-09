@@ -100,6 +100,7 @@ class DebianDistro(Distro):
             "eatmydata",
             "iproute2",
             "ca-certificates",
+            "extrepo",
         ]
         return res
 
@@ -161,11 +162,35 @@ class DebianDistro(Distro):
             images.host_run(cmd)
 
     @override
-    def get_update_pkgdb_script(self, script: Script) -> None:
-        super().get_update_pkgdb_script(script)
+    def get_update_pkgdb_script(
+        self, script: Script, extra_sources: dict[str, Any]
+    ) -> None:
+        super().get_update_pkgdb_script(script, extra_sources)
+        print("ZAAA", extra_sources)
         # Remove docker minimization configuration, as we want to preserve the
         # apt cache to persist it between container invocations
         script.run(["sh", "-c", "rm -f /etc/apt/apt.conf.d/docker*"])
+        # Install custom repositories
+        for name, source_def in extra_sources.items():
+            match source_def:
+                case {"deb822": body}:
+                    if not isinstance(body, str):
+                        raise ValueError(
+                            "deb822 body for extra sources must be a string"
+                        )
+                    script.write(
+                        Path(f"/etc/apt/sources.list.d/{name}.sources"), body
+                    )
+                case {"extrepo": reponame}:
+                    if not isinstance(reponame, str):
+                        raise ValueError(
+                            "extrepo body for extra sources must be a string"
+                        )
+                    script.run(["/usr/bin/extrepo", "enable", reponame])
+                case _:
+                    raise ValueError(
+                        f"{name}: repository definition not recognized"
+                    )
         script.run(["/usr/bin/apt-get", "update"])
 
     @override

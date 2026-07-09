@@ -239,8 +239,7 @@ class Builder[SourceType: DistroSource](
                 cwd=Path("/"),
                 user=UserConfig.root(),
             )
-            self.image.distro.get_update_pkgdb_script(script)
-            self.image.distro.get_upgrade_system_script(script)
+            self.image.get_update_packages_script(script)
             self.image.distro.get_prepare_build_script(script)
             config.add_guest_scripts(setup=script)
         yield None
