@@ -214,7 +214,7 @@ class DebDistroTestsBase(DistroTestsBase):
             r"(/usr/bin/eatmydata )?/usr/s?bin/(?:mmdebstrap|debootstrap)",
             re.escape(
                 "--include=apt-utils,bash,ca-certificates,dbus,"
-                "eatmydata,iproute2,systemd"
+                "eatmydata,extrepo,iproute2,systemd"
             ),
             re.escape("--variant=minbase"),
         ]
@@ -247,7 +247,7 @@ class DebDistroTestsBase(DistroTestsBase):
                 f"/usr/bin/apt-get --assume-yes --quiet --show-upgraded"
                 f" '-o Dpkg::Options::=\"--force-confnew\"'"
                 f" {self.install_verb} apt-utils bash ca-certificates"
-                f" dbus eatmydata iproute2 systemd",
+                f" dbus eatmydata extrepo iproute2 systemd",
             ],
         )
 

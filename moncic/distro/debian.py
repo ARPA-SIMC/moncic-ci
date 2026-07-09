@@ -100,6 +100,7 @@ class DebianDistro(Distro):
             "eatmydata",
             "iproute2",
             "ca-certificates",
+            "extrepo",
         ]
         return res
 
