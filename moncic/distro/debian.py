@@ -166,7 +166,6 @@ class DebianDistro(Distro):
         self, script: Script, extra_sources: dict[str, Any]
     ) -> None:
         super().get_update_pkgdb_script(script, extra_sources)
-        print("ZAAA", extra_sources)
         # Remove docker minimization configuration, as we want to preserve the
         # apt cache to persist it between container invocations
         script.run(["sh", "-c", "rm -f /etc/apt/apt.conf.d/docker*"])
