@@ -169,7 +169,7 @@ class DnfDistro(RpmDistro):
         super().get_setup_network_script(script)
         with script.if_("test -x /usr/bin/systemctl"):
             script.run(
-                ["/usr/bin/systemctl", "mask", "--now", "systemd-resolved"]
+                ["/usr/bin/systemctl", "mask", "systemd-resolved"]
             )
 
     @override
