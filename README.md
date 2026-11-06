@@ -53,7 +53,7 @@ Run `monci distros` to get a list of supported OS images, and `monci bootstrap`
 to create one. For example:
 
 ```
-sudo monci bootstrap rocky8
+sudo monci bootstrap rocky10
 ```
 
 ## Using Moncic-CI
@@ -80,11 +80,11 @@ filesystem it can optionally use its features to reduce disk usage.
 The up to date list of supported operating systems can be queried with `monci
 distros`. Currently supported, on nspawn and podman containers:
 
-* Almalinux: 8 and 9
+* AlmaLinux: 8 to 10
 * Centos: 7
 * Debian: stretch to trixie and testing/sid
-* Fedora: 39 to 42
-* Rocky: 8 and 9
+* Fedora: 39 to 44
+* Rocky Linux: 8 to 10
 * Ubuntu: xenial, bionic, focal, jammy, noble, oracular, plucky
 
 Caveats from the last integration test run:
